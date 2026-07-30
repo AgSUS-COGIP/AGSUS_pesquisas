@@ -45,13 +45,13 @@ export default function Home() {
 
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href="/cddi"
+              href="/acesso"
               className="inline-flex items-center justify-center rounded-xl bg-[var(--primary)] px-6 py-4 font-black text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-[#064f8d]"
             >
-              Abrir formulário CDDI 2026
+              Entrar no CDDI 2026
             </Link>
             <span className="inline-flex items-center rounded-xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-slate-600">
-              12 competências · 52 perguntas
+              Acesso por e-mail institucional
             </span>
           </div>
         </div>
@@ -66,16 +66,16 @@ export default function Home() {
           </div>
           <div className="grid gap-4 p-6 sm:grid-cols-3 lg:grid-cols-1">
             <div className="rounded-2xl bg-blue-50 p-4">
-              <strong className="text-[var(--primary-dark)]">Escala comportamental</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Nunca, raramente, às vezes, frequentemente e sempre.</p>
+              <strong className="text-[var(--primary-dark)]">Identificação segura</strong>
+              <p className="mt-2 text-sm leading-6 text-slate-600">O acesso é confirmado por link enviado ao e-mail institucional.</p>
             </div>
             <div className="rounded-2xl bg-emerald-50 p-4">
               <strong className="text-emerald-900">Rascunho automático</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">O progresso local é preservado durante o preenchimento.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">O progresso é preservado durante o preenchimento.</p>
             </div>
             <div className="rounded-2xl bg-amber-50 p-4">
-              <strong className="text-amber-900">Revisão antes do envio</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Cada competência apresenta seu percentual de conclusão.</p>
+              <strong className="text-amber-900">Perfis diferenciados</strong>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Participantes e lideranças recebem menus e permissões próprios.</p>
             </div>
           </div>
         </aside>
