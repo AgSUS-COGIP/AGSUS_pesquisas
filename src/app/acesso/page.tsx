@@ -1,14 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export default function AccessPage() {
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -19,98 +16,94 @@ export default function AccessPage() {
     void checkSession();
   }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function signInWithGoogle() {
+    setLoading(true);
     setMessage("");
 
-    const normalized = email.trim().toLowerCase();
-    if (!normalized.endsWith("@agenciasus.org.br")) {
-      setMessage("Utilize seu e-mail institucional @agenciasus.org.br.");
-      return;
-    }
-
-    setLoading(true);
     try {
       const supabase = createBrowserSupabaseClient();
       const redirectTo = `${window.location.origin}/auth/confirm?next=/area`;
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalized,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
         options: {
-          emailRedirectTo: redirectTo,
-          shouldCreateUser: true,
+          redirectTo,
+          queryParams: {
+            hd: "agenciasus.org.br",
+            prompt: "select_account",
+          },
         },
       });
       if (error) throw error;
-      setSent(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar o link de acesso.");
-    } finally {
+      setMessage(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#edf3f8] px-5 py-10">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="relative hidden overflow-hidden bg-[#102c4c] p-12 text-white lg:flex lg:flex-col lg:justify-between">
-          <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-blue-400/20" />
-          <div className="absolute -bottom-28 -left-16 h-80 w-80 rounded-full bg-emerald-400/15" />
-          <div className="relative">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-300">AgSUS</p>
-            <h1 className="mt-4 max-w-lg text-4xl font-black leading-tight">Ciclo de Devolutivas e Desenvolvimento Individual</h1>
-            <p className="mt-5 max-w-lg text-lg leading-8 text-blue-100">
-              Autoavaliação, avaliação da chefia, devolutivas e acompanhamento do desenvolvimento profissional em um ambiente seguro.
-            </p>
-          </div>
-          <div className="relative grid gap-3 text-sm text-blue-100">
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Acesso restrito aos participantes cadastrados.</div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">O link de acesso é pessoal e enviado ao e-mail institucional.</div>
-          </div>
-        </section>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#eef4f8] px-5 py-10">
+      <div className="absolute inset-x-0 top-0 h-2 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
+      <div className="absolute left-[-12rem] top-[-10rem] h-[34rem] w-[34rem] rounded-full bg-blue-200/50 blur-3xl" />
+      <div className="absolute bottom-[-14rem] right-[-10rem] h-[36rem] w-[36rem] rounded-full bg-emerald-200/40 blur-3xl" />
+      <div className="absolute inset-0 opacity-[0.035] [background-image:linear-gradient(#003b70_1px,transparent_1px),linear-gradient(90deg,#003b70_1px,transparent_1px)] [background-size:42px_42px]" />
 
-        <section className="flex items-center p-7 sm:p-12">
-          <div className="mx-auto w-full max-w-md">
-            <Link href="/" className="text-sm font-black text-[var(--primary)]">← Voltar ao início</Link>
-            <p className="mt-10 text-xs font-black uppercase tracking-[0.18em] text-[var(--success)]">Acesso institucional</p>
-            <h2 className="mt-2 text-3xl font-black text-[var(--primary-dark)]">Entre no CDDI 2026</h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              Informe seu e-mail institucional. Você receberá um link seguro e de uso único para confirmar sua identidade.
-            </p>
-
-            {sent ? (
-              <div className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50 p-6">
-                <strong className="text-lg text-emerald-900">Verifique sua caixa de entrada</strong>
-                <p className="mt-2 leading-7 text-emerald-800">Enviamos o link de acesso para <b>{email.trim().toLowerCase()}</b>.</p>
-                <button type="button" onClick={() => setSent(false)} className="mt-5 rounded-xl border border-emerald-300 bg-white px-4 py-3 font-black text-emerald-900">Usar outro e-mail</button>
+      <section className="relative z-10 grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_90px_rgba(15,45,75,.18)] lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="hidden bg-[#073d6d] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-sm font-black text-[#003b70]">Ag</div>
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300">AgSUS</p>
+                <p className="font-extrabold">Pesquisas e Avaliações</p>
               </div>
-            ) : (
-              <form onSubmit={submit} className="mt-8 space-y-5">
-                <div>
-                  <label htmlFor="email" className="text-sm font-black text-slate-700">E-mail institucional</label>
-                  <input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="nome@agenciasus.org.br"
-                    required
-                    className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-4 outline-none transition focus:border-[var(--primary)] focus:ring-4 focus:ring-blue-100"
-                  />
-                </div>
-                {message && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{message}</div>}
-                <button disabled={loading} className="w-full rounded-2xl bg-[var(--primary)] px-5 py-4 font-black text-white shadow-lg disabled:opacity-60">
-                  {loading ? "Enviando link seguro..." : "Enviar link de acesso"}
-                </button>
-              </form>
-            )}
-
-            <p className="mt-8 text-xs leading-5 text-slate-500">
-              Após a autenticação, a matrícula será solicitada somente quando o e-mail estiver associado a mais de um cadastro.
-            </p>
+            </div>
+            <h1 className="mt-12 text-4xl font-black leading-tight tracking-tight">Acesse seus ciclos, pesquisas e avaliações em um só lugar.</h1>
+            <p className="mt-5 text-base leading-7 text-blue-100">Ambiente institucional para acompanhar pendências, responder formulários e consultar resultados publicados.</p>
           </div>
-        </section>
-      </div>
+
+          <div className="space-y-3 text-sm text-blue-100">
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Acesso exclusivo com conta Google corporativa.</div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">Permissões e conteúdos definidos pelo seu perfil.</div>
+          </div>
+        </div>
+
+        <div className="flex items-center p-7 sm:p-12 lg:p-14">
+          <div className="mx-auto w-full max-w-md">
+            <div className="lg:hidden">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#edf5fc] text-sm font-black text-[#003b70]">Ag</div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0b8f58]">AgSUS</p>
+                  <p className="font-extrabold text-[#003b70]">Pesquisas e Avaliações</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-10 text-xs font-black uppercase tracking-[0.2em] text-[#0b8f58] lg:mt-0">Acesso institucional</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-4xl">Entrar na plataforma</h2>
+            <p className="mt-4 leading-7 text-slate-600">Use sua conta Google corporativa da AgSUS para acessar o painel e os ciclos disponíveis.</p>
+
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={loading}
+              className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white px-5 py-4 font-black text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-[#0d6efd] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-lg font-black text-[#4285f4]">G</span>
+              {loading ? "Abrindo conta Google..." : "Entrar com Google institucional"}
+            </button>
+
+            {message && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{message}</div>}
+
+            <div className="mt-7 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <strong className="block text-slate-800">Conta permitida</strong>
+              Apenas endereços <b>@agenciasus.org.br</b> podem acessar a plataforma.
+            </div>
+
+            <p className="mt-8 text-xs leading-5 text-slate-500">Ao entrar, sua conta será associada ao cadastro institucional e às permissões do seu perfil.</p>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
