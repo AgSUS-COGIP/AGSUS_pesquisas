@@ -5,281 +5,43 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type AvatarStudioProps = {
-  personName: string;
-  initialUrl?: string | null;
-};
+type AvatarStudioProps = { personName: string; initialUrl?: string | null };
+type Tab = "face" | "hair" | "style" | "colors";
+type Config = { hair: "short" | "wave" | "coils" | "long" | "bun" | "bald"; eyes: "soft" | "happy" | "focused" | "wink"; mouth: "smile" | "calm" | "confident"; glasses: boolean; beard: boolean; skin: string; hairColor: string; shirt: string; background: string };
 
-type AvatarConfig = {
-  seed: string;
-  top: string;
-  eyes: string;
-  eyebrows: string;
-  mouth: string;
-  accessories: string;
-  facialHair: string;
-  clothing: string;
-  skinColor: string;
-  hairColor: string;
-  backgroundColor: string;
-};
+const defaults: Config = { hair: "short", eyes: "soft", mouth: "smile", glasses: false, beard: false, skin: "#C98255", hairColor: "#201711", shirt: "#176B9E", background: "#EAF7F6" };
+const skinColors = ["#F5C9A7", "#E7A97F", "#C98255", "#9B5C3B", "#623D2A"];
+const hairColors = ["#201711", "#3B271F", "#6F4433", "#A46435", "#D2B48C", "#D9DCE1"];
+const shirtColors = ["#0F4C81", "#176B9E", "#0E8A67", "#5B4BB7", "#B84A62", "#2D3748"];
+const backgrounds = ["#EAF7F6", "#EAF2FF", "#F4EEFF", "#FFF4E5", "#FDEEF2", "#EEF2F6"];
 
-type StudioTab = "face" | "hair" | "style" | "colors";
+function pick<T>(items: readonly T[]) { return items[Math.floor(Math.random() * items.length)]; }
+function esc(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char] ?? char); }
 
-type SelectOption = readonly [string, string];
-
-const options: Record<"top" | "eyes" | "eyebrows" | "mouth" | "accessories" | "facialHair" | "clothing", readonly SelectOption[]> = {
-  top: [
-    ["Curto clássico", "shortFlat"],
-    ["Curto ondulado", "shortWaved"],
-    ["Curto arredondado", "shortRound"],
-    ["Longo liso", "longHairStraight"],
-    ["Longo ondulado", "longHairCurvy"],
-    ["Coque", "bun"],
-    ["Chapéu de inverno", "winterHat02"],
-    ["Hijab", "hijab"],
-  ],
-  eyes: [
-    ["Naturais", "default"],
-    ["Alegres", "happy"],
-    ["Sorrindo", "squint"],
-    ["Piscando", "wink"],
-    ["Corações", "hearts"],
-  ],
-  eyebrows: [
-    ["Naturais", "defaultNatural"],
-    ["Expressivas", "raisedExcitedNatural"],
-    ["Concentradas", "flatNatural"],
-    ["Sensíveis", "sadConcernedNatural"],
-    ["Assimétricas", "upDownNatural"],
-  ],
-  mouth: [
-    ["Sorriso", "smile"],
-    ["Natural", "default"],
-    ["Confiante", "twinkle"],
-    ["Séria", "serious"],
-    ["Surpresa", "disbelief"],
-  ],
-  accessories: [
-    ["Sem acessórios", ""],
-    ["Óculos clássico", "prescription01"],
-    ["Óculos moderno", "prescription02"],
-    ["Óculos redondo", "round"],
-    ["Óculos escuro", "sunglasses"],
-    ["Wayfarer", "wayfarers"],
-  ],
-  facialHair: [
-    ["Sem barba", ""],
-    ["Barba leve", "beardLight"],
-    ["Barba clássica", "beardMedium"],
-    ["Barba marcante", "beardMajestic"],
-    ["Bigode", "moustacheFancy"],
-  ],
-  clothing: [
-    ["Camisa", "shirtCrewNeck"],
-    ["Camisa gola V", "shirtVNeck"],
-    ["Moletom", "hoodie"],
-    ["Suéter", "collarAndSweater"],
-    ["Blazer", "blazerAndShirt"],
-    ["Camiseta gráfica", "graphicShirt"],
-  ],
-};
-
-const palette = {
-  skinColor: ["f8d25c", "edb98a", "fd9841", "d08b5b", "ae5d29", "614335"],
-  hairColor: ["2c1b18", "4a312c", "724133", "a55728", "b58143", "e8e1e1", "c93305"],
-  backgroundColor: ["e6f4ff", "e8f8f0", "fff4cc", "fce8ec", "eee8ff", "dff7fb"],
-} as const;
-
-const defaults: AvatarConfig = {
-  seed: "agsus-avatar",
-  top: "shortFlat",
-  eyes: "happy",
-  eyebrows: "defaultNatural",
-  mouth: "smile",
-  accessories: "",
-  facialHair: "",
-  clothing: "blazerAndShirt",
-  skinColor: "edb98a",
-  hairColor: "2c1b18",
-  backgroundColor: "e6f4ff",
-};
-
-const tabs: Array<{ id: StudioTab; label: string; description: string }> = [
-  { id: "face", label: "Rosto", description: "Olhos, expressão e sobrancelhas" },
-  { id: "hair", label: "Cabelo", description: "Corte, cor e barba" },
-  { id: "style", label: "Estilo", description: "Roupa e acessórios" },
-  { id: "colors", label: "Cores", description: "Pele, cabelo e fundo" },
-];
-
-function pick<T>(items: readonly T[]) {
-  return items[Math.floor(Math.random() * items.length)];
+function localAvatar(config: Config, name: string) {
+  const eye = config.eyes === "happy" ? `<path d="M104 128c7-8 15-8 22 0M174 128c7-8 15-8 22 0" fill="none" stroke="#1f2937" stroke-width="6" stroke-linecap="round"/>` : config.eyes === "focused" ? `<path d="M102 123l25-3M173 120l25 3" stroke="#1f2937" stroke-width="5" stroke-linecap="round"/><circle cx="116" cy="132" r="5"/><circle cx="184" cy="132" r="5"/>` : config.eyes === "wink" ? `<path d="M104 130c7-6 15-6 22 0" fill="none" stroke="#1f2937" stroke-width="5" stroke-linecap="round"/><circle cx="184" cy="130" r="6"/>` : `<circle cx="116" cy="130" r="6" fill="#1f2937"/><circle cx="184" cy="130" r="6" fill="#1f2937"/>`;
+  const mouth = config.mouth === "smile" ? `<path d="M126 174c14 17 34 17 48 0" fill="none" stroke="#7b3028" stroke-width="6" stroke-linecap="round"/>` : config.mouth === "confident" ? `<path d="M130 177c17 8 30 5 42-3" fill="none" stroke="#7b3028" stroke-width="6" stroke-linecap="round"/>` : `<path d="M134 178h32" stroke="#7b3028" stroke-width="6" stroke-linecap="round"/>`;
+  const hair: Record<Config["hair"], string> = {
+    short: `<path d="M92 105c1-48 28-71 63-71 39 0 64 25 63 72-17-25-39-34-64-34-26 0-45 10-62 33Z" fill="${config.hairColor}"/>`,
+    wave: `<path d="M83 111c2-56 31-82 72-82 43 0 73 31 69 84-13-14-13-31-30-38-13-6-24 1-38-2-14-3-21-16-36-11-19 7-23 31-37 49Z" fill="${config.hairColor}"/>`,
+    coils: `<g fill="${config.hairColor}">${[[96,78],[116,52],[143,43],[170,45],[196,61],[211,88],[88,104]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="25"/>`).join("")}</g>`,
+    long: `<path d="M78 115c-2-57 28-88 76-88 49 0 78 35 73 92l-8 83-28-18 5-75c-12-27-31-38-59-36-25 2-39 15-48 39l6 73-27 18 10-88Z" fill="${config.hairColor}"/>`,
+    bun: `<circle cx="153" cy="32" r="30" fill="${config.hairColor}"/><path d="M91 108c2-49 27-72 63-72 39 0 64 27 62 74-15-25-37-37-64-36-25 1-45 12-61 34Z" fill="${config.hairColor}"/>`, bald: ""
+  };
+  const beard = config.beard ? `<path d="M111 164c5 38 21 57 43 58 23 0 39-19 45-58-15 12-29 17-44 17-16 0-30-5-44-17Z" fill="${config.hairColor}" opacity=".92"/>` : "";
+  const glasses = config.glasses ? `<g fill="none" stroke="#243446" stroke-width="5"><rect x="91" y="113" width="51" height="34" rx="14"/><rect x="160" y="113" width="51" height="34" rx="14"/><path d="M142 128h18"/></g>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-label="Avatar de ${esc(name)}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${config.background}"/><stop offset="1" stop-color="#fff"/></linearGradient><linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${config.shirt}"/><stop offset="1" stop-color="#082F49"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-opacity=".16"/></filter></defs><rect width="300" height="300" rx="64" fill="url(#bg)"/><circle cx="245" cy="56" r="58" fill="#fff" opacity=".45"/><g filter="url(#shadow)"><path d="M60 300c5-65 40-97 94-97s89 32 96 97" fill="url(#shirt)"/><path d="M128 193h53v43c-7 14-44 14-53 0Z" fill="${config.skin}"/><ellipse cx="154" cy="128" rx="67" ry="83" fill="${config.skin}"/><ellipse cx="88" cy="137" rx="13" ry="22" fill="${config.skin}"/><ellipse cx="220" cy="137" rx="13" ry="22" fill="${config.skin}"/>${hair[config.hair]}${eye}<path d="M151 135c-5 13-7 23-3 28 4 4 10 4 16 1" fill="none" stroke="#9B5C3B" stroke-width="4" stroke-linecap="round" opacity=".55"/>${mouth}${beard}${glasses}<path d="M126 211l28 25 28-25" fill="#fff" opacity=".92"/></g></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function buildAvatarUrl(config: AvatarConfig) {
-  const params = new URLSearchParams({
-    seed: config.seed,
-    top: config.top,
-    eyes: config.eyes,
-    eyebrows: config.eyebrows,
-    mouth: config.mouth,
-    clothing: config.clothing,
-    skinColor: config.skinColor,
-    hairColor: config.hairColor,
-    backgroundColor: config.backgroundColor,
-    borderRadius: "18",
-    scale: "0.9",
-    size: "512",
-  });
-  if (config.accessories) params.set("accessories", config.accessories);
-  else params.set("accessoriesProbability", "0");
-  if (config.facialHair) params.set("facialHair", config.facialHair);
-  else params.set("facialHairProbability", "0");
-  return `https://api.dicebear.com/10.x/avataaars/svg?${params.toString()}`;
-}
-
-function SelectField({ label, value, values, onChange }: { label: string; value: string; values: readonly SelectOption[]; onChange: (value: string) => void }) {
-  return (
-    <label className="block text-sm font-black text-slate-700">
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 font-semibold text-slate-800 shadow-sm outline-none transition hover:border-slate-300 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100">
-        {values.map(([optionLabel, optionValue]) => <option key={`${label}-${optionValue || "none"}`} value={optionValue}>{optionLabel}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function ColorField({ label, colors, selected, onChange }: { label: string; colors: readonly string[]; selected: string; onChange: (color: string) => void }) {
-  return (
-    <fieldset>
-      <legend className="text-sm font-black text-slate-700">{label}</legend>
-      <div className="mt-3 flex flex-wrap gap-3">
-        {colors.map((color) => (
-          <button key={color} type="button" onClick={() => onChange(color)} className={`grid h-12 w-12 place-items-center rounded-2xl transition duration-200 hover:-translate-y-1 ${selected === color ? "ring-4 ring-cyan-100 shadow-lg" : "ring-1 ring-slate-200 shadow-sm"}`} style={{ backgroundColor: `#${color}` }} aria-label={`Selecionar ${label.toLowerCase()} ${color}`}>
-            {selected === color && <Check className="h-5 w-5 text-slate-900" />}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
+function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<[string,T]>; onChange: (value:T)=>void }) { return <fieldset><legend className="text-xs font-black uppercase tracking-[.12em] text-slate-400">{label}</legend><div className="mt-2 flex flex-wrap gap-2">{options.map(([text,item])=><button key={item} type="button" onClick={()=>onChange(item)} className={`rounded-xl px-3 py-2 text-sm font-bold transition ${value===item?"bg-slate-950 text-white shadow-lg":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{text}</button>)}</div></fieldset>; }
+function Palette({ label, colors, value, onChange }: { label:string; colors:string[]; value:string; onChange:(value:string)=>void }) { return <fieldset><legend className="text-xs font-black uppercase tracking-[.12em] text-slate-400">{label}</legend><div className="mt-3 flex flex-wrap gap-2">{colors.map(color=><button key={color} type="button" onClick={()=>onChange(color)} aria-label={`${label} ${color}`} className={`grid h-10 w-10 place-items-center rounded-xl transition hover:-translate-y-0.5 ${value===color?"ring-4 ring-sky-100 shadow-lg":"ring-1 ring-slate-200"}`} style={{backgroundColor:color}}>{value===color&&<Check className="h-4 w-4 text-slate-950"/>}</button>)}</div></fieldset>; }
 
 export function AvatarStudio({ personName, initialUrl }: AvatarStudioProps) {
-  const stableSeed = useMemo(() => `agsus-${personName.trim().toLowerCase().replace(/\s+/g, "-")}`, [personName]);
-  const [config, setConfig] = useState<AvatarConfig>({ ...defaults, seed: stableSeed });
-  const [activeTab, setActiveTab] = useState<StudioTab>("face");
-  const [saving, setSaving] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [savedUrl, setSavedUrl] = useState(initialUrl ?? null);
-  const avatarUrl = useMemo(() => buildAvatarUrl(config), [config]);
-
-  function update<K extends keyof AvatarConfig>(key: K, value: AvatarConfig[K]) {
-    setImageError(false);
-    setConfig((current) => ({ ...current, [key]: value }));
-  }
-
-  function randomize() {
-    setImageError(false);
-    setConfig({
-      seed: `${stableSeed}-${crypto.randomUUID()}`,
-      top: pick(options.top)[1],
-      eyes: pick(options.eyes)[1],
-      eyebrows: pick(options.eyebrows)[1],
-      mouth: pick(options.mouth)[1],
-      accessories: pick(options.accessories)[1],
-      facialHair: pick(options.facialHair)[1],
-      clothing: pick(options.clothing)[1],
-      skinColor: pick(palette.skinColor),
-      hairColor: pick(palette.hairColor),
-      backgroundColor: pick(palette.backgroundColor),
-    });
-  }
-
-  function reset() {
-    setImageError(false);
-    setConfig({ ...defaults, seed: stableSeed });
-  }
-
-  async function saveAvatar() {
-    if (imageError) {
-      toast.error("A prévia não foi carregada. Tente outra combinação antes de salvar.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("set_my_avatar_url", { p_avatar_url: avatarUrl });
-      if (error) throw error;
-      setSavedUrl(avatarUrl);
-      toast.success("Personagem salvo como avatar institucional.");
-      window.setTimeout(() => window.location.reload(), 450);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível salvar o avatar.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section className="overflow-hidden rounded-[2.25rem] bg-white shadow-[0_30px_90px_-45px_rgba(15,23,42,.5)] ring-1 ring-slate-200/80">
-      <div className="grid xl:grid-cols-[.82fr_1.18fr]">
-        <aside className="relative isolate overflow-hidden bg-[radial-gradient(circle_at_18%_10%,rgba(45,212,191,.32),transparent_30%),radial-gradient(circle_at_88%_84%,rgba(59,130,246,.32),transparent_34%),linear-gradient(150deg,#031c34,#075ea8)] p-6 text-white sm:p-9">
-          <div className="absolute inset-5 -z-10 rounded-[2.5rem] border border-white/10 bg-white/[.04] backdrop-blur-2xl" />
-          <div className="relative">
-            <div className="flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-black uppercase tracking-[.16em] text-cyan-100"><Sparkles className="h-4 w-4" />Avatar Lab</span>
-              {savedUrl === avatarUrl && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-300/15 px-3 py-2 text-xs font-black text-emerald-200"><Check className="h-4 w-4" />Em uso</span>}
-            </div>
-
-            <div className="mx-auto mt-8 max-w-[310px] rounded-[3rem] bg-gradient-to-br from-white/25 via-white/10 to-transparent p-px shadow-[0_35px_80px_-30px_rgba(0,0,0,.7)]">
-              <div className="grid aspect-square place-items-center overflow-hidden rounded-[calc(3rem-1px)] bg-white/95 p-4">
-                {imageError ? (
-                  <div className="text-center text-slate-500"><strong className="block text-slate-800">Prévia indisponível</strong><span className="mt-2 block text-sm">Use “Reiniciar” ou “Surpreenda-me”.</span></div>
-                ) : (
-                  <img src={avatarUrl} onError={() => setImageError(true)} alt={`Personagem de ${personName}`} className="h-full w-full object-contain drop-shadow-[0_18px_18px_rgba(15,23,42,.18)]" />
-                )}
-              </div>
-            </div>
-
-            <div className="mt-7 text-center">
-              <h3 className="text-2xl font-black tracking-tight">Seu personagem institucional</h3>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-blue-100">Uma identidade leve e consistente para o cabeçalho, menu, perfil e espaços colaborativos.</p>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button type="button" onClick={randomize} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15"><Dice5 className="h-5 w-5" />Surpreenda-me</button>
-              <button type="button" onClick={reset} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15"><RotateCcw className="h-5 w-5" />Reiniciar</button>
-            </div>
-          </div>
-        </aside>
-
-        <div className="p-5 sm:p-8">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Personalização guiada</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Crie sem se perder em opções</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Escolha uma etapa. A prévia permanece estável enquanto você altera cada característica.</p>
-          </div>
-
-          <div role="tablist" aria-label="Etapas de personalização" className="mt-7 grid gap-2 rounded-[1.4rem] bg-slate-100 p-1.5 sm:grid-cols-4">
-            {tabs.map((tab) => {
-              const active = activeTab === tab.id;
-              return <button key={tab.id} role="tab" aria-selected={active} type="button" onClick={() => setActiveTab(tab.id)} className={`rounded-2xl px-4 py-3 text-left transition duration-200 ${active ? "bg-white text-[#003b70] shadow-[0_8px_24px_-14px_rgba(15,23,42,.55)] ring-1 ring-slate-200" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}><strong className="block text-sm">{tab.label}</strong><span className="mt-0.5 hidden text-[11px] font-medium sm:block">{tab.description}</span></button>;
-            })}
-          </div>
-
-          <div role="tabpanel" className="mt-7 min-h-[290px] rounded-[1.75rem] bg-[linear-gradient(145deg,#f8fafc,#ffffff)] p-5 ring-1 ring-slate-200/80 sm:p-6">
-            {activeTab === "face" && <div className="grid gap-5 sm:grid-cols-2"><SelectField label="Olhos" value={config.eyes} values={options.eyes} onChange={(value) => update("eyes", value)} /><SelectField label="Sobrancelhas" value={config.eyebrows} values={options.eyebrows} onChange={(value) => update("eyebrows", value)} /><SelectField label="Expressão" value={config.mouth} values={options.mouth} onChange={(value) => update("mouth", value)} /></div>}
-            {activeTab === "hair" && <div className="grid gap-5 sm:grid-cols-2"><SelectField label="Cabelo e cobertura" value={config.top} values={options.top} onChange={(value) => update("top", value)} /><SelectField label="Barba e bigode" value={config.facialHair} values={options.facialHair} onChange={(value) => update("facialHair", value)} /><div className="sm:col-span-2"><ColorField label="Cor do cabelo" colors={palette.hairColor} selected={config.hairColor} onChange={(value) => update("hairColor", value)} /></div></div>}
-            {activeTab === "style" && <div className="grid gap-5 sm:grid-cols-2"><SelectField label="Roupa" value={config.clothing} values={options.clothing} onChange={(value) => update("clothing", value)} /><SelectField label="Acessórios" value={config.accessories} values={options.accessories} onChange={(value) => update("accessories", value)} /></div>}
-            {activeTab === "colors" && <div className="grid gap-7 sm:grid-cols-2"><ColorField label="Tom de pele" colors={palette.skinColor} selected={config.skinColor} onChange={(value) => update("skinColor", value)} /><ColorField label="Cor de fundo" colors={palette.backgroundColor} selected={config.backgroundColor} onChange={(value) => update("backgroundColor", value)} /></div>}
-          </div>
-
-          <div className="mt-7 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-lg text-xs leading-5 text-slate-500">Gerado em SVG pelo DiceBear 10.x. O personagem mantém a mesma aparência entre páginas e dispositivos após o salvamento.</p>
-            <button type="button" onClick={saveAvatar} disabled={saving || imageError} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#003b70,#0877bd)] px-6 py-3.5 font-black text-white shadow-[0_15px_35px_-15px_rgba(0,59,112,.8)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}Usar este personagem</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+  const [config,setConfig]=useState<Config>(defaults); const [tab,setTab]=useState<Tab>("face"); const [saving,setSaving]=useState(false); const [savedUrl,setSavedUrl]=useState(initialUrl??null); const avatarUrl=useMemo(()=>localAvatar(config,personName),[config,personName]);
+  const update=<K extends keyof Config>(key:K,value:Config[K])=>setConfig(current=>({...current,[key]:value}));
+  const randomize=()=>setConfig({hair:pick(["short","wave","coils","long","bun","bald"] as const),eyes:pick(["soft","happy","focused","wink"] as const),mouth:pick(["smile","calm","confident"] as const),glasses:Math.random()>.55,beard:Math.random()>.65,skin:pick(skinColors),hairColor:pick(hairColors),shirt:pick(shirtColors),background:pick(backgrounds)});
+  async function save(){setSaving(true);try{const supabase=createBrowserSupabaseClient();const {error}=await supabase.rpc("set_my_avatar_url",{p_avatar_url:avatarUrl});if(error)throw error;setSavedUrl(avatarUrl);toast.success("Avatar local salvo com sucesso.");window.setTimeout(()=>window.location.reload(),350);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o avatar.");}finally{setSaving(false);}}
+  const tabs:Array<[Tab,string]>=[["face","Rosto"],["hair","Cabelo"],["style","Estilo"],["colors","Cores"]];
+  return <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_-45px_rgba(15,23,42,.55)]"><div className="grid lg:grid-cols-[360px_1fr]"><aside className="relative overflow-hidden bg-slate-950 p-6 text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_0%,rgba(14,165,233,.24),transparent_42%)]"/><div className="relative"><span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[.15em] text-sky-300"><Sparkles className="h-4 w-4"/>Avatar local</span><div className="mx-auto mt-6 max-w-[260px] rounded-[2rem] bg-white/10 p-3 shadow-2xl ring-1 ring-white/15"><img src={avatarUrl} alt={`Avatar de ${personName}`} className="aspect-square w-full rounded-[1.5rem] object-contain"/></div><div className="mt-5 text-center"><h3 className="text-xl font-black">Identidade leve e estável</h3><p className="mt-2 text-sm leading-6 text-slate-300">Gerado no navegador. Sem API externa, sem cortes e sem mudança inesperada.</p></div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={randomize} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold hover:bg-white/15"><Dice5 className="h-4 w-4"/>Aleatório</button><button type="button" onClick={()=>setConfig(defaults)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold hover:bg-white/15"><RotateCcw className="h-4 w-4"/>Reiniciar</button></div></div></aside><div className="p-5 sm:p-7"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Personalização</p><h2 className="mt-1 text-2xl font-black text-slate-950">Monte seu avatar</h2></div>{savedUrl===avatarUrl&&<span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">Em uso</span>}</div><div role="tablist" className="mt-5 inline-flex rounded-2xl bg-slate-100 p-1">{tabs.map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>setTab(id)} className={`rounded-xl px-4 py-2 text-sm font-black transition ${tab===id?"bg-white text-slate-950 shadow-sm":"text-slate-500 hover:text-slate-800"}`}>{label}</button>)}</div><div role="tabpanel" className="mt-6 min-h-[235px] space-y-6">{tab==="face"&&<><Choice label="Olhos" value={config.eyes} options={[["Naturais","soft"],["Alegres","happy"],["Focados","focused"],["Piscando","wink"]]} onChange={value=>update("eyes",value)}/><Choice label="Expressão" value={config.mouth} options={[["Sorriso","smile"],["Calma","calm"],["Confiante","confident"]]} onChange={value=>update("mouth",value)}/></>}{tab==="hair"&&<><Choice label="Cabelo" value={config.hair} options={[["Curto","short"],["Ondulado","wave"],["Crespo","coils"],["Longo","long"],["Coque","bun"],["Sem cabelo","bald"]]} onChange={value=>update("hair",value)}/><label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={config.beard} onChange={event=>update("beard",event.target.checked)} className="h-5 w-5 accent-slate-950"/>Adicionar barba</label></>}{tab==="style"&&<><label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={config.glasses} onChange={event=>update("glasses",event.target.checked)} className="h-5 w-5 accent-slate-950"/>Usar óculos</label><Palette label="Roupa" colors={shirtColors} value={config.shirt} onChange={value=>update("shirt",value)}/></>}{tab==="colors"&&<div className="grid gap-6 sm:grid-cols-2"><Palette label="Pele" colors={skinColors} value={config.skin} onChange={value=>update("skin",value)}/><Palette label="Cabelo" colors={hairColors} value={config.hairColor} onChange={value=>update("hairColor",value)}/><Palette label="Fundo" colors={backgrounds} value={config.background} onChange={value=>update("background",value)}/></div>}</div><div className="mt-6 flex justify-end border-t border-slate-100 pt-5"><button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg hover:bg-slate-800 disabled:opacity-50">{saving?<Loader2 className="h-4 w-4 animate-spin"/>:<Save className="h-4 w-4"/>}Usar este avatar</button></div></div></div></section>;
 }
