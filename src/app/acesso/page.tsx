@@ -5,15 +5,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
 const OFFICIAL_SITE_URL = "https://agsus-pesquisas-nu.vercel.app";
-
-const BACKGROUNDS = [
-  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2200&q=88",
-  "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2200&q=88",
-  "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=2200&q=88",
-  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2200&q=88",
-  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=88",
-  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2200&q=88",
-];
+const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
 
 function normalizeSiteUrl(value: string) {
   const trimmed = value.trim().replace(/\/+$/, "");
@@ -43,7 +35,7 @@ function preloadFirstAvailable(urls: string[]) {
       const timeout = window.setTimeout(() => {
         image.src = "";
         tryNext(index + 1);
-      }, 7000);
+      }, 9000);
 
       image.onload = () => {
         window.clearTimeout(timeout);
