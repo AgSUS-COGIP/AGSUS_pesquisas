@@ -51,6 +51,7 @@ export function deriveModules(context: PlatformContext) {
   if (context.modules?.length) return context.modules;
   const roles = context.roles ?? [];
   if (roles.includes("ADMINISTRATOR")) return ADMIN_MODULES;
+  if (roles.includes("TECHNICAL_TEAM")) return ADMIN_MODULES;
   if (roles.includes("SURVEY_MANAGER")) return ADMIN_MODULES.filter((item) => item !== "ADMIN_ACCESS");
 
   const modules = ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
@@ -61,6 +62,7 @@ export function deriveModules(context: PlatformContext) {
 export function profileLabel(context: PlatformContext) {
   const roles = context.roles ?? [];
   if (roles.includes("ADMINISTRATOR")) return "Administrador";
+  if (roles.includes("TECHNICAL_TEAM")) return "Equipe Técnica";
   if (roles.includes("SURVEY_MANAGER")) return "Gestor de pesquisa";
   if (context.isLeader || roles.includes("LEADER")) return "Liderança";
   return "Participante";

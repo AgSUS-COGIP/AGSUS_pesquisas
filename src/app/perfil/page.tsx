@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AvatarUploader } from "@/components/avatar-uploader";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 
@@ -30,14 +31,34 @@ export default function ProfilePage() {
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl, roles: context.roles, modules };
 
   return <PlatformShell user={user} eyebrow="Identidade e acesso" title="Meu perfil">
-    <section className="grid gap-6 xl:grid-cols-[.7fr_1.3fr]">
-      <aside className="rounded-[2rem] bg-[linear-gradient(145deg,#003b70,#075ea8)] p-7 text-center text-white shadow-xl">
-        {avatarUrl ? <img src={avatarUrl} alt={`Foto de ${person.fullName}`} className="mx-auto h-32 w-32 rounded-[2rem] object-cover ring-4 ring-white/20" /> : <div className="mx-auto grid h-32 w-32 place-items-center rounded-[2rem] bg-white text-4xl font-black text-[#003b70] shadow-xl">{initials(person.fullName)}</div>}
-        <h2 className="mt-6 text-2xl font-black">{person.fullName}</h2><p className="mt-2 text-blue-100">{person.jobTitle ?? "Cargo não informado"}</p><span className="mt-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-emerald-200">{profileLabel(context)}</span>
-        <p className="mt-6 text-sm leading-6 text-blue-100">A foto é obtida da identidade autenticada quando disponível. Na ausência dela, o sistema apresenta um avatar institucional com suas iniciais.</p>
+    <section className="grid gap-6 xl:grid-cols-[.72fr_1.28fr]">
+      <aside className="rounded-[2rem] bg-[radial-gradient(circle_at_50%_0%,rgba(0,168,214,.35),transparent_35%),linear-gradient(145deg,#003b70,#075ea8)] p-7 text-center text-white shadow-xl">
+        <AvatarUploader personName={person.fullName} initialUrl={avatarUrl} initials={initials(person.fullName)} />
+        <h2 className="mt-7 text-2xl font-black">{person.fullName}</h2>
+        <p className="mt-2 text-blue-100">{person.jobTitle ?? "Cargo não informado"}</p>
+        <span className="mt-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-emerald-200">{profileLabel(context)}</span>
       </aside>
-      <div className="space-y-6"><article className="rounded-[2rem] border border-[#d7e5f2] bg-white p-7 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Cadastro institucional</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Dados da pessoa</h3></div><span className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-800">Identidade validada</span></div><dl className="mt-7 grid gap-5 sm:grid-cols-2">{[["Nome completo",person.fullName],["Matrícula",person.employeeNumber],["E-mail institucional",person.institutionalEmail ?? "Não informado"],["Cargo",person.jobTitle ?? "Não informado"],["Diretoria",directorate ?? "Não informada"],["Unidade",unit ?? "Não informada"],["Coordenação",coordination ?? "Não informada"],["Local de trabalho",person.workplace ?? "Não informado"]].map(([label,value]) => <div key={label} className="rounded-2xl bg-slate-50 p-4"><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-400">{label}</dt><dd className="mt-2 break-words font-black text-slate-800">{value}</dd></div>)}</dl></article>
-      <article className="rounded-[2rem] border border-[#d7e5f2] bg-white p-7 shadow-sm"><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Autorizações</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Papéis e módulos liberados</h3><div className="mt-5 flex flex-wrap gap-2">{(context.roles?.length ? context.roles : [profileLabel(context)]).map((role) => <span key={role} className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-blue-800">{role}</span>)}</div><div className="mt-4 flex flex-wrap gap-2">{modules.map((module) => <span key={module} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500">{module}</span>)}</div><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar à visão geral</Link></article></div>
+
+      <div className="space-y-6">
+        <article className="rounded-[2rem] border border-[#d7e5f2] bg-white p-7 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Cadastro institucional</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Dados da pessoa</h3></div>
+            <span className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-800">Identidade validada</span>
+          </div>
+          <dl className="mt-7 grid gap-5 sm:grid-cols-2">{[["Nome completo",person.fullName],["Matrícula",person.employeeNumber],["E-mail institucional",person.institutionalEmail ?? "Não informado"],["Cargo",person.jobTitle ?? "Não informado"],["Diretoria",directorate ?? "Não informada"],["Unidade",unit ?? "Não informada"],["Coordenação",coordination ?? "Não informada"],["Local de trabalho",person.workplace ?? "Não informado"]].map(([label,value]) => <div key={label} className="rounded-2xl bg-slate-50 p-4"><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-400">{label}</dt><dd className="mt-2 break-words font-black text-slate-800">{value}</dd></div>)}</dl>
+        </article>
+
+        <article className="rounded-[2rem] border border-[#d7e5f2] bg-white p-7 shadow-sm">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Autorizações</p>
+          <h3 className="mt-1 text-2xl font-black text-[#003b70]">Papéis e módulos liberados</h3>
+          <div className="mt-5 flex flex-wrap gap-2">{(context.roles?.length ? context.roles : [profileLabel(context)]).map((role) => <span key={role} className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-blue-800">{role === "TECHNICAL_TEAM" ? "Equipe Técnica" : role}</span>)}</div>
+          <div className="mt-4 flex flex-wrap gap-2">{modules.map((module) => <span key={module} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500">{module}</span>)}</div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/area" className="inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar à visão geral</Link>
+            {modules.some((module) => module.startsWith("ADMIN_")) && <Link href="/admin" className="inline-flex rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 font-black text-[#003b70]">Abrir Equipe Técnica</Link>}
+          </div>
+        </article>
+      </div>
     </section>
   </PlatformShell>;
 }
