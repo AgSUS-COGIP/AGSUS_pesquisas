@@ -1,97 +1,101 @@
 import Link from "next/link";
 
-const recursos = [
-  {
-    titulo: "Autoavaliação guiada",
-    descricao: "Doze competências, comportamentos observáveis, nível de desenvolvimento e orientações de preenchimento.",
-  },
-  {
-    titulo: "Avaliação pela liderança",
-    descricao: "Fluxo preparado para vincular lideranças, acompanhar equipes, salvar rascunhos e concluir avaliações.",
-  },
-  {
-    titulo: "Resultados institucionais",
-    descricao: "Cálculo por competência, pareamento entre autoavaliação e chefia e trilha completa de auditoria.",
-  },
+const destaques = [
+  { numero: "12", rotulo: "competências avaliadas" },
+  { numero: "2", rotulo: "perspectivas de avaliação" },
+  { numero: "1–5", rotulo: "escala de desenvolvimento" },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-white/10 bg-[#102c4c] text-white shadow-lg">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-6 py-5 lg:px-10">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">AgSUS</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight">Pesquisas e Avaliações</h1>
-            <p className="mt-1 text-sm text-blue-100">Plataforma institucional de formulários e ciclos avaliativos</p>
+    <main className="relative min-h-screen overflow-hidden bg-[#061a2f] text-white">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(2,18,41,.96),rgba(0,59,112,.78),rgba(0,93,107,.64)),url('https://i.postimg.cc/RFw7RxXC/image.png')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(0,168,214,.18),transparent_30%),radial-gradient(circle_at_84%_78%,rgba(11,143,88,.18),transparent_32%)]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
+        <header className="flex items-center justify-between gap-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-sm font-black text-[#003b70] shadow-lg">Ag</div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">AgSUS</p>
+              <p className="text-lg font-extrabold tracking-tight">Pesquisas e Avaliações</p>
+            </div>
           </div>
-          <span className="hidden rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-blue-50 sm:inline-flex">
+          <span className="hidden rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-extrabold text-blue-50 backdrop-blur sm:inline-flex">
             Ambiente institucional
           </span>
-        </div>
-      </header>
+        </header>
 
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:px-10 lg:py-20">
-        <div>
-          <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-800">
-            Primeiro ciclo disponível
-          </span>
-          <h2 className="mt-6 max-w-3xl text-4xl font-black leading-tight tracking-tight text-[var(--primary-dark)] sm:text-5xl">
-            Ciclo de Devolutivas e Desenvolvimento Individual
-          </h2>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-            Instrumento estruturado para autoavaliação, avaliação pela chefia direta, devolutivas e definição de ações de desenvolvimento por competências.
-          </p>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/acesso"
-              className="inline-flex items-center justify-center rounded-xl bg-[var(--primary)] px-6 py-4 font-black text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-[#064f8d]"
-            >
-              Entrar no CDDI 2026
-            </Link>
-            <span className="inline-flex items-center rounded-xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-slate-600">
-              Acesso por e-mail institucional
+        <section className="grid flex-1 items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-200 backdrop-blur">
+              CDDI 2026 disponível
             </span>
-          </div>
-        </div>
 
-        <aside className="overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-xl shadow-blue-950/10">
-          <div className="bg-gradient-to-r from-[#102c4c] via-[var(--primary)] to-[#087a78] p-7 text-white">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">CDDI 2026</p>
-            <h3 className="mt-3 text-3xl font-black">Formulário por competências</h3>
-            <p className="mt-3 leading-7 text-blue-50">
-              Experiência guiada inspirada no padrão de navegação do AgSUS Monitora e no fluxo operacional do CDDI atual.
+            <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-[-0.035em] sm:text-5xl lg:text-6xl">
+              Desenvolvimento individual com critérios claros e uma experiência simples.
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-blue-100 sm:text-lg">
+              Realize sua autoavaliação, acompanhe a avaliação da liderança e organize o ciclo de devolutivas por competências em um ambiente institucional seguro.
             </p>
-          </div>
-          <div className="grid gap-4 p-6 sm:grid-cols-3 lg:grid-cols-1">
-            <div className="rounded-2xl bg-blue-50 p-4">
-              <strong className="text-[var(--primary-dark)]">Identificação segura</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">O acesso é confirmado por link enviado ao e-mail institucional.</p>
-            </div>
-            <div className="rounded-2xl bg-emerald-50 p-4">
-              <strong className="text-emerald-900">Rascunho automático</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">O progresso é preservado durante o preenchimento.</p>
-            </div>
-            <div className="rounded-2xl bg-amber-50 p-4">
-              <strong className="text-amber-900">Perfis diferenciados</strong>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Participantes e lideranças recebem menus e permissões próprios.</p>
-            </div>
-          </div>
-        </aside>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-6 pb-14 lg:px-10">
-        <div className="grid gap-4 md:grid-cols-3">
-          {recursos.map((recurso) => (
-            <article key={recurso.titulo} className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-              <div className="mb-5 h-1.5 w-12 rounded-full bg-[var(--success)]" />
-              <h3 className="text-lg font-black text-[var(--primary-dark)]">{recurso.titulo}</h3>
-              <p className="mt-3 leading-7 text-slate-600">{recurso.descricao}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/acesso"
+                className="inline-flex min-h-13 items-center justify-center rounded-xl bg-[#0d6efd] px-6 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-[#005bd7]"
+              >
+                Acessar o CDDI 2026
+              </Link>
+              <Link
+                href="/formulario/CDDI-2026"
+                className="inline-flex min-h-13 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3.5 text-sm font-black text-white backdrop-blur transition hover:bg-white/15"
+              >
+                Conhecer o formulário
+              </Link>
+            </div>
+
+            <div className="mt-10 grid max-w-2xl grid-cols-3 gap-3">
+              {destaques.map((item) => (
+                <div key={item.rotulo} className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-sm">
+                  <strong className="block text-2xl font-black text-white">{item.numero}</strong>
+                  <span className="mt-1 block text-xs leading-5 text-blue-100">{item.rotulo}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-auto w-full max-w-[500px]">
+            <div className="overflow-hidden rounded-[30px] bg-[#003b70] shadow-[0_35px_100px_rgba(0,0,0,.45)] ring-1 ring-white/10">
+              <div className="agsus-stripe" aria-hidden="true" />
+              <div className="bg-white px-7 py-8 text-[#10243e] sm:px-9 sm:py-10">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#edf5fc] text-xl font-black text-[#003b70] shadow-sm">Ag</div>
+                <p className="mt-6 text-center text-xs font-black uppercase tracking-[0.2em] text-[#0b8f58]">Acesso institucional</p>
+                <h2 className="mt-2 text-center text-3xl font-black tracking-tight text-[#003b70]">AgSUS Pesquisas</h2>
+                <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-6 text-slate-600">
+                  Entre com seu e-mail institucional para acessar suas avaliações, rascunhos e atividades do ciclo.
+                </p>
+
+                <Link
+                  href="/acesso"
+                  className="mt-7 flex w-full items-center justify-center rounded-xl bg-[#003b70] px-5 py-4 text-sm font-black text-white shadow-lg transition hover:bg-[#005292]"
+                >
+                  Entrar com e-mail institucional
+                </Link>
+
+                <div className="mt-5 rounded-2xl border border-[#d7e5f2] bg-[#f6f9fc] p-4 text-center text-xs leading-5 text-slate-600">
+                  O acesso é pessoal. Um link seguro será enviado para o endereço cadastrado no ciclo.
+                </div>
+              </div>
+              <div className="agsus-stripe" aria-hidden="true" />
+            </div>
+          </div>
+        </section>
+
+        <footer className="flex flex-col gap-2 border-t border-white/10 py-5 text-xs text-blue-200 sm:flex-row sm:items-center sm:justify-between">
+          <span>Plataforma institucional de pesquisas e ciclos avaliativos</span>
+          <span>AgSUS · CDDI 2026</span>
+        </footer>
+      </div>
     </main>
   );
 }
