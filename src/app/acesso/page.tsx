@@ -58,12 +58,20 @@ export default function AccessPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [background, setBackground] = useState<string | null>(null);
+  const [backgroundVisible, setBackgroundVisible] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     void preloadFirstAvailable(shuffledBackgrounds()).then((loadedBackground) => {
-      if (active && loadedBackground) setBackground(loadedBackground);
+      if (!active || !loadedBackground) return;
+
+      setBackground(loadedBackground);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (active) setBackgroundVisible(true);
+        });
+      });
     });
 
     const checkSession = async () => {
@@ -105,13 +113,23 @@ export default function AccessPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#082b4b,#0a527d,#0d6f76)] px-5 py-10 text-[#10243e]">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#123f50] px-5 py-10 text-[#10243e]">
+      <div className="absolute inset-0 overflow-hidden bg-[linear-gradient(145deg,#123d56_0%,#1e7b77_48%,#9bbb8b_100%)]">
+        <div className="absolute -right-20 -top-28 h-[28rem] w-[28rem] rounded-full bg-amber-100/30 blur-3xl" />
+        <div className="absolute left-[8%] top-[12%] h-48 w-48 rounded-full bg-cyan-100/15 blur-3xl" />
+        <div className="absolute inset-x-[-8%] bottom-[-17%] h-[58%] bg-[#477966]/75 [clip-path:polygon(0_73%,10%_50%,20%_61%,31%_28%,43%_53%,56%_22%,69%_55%,82%_34%,100%_67%,100%_100%,0_100%)]" />
+        <div className="absolute inset-x-[-8%] bottom-[-27%] h-[62%] bg-[#183f42]/95 [clip-path:polygon(0_62%,13%_39%,26%_58%,40%_25%,55%_52%,70%_30%,84%_58%,100%_37%,100%_100%,0_100%)]" />
+      </div>
+
       {background && (
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-100 transition-opacity duration-700"
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
+            backgroundVisible ? "opacity-100" : "opacity-0"
+          }`}
           style={{ backgroundImage: `url(${background})` }}
         />
       )}
+
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,32,64,.70),rgba(0,59,112,.35),rgba(3,25,45,.68))]" />
       <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
 
