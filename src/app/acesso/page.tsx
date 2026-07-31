@@ -108,7 +108,7 @@ export default function AccessPage() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#082b4b,#0a527d,#0d6f76)] px-5 py-10 text-[#10243e]">
       {background && (
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-0 transition-opacity duration-700 animate-[fadeIn_.7s_ease-out_forwards]"
+          className="absolute inset-0 bg-cover bg-center opacity-100 transition-opacity duration-700"
           style={{ backgroundImage: `url(${background})` }}
         />
       )}
