@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Option = {
@@ -21,9 +21,6 @@ type Question = {
   type: string;
   required: boolean;
   position: number;
-  validation: Record<string, unknown>;
-  displayLogic: Record<string, unknown>;
-  scoring: Record<string, unknown>;
   settings: Record<string, unknown>;
   options: Option[];
 };
@@ -34,7 +31,6 @@ type Section = {
   title: string;
   description: string | null;
   position: number;
-  settings: Record<string, unknown>;
   questions: Question[];
 };
 
@@ -46,40 +42,46 @@ type FormDefinition = {
     status: string;
     opensAt: string | null;
     closesAt: string | null;
-    allowDrafts: boolean;
-    settings: Record<string, unknown>;
   };
   survey: {
-    id: string;
-    code: string;
     name: string;
     description: string | null;
-  };
-  version: {
-    id: string;
-    number: number;
-    title: string;
-    description: string | null;
-    settings: Record<string, unknown>;
   };
   sections: Section[];
 };
 
-type Answers = Record<string, string>;
+type StoredAnswer = {
+  answerText?: string | null;
+  answerNumber?: number | null;
+  optionId?: string | null;
+  optionValue?: string | null;
+};
 
-const DRAFT_KEY = "agsus-pesquisas:cddi-2026:preview-draft";
+type SubmissionContext = {
+  status: string;
+  applicationStatus?: string;
+  canEdit: boolean;
+  submission: {
+    id: string;
+    status: string;
+    startedAt: string;
+    submittedAt: string | null;
+    updatedAt: string;
+    result: number | null;
+    type: string;
+  } | null;
+  answers: Record<string, StoredAnswer>;
+};
 
-function questionIsAnswered(question: Question, answers: Answers) {
-  return Boolean(answers[question.id]?.trim());
-}
+type AnswerValue = {
+  value: string;
+  optionId?: string;
+};
 
-function sectionCompletion(section: Section, answers: Answers) {
-  if (!section.questions.length) return 100;
-  const answered = section.questions.filter((question) => questionIsAnswered(question, answers)).length;
-  return Math.round((answered / section.questions.length) * 100);
-}
+type Answers = Record<string, AnswerValue>;
+type SaveState = "idle" | "saving" | "saved" | "error";
 
-function dateLabel(value: string | null) {
+function dateLabel(value: string | null | undefined) {
   if (!value) return "Não informado";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
@@ -88,35 +90,81 @@ function dateLabel(value: string | null) {
   }).format(new Date(value));
 }
 
+function questionAnswered(question: Question, answers: Answers) {
+  return Boolean(answers[question.id]?.value?.trim());
+}
+
+function sectionCompletion(section: Section, answers: Answers) {
+  const required = section.questions.filter((question) => question.required);
+  if (!required.length) return 100;
+  const answered = required.filter((question) => questionAnswered(question, answers)).length;
+  return Math.round((answered / required.length) * 100);
+}
+
+function scaleBoundary(question: Question, side: "start" | "end") {
+  const explicit = question.settings?.[side === "start" ? "scale_start_label" : "scale_end_label"];
+  if (typeof explicit === "string" && explicit.trim()) return explicit;
+  const option = side === "start" ? question.options[0] : question.options.at(-1);
+  return option?.label ?? "";
+}
+
 export default function CddiFormPage() {
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
+  const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const saveTimers = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const load = async () => {
       try {
         const supabase = createBrowserSupabaseClient();
-        const { data, error } = await supabase.rpc("get_public_survey_form", {
-          target_application_code: "CDDI-2026",
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) {
+          window.location.replace("/acesso");
+          return;
+        }
+
+        const [{ data: formData, error: formError }, { data: submissionData, error: submissionError }] = await Promise.all([
+          supabase.rpc("get_public_survey_form", { target_application_code: "CDDI-2026" }),
+          supabase.rpc("start_or_resume_my_cddi_submission", {
+            target_application_code: "CDDI-2026",
+            target_submission_type: "AUTO",
+            target_subject_person_id: null,
+          }),
+        ]);
+
+        if (formError) throw formError;
+        if (!formData) throw new Error("A definição do CDDI 2026 não foi encontrada.");
+        if (submissionError) throw submissionError;
+
+        const context = submissionData as SubmissionContext;
+        const restored: Answers = {};
+        Object.entries(context.answers ?? {}).forEach(([questionId, answer]) => {
+          const value = answer.answerText ?? answer.optionValue ?? (answer.answerNumber != null ? String(answer.answerNumber) : "");
+          if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
 
-        if (error) throw error;
-        if (!data) throw new Error("A definição do CDDI 2026 não foi encontrada.");
+        setDefinition(formData as FormDefinition);
+        setSubmission(context);
+        setAnswers(restored);
+        setSavedAt(context.submission?.updatedAt ?? null);
 
-        setDefinition(data as FormDefinition);
-
-        const saved = sessionStorage.getItem(DRAFT_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved) as { answers?: Answers; step?: number; savedAt?: string };
-          setAnswers(parsed.answers ?? {});
-          setStep(Number.isInteger(parsed.step) ? Number(parsed.step) : 0);
-          setDraftSavedAt(parsed.savedAt ?? null);
+        if (context.status === "PERIOD_CLOSED") {
+          setMessageType("warning");
+          setMessage("O período do CDDI 2026 está encerrado. O formulário permanece disponível apenas para consulta da estrutura e das perguntas.");
+        } else if (context.submission?.status === "SUBMITTED" || context.submission?.status === "VALIDATED") {
+          setMessageType("info");
+          setMessage("Sua autoavaliação já foi enviada e está bloqueada para edição.");
         }
       } catch (error) {
+        setMessageType("error");
         setMessage(error instanceof Error ? error.message : "Não foi possível carregar o formulário.");
       } finally {
         setLoading(false);
@@ -124,18 +172,11 @@ export default function CddiFormPage() {
     };
 
     void load();
+
+    return () => {
+      Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer));
+    };
   }, []);
-
-  useEffect(() => {
-    if (!definition) return;
-    const timeout = window.setTimeout(() => {
-      const savedAt = new Date().toISOString();
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ answers, step, savedAt }));
-      setDraftSavedAt(savedAt);
-    }, 500);
-
-    return () => window.clearTimeout(timeout);
-  }, [answers, definition, step]);
 
   const sections = definition?.sections ?? [];
   const totalSteps = sections.length + 2;
@@ -144,56 +185,124 @@ export default function CddiFormPage() {
     () => sections.flatMap((section) => section.questions).filter((question) => question.required),
     [sections],
   );
-  const answeredRequired = requiredQuestions.filter((question) => questionIsAnswered(question, answers)).length;
-  const progress = requiredQuestions.length
-    ? Math.round((answeredRequired / requiredQuestions.length) * 100)
-    : 0;
+  const answeredRequired = requiredQuestions.filter((question) => questionAnswered(question, answers)).length;
+  const progress = requiredQuestions.length ? Math.round((answeredRequired / requiredQuestions.length) * 100) : 0;
+  const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
+  const isSubmitted = submission?.submission?.status === "SUBMITTED" || submission?.submission?.status === "VALIDATED";
 
-  function updateAnswer(questionId: string, value: string) {
-    setAnswers((current) => ({ ...current, [questionId]: value }));
+  async function persistAnswer(question: Question, answer: AnswerValue) {
+    if (!canEdit || !submission?.submission?.id) return;
+
+    setSaveState("saving");
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error } = await supabase.rpc("save_my_cddi_answer", {
+        target_submission_id: submission.submission.id,
+        target_question_id: question.id,
+        target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null,
+        target_text: question.type === "SCALE" ? null : answer.value,
+      });
+      if (error) throw error;
+
+      const result = data as { savedAt?: string } | null;
+      setSavedAt(result?.savedAt ?? new Date().toISOString());
+      setSaveState("saved");
+    } catch (error) {
+      setSaveState("error");
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Não foi possível salvar a resposta.");
+    }
+  }
+
+  function updateScale(question: Question, option: Option) {
+    const answer = { value: option.value, optionId: option.id };
+    setAnswers((current) => ({ ...current, [question.id]: answer }));
     setMessage("");
+    void persistAnswer(question, answer);
+  }
+
+  function updateText(question: Question, value: string) {
+    const answer = { value };
+    setAnswers((current) => ({ ...current, [question.id]: answer }));
+    setMessage("");
+    setSaveState("idle");
+
+    const existing = saveTimers.current[question.id];
+    if (existing) window.clearTimeout(existing);
+    saveTimers.current[question.id] = window.setTimeout(() => {
+      void persistAnswer(question, answer);
+    }, 700);
   }
 
   function validateCurrentStep() {
-    if (!currentSection) return true;
+    if (!currentSection || !canEdit) return true;
     const missing = currentSection.questions.filter(
-      (question) => question.required && !questionIsAnswered(question, answers),
+      (question) => question.required && !questionAnswered(question, answers),
     );
 
-    if (missing.length > 0) {
-      setMessage(`Preencha ${missing.length} pergunta(s) obrigatória(s) antes de continuar.`);
+    if (missing.length) {
+      setMessageType("warning");
+      setMessage(`Preencha ${missing.length} pergunta(s) obrigatória(s) desta etapa antes de continuar.`);
       return false;
     }
     return true;
   }
 
-  function nextStep() {
-    if (!validateCurrentStep()) return;
-    setStep((current) => Math.min(current + 1, totalSteps - 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function previousStep() {
+  function goToStep(target: number, validateAdvance = true) {
+    if (validateAdvance && target > step && !validateCurrentStep()) return;
     setMessage("");
-    setStep((current) => Math.max(current - 1, 0));
+    setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function clearDraft() {
-    sessionStorage.removeItem(DRAFT_KEY);
-    setAnswers({});
-    setStep(0);
-    setDraftSavedAt(null);
-    setMessage("Rascunho local removido.");
+  async function submitEvaluation() {
+    if (!submission?.submission?.id || !canEdit) return;
+    if (answeredRequired !== requiredQuestions.length) {
+      setMessageType("warning");
+      setMessage("Ainda existem perguntas obrigatórias sem resposta. Revise as etapas sinalizadas.");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirma o envio definitivo da sua autoavaliação? Após o envio, as respostas não poderão ser alteradas.");
+    if (!confirmed) return;
+
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error } = await supabase.rpc("submit_my_cddi_submission", {
+        target_submission_id: submission.submission.id,
+      });
+      if (error) throw error;
+
+      const result = data as { submittedAt?: string; result?: number } | null;
+      setSubmission((current) => current ? {
+        ...current,
+        canEdit: false,
+        submission: current.submission ? {
+          ...current.submission,
+          status: "SUBMITTED",
+          submittedAt: result?.submittedAt ?? new Date().toISOString(),
+          result: result?.result ?? null,
+        } : null,
+      } : current);
+      setMessageType("success");
+      setMessage("Autoavaliação enviada com sucesso. Obrigado por participar do CDDI.");
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a avaliação.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6">
-        <div className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-white p-8 text-center shadow-xl">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-[var(--primary)]" />
-          <h1 className="mt-5 text-xl font-black text-[var(--primary-dark)]">Carregando CDDI 2026</h1>
-          <p className="mt-2 text-sm text-slate-600">Preparando competências, perguntas e escalas.</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f7fb] px-6">
+        <div className="w-full max-w-md rounded-3xl border border-[#d7e5f2] bg-white p-8 text-center shadow-xl">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-[#0d6efd]" />
+          <h1 className="mt-5 text-xl font-black text-[#003b70]">Carregando CDDI 2026</h1>
+          <p className="mt-2 text-sm text-slate-600">Preparando competências, perguntas e suas respostas.</p>
         </div>
       </main>
     );
@@ -201,241 +310,239 @@ export default function CddiFormPage() {
 
   if (!definition) {
     return (
-      <main className="mx-auto min-h-screen max-w-3xl px-6 py-16">
-        <div className="rounded-3xl border border-red-200 bg-white p-8 shadow-lg">
-          <p className="text-sm font-black uppercase tracking-wider text-red-700">Falha ao carregar</p>
-          <h1 className="mt-2 text-2xl font-black text-[var(--primary-dark)]">Formulário indisponível</h1>
-          <p className="mt-4 text-slate-600">{message}</p>
-          <Link href="/" className="mt-6 inline-flex rounded-xl bg-[var(--primary)] px-5 py-3 font-bold text-white">
-            Voltar ao início
-          </Link>
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f7fb] px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-red-200 bg-white p-8 shadow-xl">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">Formulário indisponível</p>
+          <h1 className="mt-2 text-3xl font-black text-[#003b70]">Não foi possível abrir o CDDI</h1>
+          <p className="mt-4 leading-7 text-slate-600">{message}</p>
+          <Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao painel</Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--background)]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-[#102c4c] px-5 py-6 text-white lg:flex">
-        <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">AgSUS</p>
-          <h1 className="mt-1 text-xl font-black">Pesquisas e Avaliações</h1>
-          <p className="mt-2 text-sm text-blue-100">Ciclo de Devolutivas e Desenvolvimento Individual</p>
+    <main className="min-h-screen bg-[#f3f7fb] text-[#10243e]">
+      <div className="h-2 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
+
+      <header className="sticky top-0 z-30 border-b border-[#d7e5f2] bg-white/95 px-4 py-4 shadow-sm backdrop-blur sm:px-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b8f58]">AgSUS · CDDI 2026</p>
+            <h1 className="truncate text-lg font-black text-[#003b70] sm:text-xl">Ciclo de Devolutivas e Desenvolvimento Individual</h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="hidden rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-[#003b70] sm:inline-flex">{progress}% preenchido</span>
+            <Link href="/area" className="rounded-xl border border-[#d7e5f2] bg-white px-4 py-2 text-sm font-black text-slate-700">Sair do formulário</Link>
+          </div>
         </div>
+      </header>
 
-        <nav className="mt-6 space-y-2">
-          <Link href="/" className="block rounded-xl px-4 py-3 text-sm font-bold text-blue-100 hover:bg-white/10">Início</Link>
-          <span className="block rounded-xl bg-white px-4 py-3 text-sm font-black text-[#102c4c]">Responder CDDI 2026</span>
-          <span className="block rounded-xl px-4 py-3 text-sm font-bold text-blue-200 opacity-60">Minha equipe</span>
-          <span className="block rounded-xl px-4 py-3 text-sm font-bold text-blue-200 opacity-60">Meus resultados</span>
-        </nav>
-
-        <div className="mt-auto rounded-2xl border border-white/15 p-4 text-xs leading-5 text-blue-100">
-          <strong className="block text-white">Modo de demonstração</strong>
-          O formulário já utiliza as perguntas cadastradas no Supabase. A identificação e o envio serão conectados na próxima etapa.
-        </div>
-      </aside>
-
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-white/95 px-5 py-4 shadow-sm backdrop-blur lg:px-8">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <section className="overflow-hidden rounded-3xl bg-[linear-gradient(125deg,#003b70,#075ea8)] p-6 text-white shadow-xl sm:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--success)]">CDDI 2026</p>
-              <h2 className="text-xl font-black text-[var(--primary-dark)]">{definition.application.name}</h2>
+              <p className="text-sm font-bold text-emerald-300">
+                {step === 0 ? "Orientações" : step === totalSteps - 1 ? "Revisão final" : `Etapa ${step} de ${sections.length}`}
+              </p>
+              <h2 className="mt-1 text-3xl font-black">
+                {step === 0 ? "Antes de começar" : step === totalSteps - 1 ? "Confira suas respostas" : currentSection?.title}
+              </h2>
+              <p className="mt-3 max-w-2xl leading-7 text-blue-100">
+                {step === 0
+                  ? "Avalie cada comportamento e o nível de desenvolvimento com atenção. Suas respostas são salvas no sistema durante o preenchimento."
+                  : currentSection?.description ?? "Responda todos os itens obrigatórios para avançar."}
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="hidden rounded-full border border-[var(--border)] bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 sm:inline-flex">
-                {progress}% preenchido
-              </span>
-              <button type="button" onClick={clearDraft} className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-bold text-slate-700">
-                Limpar rascunho
-              </button>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-center">
+              <strong className="block text-2xl">{step + 1}/{totalSteps}</strong>
+              <span className="text-xs text-blue-100">etapas</span>
             </div>
           </div>
-        </header>
+          <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/20">
+            <div className="h-full rounded-full bg-emerald-300 transition-all" style={{ width: `${((step + 1) / totalSteps) * 100}%` }} />
+          </div>
+        </section>
 
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-          <section className="rounded-3xl border border-[var(--border)] bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-5">
-              <div>
-                <p className="text-sm font-black text-[var(--primary)]">
-                  {step === 0 ? "Orientações" : step === totalSteps - 1 ? "Revisão final" : `Competência ${step} de ${sections.length}`}
-                </p>
-                <h3 className="mt-1 text-2xl font-black text-[var(--primary-dark)]">
-                  {step === 0 ? "Antes de começar" : step === totalSteps - 1 ? "Confira suas respostas" : currentSection?.title}
-                </h3>
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-2">
+          {Array.from({ length: totalSteps }).map((_, index) => {
+            const completed = index > 0 && index <= sections.length
+              ? sectionCompletion(sections[index - 1], answers) === 100
+              : index < step;
+            return (
+              <button
+                key={index}
+                type="button"
+                onClick={() => goToStep(index, index > step)}
+                className={`min-w-11 rounded-full px-3 py-2 text-xs font-black transition ${index === step ? "bg-[#003b70] text-white" : completed ? "bg-emerald-100 text-emerald-800" : "border border-[#d7e5f2] bg-white text-slate-600"}`}
+                title={index === 0 ? "Orientações" : index === totalSteps - 1 ? "Revisão" : sections[index - 1]?.title}
+              >
+                {index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0")}
+              </button>
+            );
+          })}
+        </div>
+
+        {message && (
+          <div className={`mt-4 rounded-2xl border p-4 text-sm font-bold ${messageType === "error" ? "border-red-200 bg-red-50 text-red-800" : messageType === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : messageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+            {message}
+          </div>
+        )}
+
+        {step === 0 && (
+          <section className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+            <article className="rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-7">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0b8f58]">Como responder</p>
+              <h3 className="mt-2 text-2xl font-black text-[#003b70]">Avaliação estruturada por competências</h3>
+              <p className="mt-4 leading-7 text-slate-600">Cada competência possui três comportamentos observáveis e uma avaliação do nível de desenvolvimento.</p>
+
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl bg-blue-50 p-5">
+                  <strong className="text-[#003b70]">Escala de comportamentos</strong>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">1 — Nunca · 2 — Raramente · 3 — Às vezes · 4 — Frequentemente · 5 — Sempre</p>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-5">
+                  <strong className="text-emerald-900">Nível de desenvolvimento</strong>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">1 — Inicial · 2 — Em desenvolvimento · 3 — Proficiente · 4 — Avançado · 5 — Referência</p>
+                </div>
               </div>
-              <span className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-[var(--primary)]">
-                Etapa {step + 1} de {totalSteps}
-              </span>
-            </div>
 
-            <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200">
-              <div className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--success)] transition-all" style={{ width: `${((step + 1) / totalSteps) * 100}%` }} />
-            </div>
+              <details className="mt-5 rounded-2xl border border-[#d7e5f2] p-5">
+                <summary className="cursor-pointer font-black text-[#003b70]">Ver descrição dos níveis</summary>
+                <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+                  <p><b>Inicial:</b> compreensão limitada e necessidade frequente de orientação.</p>
+                  <p><b>Em desenvolvimento:</b> aplicação básica em situações conhecidas, com apoio ocasional.</p>
+                  <p><b>Proficiente:</b> aplicação consistente, autônoma e segura na maioria das situações.</p>
+                  <p><b>Avançado:</b> elevado domínio, inclusive em situações complexas, contribuindo para a equipe.</p>
+                  <p><b>Referência:</b> excelência, compartilhamento de conhecimento e influência de boas práticas.</p>
+                </div>
+              </details>
+            </article>
 
-            <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-              {Array.from({ length: totalSteps }).map((_, index) => {
-                const completed = index > 0 && index <= sections.length
-                  ? sectionCompletion(sections[index - 1], answers) === 100
-                  : index < step;
+            <aside className="rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-7">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0b8f58]">Situação do ciclo</p>
+              <dl className="mt-5 space-y-5 text-sm">
+                <div><dt className="text-slate-500">Status</dt><dd className="mt-1 font-black text-[#003b70]">{definition.application.status === "OPEN" ? "Aberto" : "Encerrado"}</dd></div>
+                <div><dt className="text-slate-500">Abertura</dt><dd className="mt-1 font-black text-[#003b70]">{dateLabel(definition.application.opensAt)}</dd></div>
+                <div><dt className="text-slate-500">Encerramento</dt><dd className="mt-1 font-black text-[#003b70]">{dateLabel(definition.application.closesAt)}</dd></div>
+                <div><dt className="text-slate-500">Competências</dt><dd className="mt-1 font-black text-[#003b70]">{sections.filter((section) => section.code !== "FINAL").length}</dd></div>
+                <div><dt className="text-slate-500">Salvamento</dt><dd className="mt-1 font-black text-[#003b70]">{savedAt ? `Último registro: ${dateLabel(savedAt)}` : canEdit ? "Automático no sistema" : "Indisponível"}</dd></div>
+              </dl>
+            </aside>
+          </section>
+        )}
+
+        {currentSection && (
+          <section className="mt-5 rounded-3xl border border-[#d7e5f2] bg-white p-5 shadow-sm sm:p-8">
+            <div className="space-y-9">
+              {currentSection.questions.map((question, questionIndex) => (
+                <fieldset key={question.id} className="border-b border-slate-100 pb-9 last:border-0 last:pb-0" disabled={!canEdit}>
+                  <legend className="text-base font-black leading-7 text-[#003b70] sm:text-lg">
+                    {questionIndex + 1}. {question.title}{question.required && <span className="text-red-600"> *</span>}
+                  </legend>
+                  {question.description && <p className="mt-2 text-sm leading-6 text-slate-500">{question.description}</p>}
+
+                  {question.type === "SCALE" && (
+                    <div className="mt-5 grid gap-3 sm:grid-cols-5">
+                      {question.options.map((option) => {
+                        const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value;
+                        return (
+                          <label key={option.id} className={`cursor-pointer rounded-2xl border p-4 text-center transition ${selected ? "border-[#0d6efd] bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-blue-300"} ${!canEdit ? "cursor-default" : ""}`}>
+                            <input
+                              type="radio"
+                              name={question.id}
+                              value={option.id}
+                              checked={selected}
+                              onChange={() => updateScale(question, option)}
+                              className="sr-only"
+                            />
+                            <span className={`mx-auto grid h-11 w-11 place-items-center rounded-full text-lg font-black ${selected ? "bg-[#003b70] text-white" : "bg-slate-100 text-[#003b70]"}`}>{option.value}</span>
+                            <strong className="mt-3 block text-sm leading-5 text-slate-700">{option.label}</strong>
+                          </label>
+                        );
+                      })}
+                      <div className="sm:col-span-5 flex justify-between text-xs font-bold text-slate-500">
+                        <span>{scaleBoundary(question, "start")}</span>
+                        <span>{scaleBoundary(question, "end")}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {(question.type === "LONG_TEXT" || question.type === "SHORT_TEXT") && (
+                    <div className="mt-4">
+                      <textarea
+                        value={answers[question.id]?.value ?? ""}
+                        onChange={(event) => updateText(question, event.target.value)}
+                        rows={question.type === "LONG_TEXT" ? 6 : 3}
+                        maxLength={12000}
+                        className="w-full rounded-2xl border border-slate-300 bg-white p-4 leading-7 text-slate-800 outline-none transition focus:border-[#0d6efd] focus:ring-4 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-600"
+                        placeholder="Digite sua resposta..."
+                      />
+                      <p className="mt-2 text-right text-xs font-bold text-slate-400">{answers[question.id]?.value.length ?? 0}/12000</p>
+                    </div>
+                  )}
+                </fieldset>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {step === totalSteps - 1 && (
+          <section className="mt-5 rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
+            <div className="grid gap-4 md:grid-cols-2">
+              {sections.map((section, index) => {
+                const completion = sectionCompletion(section, answers);
                 return (
                   <button
-                    key={index}
+                    key={section.id}
                     type="button"
-                    onClick={() => setStep(index)}
-                    className={`min-w-10 rounded-full px-3 py-2 text-xs font-black ${index === step ? "bg-[var(--primary)] text-white" : completed ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
+                    onClick={() => goToStep(index + 1, false)}
+                    className="rounded-2xl border border-[#d7e5f2] bg-slate-50 p-5 text-left transition hover:border-[#0d6efd] hover:bg-blue-50"
                   >
-                    {index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : index}
+                    <div className="flex items-center justify-between gap-3">
+                      <strong className="text-[#003b70]">{section.title}</strong>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${completion === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{completion}%</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500">{section.questions.length} pergunta(s)</p>
                   </button>
                 );
               })}
             </div>
-          </section>
 
-          {message && (
-            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-900">
-              {message}
-            </div>
-          )}
-
-          {step === 0 && (
-            <section className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-              <article className="rounded-3xl border border-[var(--border)] bg-white p-6 shadow-sm">
-                <p className="text-sm font-black uppercase tracking-wider text-[var(--primary)]">Sobre o ciclo</p>
-                <h3 className="mt-2 text-3xl font-black text-[var(--primary-dark)]">Avaliação estruturada por competências</h3>
-                <p className="mt-4 leading-7 text-slate-600">
-                  Responda aos três comportamentos de cada competência e avalie o nível de desenvolvimento. A escala varia de 1 a 5.
-                </p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-blue-50 p-4">
-                    <strong className="text-[var(--primary-dark)]">Comportamentos</strong>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">1 Nunca · 2 Raramente · 3 Às vezes · 4 Frequentemente · 5 Sempre</p>
-                  </div>
-                  <div className="rounded-2xl bg-emerald-50 p-4">
-                    <strong className="text-emerald-900">Nível de desenvolvimento</strong>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">1 Inicial · 2 Em desenvolvimento · 3 Proficiente · 4 Avançado · 5 Referência</p>
-                  </div>
-                </div>
-              </article>
-
-              <aside className="rounded-3xl border border-[var(--border)] bg-white p-6 shadow-sm">
-                <p className="text-sm font-black uppercase tracking-wider text-[var(--success)]">Ciclo cadastrado</p>
-                <dl className="mt-4 space-y-4 text-sm">
-                  <div><dt className="text-slate-500">Abertura</dt><dd className="font-black text-[var(--primary-dark)]">{dateLabel(definition.application.opensAt)}</dd></div>
-                  <div><dt className="text-slate-500">Encerramento</dt><dd className="font-black text-[var(--primary-dark)]">{dateLabel(definition.application.closesAt)}</dd></div>
-                  <div><dt className="text-slate-500">Competências</dt><dd className="font-black text-[var(--primary-dark)]">{sections.filter((section) => section.code !== "FINAL").length}</dd></div>
-                  <div><dt className="text-slate-500">Rascunho local</dt><dd className="font-black text-[var(--primary-dark)]">{draftSavedAt ? `Salvo em ${dateLabel(draftSavedAt)}` : "Será salvo automaticamente"}</dd></div>
-                </dl>
-              </aside>
-            </section>
-          )}
-
-          {currentSection && (
-            <section className="mt-5 rounded-3xl border border-[var(--border)] bg-white p-5 shadow-sm sm:p-7">
-              {currentSection.description && (
-                <div className="mb-6 rounded-2xl border-l-4 border-[var(--primary)] bg-slate-50 p-5 leading-7 text-slate-700">
-                  {currentSection.description}
-                </div>
+            <div className={`mt-6 rounded-2xl border p-5 ${isSubmitted ? "border-emerald-200 bg-emerald-50" : canEdit ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50"}`}>
+              <strong className={isSubmitted ? "text-emerald-900" : canEdit ? "text-[#003b70]" : "text-amber-900"}>
+                {isSubmitted ? "Avaliação concluída" : canEdit ? "Confirmação do envio" : "Período encerrado"}
+              </strong>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {isSubmitted
+                  ? `Enviada em ${dateLabel(submission?.submission?.submittedAt)}. As respostas estão bloqueadas para alteração.`
+                  : canEdit
+                    ? "Confira todas as etapas. Após o envio definitivo, as respostas não poderão ser alteradas."
+                    : "Não é possível criar ou alterar respostas enquanto o ciclo estiver encerrado."}
+              </p>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={submitEvaluation}
+                  disabled={submitting || answeredRequired !== requiredQuestions.length || saveState === "saving"}
+                  className="mt-5 w-full rounded-xl bg-[#003b70] px-5 py-4 font-black text-white shadow-lg transition hover:bg-[#075ea8] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? "Enviando avaliação..." : "Confirmar e enviar autoavaliação"}
+                </button>
               )}
-
-              <div className="space-y-8">
-                {currentSection.questions.map((question, questionIndex) => (
-                  <fieldset key={question.id} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                    <legend className="text-base font-black leading-7 text-[var(--primary-dark)]">
-                      {questionIndex + 1}. {question.title}{question.required && <span className="text-red-600"> *</span>}
-                    </legend>
-                    {question.description && <p className="mt-2 text-sm leading-6 text-slate-500">{question.description}</p>}
-
-                    {question.type === "SCALE" && (
-                      <div className="mt-4">
-                        <div className="grid grid-cols-5 gap-2 sm:gap-3">
-                          {question.options.map((option) => (
-                            <label key={option.id} className="relative cursor-pointer">
-                              <input
-                                type="radio"
-                                name={question.id}
-                                value={option.value}
-                                checked={answers[question.id] === option.value}
-                                onChange={(event) => updateAnswer(question.id, event.target.value)}
-                                className="peer sr-only"
-                              />
-                              <span className="flex min-h-14 items-center justify-center rounded-xl border border-slate-300 bg-white text-lg font-black text-[var(--primary-dark)] transition peer-checked:border-[var(--primary)] peer-checked:bg-[var(--primary)] peer-checked:text-white peer-focus-visible:ring-4 peer-focus-visible:ring-blue-100">
-                                {option.value}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex justify-between text-xs font-bold text-slate-500">
-                          <span>{String(question.settings?.scale_start_label ?? "Nunca")}</span>
-                          <span>{String(question.settings?.scale_end_label ?? "Sempre")}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {question.type === "LONG_TEXT" && (
-                      <textarea
-                        value={answers[question.id] ?? ""}
-                        onChange={(event) => updateAnswer(question.id, event.target.value)}
-                        rows={6}
-                        maxLength={12000}
-                        className="mt-4 w-full rounded-2xl border border-slate-300 bg-white p-4 leading-7 text-slate-800 outline-none transition focus:border-[var(--primary)] focus:ring-4 focus:ring-blue-100"
-                        placeholder="Digite sua resposta..."
-                      />
-                    )}
-                  </fieldset>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {step === totalSteps - 1 && (
-            <section className="mt-5 rounded-3xl border border-[var(--border)] bg-white p-6 shadow-sm">
-              <div className="grid gap-4 md:grid-cols-2">
-                {sections.map((section, index) => {
-                  const completion = sectionCompletion(section, answers);
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => setStep(index + 1)}
-                      className="rounded-2xl border border-[var(--border)] bg-slate-50 p-5 text-left transition hover:border-[var(--primary)] hover:bg-blue-50"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <strong className="text-[var(--primary-dark)]">{section.title}</strong>
-                        <span className={`rounded-full px-3 py-1 text-xs font-black ${completion === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                          {completion}%
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-slate-500">{section.questions.length} pergunta(s)</p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                <strong className="text-[var(--primary-dark)]">Envio ainda não habilitado</strong>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Esta primeira versão comprova a leitura dinâmica do formulário e a experiência guiada. O envio será habilitado junto com login institucional, identificação do participante e regras de autoavaliação ou chefia.
-                </p>
-              </div>
-            </section>
-          )}
-
-          <footer className="sticky bottom-0 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/95 p-4 shadow-xl backdrop-blur">
-            <div className="hidden text-xs font-bold text-slate-500 sm:block">
-              {draftSavedAt ? `Rascunho salvo em ${dateLabel(draftSavedAt)}` : "Rascunho automático ativo"}
             </div>
-            <div className="ml-auto flex gap-3">
-              <button type="button" onClick={previousStep} disabled={step === 0} className="rounded-xl border border-[var(--border)] bg-white px-5 py-3 font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">
-                Anterior
-              </button>
-              <button type="button" onClick={nextStep} disabled={step === totalSteps - 1} className="rounded-xl bg-[var(--primary)] px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
-                Próxima etapa
-              </button>
-            </div>
-          </footer>
-        </div>
+          </section>
+        )}
+
+        <footer className="sticky bottom-0 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-[#d7e5f2] bg-white/95 p-4 shadow-xl backdrop-blur">
+          <div className="hidden text-xs font-bold text-slate-500 sm:block">
+            {saveState === "saving" ? "Salvando resposta..." : saveState === "error" ? "Falha ao salvar" : savedAt ? `Salvo no sistema em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}
+          </div>
+          <div className="ml-auto flex gap-3">
+            <button type="button" onClick={() => goToStep(step - 1, false)} disabled={step === 0} className="rounded-xl border border-[#d7e5f2] bg-white px-5 py-3 font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Anterior</button>
+            <button type="button" onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="rounded-xl bg-[#003b70] px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">Próxima etapa</button>
+          </div>
+        </footer>
       </div>
     </main>
   );
