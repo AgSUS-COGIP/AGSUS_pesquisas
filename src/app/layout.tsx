@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AgSUS Pesquisas",
+  title: {
+    default: "AgSUS Pesquisas e Avaliações",
+    template: "%s | AgSUS",
+  },
   description: "Plataforma institucional de pesquisas, avaliações e formulários da AgSUS.",
+  icons: {
+    icon: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
+    apple: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
+  },
 };
 
 export default function RootLayout({
