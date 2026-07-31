@@ -61,20 +61,28 @@ textarea:focus-visible {
 .agsus-stripe {
   height: 11px;
   width: 100%;
-  background:
-    linear-gradient(
-      90deg,
-      #003b70 0%,
-      #003b70 23%,
-      #0b8f58 23%,
-      #0b8f58 41%,
-      #f2b705 41%,
-      #f2b705 59%,
-      #d92d3a 59%,
-      #d92d3a 76%,
-      #00a8d6 76%,
-      #00a8d6 100%
-    );
+  background: linear-gradient(
+    90deg,
+    #003b70 0%,
+    #003b70 23%,
+    #0b8f58 23%,
+    #0b8f58 41%,
+    #f2b705 41%,
+    #f2b705 59%,
+    #d92d3a 59%,
+    #d92d3a 76%,
+    #00a8d6 76%,
+    #00a8d6 100%
+  );
+}
+
+/* O formulário é uma experiência focada. A navegação lateral pertence somente ao painel. */
+main:has(> aside.w-72) > aside.w-72 {
+  display: none !important;
+}
+
+main:has(> aside.w-72) > div {
+  padding-left: 0 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
