@@ -27,13 +27,52 @@ function getCallbackBaseUrl() {
   return normalizeSiteUrl(configuredUrl || OFFICIAL_SITE_URL);
 }
 
+function shuffledBackgrounds() {
+  return [...BACKGROUNDS].sort(() => Math.random() - 0.5);
+}
+
+function preloadFirstAvailable(urls: string[]) {
+  return new Promise<string | null>((resolve) => {
+    const tryNext = (index: number) => {
+      if (index >= urls.length) {
+        resolve(null);
+        return;
+      }
+
+      const image = new Image();
+      const timeout = window.setTimeout(() => {
+        image.src = "";
+        tryNext(index + 1);
+      }, 7000);
+
+      image.onload = () => {
+        window.clearTimeout(timeout);
+        resolve(urls[index]);
+      };
+
+      image.onerror = () => {
+        window.clearTimeout(timeout);
+        tryNext(index + 1);
+      };
+
+      image.src = urls[index];
+    };
+
+    tryNext(0);
+  });
+}
+
 export default function AccessPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [background, setBackground] = useState(BACKGROUNDS[0]);
+  const [background, setBackground] = useState<string | null>(null);
 
   useEffect(() => {
-    setBackground(BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)]);
+    let active = true;
+
+    void preloadFirstAvailable(shuffledBackgrounds()).then((loadedBackground) => {
+      if (active && loadedBackground) setBackground(loadedBackground);
+    });
 
     const checkSession = async () => {
       const supabase = createBrowserSupabaseClient();
@@ -42,6 +81,10 @@ export default function AccessPage() {
     };
 
     void checkSession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function signInWithGoogle() {
@@ -70,10 +113,13 @@ export default function AccessPage() {
   }
 
   return (
-    <main
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-900 bg-cover bg-center px-5 py-10 text-[#10243e]"
-      style={{ backgroundImage: `url(${background})` }}
-    >
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#082b4b,#0a527d,#0d6f76)] px-5 py-10 text-[#10243e]">
+      {background && (
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-0 transition-opacity duration-700 animate-[fadeIn_.7s_ease-out_forwards]"
+          style={{ backgroundImage: `url(${background})` }}
+        />
+      )}
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,32,64,.70),rgba(0,59,112,.35),rgba(3,25,45,.68))]" />
       <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
 
@@ -123,8 +169,8 @@ export default function AccessPage() {
         </footer>
       </section>
 
-      <span className="absolute bottom-4 right-5 z-10 text-[10px] font-semibold text-white/70">
-        Imagem de fundo: Unsplash
+      <span className="absolute bottom-4 right-5 z-10 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-white/80 backdrop-blur-md">
+        Imagem de fundo ilustrativa
       </span>
     </main>
   );
