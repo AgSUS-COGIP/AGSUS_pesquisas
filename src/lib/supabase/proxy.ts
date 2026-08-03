@@ -1,12 +1,33 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PATHS = new Set(["/", "/acesso", "/auth/confirm", "/api/health"]);
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/background/");
+}
+
+function addResponseHeaders(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const publicPath = isPublicPath(request.nextUrl.pathname);
 
   if (!url || !publishableKey) {
-    return NextResponse.next({ request });
+    if (publicPath) return addResponseHeaders(NextResponse.next({ request }));
+
+    return addResponseHeaders(new NextResponse("Serviço temporariamente indisponível.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    }));
   }
 
   let response = NextResponse.next({ request });
@@ -25,7 +46,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  const { data, error } = await supabase.auth.getUser();
+  const authenticated = Boolean(data.user) && !error;
+
+  if (!authenticated && !publicPath) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/acesso";
+    destination.search = "";
+    destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    return addResponseHeaders(NextResponse.redirect(destination));
+  }
+
+  if (authenticated && request.nextUrl.pathname === "/acesso") {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/area";
+    destination.search = "";
+    return addResponseHeaders(NextResponse.redirect(destination));
+  }
+
+  return addResponseHeaders(response);
 }
