@@ -15,12 +15,14 @@ export type PlatformContext = {
     costCenter: string | null;
     workplace: string | null;
     metadata: Record<string, unknown>;
+    avatarUrl?: string | null;
   };
   participant?: { status: string; accessProfile: string | null; completedAt: string | null } | null;
-  application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null };
+  application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null } | null;
   isLeader?: boolean;
   roles?: string[];
   modules?: string[];
+  canManageSurveys?: boolean;
 };
 
 const ADMIN_MODULES = ["HOME", "SURVEYS", "DASHBOARDS", "TEAM", "RESULTS", "ADMIN_SURVEYS", "ADMIN_PARTICIPANTS", "ADMIN_TEAMS", "ADMIN_ACCESS", "ADMIN_IMPORT"];
@@ -59,15 +61,13 @@ async function fetchPlatformContext() {
     if (!userData.user) throw new Error("AUTH_REQUIRED");
 
     const { data, error: contextError } = await supabase.rpc("get_my_platform_context");
-    let resolved: PlatformContext;
-    if (!contextError && data && (data as PlatformContext).status === "OK") {
-      resolved = data as PlatformContext;
-    } else {
-      const fallback = await supabase.rpc("get_my_cddi_context");
-      if (fallback.error) throw fallback.error;
-      resolved = fallback.data as PlatformContext;
-      if (!resolved || resolved.status !== "OK") throw new Error(resolved?.message ?? "Não foi possível carregar o cadastro institucional.");
-    }
+    if (contextError) throw new Error(`Falha ao carregar permissões da plataforma: ${contextError.message}`);
+
+    const resolved = data as PlatformContext | null;
+    if (!resolved) throw new Error("A plataforma não retornou o contexto institucional.");
+    if (resolved.status === "AUTH_REQUIRED") throw new Error("AUTH_REQUIRED");
+    if (resolved.status !== "OK") throw new Error(resolved.message ?? "Não foi possível carregar o cadastro institucional.");
+
     cachedContext = resolved;
     cachedAt = Date.now();
     return resolved;
