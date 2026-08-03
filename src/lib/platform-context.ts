@@ -25,6 +25,11 @@ export type PlatformContext = {
   canManageSurveys?: boolean;
 };
 
+type AccessResolution = {
+  status?: string;
+  message?: string;
+};
+
 const ADMIN_MODULES = ["HOME", "SURVEYS", "DASHBOARDS", "TEAM", "RESULTS", "ADMIN_SURVEYS", "ADMIN_PARTICIPANTS", "ADMIN_TEAMS", "ADMIN_ACCESS", "ADMIN_IMPORT"];
 const CONTEXT_TTL = 2 * 60_000;
 let cachedContext: PlatformContext | null = null;
@@ -51,6 +56,26 @@ export function profileLabel(context: PlatformContext) {
   return "Participante";
 }
 
+async function loadContextFromDatabase() {
+  const supabase = createBrowserSupabaseClient();
+  const { data, error } = await supabase.rpc("get_my_platform_context");
+  if (error) throw new Error(`Falha ao carregar permissões da plataforma: ${error.message}`);
+  return data as PlatformContext | null;
+}
+
+async function provisionInstitutionalAccess() {
+  const supabase = createBrowserSupabaseClient();
+  const { data, error } = await supabase.rpc("resolve_authenticated_person", {
+    target_employee_number: null,
+  });
+  if (error) throw new Error(`Falha ao registrar o acesso institucional: ${error.message}`);
+
+  const resolution = data as AccessResolution | null;
+  if (resolution?.status !== "OK") {
+    throw new Error(resolution?.message ?? "Não foi possível registrar o acesso institucional.");
+  }
+}
+
 async function fetchPlatformContext() {
   if (cachedContext && Date.now() - cachedAt < CONTEXT_TTL) return cachedContext;
   if (pendingContext) return pendingContext;
@@ -60,10 +85,13 @@ async function fetchPlatformContext() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error("AUTH_REQUIRED");
 
-    const { data, error: contextError } = await supabase.rpc("get_my_platform_context");
-    if (contextError) throw new Error(`Falha ao carregar permissões da plataforma: ${contextError.message}`);
+    let resolved = await loadContextFromDatabase();
 
-    const resolved = data as PlatformContext | null;
+    if (resolved?.status === "UNLINKED") {
+      await provisionInstitutionalAccess();
+      resolved = await loadContextFromDatabase();
+    }
+
     if (!resolved) throw new Error("A plataforma não retornou o contexto institucional.");
     if (resolved.status === "AUTH_REQUIRED") throw new Error("AUTH_REQUIRED");
     if (resolved.status !== "OK") throw new Error(resolved.message ?? "Não foi possível carregar o cadastro institucional.");
