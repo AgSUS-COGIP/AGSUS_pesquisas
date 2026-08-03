@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - "feature/**"
+      - "feat/**"
       - "fix/**"
+      - "test/**"
       - "chore/**"
   pull_request:
     branches: [main]
@@ -19,7 +21,7 @@ permissions:
 
 jobs:
   validate:
-    name: TypeScript, lint and production build
+    name: Tests, TypeScript, lint and production build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -37,6 +39,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Unit tests
+        run: npm test
 
       - name: TypeScript validation
         run: npm run typecheck

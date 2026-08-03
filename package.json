@@ -10,7 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dicebear/core": "10.3.0",
@@ -41,6 +43,7 @@
     "eslint": "9.39.1",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "^3.2.4"
   }
 }
