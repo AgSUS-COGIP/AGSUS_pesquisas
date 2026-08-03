@@ -8,6 +8,9 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { Button } from "@/components/ui/button";
+import { ErrorSummary } from "@/components/ui/feedback";
+import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 
@@ -54,6 +57,9 @@ export default function NewSurveyPage() {
 
   const person = context.person;
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
+  const validationErrors = Object.values(form.formState.errors)
+    .map((fieldError) => fieldError?.message)
+    .filter((message): message is string => Boolean(message));
 
   async function submit(values: FormValues) {
     try {
@@ -77,32 +83,38 @@ export default function NewSurveyPage() {
     }
   }
 
-  const fieldClass = "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100";
-
   return <PlatformShell user={user} eyebrow="Equipe Técnica" title="Nova pesquisa">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-      <form onSubmit={form.handleSubmit(submit)} className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
+      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[#003b70]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Crie a base da pesquisa</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a pesquisa, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
 
+        <ErrorSummary errors={validationErrors} className="mt-6" />
+
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
-          <label className="text-sm font-black text-slate-700">Código institucional<input {...form.register("code")} placeholder="EX.: CLIMA-2027" className={fieldClass} />{form.formState.errors.code && <span className="mt-2 block text-xs font-bold text-red-600">{form.formState.errors.code.message}</span>}</label>
-          <label className="text-sm font-black text-slate-700">Nome da pesquisa<input {...form.register("name")} placeholder="Pesquisa de Clima Organizacional" className={fieldClass} />{form.formState.errors.name && <span className="mt-2 block text-xs font-bold text-red-600">{form.formState.errors.name.message}</span>}</label>
+          <Input label="Código institucional" placeholder="EX.: CLIMA-2027" required error={form.formState.errors.code?.message} {...form.register("code")} />
+          <Input label="Nome da pesquisa" placeholder="Pesquisa de Clima Organizacional" required error={form.formState.errors.name?.message} {...form.register("name")} />
         </div>
 
-        <label className="mt-5 block text-sm font-black text-slate-700">Descrição<textarea {...form.register("description")} rows={4} placeholder="Objetivo, público e contexto da pesquisa." className={fieldClass} /></label>
-        <label className="mt-5 block text-sm font-black text-slate-700">Nome do primeiro ciclo<input {...form.register("applicationName")} placeholder="Pesquisa de Clima 2027 — 1º ciclo" className={fieldClass} />{form.formState.errors.applicationName && <span className="mt-2 block text-xs font-bold text-red-600">{form.formState.errors.applicationName.message}</span>}</label>
+        <Textarea label="Descrição" rows={4} placeholder="Objetivo, público e contexto da pesquisa." error={form.formState.errors.description?.message} containerClassName="mt-5" {...form.register("description")} />
+        <Input label="Nome do primeiro ciclo" placeholder="Pesquisa de Clima 2027 — 1º ciclo" required error={form.formState.errors.applicationName?.message} containerClassName="mt-5" {...form.register("applicationName")} />
 
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
-          <label className="text-sm font-black text-slate-700">Abertura planejada<input type="datetime-local" {...form.register("opensAt")} className={fieldClass} /></label>
-          <label className="text-sm font-black text-slate-700">Encerramento planejado<input type="datetime-local" {...form.register("closesAt")} className={fieldClass} />{form.formState.errors.closesAt && <span className="mt-2 block text-xs font-bold text-red-600">{form.formState.errors.closesAt.message}</span>}</label>
+          <Input type="datetime-local" label="Abertura planejada" error={form.formState.errors.opensAt?.message} {...form.register("opensAt")} />
+          <Input type="datetime-local" label="Encerramento planejado" error={form.formState.errors.closesAt?.message} {...form.register("closesAt")} />
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><input type="checkbox" {...form.register("allowDrafts")} className="mt-1 h-5 w-5 accent-[#003b70]" /><span><strong className="block text-slate-800">Permitir rascunhos</strong><small className="mt-1 block leading-5 text-slate-500">A pessoa poderá salvar e continuar depois.</small></span></label>
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"><input type="checkbox" {...form.register("anonymous")} className="mt-1 h-5 w-5 accent-[#003b70]" /><span><strong className="block text-slate-800">Pesquisa anônima</strong><small className="mt-1 block leading-5 text-slate-500">Respostas sem identificação nominal nos resultados.</small></span></label>
+          <Checkbox label="Permitir rascunhos" description="A pessoa poderá salvar e continuar depois." {...form.register("allowDrafts")} />
+          <Checkbox label="Pesquisa anônima" description="Respostas sem identificação nominal nos resultados." {...form.register("anonymous")} />
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-end gap-3"><Link href="/admin/pesquisas" className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-black text-slate-600">Cancelar</Link><button type="submit" disabled={form.formState.isSubmitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-6 py-3 font-black text-white shadow-lg transition hover:bg-[#075ea8] disabled:opacity-60">{form.formState.isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}Criar rascunho</button></div>
+        <div className="mt-8 flex flex-wrap justify-end gap-3">
+          <Link href="/admin/pesquisas" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancelar</Link>
+          <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+            Criar rascunho
+          </Button>
+        </div>
       </form>
 
       <aside className="space-y-5">
