@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
   const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
   if (!isAdmin) return <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6"><section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl"><h1 className="text-3xl font-black text-[#003b70]">Acesso restrito</h1><p className="mt-3 text-slate-600">Seu perfil não possui permissão para acessar a central administrativa.</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao painel</Link></section></main>;
 
-  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
+  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
   const visibleCards = cards.filter((card) => card.href !== "/admin/acessos" || modules.includes("ADMIN_ACCESS"));
 
   return <PlatformShell user={user} eyebrow="Equipe Técnica" title="Central administrativa" actions={<Link href="/admin/pesquisas/nova" className="hidden items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#075ea8] md:inline-flex"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link>}>
