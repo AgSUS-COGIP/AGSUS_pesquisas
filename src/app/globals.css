@@ -1,1 +1,107 @@
 @import "tailwindcss";
+
+:root {
+  --brand-primary: #003b70;
+  --brand-primary-strong: #002b54;
+  --brand-secondary: #0b8f58;
+  --brand-accent: #00a8d6;
+  --surface-page: #f6f8fb;
+  --surface-card: #ffffff;
+  --border-subtle: #e2e8f0;
+  --text-primary: #17233a;
+  --text-secondary: #5f6f86;
+  --focus-ring: #7dd3fc;
+  --radius-card: 1rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 28px -20px rgba(15, 23, 42, 0.28);
+}
+
+html {
+  min-height: 100%;
+  background: var(--surface-page);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a[href],
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 72%, transparent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: var(--brand-primary-strong);
+}
+
+.text-brand-primary {
+  color: var(--brand-primary);
+}
+
+.bg-brand-primary {
+  background-color: var(--brand-primary);
+}
+
+.surface-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.metric-card {
+  min-width: 6.25rem;
+  border-radius: 0.875rem;
+  background: #f8fafc;
+  padding: 0.8rem 0.95rem;
+}
+
+.section-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: white;
+  }
+
+  nav,
+  aside,
+  button,
+  [data-print-hidden="true"] {
+    display: none !important;
+  }
+}
