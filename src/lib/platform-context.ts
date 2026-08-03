@@ -23,7 +23,11 @@ export type PlatformContext = {
   modules?: string[];
 };
 
-const ADMIN_MODULES = ["HOME","SURVEYS","DASHBOARDS","TEAM","RESULTS","ADMIN_SURVEYS","ADMIN_PARTICIPANTS","ADMIN_TEAMS","ADMIN_ACCESS","ADMIN_IMPORT"];
+const ADMIN_MODULES = ["HOME", "SURVEYS", "DASHBOARDS", "TEAM", "RESULTS", "ADMIN_SURVEYS", "ADMIN_PARTICIPANTS", "ADMIN_TEAMS", "ADMIN_ACCESS", "ADMIN_IMPORT"];
+const CONTEXT_TTL = 2 * 60_000;
+let cachedContext: PlatformContext | null = null;
+let cachedAt = 0;
+let pendingContext: Promise<PlatformContext> | null = null;
 
 export function deriveModules(context: PlatformContext) {
   const roles = context.roles ?? [];
@@ -45,29 +49,61 @@ export function profileLabel(context: PlatformContext) {
   return "Participante";
 }
 
+async function fetchPlatformContext() {
+  if (cachedContext && Date.now() - cachedAt < CONTEXT_TTL) return cachedContext;
+  if (pendingContext) return pendingContext;
+
+  pendingContext = (async () => {
+    const supabase = createBrowserSupabaseClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error("AUTH_REQUIRED");
+
+    const { data, error: contextError } = await supabase.rpc("get_my_platform_context");
+    let resolved: PlatformContext;
+    if (!contextError && data && (data as PlatformContext).status === "OK") {
+      resolved = data as PlatformContext;
+    } else {
+      const fallback = await supabase.rpc("get_my_cddi_context");
+      if (fallback.error) throw fallback.error;
+      resolved = fallback.data as PlatformContext;
+      if (!resolved || resolved.status !== "OK") throw new Error(resolved?.message ?? "Não foi possível carregar o cadastro institucional.");
+    }
+    cachedContext = resolved;
+    cachedAt = Date.now();
+    return resolved;
+  })().finally(() => { pendingContext = null; });
+
+  return pendingContext;
+}
+
+export function invalidatePlatformContext() {
+  cachedContext = null;
+  cachedAt = 0;
+}
+
 export function usePlatformContext() {
-  const [context, setContext] = useState<PlatformContext | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [context, setContext] = useState<PlatformContext | null>(() => cachedContext);
+  const [loading, setLoading] = useState(!cachedContext);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
     const load = async () => {
       try {
-        const supabase = createBrowserSupabaseClient();
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) { window.location.replace("/acesso"); return; }
-        const { data, error: contextError } = await supabase.rpc("get_my_platform_context");
-        if (!contextError && data && (data as PlatformContext).status === "OK") { setContext(data as PlatformContext); return; }
-        const fallback = await supabase.rpc("get_my_cddi_context");
-        if (fallback.error) throw fallback.error;
-        const fallbackContext = fallback.data as PlatformContext;
-        if (!fallbackContext || fallbackContext.status !== "OK") throw new Error(fallbackContext?.message ?? "Não foi possível carregar o cadastro institucional.");
-        setContext(fallbackContext);
+        const resolved = await fetchPlatformContext();
+        if (active) setContext(resolved);
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar seu acesso.");
-      } finally { setLoading(false); }
+        if (loadError instanceof Error && loadError.message === "AUTH_REQUIRED") {
+          window.location.replace("/acesso");
+          return;
+        }
+        if (active) setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar seu acesso.");
+      } finally {
+        if (active) setLoading(false);
+      }
     };
     void load();
+    return () => { active = false; };
   }, []);
 
   return { context, loading, error };
