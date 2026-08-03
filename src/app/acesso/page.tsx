@@ -1,148 +1,80 @@
 "use client";
 
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
-const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
 
 function safeNext(value: string | null) {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : "/area";
 }
 
 function accessErrorMessage(code: string | null) {
-  if (code === "dominio-nao-autorizado") return "Use uma conta Google institucional dos domínios @agenciasus.org.br ou @agsus.org.br.";
+  if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br.";
   if (code === "oauth-invalido") return "A autenticação não foi concluída. Selecione novamente sua conta institucional.";
   return "";
-}
-
-function shuffledBackgrounds() {
-  return [...BACKGROUNDS].sort(() => Math.random() - 0.5);
-}
-
-function preloadFirstAvailable(urls: string[]) {
-  return new Promise<string | null>((resolve) => {
-    const tryNext = (index: number) => {
-      if (index >= urls.length) return resolve(null);
-      const image = new Image();
-      const timeout = window.setTimeout(() => {
-        image.src = "";
-        tryNext(index + 1);
-      }, 9000);
-      image.onload = () => {
-        window.clearTimeout(timeout);
-        resolve(urls[index]);
-      };
-      image.onerror = () => {
-        window.clearTimeout(timeout);
-        tryNext(index + 1);
-      };
-      image.src = urls[index];
-    };
-    tryNext(0);
-  });
 }
 
 export default function AccessPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [background, setBackground] = useState<string | null>(null);
-  const [backgroundVisible, setBackgroundVisible] = useState(false);
 
   useEffect(() => {
-    let active = true;
     const query = new URLSearchParams(window.location.search);
     setMessage(accessErrorMessage(query.get("erro")));
-
-    void preloadFirstAvailable(shuffledBackgrounds()).then((loadedBackground) => {
-      if (!active || !loadedBackground) return;
-      setBackground(loadedBackground);
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => active && setBackgroundVisible(true)));
-    });
-
-    const checkSession = async () => {
+    void (async () => {
       try {
         const supabase = createBrowserSupabaseClient();
         const { data } = await supabase.auth.getUser();
         if (data.user) window.location.replace(safeNext(query.get("next")));
-      } catch (sessionError) {
-        if (active) setMessage(sessionError instanceof Error ? sessionError.message : "Não foi possível verificar a sessão.");
+      } catch {
+        setMessage("Não foi possível verificar a sessão atual.");
       }
-    };
-
-    void checkSession();
-    return () => {
-      active = false;
-    };
+    })();
   }, []);
 
   async function signInWithGoogle() {
     setLoading(true);
     setMessage("");
-
     try {
       const query = new URLSearchParams(window.location.search);
-      const next = safeNext(query.get("next"));
       const callbackUrl = new URL("/auth/confirm", window.location.origin);
-      callbackUrl.searchParams.set("next", next);
-
+      callbackUrl.searchParams.set("next", safeNext(query.get("next")));
       const supabase = createBrowserSupabaseClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: callbackUrl.toString(),
-          queryParams: { prompt: "select_account" },
-        },
+        options: { redirectTo: callbackUrl.toString(), queryParams: { prompt: "select_account", hd: "agenciasus.org.br" } },
       });
-
       if (error) throw error;
-    } catch (signInError) {
-      setMessage(signInError instanceof Error ? signInError.message : "Não foi possível iniciar o acesso com Google.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
       setLoading(false);
     }
   }
 
-  return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#123f50] px-5 py-10 text-[#10243e]">
-      <div className="absolute inset-0 overflow-hidden bg-[linear-gradient(145deg,#123d56_0%,#1e7b77_48%,#9bbb8b_100%)]">
-        <div className="absolute -right-20 -top-28 h-[28rem] w-[28rem] rounded-full bg-amber-100/30 blur-3xl" />
-        <div className="absolute left-[8%] top-[12%] h-48 w-48 rounded-full bg-cyan-100/15 blur-3xl" />
-        <div className="absolute inset-x-[-8%] bottom-[-17%] h-[58%] bg-[#477966]/75 [clip-path:polygon(0_73%,10%_50%,20%_61%,31%_28%,43%_53%,56%_22%,69%_55%,82%_34%,100%_67%,100%_100%,0_100%)]" />
-        <div className="absolute inset-x-[-8%] bottom-[-27%] h-[62%] bg-[#183f42]/95 [clip-path:polygon(0_62%,13%_39%,26%_58%,40%_25%,55%_52%,70%_30%,84%_58%,100%_37%,100%_100%,0_100%)]" />
+  return <main className="grid min-h-screen bg-slate-50 lg:grid-cols-[1.08fr_.92fr]">
+    <section className="relative hidden overflow-hidden bg-[#063b67] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(44,185,156,.28),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(43,134,210,.28),transparent_40%)]" />
+      <div className="relative"><img src={LOGO_AGSUS} alt="AgSUS" className="h-14 w-14 rounded-xl bg-white p-1.5" /><p className="mt-5 text-sm font-semibold tracking-wide text-blue-100">AgSUS · Pesquisas e Avaliações</p></div>
+      <div className="relative max-w-xl"><p className="text-sm font-semibold uppercase tracking-[.18em] text-emerald-300">Decisões orientadas por evidências</p><h1 className="mt-4 text-5xl font-semibold leading-tight tracking-tight">Uma plataforma institucional para ouvir, analisar e evoluir.</h1><p className="mt-6 max-w-lg text-lg leading-8 text-blue-100">Pesquisas, avaliações e resultados em um ambiente seguro, organizado e integrado à identidade institucional.</p></div>
+      <div className="relative flex items-center gap-2 text-sm text-blue-100"><ShieldCheck className="h-5 w-5 text-emerald-300" />Acesso protegido por autenticação institucional</div>
+    </section>
+
+    <section className="flex items-center justify-center p-6 sm:p-10">
+      <div className="w-full max-w-md">
+        <div className="lg:hidden"><img src={LOGO_AGSUS} alt="AgSUS" className="h-14 w-14" /></div>
+        <p className="mt-8 text-sm font-semibold text-emerald-700 lg:mt-0">Acesso institucional</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Entrar na plataforma</h2>
+        <p className="mt-3 text-base leading-7 text-slate-600">Use sua conta corporativa Google para acessar as pesquisas e módulos autorizados.</p>
+
+        <button type="button" onClick={signInWithGoogle} disabled={loading} className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-[#0b4f82] px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-[#083f69] disabled:cursor-not-allowed disabled:opacity-60"><span className="grid h-7 w-7 place-items-center rounded-full bg-white font-bold text-[#4285f4]">G</span>{loading ? "Abrindo conta Google..." : "Continuar com Google"}<ArrowRight className="h-4 w-4" /></button>
+
+        {message && <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium leading-6 text-red-800">{message}</div>}
+
+        <div className="mt-8 border-t border-slate-200 pt-6"><p className="text-sm text-slate-500">Acesso permitido somente para:</p><p className="mt-2 font-semibold text-slate-900">@agenciasus.org.br</p></div>
+        <p className="mt-10 text-xs leading-5 text-slate-400">Agência Brasileira de Apoio à Gestão do SUS</p>
       </div>
-
-      {background && (
-        <div
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${backgroundVisible ? "opacity-100" : "opacity-0"}`}
-          style={{ backgroundImage: `url(${background})` }}
-        />
-      )}
-
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,32,64,.70),rgba(0,59,112,.35),rgba(3,25,45,.68))]" />
-      <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
-
-      <section className="relative z-10 w-full max-w-[500px] overflow-hidden rounded-[2rem] border border-white/70 bg-white/95 shadow-[0_30px_100px_rgba(0,0,0,0.34)] backdrop-blur-xl">
-        <div className="h-1.5 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
-        <div className="px-7 py-9 sm:px-12 sm:py-11">
-          <div className="text-center">
-            <img src={LOGO_AGSUS} alt="AgSUS" className="mx-auto h-20 w-20 object-contain" />
-            <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-[#0b8f58]">Acesso institucional</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">Plataforma de Pesquisas e Avaliações</h1>
-            <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As pesquisas exibidas dependem das autorizações do seu perfil.</p>
-          </div>
-
-          <button type="button" onClick={signInWithGoogle} disabled={loading} className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#003b70] px-5 py-4 font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#075ea8] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-lg font-black text-[#4285f4]">G</span>
-            {loading ? "Abrindo conta Google..." : "Entrar com Google institucional"}
-          </button>
-
-          {message && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-800">{message}</div>}
-          <p className="mt-7 text-center text-xs leading-5 text-slate-500">Acesso permitido para contas <strong>@agenciasus.org.br</strong> e <strong>@agsus.org.br</strong>.</p>
-        </div>
-        <footer className="border-t border-slate-100 bg-slate-50/90 px-6 py-4 text-center text-xs font-bold text-slate-500">Agência Brasileira de Apoio à Gestão do SUS</footer>
-      </section>
-
-      <span className="absolute bottom-4 right-5 z-10 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-white/80 backdrop-blur-md">Imagem de fundo ilustrativa</span>
-    </main>
-  );
+    </section>
+  </main>;
 }

@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const DEFAULT_ALLOWED_DOMAINS = ["agenciasus.org.br", "agsus.org.br"];
-
-function allowedDomains() {
-  const configured = process.env.ALLOWED_INSTITUTIONAL_DOMAINS;
-  if (!configured) return DEFAULT_ALLOWED_DOMAINS;
-
-  const domains = configured
-    .split(",")
-    .map((domain) => domain.trim().toLowerCase())
-    .filter(Boolean);
-
-  return domains.length ? domains : DEFAULT_ALLOWED_DOMAINS;
-}
+const ALLOWED_DOMAIN = "agenciasus.org.br";
 
 function safeNext(value: string | null) {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : "/area";
@@ -42,7 +30,7 @@ export async function GET(request: NextRequest) {
   const email = userData.user?.email?.trim().toLowerCase() ?? "";
   const domain = email.split("@")[1] ?? "";
 
-  if (userError || !allowedDomains().includes(domain)) {
+  if (userError || domain !== ALLOWED_DOMAIN) {
     await supabase.auth.signOut();
     const destination = new URL("/acesso", url.origin);
     destination.searchParams.set("erro", "dominio-nao-autorizado");
