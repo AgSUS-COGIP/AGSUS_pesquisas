@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleStop, Clock3, FileCheck2, Loader2, Play, RefreshCw, Send, ShieldCheck, Users2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleStop, Clock3, FileCheck2, Loader2, Play, RefreshCw, RotateCcw, Send, ShieldCheck, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
@@ -21,6 +21,8 @@ type Operations = {
   readyToOpen: boolean;
 };
 
+type SupabaseLikeError = { message?: string; details?: string; hint?: string };
+
 function toLocalInput(value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
@@ -31,6 +33,26 @@ function toLocalInput(value: string | null | undefined) {
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Não definido";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error) {
+    const candidate = error as SupabaseLikeError;
+    return candidate.message || candidate.details || candidate.hint || fallback;
+  }
+  return fallback;
+}
+
+function cycleExplanation(status: string | undefined) {
+  switch (status) {
+    case "DRAFT": return "O ciclo está em preparação. Ajuste o período antes de publicar ou abrir.";
+    case "SCHEDULED": return "O ciclo está agendado. O período ainda pode ser ajustado antes da abertura.";
+    case "OPEN": return "O ciclo está aberto para respostas. Para alterar o período, encerre-o primeiro.";
+    case "CLOSED": return "O ciclo foi encerrado. Informe um novo período e use Reabrir ciclo para receber novas respostas.";
+    case "CANCELLED": return "O ciclo foi cancelado e não pode ser retomado. Crie um novo ciclo para esta pesquisa.";
+    default: return "Configure o período e o estado operacional deste ciclo.";
+  }
 }
 
 export default function SurveyOperationsPage({ params }: { params: Promise<{ surveyId: string }> }) {
@@ -53,7 +75,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       setOpensAt(toLocalInput(next.application?.opensAt));
       setClosesAt(toLocalInput(next.application?.closesAt));
     } catch (loadError) {
-      toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar a operação do ciclo.");
+      toast.error(errorMessage(loadError, "Não foi possível carregar a operação do ciclo."));
     } finally {
       setDataLoading(false);
     }
@@ -65,21 +87,33 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
-    if (["CLOSE", "CANCEL"].includes(action) && !window.confirm(action === "CLOSE" ? "Encerrar este ciclo agora?" : "Cancelar este ciclo?")) return;
+    if (["CLOSE", "CANCEL", "REOPEN"].includes(action)) {
+      const confirmation = action === "CLOSE"
+        ? "Encerrar este ciclo agora?"
+        : action === "CANCEL"
+          ? "Cancelar este ciclo? Esta ação não poderá ser revertida."
+          : "Reabrir este ciclo com o novo período informado?";
+      if (!window.confirm(confirmation)) return;
+    }
+
+    const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN";
     setWorking(action);
     try {
       const supabase = createBrowserSupabaseClient();
       const { error: actionError } = await supabase.rpc("manage_survey_cycle", {
         target_survey_id: surveyId,
         target_action: action,
-        target_opens_at: action === "UPDATE_PERIOD" && opensAt ? new Date(opensAt).toISOString() : null,
-        target_closes_at: action === "UPDATE_PERIOD" && closesAt ? new Date(closesAt).toISOString() : null,
+        target_opens_at: sendsPeriod && opensAt ? new Date(opensAt).toISOString() : null,
+        target_closes_at: sendsPeriod && closesAt ? new Date(closesAt).toISOString() : null,
       });
       if (actionError) throw actionError;
-      toast.success("Operação concluída com sucesso.");
+      const successLabels: Record<string, string> = {
+        UPDATE_PERIOD: "Período atualizado.", PUBLISH: "Versão publicada.", SCHEDULE: "Ciclo agendado.", OPEN: "Ciclo aberto.", REOPEN: "Ciclo reaberto.", CLOSE: "Ciclo encerrado.", CANCEL: "Ciclo cancelado.",
+      };
+      toast.success(successLabels[action] ?? "Operação concluída.");
       await loadOperations();
     } catch (actionError) {
-      toast.error(actionError instanceof Error ? actionError.message : "Não foi possível executar a operação.");
+      toast.error(errorMessage(actionError, "Não foi possível executar a operação."));
     } finally {
       setWorking(null);
     }
@@ -90,15 +124,11 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const modules = deriveModules(context);
   if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
 
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
-
+  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
+  const cycleStatus = operations?.application?.status;
+  const canEditPeriod = cycleStatus === "DRAFT" || cycleStatus === "SCHEDULED";
+  const canReopen = cycleStatus === "CLOSED";
+  const fieldsEnabled = canEditPeriod || canReopen;
   const metricCards: MetricCard[] = operations ? [
     { label: "Seções", value: operations.metrics.sections, icon: FileCheck2 },
     { label: "Perguntas", value: operations.metrics.questions, icon: FileCheck2 },
@@ -110,26 +140,22 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
   return <PlatformShell user={user} eyebrow="Centro de operações" title={operations?.survey.name ?? "Operação do ciclo"} actions={<div className="flex gap-2"><button onClick={() => void loadOperations()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600"><RefreshCw className="h-4 w-4" />Atualizar</button><Link href={`/admin/pesquisas/${surveyId}`} className="inline-flex items-center rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white">Abrir construtor</Link></div>}>
     {dataLoading || !operations ? <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-9 w-9 animate-spin text-[#003b70]" /></div> : <>
-      <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,.22),transparent_28%),linear-gradient(125deg,#062f54,#075ea8)] p-7 text-white shadow-xl sm:p-9">
-        <div className="grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end"><div><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><ShieldCheck className="h-4 w-4" />Governança do ciclo</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">{operations.survey.name}</h2><p className="mt-3 max-w-3xl leading-7 text-blue-100">Publique a versão, defina o período, abra o ciclo e acompanhe a execução sem ajustes manuais no banco.</p></div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Versão {operations.version.number} · {operations.version.status}</span><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Ciclo · {operations.application?.status ?? "Não configurado"}</span></div></div>
-      </section>
+      <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,.22),transparent_28%),linear-gradient(125deg,#062f54,#075ea8)] p-7 text-white shadow-xl sm:p-9"><div className="grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end"><div><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><ShieldCheck className="h-4 w-4" />Governança do ciclo</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">{operations.survey.name}</h2><p className="mt-3 max-w-3xl leading-7 text-blue-100">Publique a versão, defina o período, abra o ciclo e acompanhe a execução sem ajustes manuais no banco.</p></div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Versão {operations.version.number} · {operations.version.status}</span><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Ciclo · {cycleStatus ?? "Não configurado"}</span></div></div></section>
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {metricCards.map(({ label, value, icon: Icon }) => <article key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-[#0b8f58]" /><p className="mt-4 text-xs font-black uppercase tracking-[.12em] text-slate-400">{label}</p><strong className="mt-1 block text-3xl font-black text-[#003b70]">{value}</strong></article>)}
-      </section>
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">{metricCards.map(({ label, value, icon: Icon }) => <article key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-[#0b8f58]" /><p className="mt-4 text-xs font-black uppercase tracking-[.12em] text-slate-400">{label}</p><strong className="mt-1 block text-3xl font-black text-[#003b70]">{value}</strong></article>)}</section>
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
         <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Prontidão</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Checklist do ciclo</h3></div>{operations.issues.length === 0 ? <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800">Tudo pronto</span> : <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800">Requer atenção</span>}</div><div className="mt-5 space-y-3">{operations.issues.length ? operations.issues.map((issue) => <div key={issue.code} className={`flex gap-3 rounded-2xl border p-4 ${issue.severity === "BLOCKING" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}><AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${issue.severity === "BLOCKING" ? "text-red-600" : "text-amber-600"}`} /><div><strong className="text-slate-900">{issue.severity === "BLOCKING" ? "Bloqueio" : "Atenção"}</strong><p className="mt-1 text-sm text-slate-600">{issue.message}</p></div></div>) : <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><CheckCircle2 className="h-5 w-5 text-emerald-600" /><p className="text-sm font-bold text-emerald-900">A estrutura e o período estão consistentes para operação.</p></div>}</div></article>
 
-        <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Configuração temporal</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Período do ciclo</h3><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black text-slate-700">Abertura<input type="datetime-local" value={opensAt} onChange={(event) => setOpensAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400" /></label><label className="text-sm font-black text-slate-700">Encerramento<input type="datetime-local" value={closesAt} onChange={(event) => setClosesAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400" /></label></div><p className="mt-3 text-xs text-slate-500">Atual: {dateLabel(operations.application?.opensAt)} → {dateLabel(operations.application?.closesAt)}</p><button onClick={() => void runAction("UPDATE_PERIOD")} disabled={working !== null || !opensAt || !closesAt} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-black text-white disabled:opacity-40">{working === "UPDATE_PERIOD" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}Salvar período</button></article>
+        <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Configuração temporal</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Período do ciclo</h3><p className="mt-2 text-sm leading-6 text-slate-500">{cycleExplanation(cycleStatus)}</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black text-slate-700">Abertura<input type="datetime-local" value={opensAt} disabled={!fieldsEnabled} onChange={(event) => setOpensAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label><label className="text-sm font-black text-slate-700">Encerramento<input type="datetime-local" value={closesAt} disabled={!fieldsEnabled} onChange={(event) => setClosesAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label></div><p className="mt-3 text-xs text-slate-500">Atual: {dateLabel(operations.application?.opensAt)} → {dateLabel(operations.application?.closesAt)}</p>{fieldsEnabled ? <button onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")} disabled={working !== null || !opensAt || !closesAt} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-black text-white disabled:opacity-40 ${canReopen ? "bg-[#0b8f58] hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"}`}>{working === (canReopen ? "REOPEN" : "UPDATE_PERIOD") ? <Loader2 className="h-4 w-4 animate-spin" /> : canReopen ? <RotateCcw className="h-4 w-4" /> : <CalendarClock className="h-4 w-4" />}{canReopen ? "Reabrir ciclo com este período" : "Salvar período"}</button> : <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">O período está bloqueado no estado atual do ciclo.</div>}</article>
       </section>
 
-      <section className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Ações controladas</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Ciclo de vida da pesquisa</h3><p className="mt-2 text-sm text-slate-500">As ações abaixo são validadas no banco e registradas na auditoria.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Ações controladas</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Ciclo de vida da pesquisa</h3><p className="mt-2 text-sm text-slate-500">As ações são habilitadas conforme o estado do ciclo, validadas no banco e registradas na auditoria.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <ActionButton label="Publicar versão" icon={Send} working={working === "PUBLISH"} disabled={working !== null || !operations.readyToPublish || operations.version.status === "PUBLISHED"} onClick={() => void runAction("PUBLISH")} />
-        <ActionButton label="Agendar ciclo" icon={CalendarClock} working={working === "SCHEDULE"} disabled={working !== null || !operations.readyToOpen || operations.application?.status !== "DRAFT"} onClick={() => void runAction("SCHEDULE")} />
-        <ActionButton label="Abrir agora" icon={Play} working={working === "OPEN"} disabled={working !== null || !operations.readyToOpen || operations.application?.status === "OPEN" || operations.application?.status === "CLOSED"} onClick={() => void runAction("OPEN")} />
-        <ActionButton label="Encerrar ciclo" icon={CircleStop} working={working === "CLOSE"} disabled={working !== null || !["OPEN", "SCHEDULED"].includes(operations.application?.status ?? "")} onClick={() => void runAction("CLOSE")} danger />
-        <ActionButton label="Cancelar ciclo" icon={AlertTriangle} working={working === "CANCEL"} disabled={working !== null || ["CLOSED", "CANCELLED"].includes(operations.application?.status ?? "")} onClick={() => void runAction("CANCEL")} danger />
+        <ActionButton label="Agendar ciclo" icon={CalendarClock} working={working === "SCHEDULE"} disabled={working !== null || !operations.readyToOpen || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")} onClick={() => void runAction("SCHEDULE")} />
+        <ActionButton label="Abrir agora" icon={Play} working={working === "OPEN"} disabled={working !== null || !operations.readyToOpen || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")} onClick={() => void runAction("OPEN")} />
+        <ActionButton label="Encerrar ciclo" icon={CircleStop} working={working === "CLOSE"} disabled={working !== null || !["OPEN", "SCHEDULED"].includes(cycleStatus ?? "")} onClick={() => void runAction("CLOSE")} danger />
+        <ActionButton label="Cancelar ciclo" icon={AlertTriangle} working={working === "CANCEL"} disabled={working !== null || !["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? "")} onClick={() => void runAction("CANCEL")} danger />
       </div></section>
     </>}
   </PlatformShell>;
