@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRound, UsersRound } from "lucide-react";
+import { PersonAvatar } from "@/components/person-avatar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
@@ -36,7 +37,10 @@ function scaleBoundary(question: Question, side: "start" | "end") {
   if (typeof explicit === "string" && explicit.trim()) return explicit;
   return (side === "start" ? question.options[0] : question.options.at(-1))?.label ?? "";
 }
-function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); }
+function institutionalAvatarUrl(person: PersonIdentity) {
+  const candidate = person.metadata?.avatar_url;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+}
 
 export default function CddiFormPage() {
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
@@ -211,6 +215,7 @@ export default function CddiFormPage() {
 
   const periodClosed = definition.application.status !== "OPEN";
   const person = identity.person;
+  const avatarUrl = institutionalAvatarUrl(person);
 
   if (screen === "home") return (
     <main className="min-h-screen bg-[#eef3f8] px-4 py-5 text-slate-900 sm:px-6">
@@ -222,7 +227,7 @@ export default function CddiFormPage() {
           <p className="mt-1 leading-7 text-slate-700">Será realizada uma <strong>autoavaliação</strong> e uma <strong>avaliação pela chefia direta</strong>. As informações serão consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
           <p className="mt-2 text-sm text-slate-500">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
           <div className="mt-5 grid gap-4 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-xl font-black text-[#075ea8] shadow-sm">{initials(person.fullName)}</div>
+            <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
             <div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div>
             <div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div>
             <div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div>
@@ -239,7 +244,7 @@ export default function CddiFormPage() {
     <main className="min-h-screen bg-[#eef3f8] pb-28 text-slate-900">
       <div className="mx-auto max-w-[960px] px-4 py-4 sm:px-6">
         <img src={BANNER_URL} alt="CDDI" className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
-        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">Ciclo de Devolutivas e Desenvolvimento Individual (CDDI)</h1><p className="mt-2 leading-7 text-slate-700">Instrumento sistematizado para promover avaliação por competências, devolutivas e alinhamentos entre trabalhadores e suas lideranças.</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><div className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-lg font-black text-[#075ea8] shadow-sm">{initials(person.fullName)}</div><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
+        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">Ciclo de Devolutivas e Desenvolvimento Individual (CDDI)</h1><p className="mt-2 leading-7 text-slate-700">Instrumento sistematizado para promover avaliação por competências, devolutivas e alinhamentos entre trabalhadores e suas lideranças.</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
         <section className={`mt-4 rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? "O formulário está disponível em modo de consulta." : "Suas respostas são salvas automaticamente durante o preenchimento."}</p></section>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-[#087b8d] via-emerald-500 to-blue-600 transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-1 text-right text-xs text-slate-500">{progress}% preenchido</div>
         <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><strong className="text-[#26368d]">{step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title}</strong><span className="text-xs font-bold text-slate-500">Etapa {step + 1} de {totalSteps}</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{Array.from({ length: totalSteps }).map((_, index) => { const complete = index === 0 ? Boolean(identity.leader) : index <= sections.length ? sectionCompletion(sections[index - 1], answers) === 100 : answeredRequired === requiredQuestions.length; return <button key={index} onClick={() => goToStep(index, index > step)} className={`min-w-9 rounded-full px-3 py-2 text-xs font-bold ${index === step ? "bg-[#086ab6] text-white" : complete ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0")}</button>; })}</div></section>
