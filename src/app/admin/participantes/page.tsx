@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AdminParticipantManagement } from "@/components/admin-participant-management";
+import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 
@@ -26,11 +27,12 @@ export default function AdminParticipantsPage() {
     modules,
   };
 
-  return <PlatformShell user={user} eyebrow="Público e elegibilidade" title="Participantes" actions={<Link href="/admin/importacao" className="hidden rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#075ea8] md:inline-flex">Importar base</Link>}>
+  return <PlatformShell user={user} eyebrow="Público e elegibilidade" title="Participantes" actions={<Link href="/admin/importacao" className="hidden rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#075ea8] md:inline-flex">Atualizar base</Link>}>
     <section className="mb-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
       <p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Gestão por pesquisa</p>
-      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-3xl font-black text-[#003b70]">Defina quem pode responder</h2><p className="mt-3 max-w-3xl leading-7 text-slate-600">Selecione uma pesquisa, localize pessoas da base institucional, cadastre novos participantes quando necessário e controle bloqueios, reativações e exclusões com auditoria.</p></div><Link href="/admin" className="inline-flex shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-[#003b70] transition hover:bg-white">Voltar à central</Link></div>
+      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-3xl font-black text-[#003b70]">Defina quem pode responder</h2><p className="mt-3 max-w-3xl leading-7 text-slate-600">A base institucional contém as pessoas disponíveis. Selecione uma pesquisa e vincule somente quem deverá respondê-la, com controle de bloqueios, reativações e exclusões.</p></div><Link href="/admin" className="inline-flex shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-[#003b70] transition hover:bg-white">Voltar à central</Link></div>
     </section>
+    <PeopleBaseSummaryCard />
     <AdminParticipantManagement />
   </PlatformShell>;
 }
