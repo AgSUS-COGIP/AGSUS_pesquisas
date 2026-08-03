@@ -1,21 +1,31 @@
-name: Validate application
+name: Internal quality gate
 
 on:
+  push:
+    branches:
+      - "feature/**"
+      - "fix/**"
+      - "chore/**"
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: validate-${{ github.ref }}
+  group: internal-quality-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  validate:
+    name: TypeScript, lint and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://envajznrzfuuumcdtvcj.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: validation-placeholder
+      CI: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,6 +40,9 @@ jobs:
 
       - name: TypeScript validation
         run: npm run typecheck
+
+      - name: ESLint validation
+        run: npm run lint
 
       - name: Production build
         run: npm run build
