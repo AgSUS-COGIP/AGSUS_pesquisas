@@ -54,8 +54,8 @@ export function DataTableCell({ className, ...props }: HTMLAttributes<HTMLTableC
   return <td className={cn("px-5 py-4 align-middle", className)} {...props} />;
 }
 
-export function DataTableState({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("p-10 text-center text-sm text-slate-600", className)}>{children}</div>;
+export function DataTableState({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("p-10 text-center text-sm text-slate-600", className)} {...props} />;
 }
 
 export function DataTableEmpty({ colSpan, children }: { colSpan: number; children: ReactNode }) {

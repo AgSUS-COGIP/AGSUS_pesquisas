@@ -11,9 +11,26 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownAZ, ArrowUpAZ, Download, MailWarning, RefreshCw, Search, UsersRound } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Download, MailWarning, RefreshCw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableContainer,
+  DataTableEmpty,
+  DataTableFooter,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  DataTableScroll,
+  DataTableState,
+  DataTableToolbar,
+} from "@/components/ui/data-table";
+import { StatCard } from "@/components/ui/surface";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ParticipantRow = {
@@ -36,7 +53,6 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
     .select("id")
     .eq("code", "CDDI-2026")
     .single();
-
   if (applicationError) throw applicationError;
 
   const { data, error } = await supabase
@@ -57,7 +73,6 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
     `)
     .eq("application_id", application.id)
     .order("created_at", { ascending: false });
-
   if (error) throw error;
 
   return (data ?? []).map((item) => {
@@ -79,17 +94,7 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
 
 function exportCsv(rows: ParticipantRow[]) {
   const header = ["Matrícula", "Nome", "E-mail institucional", "Cargo", "Centro de custo", "Local", "Perfil", "Situação", "Conclusão"];
-  const lines = rows.map((row) => [
-    row.employeeNumber,
-    row.fullName,
-    row.institutionalEmail ?? "",
-    row.jobTitle ?? "",
-    row.costCenter ?? "",
-    row.workplace ?? "",
-    row.accessProfile ?? "",
-    row.status,
-    row.completedAt ? new Date(row.completedAt).toLocaleString("pt-BR") : "",
-  ]);
+  const lines = rows.map((row) => [row.employeeNumber, row.fullName, row.institutionalEmail ?? "", row.jobTitle ?? "", row.costCenter ?? "", row.workplace ?? "", row.accessProfile ?? "", row.status, row.completedAt ? new Date(row.completedAt).toLocaleString("pt-BR") : ""]);
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const csv = [header, ...lines].map((line) => line.map((value) => escape(String(value))).join(";")).join("\n");
   const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
@@ -102,25 +107,22 @@ function exportCsv(rows: ParticipantRow[]) {
 }
 
 function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    ELIGIBLE: "Elegível",
-    IN_PROGRESS: "Em andamento",
-    COMPLETED: "Concluído",
-    BLOCKED: "Bloqueado",
-    INACTIVE: "Inativo",
-  };
-  return labels[status] ?? status;
+  return ({ ELIGIBLE: "Elegível", IN_PROGRESS: "Em andamento", COMPLETED: "Concluído", BLOCKED: "Bloqueado", INACTIVE: "Inativo" } as Record<string, string>)[status] ?? status;
+}
+
+function statusVariant(status: string): "neutral" | "info" | "success" | "warning" | "danger" {
+  if (status === "COMPLETED") return "success";
+  if (status === "IN_PROGRESS") return "info";
+  if (status === "BLOCKED") return "danger";
+  if (status === "ELIGIBLE") return "warning";
+  return "neutral";
 }
 
 export function AdminParticipantsTable() {
   const [sorting, setSorting] = useState<SortingState>([{ id: "fullName", desc: false }]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("TODOS");
-
-  const query = useQuery({
-    queryKey: ["admin", "participants", "CDDI-2026"],
-    queryFn: loadParticipants,
-  });
+  const query = useQuery({ queryKey: ["admin", "participants", "CDDI-2026"], queryFn: loadParticipants });
 
   const filteredData = useMemo(() => {
     const rows = query.data ?? [];
@@ -130,188 +132,39 @@ export function AdminParticipantsTable() {
   }, [query.data, statusFilter]);
 
   const columns = useMemo<ColumnDef<ParticipantRow>[]>(() => [
-    {
-      accessorKey: "fullName",
-      header: "Participante",
-      cell: ({ row }) => (
-        <div className="min-w-64">
-          <strong className="block text-sm text-slate-900">{row.original.fullName}</strong>
-          <span className="mt-1 block text-xs text-slate-500">Matrícula {row.original.employeeNumber}</span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "institutionalEmail",
-      header: "Contato",
-      cell: ({ row }) => row.original.institutionalEmail ? (
-        <span className="text-sm text-slate-700">{row.original.institutionalEmail}</span>
-      ) : (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
-          <MailWarning className="h-3.5 w-3.5" /> Sem e-mail
-        </span>
-      ),
-    },
-    {
-      accessorKey: "jobTitle",
-      header: "Cargo e unidade",
-      cell: ({ row }) => (
-        <div className="min-w-56 text-sm">
-          <span className="block font-semibold text-slate-800">{row.original.jobTitle ?? "Cargo não informado"}</span>
-          <span className="mt-1 block text-xs text-slate-500">{row.original.costCenter ?? row.original.workplace ?? "Unidade não informada"}</span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "accessProfile",
-      header: "Perfil",
-      cell: ({ getValue }) => <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{String(getValue() ?? "Participante")}</span>,
-    },
-    {
-      accessorKey: "status",
-      header: "Situação",
-      cell: ({ getValue }) => {
-        const value = String(getValue());
-        const completed = value === "COMPLETED";
-        return <span className={`rounded-full px-3 py-1 text-xs font-bold ${completed ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{statusLabel(value)}</span>;
-      },
-    },
+    { accessorKey: "fullName", header: "Participante", cell: ({ row }) => <div className="min-w-64"><strong className="block text-sm text-slate-900">{row.original.fullName}</strong><span className="mt-1 block text-xs text-slate-500">Matrícula {row.original.employeeNumber}</span></div> },
+    { accessorKey: "institutionalEmail", header: "Contato", cell: ({ row }) => row.original.institutionalEmail ? <span className="text-sm text-slate-700">{row.original.institutionalEmail}</span> : <Badge variant="warning"><MailWarning className="h-3.5 w-3.5" aria-hidden="true" />Sem e-mail</Badge> },
+    { accessorKey: "jobTitle", header: "Cargo e unidade", cell: ({ row }) => <div className="min-w-56 text-sm"><span className="block font-semibold text-slate-800">{row.original.jobTitle ?? "Cargo não informado"}</span><span className="mt-1 block text-xs text-slate-500">{row.original.costCenter ?? row.original.workplace ?? "Unidade não informada"}</span></div> },
+    { accessorKey: "accessProfile", header: "Perfil", cell: ({ getValue }) => <Badge variant="info">{String(getValue() ?? "Participante")}</Badge> },
+    { accessorKey: "status", header: "Situação", cell: ({ getValue }) => { const value = String(getValue()); return <Badge variant={statusVariant(value)}>{statusLabel(value)}</Badge>; } },
   ], []);
 
-  const table = useReactTable({
-    data: filteredData,
-    columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 20 } },
-  });
-
+  const table = useReactTable({ data: filteredData, columns, state: { sorting, globalFilter }, onSortingChange: setSorting, onGlobalFilterChange: setGlobalFilter, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel(), getFilteredRowModel: getFilteredRowModel(), getPaginationRowModel: getPaginationRowModel(), initialState: { pagination: { pageSize: 20 } } });
   const total = query.data?.length ?? 0;
   const withoutEmail = query.data?.filter((row) => !row.institutionalEmail).length ?? 0;
   const completed = query.data?.filter((row) => row.status === "COMPLETED").length ?? 0;
+  const visibleRows = table.getRowModel().rows;
+  const filteredRows = table.getFilteredRowModel().rows;
 
-  return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        {[
-          { label: "Participantes", value: total, helper: "vinculados ao CDDI", icon: UsersRound },
-          { label: "Sem e-mail", value: withoutEmail, helper: "necessitam tratamento", icon: MailWarning },
-          { label: "Concluídos", value: completed, helper: "formularios finalizados", icon: ArrowUpAZ },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[.14em] text-slate-400">{item.label}</p>
-                  <strong className="mt-2 block text-3xl font-black text-[#003b70]">{item.value.toLocaleString("pt-BR")}</strong>
-                  <span className="mt-1 block text-sm text-slate-500">{item.helper}</span>
-                </div>
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-[#003b70]"><Icon className="h-5 w-5" /></span>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+  return <div className="space-y-6">
+    <section className="grid gap-4 md:grid-cols-3" aria-label="Indicadores dos participantes">
+      <StatCard label="Participantes" value={total.toLocaleString("pt-BR")} description="Vinculados ao CDDI" />
+      <StatCard label="Sem e-mail" value={withoutEmail.toLocaleString("pt-BR")} description="Necessitam tratamento" />
+      <StatCard label="Concluídos" value={completed.toLocaleString("pt-BR")} description="Formulários finalizados" />
+    </section>
 
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-200 p-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-            <label className="relative flex-1">
-              <span className="sr-only">Pesquisar participantes</span>
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={globalFilter}
-                onChange={(event) => setGlobalFilter(event.target.value)}
-                placeholder="Pesquisar por nome, matrícula, e-mail ou cargo"
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-              />
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-            >
-              <option value="TODOS">Todas as situações</option>
-              <option value="ELIGIBLE">Elegíveis</option>
-              <option value="IN_PROGRESS">Em andamento</option>
-              <option value="COMPLETED">Concluídos</option>
-              <option value="SEM_EMAIL">Sem e-mail</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => query.refetch().then(() => toast.success("Base de participantes atualizada."))}
-              disabled={query.isFetching}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} /> Atualizar
-            </button>
-            <button
-              type="button"
-              onClick={() => { exportCsv(table.getFilteredRowModel().rows.map((row) => row.original)); toast.success("Arquivo CSV gerado."); }}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#003b70] px-4 text-sm font-black text-white transition hover:bg-[#075ea8]"
-            >
-              <Download className="h-4 w-4" /> Exportar
-            </button>
-          </div>
+    <DataTableContainer aria-label="Participantes do CDDI">
+      <DataTableToolbar>
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+          <label className="relative flex-1"><span className="sr-only">Pesquisar participantes</span><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input value={globalFilter} onChange={(event) => setGlobalFilter(event.target.value)} placeholder="Pesquisar por nome, matrícula, e-mail ou cargo" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label>
+          <label><span className="sr-only">Filtrar por situação</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:w-auto"><option value="TODOS">Todas as situações</option><option value="ELIGIBLE">Elegíveis</option><option value="IN_PROGRESS">Em andamento</option><option value="COMPLETED">Concluídos</option><option value="SEM_EMAIL">Sem e-mail</option></select></label>
         </div>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => query.refetch().then(() => toast.success("Base de participantes atualizada."))} disabled={query.isFetching}><RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />Atualizar</Button><Button onClick={() => { exportCsv(filteredRows.map((row) => row.original)); toast.success("Arquivo CSV gerado."); }}><Download className="h-4 w-4" aria-hidden="true" />Exportar</Button></div>
+      </DataTableToolbar>
 
-        {query.isLoading ? (
-          <div className="space-y-3 p-6">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-2xl bg-slate-100" />)}</div>
-        ) : query.isError ? (
-          <div className="p-10 text-center">
-            <p className="font-black text-red-700">Não foi possível carregar os participantes.</p>
-            <p className="mt-2 text-sm text-slate-500">{query.error instanceof Error ? query.error.message : "Erro desconhecido"}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead className="bg-slate-50">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th key={header.id} className="border-b border-slate-200 px-5 py-4 text-xs font-black uppercase tracking-[.12em] text-slate-500">
-                        {header.isPlaceholder ? null : (
-                          <button type="button" onClick={header.column.getToggleSortingHandler()} className="inline-flex items-center gap-2">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {header.column.getIsSorted() === "asc" ? <ArrowDownAZ className="h-4 w-4" /> : header.column.getIsSorted() === "desc" ? <ArrowUpAZ className="h-4 w-4" /> : null}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length ? table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 transition hover:bg-blue-50/40">
-                    {row.getVisibleCells().map((cell) => <td key={cell.id} className="px-5 py-4 align-middle">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
-                  </tr>
-                )) : (
-                  <tr><td colSpan={columns.length} className="px-6 py-16 text-center text-sm font-semibold text-slate-500">Nenhum participante encontrado para os filtros selecionados.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {query.isLoading ? <DataTableState aria-live="polite"><div className="space-y-3">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}</div><span className="sr-only">Carregando participantes</span></DataTableState> : query.isError ? <DataTableState className="text-red-700" role="alert"><p className="font-semibold">Não foi possível carregar os participantes.</p><p className="mt-2 text-slate-500">{query.error instanceof Error ? query.error.message : "Erro desconhecido"}</p></DataTableState> : <DataTableScroll><DataTable><DataTableHead>{table.getHeaderGroups().map((headerGroup) => <DataTableRow key={headerGroup.id} className="hover:bg-transparent">{headerGroup.headers.map((header) => <DataTableHeaderCell key={header.id}>{header.isPlaceholder ? null : <button type="button" onClick={header.column.getToggleSortingHandler()} className="inline-flex items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">{flexRender(header.column.columnDef.header, header.getContext())}{header.column.getIsSorted() === "asc" ? <ArrowDownAZ className="h-4 w-4" aria-label="Ordem crescente" /> : header.column.getIsSorted() === "desc" ? <ArrowUpAZ className="h-4 w-4" aria-label="Ordem decrescente" /> : null}</button>}</DataTableHeaderCell>)}</DataTableRow>)}</DataTableHead><DataTableBody>{visibleRows.length ? visibleRows.map((row) => <DataTableRow key={row.id}>{row.getVisibleCells().map((cell) => <DataTableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</DataTableCell>)}</DataTableRow>) : <DataTableEmpty colSpan={columns.length}>Nenhum participante encontrado para os filtros selecionados.</DataTableEmpty>}</DataTableBody></DataTable></DataTableScroll>}
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm font-semibold text-slate-500">
-            {table.getFilteredRowModel().rows.length.toLocaleString("pt-BR")} registro(s) encontrados
-          </span>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Anterior</button>
-            <span className="px-2 text-sm font-bold text-slate-600">Página {table.getState().pagination.pageIndex + 1} de {Math.max(table.getPageCount(), 1)}</span>
-            <button type="button" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Próxima</button>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+      <DataTableFooter><span className="text-sm font-semibold text-slate-500">{filteredRows.length.toLocaleString("pt-BR")} registro(s) encontrados</span><div className="flex flex-wrap items-center gap-2"><Button variant="secondary" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Anterior</Button><span className="px-2 text-sm font-semibold text-slate-600">Página {table.getState().pagination.pageIndex + 1} de {Math.max(table.getPageCount(), 1)}</span><Button variant="secondary" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Próxima</Button></div></DataTableFooter>
+    </DataTableContainer>
+  </div>;
 }
