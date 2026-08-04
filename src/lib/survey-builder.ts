@@ -130,3 +130,17 @@ export function moveAvailability(index: number, totalItems: number) {
     down: validIndex && index < totalItems - 1,
   };
 }
+
+export function questionMoveTargets<T extends { id: string }>(
+  sections: T[],
+  sourceSectionId: string,
+) {
+  return sections.filter((section) => section.id !== sourceSectionId);
+}
+
+export function hasUnsavedChanges(
+  initialSignature: string,
+  currentSignature: string,
+) {
+  return initialSignature !== currentSignature;
+}

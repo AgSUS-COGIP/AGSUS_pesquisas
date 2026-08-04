@@ -9,10 +9,12 @@ import {
   CalendarDays,
   Check,
   CheckSquare,
+  CircleAlert,
   CircleDot,
   Clock3,
   Copy,
   FileText,
+  FolderInput,
   Hash,
   ImageIcon,
   Loader2,
@@ -32,15 +34,17 @@ import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorSummary } from "@/components/ui/feedback";
-import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
+import { Checkbox, Input, Select, Textarea } from "@/components/ui/form-controls";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import {
   buildQuestionOptions,
+  hasUnsavedChanges,
   isSupportedQuestionType,
   moveAvailability,
   needsQuestionOptions,
   QUESTION_TYPES,
   questionDraftErrors,
+  questionMoveTargets,
   questionOptionsToText,
   questionTypeLabel,
   sectionDraftErrors,
@@ -99,6 +103,13 @@ type QuestionEditor = {
   initialSignature: string;
 };
 
+type QuestionMoveEditor = {
+  questionId: string;
+  questionTitle: string;
+  sourceSectionId: string;
+  targetSectionId: string;
+};
+
 const QUESTION_TYPE_ICONS: Record<SupportedQuestionType, LucideIcon> = {
   SHORT_TEXT: FileText,
   LONG_TEXT: AlignLeft,
@@ -126,6 +137,23 @@ function questionSignature(editor: Pick<QuestionEditor, "title" | "description" 
   ]);
 }
 
+function UnsavedChangesNotice() {
+  return (
+    <div
+      role="status"
+      className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950"
+    >
+      <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <div>
+        <p className="text-sm font-black">Alterações não salvas</p>
+        <p className="mt-1 text-xs leading-5 text-amber-800">
+          Salve antes de fechar esta janela para não perder o que foi alterado.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function SurveyBuilderPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = use(params);
   const { context, loading, error } = usePlatformContext();
@@ -134,6 +162,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [loadError, setLoadError] = useState("");
   const [sectionEditor, setSectionEditor] = useState<SectionEditor | null>(null);
   const [questionEditor, setQuestionEditor] = useState<QuestionEditor | null>(null);
+  const [questionMoveEditor, setQuestionMoveEditor] = useState<QuestionMoveEditor | null>(null);
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [questionErrors, setQuestionErrors] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
@@ -170,6 +199,41 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     [builder],
   );
   const isDraft = builder?.version.status === "DRAFT";
+  const sectionHasUnsavedChanges = Boolean(
+    sectionEditor &&
+      hasUnsavedChanges(
+        sectionEditor.initialSignature,
+        sectionSignature(sectionEditor),
+      ),
+  );
+  const questionHasUnsavedChanges = Boolean(
+    questionEditor &&
+      hasUnsavedChanges(
+        questionEditor.initialSignature,
+        questionSignature(questionEditor),
+      ),
+  );
+  const hasUnsavedEditorChanges =
+    sectionHasUnsavedChanges || questionHasUnsavedChanges;
+  const moveTargetSections = questionMoveTargets(
+    builder?.sections ?? [],
+    questionMoveEditor?.sourceSectionId ?? "",
+  );
+  const moveSourceSection = builder?.sections.find(
+    (section) => section.id === questionMoveEditor?.sourceSectionId,
+  );
+
+  useEffect(() => {
+    if (!hasUnsavedEditorChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedEditorChanges]);
 
   function openNewSection() {
     const draft = { title: "", description: "" };
@@ -345,6 +409,58 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       await loadBuilder(false);
     } catch (deleteError) {
       toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a pergunta.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function openMoveQuestion(sourceSectionId: string, question: Question) {
+    const targets = questionMoveTargets(
+      builder?.sections ?? [],
+      sourceSectionId,
+    );
+    if (!targets.length) {
+      toast.info("Crie outra seção antes de mover esta pergunta.");
+      return;
+    }
+
+    setQuestionMoveEditor({
+      questionId: question.id,
+      questionTitle: question.title,
+      sourceSectionId,
+      targetSectionId: targets[0].id,
+    });
+  }
+
+  function closeMoveQuestion() {
+    if (working) return;
+    setQuestionMoveEditor(null);
+  }
+
+  async function moveQuestionToSection() {
+    if (!questionMoveEditor?.targetSectionId) return;
+
+    setWorking(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error: moveError } = await supabase.rpc(
+        "move_survey_question_to_section",
+        {
+          target_question_id: questionMoveEditor.questionId,
+          target_section_id: questionMoveEditor.targetSectionId,
+        },
+      );
+      if (moveError) throw moveError;
+
+      toast.success("Pergunta movida para a nova seção.");
+      setQuestionMoveEditor(null);
+      await loadBuilder(false);
+    } catch (moveError) {
+      toast.error(
+        moveError instanceof Error
+          ? moveError.message
+          : "Não foi possível mover a pergunta entre seções.",
+      );
     } finally {
       setWorking(false);
     }
@@ -830,6 +946,29 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                       <Button
                                         variant="secondary"
                                         size="sm"
+                                        disabled={
+                                          mutationDisabled ||
+                                          builder.sections.length < 2
+                                        }
+                                        aria-label={`Mover a pergunta ${question.title} para outra seção`}
+                                        title={
+                                          builder.sections.length < 2
+                                            ? "Crie outra seção para mover esta pergunta"
+                                            : "Mover pergunta para outra seção"
+                                        }
+                                        onClick={() =>
+                                          openMoveQuestion(section.id, question)
+                                        }
+                                      >
+                                        <FolderInput
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                        Mover
+                                      </Button>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
                                         disabled={mutationDisabled}
                                         onClick={() =>
                                           openEditQuestion(section.id, question)
@@ -901,6 +1040,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       >
         {sectionEditor && (
           <form onSubmit={(event) => { event.preventDefault(); void saveSection(); }} noValidate>
+            {sectionHasUnsavedChanges && <UnsavedChangesNotice />}
             <ErrorSummary errors={sectionErrors} className="mb-5" />
             <div className="space-y-5">
               <Input
@@ -941,6 +1081,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       >
         {questionEditor && (
           <form onSubmit={(event) => { event.preventDefault(); void saveQuestion(); }} noValidate>
+            {questionHasUnsavedChanges && <UnsavedChangesNotice />}
             <ErrorSummary errors={questionErrors} className="mb-5" />
             <div className="space-y-5">
               <Input
@@ -1024,6 +1165,78 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       </Dialog>
 
       <Dialog
+        open={Boolean(questionMoveEditor)}
+        onOpenChange={(open) => { if (!open) closeMoveQuestion(); }}
+        eyebrow="Organização do formulário"
+        title="Mover pergunta"
+        description="Escolha a seção de destino. A pergunta e todas as suas alternativas serão preservadas."
+        className="max-w-lg"
+      >
+        {questionMoveEditor && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void moveQuestionToSection();
+            }}
+          >
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[.12em] text-blue-700">
+                Pergunta selecionada
+              </p>
+              <p className="mt-2 text-sm font-black text-[#003b70]">
+                {questionMoveEditor.questionTitle}
+              </p>
+              <p className="mt-1 text-xs text-blue-800">
+                Seção atual: {moveSourceSection?.title ?? "Não identificada"}
+              </p>
+            </div>
+
+            <Select
+              label="Seção de destino"
+              hint="A pergunta será adicionada ao final da seção escolhida."
+              value={questionMoveEditor.targetSectionId}
+              onChange={(event) =>
+                setQuestionMoveEditor({
+                  ...questionMoveEditor,
+                  targetSectionId: event.target.value,
+                })
+              }
+              containerClassName="mt-5"
+              required
+              autoFocus
+            >
+              {moveTargetSections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.title}
+                </option>
+              ))}
+            </Select>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="secondary"
+                disabled={working}
+                onClick={closeMoveQuestion}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={working || moveTargetSections.length === 0}
+              >
+                {working ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderInput className="h-4 w-4" aria-hidden="true" />
+                )}
+                Mover pergunta
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      <Dialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => { if (!open && !working) setDeleteTarget(null); }}
         eyebrow="Ação permanente"
@@ -1049,4 +1262,3 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     </PlatformShell>
   );
 }
-
