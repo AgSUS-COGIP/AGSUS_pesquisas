@@ -1,29 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { pkceExchangeOptions, safeAuthNext } from "@/lib/auth-callback";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const ALLOWED_DOMAIN = "agenciasus.org.br";
 
-function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/area";
+function redirectToAccess(url: URL, errorCode: string, next?: string) {
+  const destination = new URL("/acesso", url.origin);
+  destination.searchParams.set("erro", errorCode);
+  if (next) destination.searchParams.set("next", next);
+  return NextResponse.redirect(destination);
 }
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const next = safeNext(url.searchParams.get("next"));
+  const next = safeAuthNext(url.searchParams.get("next"));
   const code = url.searchParams.get("code");
-  const supabase = await createServerSupabaseClient();
 
   if (!code) {
-    const destination = new URL("/acesso", url.origin);
-    destination.searchParams.set("erro", "oauth-invalido");
-    return NextResponse.redirect(destination);
+    return redirectToAccess(url, "oauth-invalido", next);
   }
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const supabase = await createServerSupabaseClient();
+  const flowId = url.searchParams.get("sb_flow_id");
+  const { error } = await supabase.auth.exchangeCodeForSession(
+    code,
+    pkceExchangeOptions(flowId),
+  );
+
   if (error) {
-    const destination = new URL("/acesso", url.origin);
-    destination.searchParams.set("erro", "oauth-invalido");
-    return NextResponse.redirect(destination);
+    return redirectToAccess(url, "oauth-invalido", next);
   }
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -32,9 +37,7 @@ export async function GET(request: NextRequest) {
 
   if (userError || domain !== ALLOWED_DOMAIN) {
     await supabase.auth.signOut();
-    const destination = new URL("/acesso", url.origin);
-    destination.searchParams.set("erro", "dominio-nao-autorizado");
-    return NextResponse.redirect(destination);
+    return redirectToAccess(url, "dominio-nao-autorizado");
   }
 
   return NextResponse.redirect(new URL(next, url.origin));
