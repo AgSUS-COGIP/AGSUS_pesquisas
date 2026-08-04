@@ -4,11 +4,14 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlignLeft,
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   Check,
   CheckSquare,
   CircleDot,
   Clock3,
+  Copy,
   FileText,
   Hash,
   ImageIcon,
@@ -34,12 +37,14 @@ import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-
 import {
   buildQuestionOptions,
   isSupportedQuestionType,
+  moveAvailability,
   needsQuestionOptions,
   QUESTION_TYPES,
   questionDraftErrors,
   questionOptionsToText,
   questionTypeLabel,
   sectionDraftErrors,
+  type MoveDirection,
   type SupportedQuestionType,
   type SurveyOption,
 } from "@/lib/survey-builder";
@@ -133,9 +138,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [questionErrors, setQuestionErrors] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
   const [working, setWorking] = useState(false);
+  const [itemOperation, setItemOperation] = useState<string | null>(null);
 
-  const loadBuilder = useCallback(async () => {
-    setDataLoading(true);
+  const loadBuilder = useCallback(async (showLoader = true) => {
+    if (showLoader) setDataLoading(true);
     setLoadError("");
     try {
       const supabase = createBrowserSupabaseClient();
@@ -151,7 +157,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       setLoadError(message);
       toast.error(message);
     } finally {
-      setDataLoading(false);
+      if (showLoader) setDataLoading(false);
     }
   }, [surveyId]);
 
@@ -267,7 +273,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       toast.success(sectionEditor.mode === "create" ? "Seção adicionada." : "Seção atualizada.");
       setSectionEditor(null);
       setSectionErrors([]);
-      await loadBuilder();
+      await loadBuilder(false);
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a seção.";
       setSectionErrors([message]);
@@ -315,7 +321,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       toast.success(questionEditor.mode === "create" ? "Pergunta adicionada." : "Pergunta atualizada.");
       setQuestionEditor(null);
       setQuestionErrors([]);
-      await loadBuilder();
+      await loadBuilder(false);
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a pergunta.";
       setQuestionErrors([message]);
@@ -336,11 +342,88 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       if (deleteError) throw deleteError;
       toast.success("Pergunta excluída.");
       setDeleteTarget(null);
-      await loadBuilder();
+      await loadBuilder(false);
     } catch (deleteError) {
       toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a pergunta.");
     } finally {
       setWorking(false);
+    }
+  }
+
+  function operationKey(
+    action: "DUPLICATE" | "MOVE",
+    itemType: "SECTION" | "QUESTION",
+    itemId: string,
+    direction?: MoveDirection,
+  ) {
+    return [action, itemType, itemId, direction].filter(Boolean).join(":");
+  }
+
+  async function duplicateItem(
+    itemType: "SECTION" | "QUESTION",
+    itemId: string,
+  ) {
+    const key = operationKey("DUPLICATE", itemType, itemId);
+    setItemOperation(key);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error: duplicateError } = await supabase.rpc(
+        "duplicate_survey_builder_item",
+        {
+          target_item_type: itemType,
+          target_item_id: itemId,
+        },
+      );
+      if (duplicateError) throw duplicateError;
+
+      toast.success(
+        itemType === "SECTION"
+          ? "Seção duplicada ao final do formulário."
+          : "Pergunta duplicada ao final da seção.",
+      );
+      await loadBuilder(false);
+    } catch (duplicateError) {
+      toast.error(
+        duplicateError instanceof Error
+          ? duplicateError.message
+          : "Não foi possível duplicar o item.",
+      );
+    } finally {
+      setItemOperation(null);
+    }
+  }
+
+  async function moveItem(
+    itemType: "SECTION" | "QUESTION",
+    itemId: string,
+    direction: MoveDirection,
+  ) {
+    const key = operationKey("MOVE", itemType, itemId, direction);
+    setItemOperation(key);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error: moveError } = await supabase.rpc(
+        "reorder_survey_builder_item",
+        {
+          target_item_type: itemType,
+          target_item_id: itemId,
+          target_direction: direction,
+        },
+      );
+      if (moveError) throw moveError;
+
+      toast.success(
+        `${itemType === "SECTION" ? "Seção" : "Pergunta"} movida para ${direction === "UP" ? "cima" : "baixo"}.`,
+      );
+      await loadBuilder(false);
+    } catch (moveError) {
+      toast.error(
+        moveError instanceof Error
+          ? moveError.message
+          : "Não foi possível reordenar o item.",
+      );
+    } finally {
+      setItemOperation(null);
     }
   }
 
@@ -455,80 +538,356 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                 title="Comece pela primeira seção"
                 description="As seções organizam o instrumento em etapas claras para quem vai responder."
                 icon={<Settings2 className="h-6 w-6" aria-hidden="true" />}
-                action={isDraft ? <Button onClick={openNewSection}><Plus className="h-4 w-4" /> Criar seção</Button> : undefined}
+                action={
+                  isDraft ? (
+                    <Button onClick={openNewSection}>
+                      <Plus className="h-4 w-4" /> Criar seção
+                    </Button>
+                  ) : undefined
+                }
               />
-            ) : builder.sections.map((section, sectionIndex) => (
-              <section key={section.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <header className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-                  <div className="flex min-w-0 items-start gap-4">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-[#003b70]">{sectionIndex + 1}</span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-black uppercase tracking-[.12em] text-[#0b8f58]">{section.code}</p>
-                      <h3 className="mt-1 text-xl font-black text-[#003b70]">{section.title}</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">{section.description || "Sem descrição."}</p>
-                    </div>
-                  </div>
-                  {isDraft && (
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                      <Button variant="secondary" size="sm" onClick={() => openEditSection(section)}>
-                        <Pencil className="h-4 w-4" aria-hidden="true" /> Editar seção
-                      </Button>
-                      <Button size="sm" onClick={() => openNewQuestion(section.id)}>
-                        <Plus className="h-4 w-4" aria-hidden="true" /> Pergunta
-                      </Button>
-                    </div>
-                  )}
-                </header>
-                <div className="p-4 sm:p-5">
-                  {section.questions.length ? (
-                    <ol className="space-y-3">
-                      {section.questions.map((question, index) => (
-                        <li key={question.id}>
-                          <article className="group flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-start">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-black text-[#003b70]">{index + 1}</span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <strong className="text-slate-900">{question.title}</strong>
-                                {question.required && <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-700">Obrigatória</span>}
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">{questionTypeLabel(question.questionType)}</span>
-                              </div>
-                              {question.description && <p className="mt-2 text-sm leading-6 text-slate-500">{question.description}</p>}
-                              {question.options.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {question.options.map((option) => (
-                                    <span key={`${question.id}-${option.id ?? option.value}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">
-                                      {option.label}
-                                    </span>
-                                  ))}
-                                </div>
+            ) : (
+              builder.sections.map((section, sectionIndex) => {
+                const sectionMoves = moveAvailability(
+                  sectionIndex,
+                  builder.sections.length,
+                );
+                const duplicateSectionKey = operationKey(
+                  "DUPLICATE",
+                  "SECTION",
+                  section.id,
+                );
+                const moveSectionUpKey = operationKey(
+                  "MOVE",
+                  "SECTION",
+                  section.id,
+                  "UP",
+                );
+                const moveSectionDownKey = operationKey(
+                  "MOVE",
+                  "SECTION",
+                  section.id,
+                  "DOWN",
+                );
+                const mutationDisabled = working || Boolean(itemOperation);
+
+                return (
+                  <section
+                    key={section.id}
+                    className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                  >
+                    <header className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+                      <div className="flex min-w-0 items-start gap-4">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-[#003b70]">
+                          {sectionIndex + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[.12em] text-[#0b8f58]">
+                            {section.code}
+                          </p>
+                          <h3 className="mt-1 text-xl font-black text-[#003b70]">
+                            {section.title}
+                          </h3>
+                          <p className="mt-1 text-sm leading-6 text-slate-500">
+                            {section.description || "Sem descrição."}
+                          </p>
+                        </div>
+                      </div>
+                      {isDraft && (
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <div
+                            className="flex overflow-hidden rounded-lg border border-slate-200"
+                            aria-label={`Ordenar seção ${section.title}`}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-9 rounded-none border-r border-slate-200 px-0"
+                              disabled={!sectionMoves.up || mutationDisabled}
+                              aria-label={`Mover a seção ${section.title} para cima`}
+                              title="Mover seção para cima"
+                              onClick={() =>
+                                void moveItem("SECTION", section.id, "UP")
+                              }
+                            >
+                              {itemOperation === moveSectionUpKey ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ArrowUp
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
                               )}
-                            </div>
-                            {isDraft && (
-                              <div className="flex shrink-0 gap-2">
-                                <Button variant="secondary" size="sm" onClick={() => openEditQuestion(section.id, question)}>
-                                  <Pencil className="h-4 w-4" aria-hidden="true" /> Editar
-                                </Button>
-                                <Button variant="ghost" size="sm" className="text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(question)}>
-                                  <Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir
-                                </Button>
-                              </div>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-9 rounded-none px-0"
+                              disabled={!sectionMoves.down || mutationDisabled}
+                              aria-label={`Mover a seção ${section.title} para baixo`}
+                              title="Mover seção para baixo"
+                              onClick={() =>
+                                void moveItem("SECTION", section.id, "DOWN")
+                              }
+                            >
+                              {itemOperation === moveSectionDownKey ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ArrowDown
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </Button>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={mutationDisabled}
+                            onClick={() =>
+                              void duplicateItem("SECTION", section.id)
+                            }
+                          >
+                            {itemOperation === duplicateSectionKey ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Copy className="h-4 w-4" aria-hidden="true" />
                             )}
-                          </article>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <EmptyState
-                      title="Seção ainda sem perguntas"
-                      description="Adicione o primeiro item desta etapa para começar a estruturar o formulário."
-                      icon={<Settings2 className="h-6 w-6" aria-hidden="true" />}
-                      action={isDraft ? <Button size="sm" onClick={() => openNewQuestion(section.id)}><Plus className="h-4 w-4" /> Adicionar pergunta</Button> : undefined}
-                      className="border-slate-200 bg-slate-50/50"
-                    />
-                  )}
-                </div>
-              </section>
-            ))}
+                            Duplicar
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={mutationDisabled}
+                            onClick={() => openEditSection(section)}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden="true" />{" "}
+                            Editar seção
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={mutationDisabled}
+                            onClick={() => openNewQuestion(section.id)}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />{" "}
+                            Pergunta
+                          </Button>
+                        </div>
+                      )}
+                    </header>
+                    <div className="p-4 sm:p-5">
+                      {section.questions.length ? (
+                        <ol className="space-y-3">
+                          {section.questions.map((question, index) => {
+                            const questionMoves = moveAvailability(
+                              index,
+                              section.questions.length,
+                            );
+                            const duplicateQuestionKey = operationKey(
+                              "DUPLICATE",
+                              "QUESTION",
+                              question.id,
+                            );
+                            const moveQuestionUpKey = operationKey(
+                              "MOVE",
+                              "QUESTION",
+                              question.id,
+                              "UP",
+                            );
+                            const moveQuestionDownKey = operationKey(
+                              "MOVE",
+                              "QUESTION",
+                              question.id,
+                              "DOWN",
+                            );
+
+                            return (
+                              <li key={question.id}>
+                                <article className="group flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-start">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-black text-[#003b70]">
+                                    {index + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <strong className="text-slate-900">
+                                        {question.title}
+                                      </strong>
+                                      {question.required && (
+                                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-700">
+                                          Obrigatória
+                                        </span>
+                                      )}
+                                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">
+                                        {questionTypeLabel(
+                                          question.questionType,
+                                        )}
+                                      </span>
+                                    </div>
+                                    {question.description && (
+                                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                                        {question.description}
+                                      </p>
+                                    )}
+                                    {question.options.length > 0 && (
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        {question.options.map((option) => (
+                                          <span
+                                            key={`${question.id}-${option.id ?? option.value}`}
+                                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600"
+                                          >
+                                            {option.label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isDraft && (
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <div
+                                        className="flex overflow-hidden rounded-lg border border-slate-200"
+                                        aria-label={`Ordenar pergunta ${question.title}`}
+                                      >
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="w-9 rounded-none border-r border-slate-200 px-0"
+                                          disabled={
+                                            !questionMoves.up ||
+                                            mutationDisabled
+                                          }
+                                          aria-label={`Mover a pergunta ${question.title} para cima`}
+                                          title="Mover pergunta para cima"
+                                          onClick={() =>
+                                            void moveItem(
+                                              "QUESTION",
+                                              question.id,
+                                              "UP",
+                                            )
+                                          }
+                                        >
+                                          {itemOperation ===
+                                          moveQuestionUpKey ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <ArrowUp
+                                              className="h-4 w-4"
+                                              aria-hidden="true"
+                                            />
+                                          )}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="w-9 rounded-none px-0"
+                                          disabled={
+                                            !questionMoves.down ||
+                                            mutationDisabled
+                                          }
+                                          aria-label={`Mover a pergunta ${question.title} para baixo`}
+                                          title="Mover pergunta para baixo"
+                                          onClick={() =>
+                                            void moveItem(
+                                              "QUESTION",
+                                              question.id,
+                                              "DOWN",
+                                            )
+                                          }
+                                        >
+                                          {itemOperation ===
+                                          moveQuestionDownKey ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <ArrowDown
+                                              className="h-4 w-4"
+                                              aria-hidden="true"
+                                            />
+                                          )}
+                                        </Button>
+                                      </div>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={mutationDisabled}
+                                        aria-label={`Duplicar a pergunta ${question.title}`}
+                                        onClick={() =>
+                                          void duplicateItem(
+                                            "QUESTION",
+                                            question.id,
+                                          )
+                                        }
+                                      >
+                                        {itemOperation ===
+                                        duplicateQuestionKey ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Copy
+                                            className="h-4 w-4"
+                                            aria-hidden="true"
+                                          />
+                                        )}
+                                        Duplicar
+                                      </Button>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={mutationDisabled}
+                                        onClick={() =>
+                                          openEditQuestion(section.id, question)
+                                        }
+                                      >
+                                        <Pencil
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />{" "}
+                                        Editar
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-red-700 hover:bg-red-50"
+                                        disabled={mutationDisabled}
+                                        onClick={() =>
+                                          setDeleteTarget(question)
+                                        }
+                                      >
+                                        <Trash2
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />{" "}
+                                        Excluir
+                                      </Button>
+                                    </div>
+                                  )}
+                                </article>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : (
+                        <EmptyState
+                          title="Seção ainda sem perguntas"
+                          description="Adicione o primeiro item desta etapa para começar a estruturar o formulário."
+                          icon={
+                            <Settings2 className="h-6 w-6" aria-hidden="true" />
+                          }
+                          action={
+                            isDraft ? (
+                              <Button
+                                size="sm"
+                                onClick={() => openNewQuestion(section.id)}
+                              >
+                                <Plus className="h-4 w-4" /> Adicionar pergunta
+                              </Button>
+                            ) : undefined
+                          }
+                          className="border-slate-200 bg-slate-50/50"
+                        />
+                      )}
+                    </div>
+                  </section>
+                );
+              })
+            )}
           </div>
         </>
       )}
@@ -690,3 +1049,4 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     </PlatformShell>
   );
 }
+
