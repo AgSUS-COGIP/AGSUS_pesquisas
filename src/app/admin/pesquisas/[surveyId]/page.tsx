@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlignLeft, CheckSquare, CircleDot, FileText, Loader2, Plus, Save, Settings2, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { AlignLeft, CheckSquare, CircleDot, FileText, ImageIcon, Loader2, Plus, Save, Settings2, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
@@ -140,7 +140,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const person = context.person;
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
 
-  return <PlatformShell user={user} eyebrow="Equipe Técnica" title={builder?.survey.name ?? "Construtor de pesquisa"} actions={<Link href="/admin/pesquisas" className="hidden rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 sm:inline-flex">Voltar ao catálogo</Link>}>
+  return <PlatformShell user={user} eyebrow="Equipe Técnica" title={builder?.survey.name ?? "Construtor de pesquisa"} actions={<div className="flex flex-wrap gap-2">{builder?.application.id && <Link href={`/admin/pesquisas/${surveyId}/identidade`} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white"><ImageIcon className="h-4 w-4" /> Identidade visual</Link>}<Link href="/admin/pesquisas" className="hidden rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 sm:inline-flex">Voltar ao catálogo</Link></div>}>
     {dataLoading || !builder ? <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#003b70]" /></div> : <>
       <section className="overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#062f54,#006b8f)] p-7 text-white shadow-xl"><div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><div className="flex flex-wrap gap-2"><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">{builder.survey.code}</span><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Versão {builder.version.number}</span><span className="rounded-full bg-amber-300/20 px-4 py-2 text-xs font-black text-amber-100">{builder.version.status}</span></div><h2 className="mt-5 text-3xl font-black sm:text-4xl">Estruture o formulário</h2><p className="mt-3 leading-7 text-cyan-50/80">Organize o instrumento em seções, escolha o tipo de resposta e configure alternativas sem editar código.</p></div><button type="button" onClick={() => setSectionDialog(true)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 font-black text-[#003b70]"><Plus className="h-5 w-5" /> Nova seção</button></div></section>
 
