@@ -121,6 +121,14 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
 
   async function save() {
     if (!builder) return;
+    if (visual.themeVariant === "CUSTOM" && (!visual.bannerUrl?.trim() || !visual.bannerPath?.trim())) {
+      toast.error("Envie uma imagem antes de salvar o modo personalizado.");
+      return;
+    }
+    if (visual.themeVariant === "CUSTOM" && !visual.bannerAlt?.trim()) {
+      toast.error("Informe o texto alternativo da imagem personalizada.");
+      return;
+    }
     setSaving(true);
     try {
       const supabase = createBrowserSupabaseClient();
@@ -142,13 +150,8 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
     }
   }
 
-  function resetBanner() {
-    setVisual((current) => ({
-      ...current,
-      bannerUrl: null,
-      bannerPath: null,
-      themeVariant: "INSTITUTIONAL",
-    }));
+  function resetVisualIdentity() {
+    setVisual(EMPTY_VISUAL);
   }
 
   if (loading) return <PlatformSkeleton title="Carregando identidade visual" />;
@@ -230,9 +233,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                       disabled={uploading}
                       onChange={uploadBanner}
                     />
-                    {visual.bannerUrl && (
-                      <Button variant="secondary" onClick={resetBanner}>
-                        <Trash2 className="h-4 w-4" /> Remover capa
+                    {(visual.bannerUrl || visual.bannerAlt || visual.heroTitle || visual.heroSubtitle || visual.themeVariant !== "INSTITUTIONAL") && (
+                      <Button variant="secondary" onClick={resetVisualIdentity}>
+                        <Trash2 className="h-4 w-4" /> Restaurar padrão
                       </Button>
                     )}
                   </div>
@@ -242,8 +245,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                   label="Texto alternativo da imagem"
                   value={visual.bannerAlt ?? ""}
                   maxLength={180}
+                  required={visual.themeVariant === "CUSTOM"}
                   onChange={(event) => setVisual((current) => ({ ...current, bannerAlt: event.target.value }))}
-                  hint="Descreva a imagem para leitores de tela."
+                  hint={visual.themeVariant === "CUSTOM" ? "Obrigatório para imagens personalizadas." : "Descreva a imagem para leitores de tela."}
                 />
 
                 <Input

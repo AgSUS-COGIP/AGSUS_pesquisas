@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
+import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
 type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; settings: Record<string, unknown>; options: Option[] };
 type Section = { id: string; code: string; title: string; description: string | null; position: number; questions: Question[] };
-type FormDefinition = { application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null }; survey: { name: string; description: string | null }; sections: Section[] };
+type FormDefinition = { application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null; settings?: unknown }; survey: { name: string; description: string | null }; sections: Section[] };
 type StoredAnswer = { answerText?: string | null; answerNumber?: number | null; optionId?: string | null; optionValue?: string | null };
 type SubmissionContext = { status: string; canEdit: boolean; submission: { id: string; status: string; startedAt: string; submittedAt: string | null; updatedAt: string; result: number | null; type: string } | null; answers: Record<string, StoredAnswer> };
 type PersonIdentity = { id: string; employeeNumber: string; fullName: string; institutionalEmail: string | null; jobTitle: string | null; directorate: string | null; unit: string | null; coordination: string | null; workplace: string | null; metadata: Record<string, unknown> };
@@ -20,8 +22,6 @@ type AnswerValue = { value: string; optionId?: string };
 type Answers = Record<string, AnswerValue>;
 type SaveState = "idle" | "saving" | "saved" | "error";
 type Screen = "home" | "auto";
-
-const BANNER_URL = "https://i.postimg.cc/fTtNN9PM/Automatizacao-de-instrumento.png";
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Não informado";
@@ -217,14 +217,15 @@ export default function CddiFormPage() {
   const periodClosed = definition.application.status !== "OPEN";
   const person = identity.person;
   const avatarUrl = institutionalAvatarUrl(person);
+  const visualIdentity = resolveSurveyVisualIdentity(definition.application.settings);
 
   if (screen === "home") return (
     <main className="min-h-screen bg-[#eef3f8] px-4 py-5 text-slate-900 sm:px-6">
       <div className="mx-auto max-w-[960px] space-y-4">
-        <img src={BANNER_URL} alt="Ciclo de Devolutivas e Desenvolvimento Individual" className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
+        <SurveyBanner key={visualIdentity.bannerUrl} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
         <section className="rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-7">
-          <h1 className="text-3xl font-black tracking-tight text-[#26368d] sm:text-4xl">Ciclo de Devolutivas e Desenvolvimento Individual (CDDI)</h1>
-          <p className="mt-3 leading-7 text-slate-700">Instrumento sistematizado para promover avaliação por competências, devolutivas e alinhamentos entre trabalhadores e suas lideranças.</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#26368d] sm:text-4xl">{visualIdentity.heroTitle}</h1>
+          <p className="mt-3 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p>
           <p className="mt-1 leading-7 text-slate-700">Será realizada uma <strong>autoavaliação</strong> e uma <strong>avaliação pela chefia direta</strong>. As informações serão consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
           <p className="mt-2 text-sm text-slate-500">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
           <div className="mt-5 grid gap-4 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
@@ -244,8 +245,8 @@ export default function CddiFormPage() {
   return (
     <main className="min-h-screen bg-[#eef3f8] pb-28 text-slate-900">
       <div className="mx-auto max-w-[960px] px-4 py-4 sm:px-6">
-        <img src={BANNER_URL} alt="CDDI" className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
-        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">Ciclo de Devolutivas e Desenvolvimento Individual (CDDI)</h1><p className="mt-2 leading-7 text-slate-700">Instrumento sistematizado para promover avaliação por competências, devolutivas e alinhamentos entre trabalhadores e suas lideranças.</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
+        <SurveyBanner key={`form-${visualIdentity.bannerUrl}`} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
+        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
         <section className={`mt-4 rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? "O formulário está disponível em modo de consulta." : "Suas respostas são salvas automaticamente durante o preenchimento."}</p></section>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-[#087b8d] via-emerald-500 to-blue-600 transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-1 text-right text-xs text-slate-500">{progress}% preenchido</div>
         <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><strong className="text-[#26368d]">{step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title}</strong><span className="text-xs font-bold text-slate-500">Etapa {step + 1} de {totalSteps}</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{Array.from({ length: totalSteps }).map((_, index) => { const complete = index === 0 ? Boolean(identity.leader) : index <= sections.length ? sectionCompletion(sections[index - 1], answers) === 100 : answeredRequired === requiredQuestions.length; return <button key={index} onClick={() => goToStep(index, index > step)} className={`min-w-9 rounded-full px-3 py-2 text-xs font-bold ${index === step ? "bg-[#086ab6] text-white" : complete ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0")}</button>; })}</div></section>
