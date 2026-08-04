@@ -1,0 +1,59 @@
+import type { PlatformIconName } from "@/components/platform-icons";
+
+export type PlatformNavItem = {
+  href: string;
+  label: string;
+  description: string;
+  icon: PlatformIconName;
+  module?: string;
+  exact?: boolean;
+};
+
+export type PlatformNavGroup = {
+  title: "Principal" | "Atuação" | "Administração";
+  items: readonly PlatformNavItem[];
+};
+
+export const platformNavigationGroups: readonly PlatformNavGroup[] = [
+  {
+    title: "Principal",
+    items: [
+      { href: "/area", label: "Visão geral", description: "Abrir o painel institucional", icon: "home", module: "HOME", exact: true },
+      { href: "/pesquisas", label: "Pesquisas", description: "Consultar instrumentos disponíveis", icon: "surveys", module: "SURVEYS" },
+      { href: "/paineis", label: "Painéis", description: "Abrir indicadores e análises", icon: "dashboard", module: "DASHBOARDS" },
+    ],
+  },
+  {
+    title: "Atuação",
+    items: [
+      { href: "/equipe", label: "Minha equipe", description: "Acompanhar pessoas e avaliações", icon: "team", module: "TEAM" },
+      { href: "/resultados", label: "Resultados", description: "Consultar devolutivas e indicadores", icon: "results", module: "RESULTS" },
+    ],
+  },
+  {
+    title: "Administração",
+    items: [
+      { href: "/admin", label: "Administração", description: "Abrir a gestão da plataforma", icon: "admin", module: "ADMIN_SURVEYS", exact: true },
+      { href: "/admin/pesquisas", label: "Pesquisas e ciclos", description: "Criar pesquisas e operar ciclos", icon: "edit", module: "ADMIN_SURVEYS" },
+      { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: "ADMIN_PARTICIPANTS" },
+      { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: "ADMIN_TEAMS" },
+      { href: "/admin/acessos", label: "Acessos", description: "Administrar papéis e módulos", icon: "settings", module: "ADMIN_ACCESS" },
+      { href: "/admin/importacao", label: "Importações", description: "Validar e processar planilhas", icon: "import", module: "ADMIN_IMPORT" },
+    ],
+  },
+];
+
+export function navigationGroupsForModules(modules: readonly string[]) {
+  const allowedModules = new Set(modules);
+  return platformNavigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.module || allowedModules.has(item.module)),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+export function isPlatformNavItemActive(pathname: string, item: PlatformNavItem) {
+  if (item.exact) return pathname === item.href;
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
