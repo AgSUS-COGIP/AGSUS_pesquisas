@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildQuestionOptions,
+  hasUnsavedChanges,
   moveAvailability,
   needsQuestionOptions,
+  questionMoveTargets,
   questionDraftErrors,
   questionOptionsToText,
   sectionDraftErrors,
@@ -67,5 +69,23 @@ describe("Survey Studio drafts", () => {
     expect(moveAvailability(1, 3)).toEqual({ up: true, down: true });
     expect(moveAvailability(2, 3)).toEqual({ up: true, down: false });
     expect(moveAvailability(0, 1)).toEqual({ up: false, down: false });
+  });
+
+  it("lists only other sections as move targets", () => {
+    const sections = [
+      { id: "first", title: "Primeira" },
+      { id: "second", title: "Segunda" },
+      { id: "third", title: "Terceira" },
+    ];
+
+    expect(questionMoveTargets(sections, "second")).toEqual([
+      sections[0],
+      sections[2],
+    ]);
+  });
+
+  it("detects whether an editor has unsaved changes", () => {
+    expect(hasUnsavedChanges("[old]", "[old]")).toBe(false);
+    expect(hasUnsavedChanges("[old]", "[new]")).toBe(true);
   });
 });
