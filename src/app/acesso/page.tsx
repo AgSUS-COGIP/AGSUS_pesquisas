@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { safeAuthNext } from "@/lib/auth-callback";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
 const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
-
-function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/area";
-}
 
 function accessErrorMessage(code: string | null) {
   if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br.";
@@ -44,6 +41,7 @@ function preloadFirstAvailable(urls: string[]) {
 }
 
 export default function AccessPage() {
+  const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [background, setBackground] = useState<string | null>(null);
@@ -64,7 +62,7 @@ export default function AccessPage() {
       try {
         const supabase = createBrowserSupabaseClient();
         const { data } = await supabase.auth.getUser();
-        if (data.user) window.location.replace(safeNext(query.get("next")));
+        if (data.user) window.location.replace(safeAuthNext(query.get("next")));
       } catch {
         if (active) setMessage("Não foi possível verificar a sessão atual.");
       }
@@ -76,13 +74,16 @@ export default function AccessPage() {
   }, []);
 
   async function signInWithGoogle() {
+    if (signInPendingRef.current) return;
+
+    signInPendingRef.current = true;
     setLoading(true);
     setMessage("");
 
     try {
       const query = new URLSearchParams(window.location.search);
       const callbackUrl = new URL("/auth/confirm", window.location.origin);
-      callbackUrl.searchParams.set("next", safeNext(query.get("next")));
+      callbackUrl.searchParams.set("next", safeAuthNext(query.get("next")));
 
       const supabase = createBrowserSupabaseClient();
       const { error } = await supabase.auth.signInWithOAuth({
@@ -98,6 +99,7 @@ export default function AccessPage() {
 
       if (error) throw error;
     } catch (error) {
+      signInPendingRef.current = false;
       setMessage(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
       setLoading(false);
     }
