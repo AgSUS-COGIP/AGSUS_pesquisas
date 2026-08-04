@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRound, UsersRound } from "lucide-react";
+import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { PersonAvatar } from "@/components/person-avatar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -210,7 +211,7 @@ export default function CddiFormPage() {
     } finally { setSubmitting(false); }
   }
 
-  if (loading) return <main className="grid min-h-screen place-items-center bg-slate-50"><div className="text-center"><div className="mx-auto h-24 w-24 rounded-3xl border-4 border-[#075ea8] p-3"><div className="h-full w-full animate-pulse rounded-2xl bg-[#075ea8]" /></div><div className="mx-auto mt-6 h-1.5 w-72 overflow-hidden rounded-full bg-slate-200"><div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-emerald-500 via-yellow-400 to-blue-600" /></div><p className="mt-4 text-sm font-bold text-slate-600">Carregando o Ciclo de Devolutivas e Desenvolvimento Individual...</p></div></main>;
+  if (loading) return <CddiLoadingState />;
   if (!definition || !identity) return <main className="grid min-h-screen place-items-center bg-slate-50 px-6"><section className="max-w-xl rounded-2xl border border-red-200 bg-white p-8"><h1 className="text-2xl font-black text-[#24368b]">Não foi possível abrir o CDDI</h1><p className="mt-3 text-slate-600">{message}</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#075ea8] px-5 py-3 font-bold text-white">Voltar à área</Link></section></main>;
 
   const periodClosed = definition.application.status !== "OPEN";
