@@ -1,0 +1,58 @@
+html[data-agsus-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-agsus-theme="dark"] [class*="linear-gradient(135deg,#ffffff"] {
+  background: radial-gradient(circle at top right, rgba(56, 189, 248, .14), transparent 38%), linear-gradient(135deg, #122033 0%, #101b2b 72%, #10251f 100%) !important;
+  border-color: #294058 !important;
+}
+
+html[data-agsus-theme="dark"] [class*="linear-gradient(90deg,#fff"] {
+  background: linear-gradient(90deg, #132033, #101a29) !important;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-white/85"],
+html[data-agsus-theme="dark"] [class*="bg-white/90"],
+html[data-agsus-theme="dark"] [class*="bg-white/95"] {
+  background-color: rgba(19, 32, 51, .94) !important;
+  border-color: #31465f !important;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-slate-50/55"],
+html[data-agsus-theme="dark"] [class*="bg-slate-50/40"] {
+  background-color: #17263a !important;
+}
+
+html[data-agsus-theme="dark"] [class*="hover:bg-white"]:hover {
+  background-color: #1d3048 !important;
+}
+
+html[data-agsus-theme="dark"] .text-blue-700 { color: #7dd3fc !important; }
+html[data-agsus-theme="dark"] .text-amber-700 { color: #fcd34d !important; }
+html[data-agsus-theme="dark"] .text-emerald-700 { color: #6ee7b7 !important; }
+html[data-agsus-theme="dark"] .text-violet-700 { color: #c4b5fd !important; }
+html[data-agsus-theme="dark"] .text-red-700,
+html[data-agsus-theme="dark"] .text-red-800 { color: #fca5a5 !important; }
+
+html[data-agsus-theme="dark"] .bg-blue-50 { background-color: rgba(14, 116, 144, .2) !important; }
+html[data-agsus-theme="dark"] .bg-sky-50 { background-color: rgba(14, 116, 144, .18) !important; }
+html[data-agsus-theme="dark"] .bg-amber-50 { background-color: rgba(161, 98, 7, .2) !important; }
+html[data-agsus-theme="dark"] .bg-emerald-50 { background-color: rgba(5, 150, 105, .18) !important; }
+html[data-agsus-theme="dark"] .bg-violet-50 { background-color: rgba(109, 40, 217, .2) !important; }
+
+html[data-agsus-theme="dark"] input,
+html[data-agsus-theme="dark"] select,
+html[data-agsus-theme="dark"] textarea {
+  color: #edf5ff;
+  caret-color: #7dd3fc;
+}
+
+html[data-agsus-theme="dark"] input::placeholder,
+html[data-agsus-theme="dark"] textarea::placeholder {
+  color: #8fa2b8;
+}
+
+html[data-agsus-theme="dark"] option {
+  background: #111c2c;
+  color: #edf5ff;
+}
