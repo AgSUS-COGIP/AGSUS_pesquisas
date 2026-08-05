@@ -4,6 +4,7 @@ import { AppProviders } from "@/components/app-providers";
 import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
+import "./dark-theme.css";
 
 export const metadata: Metadata = {
   title: {
