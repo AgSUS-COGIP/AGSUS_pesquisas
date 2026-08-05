@@ -14,6 +14,11 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
+import {
+  isPlatformSidebarCompact,
+  PLATFORM_SIDEBAR_ATTRIBUTE,
+  PLATFORM_SIDEBAR_STORAGE_KEY,
+} from "@/lib/platform-sidebar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
@@ -128,9 +133,8 @@ function SidebarContent({ user, compact, modules, mobile = false, onNavigate, on
 }
 
 function DesktopSidebar({ user, compact, modules, onToggle, onSignOut }: { user: PlatformUser; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
-  const width = compact ? "w-[4.5rem]" : "w-56";
   return (
-    <aside data-print-hidden="true" aria-label="Navegação principal" className={`fixed inset-y-0 left-0 z-50 hidden ${width} flex-col border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex`}>
+    <aside data-print-hidden="true" aria-label="Navegação principal" className="platform-desktop-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex">
       <SidebarContent user={user} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} />
     </aside>
   );
@@ -142,13 +146,16 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   const [mobileOpen, setMobileOpen] = useState(false);
   const modules = user.modules ?? ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
 
-  useEffect(() => { setCompact(window.localStorage.getItem("agsus-sidebar-compact") === "true"); }, []);
+  useEffect(() => {
+    setCompact(isPlatformSidebarCompact(document.documentElement.getAttribute(PLATFORM_SIDEBAR_ATTRIBUTE)));
+  }, []);
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   function toggleCompact() {
     setCompact((current) => {
       const next = !current;
-      window.localStorage.setItem("agsus-sidebar-compact", String(next));
+      window.localStorage.setItem(PLATFORM_SIDEBAR_STORAGE_KEY, String(next));
+      document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(next));
       return next;
     });
   }
@@ -180,7 +187,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
       >
         <SidebarContent user={user} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
       </Drawer>
-      <div className={`transition-[padding] duration-300 ${compact ? "lg:pl-[4.5rem]" : "lg:pl-56"}`}>
+      <div className="platform-shell-content transition-[padding] duration-300">
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/[.92] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
           <div className="mx-auto flex min-h-16 max-w-[1560px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
