@@ -21,7 +21,7 @@ const NEXT_THEME: Record<PlatformTheme, PlatformTheme> = {
   dark: "system",
 };
 
-export function PlatformThemeToggle() {
+export function PlatformThemeToggle({ compact = false }: { compact?: boolean }) {
   const [theme, setTheme] = useState<PlatformTheme>("system");
 
   useEffect(() => {
@@ -43,12 +43,12 @@ export function PlatformThemeToggle() {
     <button
       type="button"
       onClick={() => applyTheme(nextTheme)}
-      className="theme-toggle inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 text-xs font-black text-[var(--text-primary)] shadow-sm transition hover:-translate-y-px hover:border-sky-300"
+      className={`theme-toggle inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.06] text-xs font-black text-blue-50 transition hover:bg-white/[.12] hover:text-white ${compact ? "px-2" : "px-3"}`}
       aria-label={`Tema atual: ${THEME_LABELS[theme]}. Alterar para ${THEME_LABELS[nextTheme]}.`}
       title={`Tema: ${THEME_LABELS[theme]}`}
     >
-      <span aria-hidden="true">{theme === "dark" ? "☾" : theme === "light" ? "☀" : "◐"}</span>
-      <span className="hidden xl:inline">{THEME_LABELS[theme]}</span>
+      <span className="text-base" aria-hidden="true">{theme === "dark" ? "☾" : theme === "light" ? "☀" : "◐"}</span>
+      <span className={compact ? "sr-only" : "inline"}>{THEME_LABELS[theme]}</span>
     </button>
   );
 }
