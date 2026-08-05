@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { AppProviders } from "@/components/app-providers";
-import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,13 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="min-h-full bg-[#f3f7fb]" suppressHydrationWarning>
+    <html lang="pt-BR" className="min-h-full bg-[#f3f7fb]">
       <body className="min-h-screen bg-[#f3f7fb] font-sans font-medium text-[#10243e] antialiased selection:bg-blue-200 selection:text-[#003b70]">
-        <Script
-          id="agsus-sidebar-preference"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: platformSidebarBootstrapScript() }}
-        />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>
