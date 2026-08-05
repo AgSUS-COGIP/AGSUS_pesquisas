@@ -44,17 +44,31 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACTIVE_STATUSES = new Set(["ATIVO", "NORMAL", "ACTIVE", "EM EXERCICIO"]);
 
 const FIELD_ALIASES = {
-  employeeNumber: ["MATRICULA", "MATRÍCULA"],
-  fullName: ["NOME"],
-  status: ["STATUS"],
-  detailedStatus: ["SITUACAO DETALHADA", "SITUAÇÃO DETALHADA"],
-  jobTitle: ["CARGO ATUAL", "CARGO ATUAL DESC", "CARGO_ATUAL_DESC"],
-  costCenter: ["CENTRO DE CUSTO", "UNIDADE ORCAMENTARIA DESC", "UNIDADE_ORCAMENTARIA_DESC"],
-  directorate: ["DIRETORIA", "DIVISAO DESC", "DIVISAO_DESC"],
-  unit: ["UNIDADE", "SUBDIVISAO DESC", "SUBDIVISAO_DESC"],
-  coordination: ["COORDENACAO", "COORDENAÇÃO", "COORDENACAO UTILIZADA", "COORDENAÇÃO UTILIZADA"],
+  employeeNumber: ["NU_MATRICULA", "MATRICULA", "MATRÍCULA"],
+  fullName: ["NO_NOME", "NOME"],
+  status: ["ST_STATUS", "STATUS"],
+  detailedStatus: ["DS_SITUACAO_DETALHADA", "SITUACAO DETALHADA", "SITUAÇÃO DETALHADA"],
+  jobTitle: ["DS_CARGO_ATUAL", "CARGO ATUAL", "CARGO ATUAL DESC", "CARGO_ATUAL_DESC"],
+  costCenter: [
+    "DS_UNIDADE_ORCAMENTARIA",
+    "CENTRO DE CUSTO",
+    "UNIDADE ORCAMENTARIA DESC",
+    "UNIDADE_ORCAMENTARIA_DESC",
+  ],
+  directorate: ["DS_DIVISAO", "DIRETORIA", "DIVISAO DESC", "DIVISAO_DESC"],
+  unit: ["DS_SUBDIVISAO", "UNIDADE", "SUBDIVISAO DESC", "SUBDIVISAO_DESC"],
+  coordination: [
+    "SG_COORDENACAO",
+    "NO_COORDENACAO",
+    "COORDENACAO",
+    "COORDENAÇÃO",
+    "COORDENACAO UTILIZADA",
+    "COORDENAÇÃO UTILIZADA",
+  ],
   coordinationFallback: ["PLANILHA FELIPE", "DIMENSIONAMENTO"],
   institutionalEmail: [
+    "DS_EMAIL_INSTITUCIONAL",
+    "DS_EMAIL_INSTUCIONAL",
     "E MAIL INSTITUCIONAL",
     "EMAIL INSTITUCIONAL",
     "E-MAIL INSTITUCIONAL",
@@ -62,13 +76,24 @@ const FIELD_ALIASES = {
     "E MAIL INSTUCIONAL",
     "EMAIL INSTUCIONAL",
   ],
-  workplace: ["LOCAL DE TRABALHO"],
-  accessProfile: ["PERFIL DE ACESSO"],
-  participates: ["PARTICIPA DO CICLO"],
-  participantKey: ["CHAVE PARTICIPANTE"],
-  admissionDate: ["DATA ADMISSAO", "DATA ADMISSÃO", "DATA_ADMISSAO"],
-  managerName: ["NOME GESTOR COORDENADOR", "NOME GESTOR/COORDENADOR"],
-  managerEmail: ["E MAIL GESTOR", "EMAIL GESTOR", "E-MAIL GESTOR"],
+  workplace: ["DS_LOCAL_TRABALHO", "LOCAL DE TRABALHO"],
+  accessProfile: ["TP_PERFIL_ACESSO", "PERFIL DE ACESSO"],
+  participates: ["ST_PARTICIPA_CICLO", "PARTICIPA DO CICLO"],
+  participantKey: ["CO_CHAVE_PARTICIPANTE", "CHAVE PARTICIPANTE"],
+  admissionDate: ["DT_ADMISSAO", "DATA ADMISSAO", "DATA ADMISSÃO", "DATA_ADMISSAO"],
+  managerName: [
+    "NO_GESTOR",
+    "NO_GESTOR_COORDENADOR",
+    "NOME GESTOR COORDENADOR",
+    "NOME GESTOR/COORDENADOR",
+  ],
+  managerEmail: [
+    "DS_EMAIL_INSTITUCIONAL_GESTOR",
+    "DS_EMAIL_GESTOR",
+    "E MAIL GESTOR",
+    "EMAIL GESTOR",
+    "E-MAIL GESTOR",
+  ],
 } as const;
 
 function text(value: unknown) {
@@ -125,7 +150,11 @@ function normalizeDate(value: string) {
 
 function detectSourceFormat(headers: string[]): PeopleImportRow["sourceFormat"] {
   const normalizedHeaders = new Set(headers.map(normalizeToken));
-  return normalizedHeaders.has(normalizeToken("CARGO_ATUAL_DESC"))
+  return normalizedHeaders.has(normalizeToken("NU_MATRICULA"))
+    || normalizedHeaders.has(normalizeToken("NO_NOME"))
+    || normalizedHeaders.has(normalizeToken("DS_CARGO_ATUAL"))
+    || normalizedHeaders.has(normalizeToken("DS_EMAIL_INSTUCIONAL"))
+    || normalizedHeaders.has(normalizeToken("CARGO_ATUAL_DESC"))
     || normalizedHeaders.has(normalizeToken("E-MAIL_INSTUCIONAL"))
     ? "CDDI_BASE_COMPILADO"
     : "STANDARD_PEOPLE_BASE";
