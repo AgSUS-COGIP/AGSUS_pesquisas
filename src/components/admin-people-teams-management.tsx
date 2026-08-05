@@ -1,0 +1,263 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { History, Loader2, RefreshCw, Save, Search, UserRoundCog, UsersRound } from "lucide-react";
+import { toast } from "sonner";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+type Person = {
+  personId: string;
+  employeeNumber: string;
+  fullName: string;
+  institutionalEmail: string | null;
+  jobTitle: string | null;
+  costCenter: string | null;
+  workplace: string | null;
+  directorate: string | null;
+  organizationalUnit: string | null;
+  coordination: string | null;
+  employmentStatus: string;
+  active: boolean;
+  updatedAt: string;
+};
+
+type Application = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+};
+
+type LeadershipLink = {
+  linkId: string;
+  applicationId: string;
+  leaderPersonId: string;
+  leaderName: string;
+  leaderEmployeeNumber: string;
+  subordinatePersonId: string;
+  subordinateName: string;
+  subordinateEmployeeNumber: string;
+  status: string;
+  validFrom: string;
+  validTo: string | null;
+  origin: string;
+};
+
+type AuditEvent = {
+  eventId: number;
+  eventType: string;
+  actorPersonId: string | null;
+  actorName: string | null;
+  beforeData: Record<string, unknown> | null;
+  afterData: Record<string, unknown> | null;
+  justification: string | null;
+  createdAt: string;
+};
+
+type PersonForm = {
+  fullName: string;
+  institutionalEmail: string;
+  jobTitle: string;
+  costCenter: string;
+  workplace: string;
+  directorate: string;
+  organizationalUnit: string;
+  coordination: string;
+  employmentStatus: string;
+  active: boolean;
+  justification: string;
+};
+
+function personToForm(person: Person): PersonForm {
+  return {
+    fullName: person.fullName,
+    institutionalEmail: person.institutionalEmail ?? "",
+    jobTitle: person.jobTitle ?? "",
+    costCenter: person.costCenter ?? "",
+    workplace: person.workplace ?? "",
+    directorate: person.directorate ?? "",
+    organizationalUnit: person.organizationalUnit ?? "",
+    coordination: person.coordination ?? "",
+    employmentStatus: person.employmentStatus,
+    active: person.active,
+    justification: "",
+  };
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function Field({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  return <label className="block"><span className="text-xs font-bold text-slate-600">{label}</span><input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500" /></label>;
+}
+
+export function AdminPeopleTeamsManagement() {
+  const [tab, setTab] = useState<"people" | "teams">("people");
+  const [people, setPeople] = useState<Person[]>([]);
+  const [search, setSearch] = useState("");
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [form, setForm] = useState<PersonForm | null>(null);
+  const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationId, setApplicationId] = useState("");
+  const [links, setLinks] = useState<LeadershipLink[]>([]);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [subordinateSearch, setSubordinateSearch] = useState("");
+  const [leaderSearch, setLeaderSearch] = useState("");
+  const [subordinate, setSubordinate] = useState<Person | null>(null);
+  const [leader, setLeader] = useState<Person | null>(null);
+  const [leadershipJustification, setLeadershipJustification] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+
+  async function searchPeople(term = search) {
+    const supabase = createBrowserSupabaseClient();
+    const { data, error } = await supabase.rpc("search_platform_admin_people", { target_search: term.trim(), target_limit: 80 });
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data as Person[] : [];
+    setPeople(rows);
+    if (selectedPerson) {
+      const refreshed = rows.find((item) => item.personId === selectedPerson.personId);
+      if (refreshed) { setSelectedPerson(refreshed); setForm(personToForm(refreshed)); }
+    }
+  }
+
+  async function loadApplications() {
+    const supabase = createBrowserSupabaseClient();
+    const { data, error } = await supabase.rpc("list_admin_participant_applications");
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data as Application[] : [];
+    setApplications(rows);
+    setApplicationId((current) => current || rows[0]?.id || "");
+  }
+
+  async function loadLinks(targetApplicationId = applicationId, term = teamSearch) {
+    if (!targetApplicationId) return;
+    const supabase = createBrowserSupabaseClient();
+    const { data, error } = await supabase.rpc("list_platform_admin_leadership_links", { target_application_id: targetApplicationId, target_search: term.trim(), target_limit: 200 });
+    if (error) throw error;
+    setLinks(Array.isArray(data) ? data as LeadershipLink[] : []);
+  }
+
+  async function loadAudit(personId: string) {
+    const supabase = createBrowserSupabaseClient();
+    const { data, error } = await supabase.rpc("list_platform_admin_person_audit", { target_person_id: personId, target_limit: 30 });
+    if (error) throw error;
+    setAudit(Array.isArray(data) ? data as AuditEvent[] : []);
+  }
+
+  useEffect(() => {
+    void Promise.all([searchPeople(""), loadApplications()])
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível carregar a gestão institucional."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!applicationId) return;
+    void loadLinks(applicationId).catch((error) => toast.error(error.message));
+  }, [applicationId]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void searchPeople(search).catch((error) => toast.error(error.message)); }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+
+  const activeLinks = useMemo(() => links.filter((item) => item.status === "ACTIVE" && !item.validTo), [links]);
+  const subordinateOptions = useMemo(() => people.filter((item) => item.active && item.personId !== leader?.personId && (`${item.fullName} ${item.employeeNumber}`).toLowerCase().includes(subordinateSearch.toLowerCase())).slice(0, 8), [people, subordinateSearch, leader]);
+  const leaderOptions = useMemo(() => people.filter((item) => item.active && item.personId !== subordinate?.personId && (`${item.fullName} ${item.employeeNumber}`).toLowerCase().includes(leaderSearch.toLowerCase())).slice(0, 8), [people, leaderSearch, subordinate]);
+
+  async function savePerson() {
+    if (!selectedPerson || !form) return;
+    setWorking(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.rpc("update_platform_admin_person", {
+        target_person_id: selectedPerson.personId,
+        target_full_name: form.fullName,
+        target_institutional_email: form.institutionalEmail || null,
+        target_job_title: form.jobTitle || null,
+        target_cost_center: form.costCenter || null,
+        target_workplace: form.workplace || null,
+        target_directorate: form.directorate || null,
+        target_organizational_unit: form.organizationalUnit || null,
+        target_coordination: form.coordination || null,
+        target_employment_status: form.employmentStatus,
+        target_active: form.active,
+        target_justification: form.justification,
+      });
+      if (error) throw error;
+      toast.success("Dados funcionais atualizados e auditados.");
+      await Promise.all([searchPeople(search), loadAudit(selectedPerson.personId)]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a pessoa.");
+    } finally { setWorking(false); }
+  }
+
+  async function saveLeadership() {
+    if (!applicationId || !subordinate || !leader) return;
+    setWorking(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.rpc("set_platform_admin_leadership_link", {
+        target_application_id: applicationId,
+        target_subordinate_person_id: subordinate.personId,
+        target_leader_person_id: leader.personId,
+        target_justification: leadershipJustification,
+      });
+      if (error) throw error;
+      toast.success("Vínculo de liderança atualizado e auditado.");
+      setSubordinate(null); setLeader(null); setSubordinateSearch(""); setLeaderSearch(""); setLeadershipJustification("");
+      await loadLinks(applicationId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível corrigir o vínculo.");
+    } finally { setWorking(false); }
+  }
+
+  if (loading) return <div className="grid min-h-64 place-items-center rounded-3xl border border-slate-200 bg-white"><Loader2 className="h-7 w-7 animate-spin text-slate-500" /></div>;
+
+  return <div className="space-y-5">
+    <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Gestão institucional">
+      <button type="button" role="tab" aria-selected={tab === "people"} onClick={() => setTab("people")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black ${tab === "people" ? "bg-[#003b70] text-white" : "text-slate-600 hover:bg-slate-50"}`}><UserRoundCog className="h-4 w-4" />Dados funcionais</button>
+      <button type="button" role="tab" aria-selected={tab === "teams"} onClick={() => setTab("teams")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black ${tab === "teams" ? "bg-[#003b70] text-white" : "text-slate-600 hover:bg-slate-50"}`}><UsersRound className="h-4 w-4" />Equipes e lideranças</button>
+    </div>
+
+    {tab === "people" ? <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-4"><label className="relative block"><Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, matrícula, e-mail ou unidade" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label></div>
+        <div className="max-h-[42rem] divide-y divide-slate-100 overflow-y-auto">{people.map((person) => <button key={person.personId} type="button" onClick={() => { setSelectedPerson(person); setForm(personToForm(person)); void loadAudit(person.personId).catch((error) => toast.error(error.message)); }} className={`w-full p-4 text-left transition hover:bg-slate-50 ${selectedPerson?.personId === person.personId ? "bg-blue-50" : ""}`}><strong className="block truncate text-sm text-slate-900">{person.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${person.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{person.active ? "Ativo" : "Inativo"}</span></button>)}</div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        {!selectedPerson || !form ? <div className="grid min-h-80 place-items-center text-center text-slate-500"><div><UserRoundCog className="mx-auto h-9 w-9"/><p className="mt-3 font-bold">Selecione uma pessoa para consultar e editar a ficha funcional.</p></div></div> : <>
+          <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Ficha institucional</p><h2 className="mt-1 text-2xl font-black text-[#003b70]">{selectedPerson.fullName}</h2><p className="mt-1 text-sm text-slate-500">Matrícula {selectedPerson.employeeNumber} · atualização {formatDate(selectedPerson.updatedAt)}</p></div><button type="button" onClick={() => void Promise.all([searchPeople(search), loadAudit(selectedPerson.personId)])} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Atualizar</button></div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="Matrícula (não editável)" value={selectedPerson.employeeNumber} onChange={() => undefined} disabled />
+            <Field label="Nome completo" value={form.fullName} onChange={(value) => setForm({ ...form, fullName: value })} />
+            <Field label="E-mail institucional" value={form.institutionalEmail} onChange={(value) => setForm({ ...form, institutionalEmail: value })} />
+            <Field label="Cargo" value={form.jobTitle} onChange={(value) => setForm({ ...form, jobTitle: value })} />
+            <Field label="Diretoria" value={form.directorate} onChange={(value) => setForm({ ...form, directorate: value })} />
+            <Field label="Unidade" value={form.organizationalUnit} onChange={(value) => setForm({ ...form, organizationalUnit: value })} />
+            <Field label="Coordenação" value={form.coordination} onChange={(value) => setForm({ ...form, coordination: value })} />
+            <Field label="Centro de custo" value={form.costCenter} onChange={(value) => setForm({ ...form, costCenter: value })} />
+            <Field label="Local de trabalho" value={form.workplace} onChange={(value) => setForm({ ...form, workplace: value })} />
+            <Field label="Situação funcional" value={form.employmentStatus} onChange={(value) => setForm({ ...form, employmentStatus: value })} />
+            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 md:mt-6"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4"/><span className="text-sm font-bold text-slate-700">Pessoa ativa no sistema</span></label>
+          </div>
+          <label className="mt-5 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} rows={3} placeholder="Explique o motivo da correção funcional" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" /></label>
+          <div className="mt-4 flex justify-end"><button type="button" disabled={working || form.justification.trim().length < 10} onClick={() => void savePerson()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#003b70] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar alteração</button></div>
+          <div className="mt-7 border-t border-slate-200 pt-5"><div className="flex items-center gap-2"><History className="h-4 w-4 text-slate-500"/><h3 className="font-black text-[#003b70]">Histórico recente</h3></div><div className="mt-3 space-y-3">{audit.length ? audit.map((event) => <article key={event.eventId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm text-slate-800">Alteração de dados funcionais</strong><time className="text-xs text-slate-500">{formatDate(event.createdAt)}</time></div><p className="mt-1 text-xs text-slate-500">Por {event.actorName || "Administrador não identificado"}</p>{event.justification && <p className="mt-2 text-sm text-slate-700">{event.justification}</p>}</article>) : <p className="text-sm text-slate-500">Nenhuma alteração administrativa registrada para esta pessoa.</p>}</div></div>
+        </>}
+      </section>
+    </div> : <div className="space-y-5">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end"><label><span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Pesquisa ou ciclo</span><select value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100">{applications.map((application) => <option key={application.id} value={application.id}>{application.code} — {application.name}</option>)}</select></label><label className="relative"><span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Buscar vínculo</span><Search className="absolute bottom-4 left-4 h-4 w-4 text-slate-400"/><input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" placeholder="Liderança, integrante ou matrícula"/></label><button type="button" onClick={() => void loadLinks(applicationId, teamSearch)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Atualizar</button></div><div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm text-[#003b70]"><strong>{activeLinks.length}</strong> vínculos ativos no ciclo selecionado. Correções encerram o vínculo anterior sem apagar o histórico.</div></section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Correção administrativa</p><h2 className="mt-1 text-2xl font-black text-[#003b70]">Definir liderança da pessoa</h2><div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div><label className="block text-xs font-bold text-slate-600">Integrante</label><input value={subordinateSearch} onChange={(event) => { setSubordinateSearch(event.target.value); setSubordinate(null); }} placeholder="Digite nome ou matrícula" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/>{subordinateSearch && !subordinate && <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">{subordinateOptions.map((person) => <button key={person.personId} type="button" onClick={() => { setSubordinate(person); setSubordinateSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span></button>)}</div>}</div>
+        <div><label className="block text-xs font-bold text-slate-600">Nova liderança</label><input value={leaderSearch} onChange={(event) => { setLeaderSearch(event.target.value); setLeader(null); }} placeholder="Digite nome ou matrícula" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/>{leaderSearch && !leader && <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">{leaderOptions.map((person) => <button key={person.personId} type="button" onClick={() => { setLeader(person); setLeaderSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span></button>)}</div>}</div>
+      </div><label className="mt-4 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={leadershipJustification} onChange={(event) => setLeadershipJustification(event.target.value)} rows={3} placeholder="Explique o motivo da inclusão ou troca de liderança" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/></label><div className="mt-4 flex justify-end"><button type="button" disabled={working || !subordinate || !leader || leadershipJustification.trim().length < 10} onClick={() => void saveLeadership()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#003b70] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar vínculo</button></div></section>
+
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><h2 className="text-xl font-black text-[#003b70]">Vínculos do ciclo</h2></div><div className="divide-y divide-slate-100">{links.length ? links.map((link) => <article key={link.linkId} className={`grid gap-3 p-5 md:grid-cols-[1fr_auto_1fr_auto] md:items-center ${link.status !== "ACTIVE" || link.validTo ? "bg-slate-50 opacity-70" : ""}`}><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Integrante</span><strong className="mt-1 block text-slate-900">{link.subordinateName}</strong><span className="text-xs text-slate-500">{link.subordinateEmployeeNumber}</span></div><span className="hidden text-slate-300 md:block">→</span><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Liderança</span><strong className="mt-1 block text-slate-900">{link.leaderName}</strong><span className="text-xs text-slate-500">{link.leaderEmployeeNumber}</span></div><span className={`rounded-full px-3 py-1 text-xs font-black ${link.status === "ACTIVE" && !link.validTo ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{link.status === "ACTIVE" && !link.validTo ? "Ativo" : "Encerrado"}</span></article>) : <p className="p-8 text-center text-sm text-slate-500">Nenhum vínculo encontrado para este ciclo.</p>}</div></section>
+    </div>}
+  </div>;
+}
