@@ -4,107 +4,109 @@
     --platform-sidebar-compact-width: 3.75rem;
   }
 
-  .platform-desktop-sidebar {
+  aside.platform-desktop-sidebar {
     border-right-color: rgba(148, 163, 184, 0.24) !important;
     background: linear-gradient(180deg, #073b62 0%, #064a78 54%, #073b62 100%) !important;
     box-shadow: 14px 0 38px -30px rgba(2, 20, 38, 0.9) !important;
   }
 
-  .platform-desktop-sidebar > div {
+  aside.platform-desktop-sidebar > div,
+  aside.platform-desktop-sidebar > div.bg-white {
     background: transparent !important;
     color: #f8fbff !important;
   }
 
-  .platform-desktop-sidebar > div > div:first-child {
+  aside.platform-desktop-sidebar > div > div:first-child {
     border-bottom-color: rgba(255, 255, 255, 0.12) !important;
+    background: transparent !important;
   }
 
-  .platform-desktop-sidebar > div > div:first-child a > span:last-child span:first-child {
+  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:first-child {
     color: #6ee7b7 !important;
   }
 
-  .platform-desktop-sidebar > div > div:first-child a > span:last-child span:last-child {
+  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:last-child {
     color: #ffffff !important;
   }
 
-  .platform-desktop-sidebar section > p {
+  aside.platform-desktop-sidebar section > p {
     color: rgba(219, 234, 254, 0.62) !important;
   }
 
-  .platform-desktop-sidebar nav a {
+  aside.platform-desktop-sidebar nav a {
     color: rgba(239, 246, 255, 0.86) !important;
     border: 1px solid transparent;
   }
 
-  .platform-desktop-sidebar nav a:hover {
+  aside.platform-desktop-sidebar nav a:hover {
     background: rgba(255, 255, 255, 0.09) !important;
     color: #ffffff !important;
   }
 
-  .platform-desktop-sidebar nav a > span:first-child {
+  aside.platform-desktop-sidebar nav a > span:first-child {
     background: rgba(255, 255, 255, 0.08) !important;
     color: #dbeafe !important;
   }
 
-  .platform-desktop-sidebar nav a[aria-current="page"] {
+  aside.platform-desktop-sidebar nav a[aria-current="page"] {
     border-color: rgba(125, 211, 252, 0.45) !important;
     background: linear-gradient(135deg, #0f6da4, #1388b8) !important;
     color: #ffffff !important;
     box-shadow: 0 12px 26px -18px rgba(0, 0, 0, 0.9) !important;
   }
 
-  .platform-desktop-sidebar nav a[aria-current="page"] > span:first-child {
+  aside.platform-desktop-sidebar nav a[aria-current="page"] > span:first-child {
     background: rgba(255, 255, 255, 0.14) !important;
     color: #ffffff !important;
   }
 
-  .platform-desktop-sidebar > div > button {
+  aside.platform-desktop-sidebar > div > button {
     border-color: rgba(125, 211, 252, 0.5) !important;
     background: #0b4f82 !important;
     color: #ffffff !important;
     box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.85) !important;
   }
 
-  .platform-desktop-sidebar > div > button:hover {
+  aside.platform-desktop-sidebar > div > button:hover {
     background: #1388b8 !important;
   }
 
-  .platform-desktop-sidebar > div > div:last-child {
+  aside.platform-desktop-sidebar > div > div:last-child {
     border-top-color: rgba(255, 255, 255, 0.12) !important;
     background: rgba(3, 40, 68, 0.48) !important;
   }
 
-  .platform-desktop-sidebar > div > div:last-child a,
-  .platform-desktop-sidebar > div > div:last-child button {
+  aside.platform-desktop-sidebar > div > div:last-child a,
+  aside.platform-desktop-sidebar > div > div:last-child button {
     color: rgba(239, 246, 255, 0.86) !important;
   }
 
-  .platform-desktop-sidebar > div > div:last-child a:hover,
-  .platform-desktop-sidebar > div > div:last-child button:hover {
+  aside.platform-desktop-sidebar > div > div:last-child a:hover,
+  aside.platform-desktop-sidebar > div > div:last-child button:hover {
     background: rgba(255, 255, 255, 0.09) !important;
     color: #ffffff !important;
   }
 
-  .platform-desktop-sidebar > div > div:last-child strong {
+  aside.platform-desktop-sidebar > div > div:last-child strong {
     color: #ffffff !important;
   }
 
-  .platform-desktop-sidebar > div > div:last-child span {
+  aside.platform-desktop-sidebar > div > div:last-child span {
     color: rgba(219, 234, 254, 0.72) !important;
   }
 
-  html[data-agsus-sidebar-compact="true"] .platform-desktop-sidebar nav a {
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a {
     margin-inline: auto;
     width: 2.75rem;
     padding-inline: 0.35rem;
   }
 
-  html[data-agsus-sidebar-compact="true"] .platform-desktop-sidebar nav a > span:first-child {
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a > span:first-child {
     width: 2.25rem;
     height: 2.25rem;
   }
 
-  html[data-agsus-sidebar-compact="true"] .platform-desktop-sidebar > div > div:last-child {
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar > div > div:last-child {
     padding-inline: 0.4rem !important;
   }
 }
