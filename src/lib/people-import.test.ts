@@ -35,6 +35,16 @@ describe("parsePeopleImportRows", () => {
     });
   });
 
+  it("accepts dates reformatted by the CSV reader", () => {
+    const rows = parsePeopleImportRows([
+      { NU_MATRICULA: "7", NO_NOME: "Pessoa Um", DT_ADMISSAO: "4/4/22" },
+      { NU_MATRICULA: "12", NO_NOME: "Pessoa Dois", DT_ADMISSAO: "4/7/22" },
+    ]);
+
+    expect(rows.map((row) => row.admissionDate)).toEqual(["2022-04-04", "2022-04-07"]);
+    expect(rows.flatMap((row) => row.warnings)).not.toContain("Data de admissão inválida");
+  });
+
   it("keeps backward compatibility with the compiled CDDI headers without importing CPF", () => {
     const [row] = parsePeopleImportRows([{
       MATRICULA: "123",
