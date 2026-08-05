@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformIcon } from "@/components/platform-icons";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import type { PlatformModule } from "@/lib/platform-modules";
 
 type Item = {
   title: string;
@@ -13,7 +14,16 @@ type Item = {
   actionLabel?: string;
 };
 
-export function AdminModulePage({ eyebrow, title, description, requiredModule, primaryAction, items }: { eyebrow: string; title: string; description: string; requiredModule: string; primaryAction?: { label: string; href: string }; items: Item[] }) {
+type AdminModulePageProps = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  requiredModule: PlatformModule;
+  primaryAction?: { label: string; href: string };
+  items: Item[];
+};
+
+export function AdminModulePage({ eyebrow, title, description, requiredModule, primaryAction, items }: AdminModulePageProps) {
   const { context, loading, error } = usePlatformContext();
   if (loading) return <PlatformSkeleton title={`Carregando ${title}`} />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;

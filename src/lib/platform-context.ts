@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resolvePlatformModules } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export type PlatformContext = {
@@ -30,21 +31,17 @@ type AccessResolution = {
   message?: string;
 };
 
-const ADMIN_MODULES = ["HOME", "SURVEYS", "DASHBOARDS", "TEAM", "RESULTS", "ADMIN_SURVEYS", "ADMIN_PARTICIPANTS", "ADMIN_TEAMS", "ADMIN_ACCESS", "ADMIN_IMPORT"];
 const CONTEXT_TTL = 2 * 60_000;
 let cachedContext: PlatformContext | null = null;
 let cachedAt = 0;
 let pendingContext: Promise<PlatformContext> | null = null;
 
 export function deriveModules(context: PlatformContext) {
-  const roles = context.roles ?? [];
-  if (roles.includes("ADMINISTRATOR")) return ADMIN_MODULES;
-  if (context.modules?.length) return context.modules;
-  if (roles.includes("TECHNICAL_TEAM")) return ADMIN_MODULES;
-  if (roles.includes("SURVEY_MANAGER")) return ADMIN_MODULES.filter((item) => item !== "ADMIN_ACCESS");
-  const modules = ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
-  if (context.isLeader || roles.includes("LEADER")) modules.push("TEAM");
-  return modules;
+  return resolvePlatformModules({
+    roles: context.roles,
+    explicitModules: context.modules,
+    isLeader: context.isLeader,
+  });
 }
 
 export function profileLabel(context: PlatformContext) {
