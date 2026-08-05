@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { PlatformInteractionLayer } from "@/components/platform-interaction-layer";
+import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -23,15 +24,18 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
+      <div data-print-hidden="true" className="fixed bottom-4 right-4 z-[80]">
+        <PlatformThemeToggle />
+      </div>
       <Toaster
         position="top-right"
         richColors
         closeButton
         toastOptions={{
           classNames: {
-            toast: "rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-xl",
-            title: "font-black text-[#003b70]",
-            description: "text-slate-600",
+            toast: "rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] shadow-xl",
+            title: "font-black text-[var(--brand-primary)]",
+            description: "text-[var(--text-secondary)]",
           },
         }}
       />
