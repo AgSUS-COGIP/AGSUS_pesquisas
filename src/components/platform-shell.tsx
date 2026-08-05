@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { PlatformCommandMenu } from "@/components/platform-command-menu";
 import { PlatformIcon } from "@/components/platform-icons";
+import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
 import { Drawer } from "@/components/ui/overlay-panel";
 import {
   isPlatformNavItemActive,
@@ -200,8 +200,8 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <PlatformCommandMenu modules={modules} />
               {actions}
+              <PlatformThemeToggle />
               <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-slate-200 hover:bg-slate-50 sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
                 <Avatar user={user} compact />
                 <span className="hidden max-w-40 text-left xl:block"><strong className="block truncate text-xs text-slate-800">{user.fullName}</strong><span className="block truncate text-xs text-slate-500">{user.profileLabel}</span></span>
