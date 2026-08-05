@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import { parsePeopleImportRows, summarizePeopleImport } from "./people-import";
+
+describe("parsePeopleImportRows", () => {
+  it("maps the compiled CDDI headers without importing CPF", () => {
+    const [row] = parsePeopleImportRows([{
+      MATRICULA: "123",
+      CPF: "00000000000",
+      NOME: "Ana Souza",
+      DATA_ADMISSAO: "13/02/2026",
+      CARGO_ATUAL_DESC: "Analista",
+      UNIDADE_ORCAMENTARIA_DESC: "Diretoria A",
+      DIVISAO_DESC: "Divisão B",
+      SUBDIVISAO_DESC: "Unidade C",
+      "Coordenação utilizada": "Coordenação D",
+      "E-MAIL_INSTUCIONAL": "ANA.SOUZA@AGENCIASUS.ORG.BR",
+      "Nome Gestor/Coordenador": "Gestora Exemplo",
+      "E-mail Gestor": "gestora@agenciasus.org.br",
+    }]);
+
+    expect(row).toMatchObject({
+      employeeNumber: "123",
+      fullName: "Ana Souza",
+      admissionDate: "2026-02-13",
+      jobTitle: "Analista",
+      costCenter: "Diretoria A",
+      directorate: "Divisão B",
+      unit: "Unidade C",
+      coordination: "Coordenação D",
+      institutionalEmail: "ana.souza@agenciasus.org.br",
+      managerName: "Gestora Exemplo",
+      sourceFormat: "CDDI_BASE_COMPILADO",
+      valid: true,
+      emailEligibleForAccess: true,
+    });
+    expect(row).not.toHaveProperty("cpf");
+  });
+
+  it("keeps people without valid email but does not activate their access identity", () => {
+    const rows = parsePeopleImportRows([
+      { MATRICULA: "1", NOME: "Sem Email", "E-MAIL_INSTUCIONAL": "" },
+      { MATRICULA: "2", NOME: "Email Inválido", "E-MAIL_INSTUCIONAL": "dois emails" },
+    ]);
+
+    expect(rows.every((row) => row.valid)).toBe(true);
+    expect(rows.every((row) => !row.emailEligibleForAccess)).toBe(true);
+    expect(summarizePeopleImport(rows)).toMatchObject({ missingEmail: 1, invalidEmail: 1, valid: 2 });
+  });
+
+  it("rejects only later duplicate employee rows and blocks shared emails from automatic access", () => {
+    const rows = parsePeopleImportRows([
+      { MATRICULA: "1", NOME: "Pessoa Um", "E-MAIL_INSTUCIONAL": "compartilhado@agenciasus.org.br" },
+      { MATRICULA: "2", NOME: "Pessoa Dois", "E-MAIL_INSTUCIONAL": "compartilhado@agenciasus.org.br" },
+      { MATRICULA: "2", NOME: "Pessoa Dois", "E-MAIL_INSTUCIONAL": "compartilhado@agenciasus.org.br" },
+    ]);
+
+    expect(rows.map((row) => row.valid)).toEqual([true, true, false]);
+    expect(rows.filter((row) => row.emailEligibleForAccess)).toHaveLength(0);
+    expect(summarizePeopleImport(rows)).toMatchObject({
+      duplicateEmails: 1,
+      duplicateEmailRows: 2,
+      duplicateEmployees: 1,
+      duplicateEmployeeRows: 2,
+      invalid: 1,
+    });
+  });
+});

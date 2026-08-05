@@ -21,6 +21,19 @@ type ParticipantRow = {
   participates: boolean;
   participantKey: string;
   emailEligibleForAccess: boolean;
+  admissionDate: string | null;
+  managerName: string | null;
+  managerEmail: string | null;
+  sourceFormat: string;
+  warnings: string[];
+};
+
+type IssueCounts = {
+  missingEmail: number;
+  invalidEmail: number;
+  duplicateEmail: number;
+  duplicateEmployee: number;
+  invalidRows: number;
 };
 
 type RequestBody = {
@@ -30,7 +43,7 @@ type RequestBody = {
   isFirstChunk: boolean;
   isLastChunk: boolean;
   rows: ParticipantRow[];
-  issueCounts: { missingEmail: number; duplicateEmail: number; invalidRows: number };
+  issueCounts: IssueCounts;
 };
 
 function isAuthorized(request: NextRequest) {
@@ -47,6 +60,10 @@ function securityHeaders() {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
   };
+}
+
+function warningCount(counts: IssueCounts) {
+  return counts.missingEmail + counts.invalidEmail + counts.duplicateEmail + counts.duplicateEmployee;
 }
 
 export async function POST(request: NextRequest) {
@@ -78,12 +95,13 @@ export async function POST(request: NextRequest) {
       entity_type: "PEOPLE_BASE",
       status: "RUNNING",
       received_rows: body.totalRows,
-      warning_rows: body.issueCounts.missingEmail + body.issueCounts.duplicateEmail,
+      warning_rows: warningCount(body.issueCounts),
       rejected_rows: body.issueCounts.invalidRows,
       metadata: {
         import_channel: "VERCEL_ADMIN_UI",
         import_mode: "MASTER_DATA_SYNC",
         issue_counts: body.issueCounts,
+        source_format: body.rows[0]?.sourceFormat ?? "UNKNOWN",
         survey_assignment: false,
       },
     }).select("id").single();
@@ -116,60 +134,40 @@ export async function POST(request: NextRequest) {
   }
 
   const issues = body.rows.flatMap((row) => {
-    if (!row.institutionalEmail) {
-      return [{
-        batch_id: batchId,
-        row_number: row.rowNumber,
-        entity_key: row.employeeNumber,
-        severity: "WARNING",
-        issue_code: "MISSING_EMAIL",
-        message: "Pessoa sem e-mail institucional informado.",
-      }];
+    const rowIssues: Array<Record<string, unknown>> = [];
+    if (row.warnings.includes("E-mail institucional não informado")) {
+      rowIssues.push({ batch_id: batchId, row_number: row.rowNumber, entity_key: row.employeeNumber, severity: "WARNING", issue_code: "MISSING_EMAIL", message: "Pessoa sem e-mail institucional informado; cadastro mantido sem identidade de acesso." });
     }
-    if (!row.emailEligibleForAccess) {
-      return [{
-        batch_id: batchId,
-        row_number: row.rowNumber,
-        entity_key: row.employeeNumber,
-        severity: "WARNING",
-        issue_code: "DUPLICATE_EMAIL",
-        message: "E-mail repetido; identidade de acesso não foi ativada automaticamente.",
-      }];
+    if (row.warnings.includes("E-mail institucional inválido")) {
+      rowIssues.push({ batch_id: batchId, row_number: row.rowNumber, entity_key: row.employeeNumber, severity: "WARNING", issue_code: "INVALID_EMAIL", message: "E-mail institucional inválido; cadastro mantido sem identidade de acesso." });
     }
-    return [];
+    if (row.warnings.includes("E-mail compartilhado entre matrículas")) {
+      rowIssues.push({ batch_id: batchId, row_number: row.rowNumber, entity_key: row.employeeNumber, severity: "WARNING", issue_code: "DUPLICATE_EMAIL", message: "E-mail compartilhado entre matrículas; identidade de acesso não foi ativada automaticamente." });
+    }
+    if (row.warnings.includes("E-mail do gestor inválido")) {
+      rowIssues.push({ batch_id: batchId, row_number: row.rowNumber, entity_key: row.employeeNumber, severity: "WARNING", issue_code: "INVALID_MANAGER_EMAIL", message: "E-mail do gestor ou coordenador possui formato inválido." });
+    }
+    if (row.warnings.includes("Data de admissão inválida")) {
+      rowIssues.push({ batch_id: batchId, row_number: row.rowNumber, entity_key: row.employeeNumber, severity: "WARNING", issue_code: "INVALID_ADMISSION_DATE", message: "Data de admissão não reconhecida e não importada." });
+    }
+    return rowIssues;
   });
 
   if (issues.length) {
     const { error: issueError } = await supabase.from("data_import_issues").insert(issues);
-    if (issueError) {
-      return NextResponse.json({ error: issueError.message }, { status: 500, headers: securityHeaders() });
-    }
+    if (issueError) return NextResponse.json({ error: issueError.message }, { status: 500, headers: securityHeaders() });
   }
 
   if (body.isLastChunk) {
-    const hasWarnings = body.issueCounts.invalidRows > 0 || body.issueCounts.missingEmail > 0 || body.issueCounts.duplicateEmail > 0;
+    const hasWarnings = body.issueCounts.invalidRows > 0 || warningCount(body.issueCounts) > 0;
     const { error: batchError } = await supabase.from("data_import_batches").update({
       status: hasWarnings ? "COMPLETED_WITH_WARNINGS" : "COMPLETED",
       accepted_rows: body.totalRows - body.issueCounts.invalidRows,
       completed_at: new Date().toISOString(),
-      metadata: {
-        import_channel: "VERCEL_ADMIN_UI",
-        import_mode: "MASTER_DATA_SYNC",
-        survey_assignment: false,
-        issue_counts: body.issueCounts,
-      },
+      metadata: { import_channel: "VERCEL_ADMIN_UI", import_mode: "MASTER_DATA_SYNC", survey_assignment: false, issue_counts: body.issueCounts, source_format: body.rows[0]?.sourceFormat ?? "UNKNOWN" },
     }).eq("id", batchId);
-
-    if (batchError) {
-      return NextResponse.json({ error: batchError.message }, { status: 500, headers: securityHeaders() });
-    }
+    if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500, headers: securityHeaders() });
   }
 
-  return NextResponse.json({
-    batchId,
-    synchronizedRows: body.rows.length,
-    syncResult,
-    completed: body.isLastChunk,
-    surveyAssignmentsCreated: 0,
-  }, { headers: securityHeaders() });
+  return NextResponse.json({ batchId, synchronizedRows: body.rows.length, syncResult, completed: body.isLastChunk, surveyAssignmentsCreated: 0 }, { headers: securityHeaders() });
 }
