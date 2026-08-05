@@ -60,6 +60,14 @@ async function loadContextFromDatabase() {
   return data as PlatformContext | null;
 }
 
+async function syncGoogleAvatar() {
+  const supabase = createBrowserSupabaseClient();
+  const { error } = await supabase.rpc("sync_my_google_avatar");
+  if (error && !error.message.includes("AUTH_REQUIRED")) {
+    console.warn("Não foi possível sincronizar a foto da conta Google.", error.message);
+  }
+}
+
 async function provisionInstitutionalAccess() {
   const supabase = createBrowserSupabaseClient();
   const { data, error } = await supabase.rpc("resolve_authenticated_person", {
@@ -82,10 +90,12 @@ async function fetchPlatformContext() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error("AUTH_REQUIRED");
 
+    await syncGoogleAvatar();
     let resolved = await loadContextFromDatabase();
 
     if (resolved?.status === "UNLINKED") {
       await provisionInstitutionalAccess();
+      await syncGoogleAvatar();
       resolved = await loadContextFromDatabase();
     }
 
