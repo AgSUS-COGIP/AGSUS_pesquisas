@@ -130,21 +130,44 @@ function normalizeEmail(value: string) {
   return EMAIL_PATTERN.test(email) ? email : null;
 }
 
+function validIsoDate(year: string, month: string, day: string) {
+  const iso = `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const date = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso ? null : iso;
+}
+
 function normalizeDate(value: string) {
   const raw = value.trim();
   if (!raw) return null;
+
   const brazilian = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
   if (brazilian) {
     const [, day, month, year] = brazilian;
-    const iso = `${year}-${month}-${day}`;
-    const date = new Date(`${iso}T00:00:00Z`);
-    return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso ? null : iso;
+    return validIsoDate(year, month, day);
   }
+
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
   if (iso) {
-    const date = new Date(`${raw}T00:00:00Z`);
-    return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw ? null : raw;
+    const [, year, month, day] = iso;
+    return validIsoDate(year, month, day);
   }
+
+  // SheetJS pode reinterpretar datas ambíguas de CSV como formato norte-americano
+  // e devolvê-las sem zeros à esquerda e com ano de dois dígitos (ex.: 4/7/22).
+  const sheetJsShort = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(raw);
+  if (sheetJsShort) {
+    const [, month, day, shortYear] = sheetJsShort;
+    const numericYear = Number(shortYear);
+    const year = String(numericYear >= 70 ? 1900 + numericYear : 2000 + numericYear);
+    return validIsoDate(year, month, day);
+  }
+
+  const sheetJsLong = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+  if (sheetJsLong) {
+    const [, month, day, year] = sheetJsLong;
+    return validIsoDate(year, month, day);
+  }
+
   return null;
 }
 
