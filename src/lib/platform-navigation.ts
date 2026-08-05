@@ -1,11 +1,12 @@
 import type { PlatformIconName } from "@/components/platform-icons";
+import { PLATFORM_MODULE, normalizePlatformModules, type PlatformModule } from "./platform-modules";
 
 export type PlatformNavItem = {
   href: string;
   label: string;
   description: string;
   icon: PlatformIconName;
-  module?: string;
+  module?: PlatformModule;
   exact?: boolean;
 };
 
@@ -18,33 +19,33 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
   {
     title: "Principal",
     items: [
-      { href: "/area", label: "Visão geral", description: "Abrir o painel institucional", icon: "home", module: "HOME", exact: true },
-      { href: "/pesquisas", label: "Pesquisas", description: "Consultar instrumentos disponíveis", icon: "surveys", module: "SURVEYS" },
-      { href: "/paineis", label: "Painéis", description: "Abrir indicadores e análises", icon: "dashboard", module: "DASHBOARDS" },
+      { href: "/area", label: "Visão geral", description: "Abrir o painel institucional", icon: "home", module: PLATFORM_MODULE.HOME, exact: true },
+      { href: "/pesquisas", label: "Pesquisas", description: "Consultar instrumentos disponíveis", icon: "surveys", module: PLATFORM_MODULE.SURVEYS },
+      { href: "/paineis", label: "Painéis", description: "Abrir indicadores e análises", icon: "dashboard", module: PLATFORM_MODULE.DASHBOARDS },
     ],
   },
   {
     title: "Atuação",
     items: [
-      { href: "/equipe", label: "Minha equipe", description: "Acompanhar pessoas e avaliações", icon: "team", module: "TEAM" },
-      { href: "/resultados", label: "Resultados", description: "Consultar devolutivas e indicadores", icon: "results", module: "RESULTS" },
+      { href: "/equipe", label: "Minha equipe", description: "Acompanhar pessoas e avaliações", icon: "team", module: PLATFORM_MODULE.TEAM },
+      { href: "/resultados", label: "Resultados", description: "Consultar devolutivas e indicadores", icon: "results", module: PLATFORM_MODULE.RESULTS },
     ],
   },
   {
     title: "Administração",
     items: [
-      { href: "/admin", label: "Administração", description: "Abrir a gestão da plataforma", icon: "admin", module: "ADMIN_SURVEYS", exact: true },
-      { href: "/admin/pesquisas", label: "Pesquisas e ciclos", description: "Criar pesquisas e operar ciclos", icon: "edit", module: "ADMIN_SURVEYS" },
-      { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: "ADMIN_PARTICIPANTS" },
-      { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: "ADMIN_TEAMS" },
-      { href: "/admin/acessos", label: "Acessos", description: "Administrar papéis e módulos", icon: "settings", module: "ADMIN_ACCESS" },
-      { href: "/admin/importacao", label: "Importações", description: "Validar e processar planilhas", icon: "import", module: "ADMIN_IMPORT" },
+      { href: "/admin", label: "Administração", description: "Abrir a gestão da plataforma", icon: "admin", module: PLATFORM_MODULE.ADMIN_SURVEYS, exact: true },
+      { href: "/admin/pesquisas", label: "Pesquisas e ciclos", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
+      { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS },
+      { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: PLATFORM_MODULE.ADMIN_TEAMS },
+      { href: "/admin/acessos", label: "Acessos", description: "Administrar papéis e módulos", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
+      { href: "/admin/importacao", label: "Importações", description: "Validar e processar planilhas", icon: "import", module: PLATFORM_MODULE.ADMIN_IMPORT },
     ],
   },
 ];
 
 export function navigationGroupsForModules(modules: readonly string[]) {
-  const allowedModules = new Set(modules);
+  const allowedModules = new Set(normalizePlatformModules(modules));
   return platformNavigationGroups
     .map((group) => ({
       ...group,

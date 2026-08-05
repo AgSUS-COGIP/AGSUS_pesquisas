@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformCommandMenu } from "@/components/platform-command-menu";
 import { PlatformIcon } from "@/components/platform-icons";
+import { Drawer } from "@/components/ui/overlay-panel";
 import {
   isPlatformNavItemActive,
   navigationGroupsForModules,
@@ -16,6 +17,7 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
+const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
   fullName: string;
@@ -61,9 +63,9 @@ function BrandLockup({ compact, mobile = false }: { compact: boolean; mobile?: b
 
 function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void }) {
   return (
-    <section className="mt-4" aria-label={group.title}>
-      {!compact && <p className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p>}
-      <nav className="mt-2 space-y-1">
+    <section className="mt-4" aria-labelledby={`nav-group-${group.title.toLowerCase()}`}>
+      {!compact && <p id={`nav-group-${group.title.toLowerCase()}`} className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p>}
+      <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
           return (
@@ -72,10 +74,11 @@ function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNav
               href={item.href}
               onClick={onNavigate}
               title={compact ? item.label : undefined}
+              aria-label={compact ? `${item.label}: ${item.description}` : undefined}
               aria-current={active ? "page" : undefined}
               className={`group relative flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-bold transition-colors ${active ? "bg-[var(--brand-primary)] text-white shadow-[0_10px_24px_-18px_rgba(7,59,98,.95)]" : "text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
             >
-              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`}>
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
               </span>
               {!compact && <span className="truncate">{item.label}</span>}
@@ -87,51 +90,60 @@ function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNav
   );
 }
 
-function Sidebar({ user, compact, modules, mobile, onNavigate, onToggle, onSignOut }: { user: PlatformUser; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void }) {
+function SidebarContent({ user, compact, modules, mobile = false, onNavigate, onToggle, onSignOut }: { user: PlatformUser; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
-  const width = compact && !mobile ? "w-[4.5rem]" : "w-56";
 
   return (
-    <aside data-print-hidden="true" className={`${mobile ? "fixed inset-y-0 left-0 z-[70] flex" : "fixed inset-y-0 left-0 z-50 hidden lg:flex"} ${width} flex-col border-r border-slate-200 bg-white text-slate-800 shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300`}>
-      <div className={`flex h-16 items-center border-b border-slate-100 px-3 ${compact && !mobile ? "justify-center" : ""}`}>
+    <div className="relative flex min-h-0 flex-1 flex-col bg-white text-slate-800">
+      <div className={`flex h-16 shrink-0 items-center border-b border-slate-100 px-3 ${compact && !mobile ? "justify-center" : ""}`}>
         <BrandLockup compact={compact} mobile={mobile} />
       </div>
       {!mobile && (
         <button
           type="button"
           onClick={onToggle}
-          className="absolute -right-3 top-[76px] z-10 grid h-7 w-7 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:text-[var(--brand-primary)]"
-          aria-label={compact ? "Expandir menu" : "Recolher menu"}
+          className="absolute -right-3 top-[76px] z-10 grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:text-[var(--brand-primary)]"
+          aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
           aria-expanded={!compact}
         >
           <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" />
         </button>
       )}
-      <div className="flex-1 overflow-y-auto px-2.5 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-4">
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} />)}
       </div>
-      <div className="border-t border-slate-100 p-2.5">
-        <Link href="/perfil" onClick={onNavigate} className={`flex items-center gap-2 rounded-xl p-2 transition hover:bg-slate-50 ${compact && !mobile ? "justify-center" : ""}`} aria-label="Abrir meu perfil">
+      <div className="shrink-0 border-t border-slate-100 p-2.5">
+        <Link href="/perfil" onClick={onNavigate} className={`flex min-h-11 items-center gap-2 rounded-xl p-2 transition hover:bg-slate-50 ${compact && !mobile ? "justify-center" : ""}`} aria-label={`Abrir perfil de ${user.fullName}`}>
           <Avatar user={user} compact />
           {(!compact || mobile) && <span className="min-w-0"><strong className="block truncate text-xs text-slate-800">{user.fullName}</strong><span className="block truncate text-[11px] text-slate-500">{user.profileLabel}</span></span>}
         </Link>
-        <button type="button" onClick={onSignOut} className={`mt-1 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${compact && !mobile ? "px-2" : ""}`}>
+        <button type="button" onClick={onSignOut} aria-label="Sair da sessão atual" className={`mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${compact && !mobile ? "px-2" : ""}`}>
           <PlatformIcon name="logout" className="h-4 w-4" />
           {(!compact || mobile) && "Sair"}
         </button>
       </div>
+    </div>
+  );
+}
+
+function DesktopSidebar({ user, compact, modules, onToggle, onSignOut }: { user: PlatformUser; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
+  const width = compact ? "w-[4.5rem]" : "w-56";
+  return (
+    <aside data-print-hidden="true" aria-label="Navegação principal" className={`fixed inset-y-0 left-0 z-50 hidden ${width} flex-col border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex`}>
+      <SidebarContent user={user} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} />
     </aside>
   );
 }
 
 export function PlatformShell({ user, title, eyebrow, children, actions }: { user: PlatformUser; title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode }) {
+  const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const modules = user.modules ?? ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
 
   useEffect(() => { setCompact(window.localStorage.getItem("agsus-sidebar-compact") === "true"); }, []);
-  useEffect(() => { document.body.style.overflow = mobileOpen ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [mobileOpen]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   function toggleCompact() {
     setCompact((current) => {
@@ -152,40 +164,47 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   }
 
   return (
-    <main className="min-h-screen bg-[var(--surface-page)] text-[var(--text-primary)]">
+    <div className="min-h-screen bg-[var(--surface-page)] text-[var(--text-primary)]">
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-white px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
-      <Sidebar user={user} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
-      {mobileOpen && (
-        <>
-          <button aria-label="Fechar menu" className="fixed inset-0 z-[60] bg-slate-950/35 backdrop-blur-[2px] lg:hidden" onClick={() => setMobileOpen(false)} />
-          <Sidebar user={user} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
-        </>
-      )}
+      <DesktopSidebar user={user} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
+      <Drawer
+        id={MOBILE_NAVIGATION_ID}
+        open={mobileOpen}
+        onOpenChange={setMobileOpen}
+        title="Navegação principal"
+        description="Acesse os módulos disponíveis para o seu perfil."
+        side="left"
+        className="max-w-[20rem]"
+        contentClassName="flex p-0 sm:p-0"
+        closeLabel="Fechar menu"
+      >
+        <SidebarContent user={user} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
+      </Drawer>
       <div className={`transition-[padding] duration-300 ${compact ? "lg:pl-[4.5rem]" : "lg:pl-56"}`}>
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/[.92] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
-          <div className="mx-auto flex h-16 max-w-[1560px] items-center justify-between gap-3">
+          <div className="mx-auto flex min-h-16 max-w-[1560px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
-              <button type="button" onClick={() => setMobileOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen}>
+              <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
                 <PlatformIcon name="menu" />
               </button>
               <div className="min-w-0">
-                {eyebrow && <p className="truncate text-[9px] font-black uppercase tracking-[.18em] text-[var(--brand-secondary)]">{eyebrow}</p>}
+                {eyebrow && <p className="truncate text-[10px] font-black uppercase tracking-[.18em] text-[var(--brand-secondary)]">{eyebrow}</p>}
                 <h1 className="truncate text-lg font-black tracking-tight text-[var(--brand-primary)] sm:text-xl">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <PlatformCommandMenu modules={modules} />
               {actions}
-              <Link href="/perfil" className="hidden items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-slate-200 hover:bg-slate-50 sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
+              <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-slate-200 hover:bg-slate-50 sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
                 <Avatar user={user} compact />
-                <span className="hidden max-w-40 text-left xl:block"><strong className="block truncate text-xs text-slate-800">{user.fullName}</strong><span className="block truncate text-[10px] text-slate-500">{user.profileLabel}</span></span>
+                <span className="hidden max-w-40 text-left xl:block"><strong className="block truncate text-xs text-slate-800">{user.fullName}</strong><span className="block truncate text-xs text-slate-500">{user.profileLabel}</span></span>
               </Link>
             </div>
           </div>
         </header>
-        <div id="conteudo-principal" tabIndex={-1} className="mx-auto max-w-[1560px] px-4 py-5 outline-none sm:px-5 lg:px-6 lg:py-6">{children}</div>
+        <main id="conteudo-principal" tabIndex={-1} className="mx-auto max-w-[1560px] px-4 py-5 outline-none sm:px-5 lg:px-6 lg:py-6">{children}</main>
       </div>
-    </main>
+    </div>
   );
 }
 
