@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { CddiScrollBoundary } from "@/components/cddi-scroll-boundary";
+import "./cddi-route.css";
 
 export const metadata: Metadata = {
   title: "CDDI 2026 | AgSUS Pesquisas",
@@ -6,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function CddiLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  return <CddiScrollBoundary>{children}</CddiScrollBoundary>;
 }

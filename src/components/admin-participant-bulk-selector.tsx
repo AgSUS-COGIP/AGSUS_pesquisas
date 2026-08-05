@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare2, Loader2, Search, Square, UsersRound } from "lucide-react";
+import { CheckSquare2, Loader2, Search, Square, UserRoundPlus, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -39,6 +39,7 @@ export function AdminParticipantBulkSelector() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [assigningAll, setAssigningAll] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -86,6 +87,11 @@ export function AdminParticipantBulkSelector() {
     [people],
   );
 
+  const selectedApplication = useMemo(
+    () => applications.find((application) => application.id === applicationId) ?? null,
+    [applicationId, applications],
+  );
+
   const allVisibleSelected = eligiblePeople.length > 0 && eligiblePeople.every((person) => selected.has(person.personId));
 
   function togglePerson(personId: string) {
@@ -106,6 +112,12 @@ export function AdminParticipantBulkSelector() {
     });
   }
 
+  function resetSearch() {
+    setSelected(new Set());
+    setSearch("");
+    setPeople([]);
+  }
+
   async function assignSelected() {
     if (!applicationId || selected.size === 0) return;
     setWorking(true);
@@ -118,10 +130,8 @@ export function AdminParticipantBulkSelector() {
       });
       if (error) throw error;
       const result = (data ?? {}) as BulkResult;
-      toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} ignoradas.`);
-      setSelected(new Set());
-      setSearch("");
-      setPeople([]);
+      toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já existentes.`);
+      resetSearch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível vincular as pessoas selecionadas.");
     } finally {
@@ -129,24 +139,55 @@ export function AdminParticipantBulkSelector() {
     }
   }
 
+  async function assignAllAvailable() {
+    if (!applicationId || !selectedApplication) return;
+    const confirmed = window.confirm(
+      `Vincular todas as pessoas ativas e elegíveis à pesquisa “${selectedApplication.code} — ${selectedApplication.name}”?\n\nLideranças institucionais marcadas como não avaliáveis serão excluídas automaticamente.`,
+    );
+    if (!confirmed) return;
+
+    setAssigningAll(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error } = await supabase.rpc("assign_admin_all_available_participants", {
+        target_application_id: applicationId,
+        target_access_profile: "PARTICIPANTE",
+      });
+      if (error) throw error;
+      const result = (data ?? {}) as BulkResult;
+      toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já vinculadas.`);
+      resetSearch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível vincular todo o público disponível.");
+    } finally {
+      setAssigningAll(false);
+    }
+  }
+
   return (
     <section className="surface-card p-5 sm:p-6" aria-labelledby="bulk-participants-title">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="section-eyebrow">Seleção em lote</p>
-          <h2 id="bulk-participants-title" className="mt-1 text-xl font-black text-brand-primary">Vincular várias pessoas a uma pesquisa</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Escolha a pesquisa, pesquise a base institucional e marque as pessoas. A operação aceita até 1.000 pessoas por confirmação e registra auditoria.</p>
+          <h2 id="bulk-participants-title" className="mt-1 text-xl font-black text-brand-primary">Vincular pessoas a uma pesquisa</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Selecione pessoas pelos filtros ou vincule todo o público ativo e elegível de uma só vez. Todas as operações registram auditoria.</p>
         </div>
-        <button type="button" disabled={!selected.size || working} onClick={() => void assignSelected()} className="primary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
-          {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <UsersRound className="h-4 w-4" />}
-          Vincular {selected.size || "selecionadas"}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button type="button" disabled={!applicationId || assigningAll || working} onClick={() => void assignAllAvailable()} className="secondary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
+            {assigningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRoundPlus className="h-4 w-4" />}
+            Vincular todos os disponíveis
+          </button>
+          <button type="button" disabled={!selected.size || working || assigningAll} onClick={() => void assignSelected()} className="primary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
+            {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <UsersRound className="h-4 w-4" />}
+            Vincular {selected.size || "selecionadas"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(240px,.75fr)_minmax(0,1.25fr)]">
         <label className="block">
           <span className="text-xs font-black uppercase tracking-[.14em] text-[var(--text-secondary)]">Pesquisa ou ciclo</span>
-          <select disabled={loading} value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 font-bold text-[var(--text-primary)] outline-none focus:ring-4 focus:ring-sky-200/20">
+          <select disabled={loading || working || assigningAll} value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 font-bold text-[var(--text-primary)] outline-none focus:ring-4 focus:ring-sky-200/20">
             {applications.map((application) => <option key={application.id} value={application.id}>{application.code} — {application.name}</option>)}
           </select>
         </label>

@@ -1,0 +1,19 @@
+html.cddi-route-active,
+body.cddi-route-active {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+}
+
+.cddi-route-shell {
+  min-height: 100dvh;
+  padding-bottom: 6rem;
+}
+
+@media (max-width: 1023px) {
+  .cddi-route-shell {
+    padding-bottom: 5rem;
+  }
+}
