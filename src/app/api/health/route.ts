@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { getAdminSupabaseConfigurationStatus } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const configured = Boolean(
+  const publicConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   );
+  const adminConfiguration = getAdminSupabaseConfigurationStatus();
+  const configured = publicConfigured && adminConfiguration.configured;
 
   return NextResponse.json(
     {
@@ -14,8 +17,10 @@ export async function GET() {
       service: "agsus-pesquisas",
       timestamp: new Date().toISOString(),
       checks: {
-        supabasePublicConfiguration: configured,
+        supabasePublicConfiguration: publicConfigured,
+        supabaseAdminConfiguration: adminConfiguration.configured,
       },
+      missingConfiguration: adminConfiguration.missingVariables,
     },
     {
       status: configured ? 200 : 503,
