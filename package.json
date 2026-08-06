@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:naming": "node scripts/validate-db-naming.mjs"
+    "db:naming": "node scripts/validate-db-naming.mjs",
+    "db:migrations": "node scripts/validate-migrations.mjs"
   },
   "dependencies": {
     "@dicebear/core": "10.3.0",
