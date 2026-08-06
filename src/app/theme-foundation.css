@@ -218,6 +218,65 @@ html[data-agsus-theme="dark"] textarea::placeholder {
   opacity: 1;
 }
 
+/* O CDDI mantém a identidade completa somente na tela de entrada.
+   Durante o preenchimento, o banner repetido é removido e a navegação
+   passa a fazer parte da rolagem natural da página. */
+main[class*="pb-28"][class*="bg-[#eef3f8]"] {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: 1rem !important;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > :first-child {
+  display: none !important;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > section:first-of-type {
+  margin-top: 0 !important;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > section:first-of-type h1 {
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem) !important;
+  line-height: 1.2;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer {
+  position: static !important;
+  inset: auto !important;
+  width: min(calc(100% - 2rem), 60rem);
+  margin: .75rem auto 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface-card) !important;
+  padding: .5rem .65rem !important;
+  box-shadow: 0 12px 30px -26px rgba(15, 23, 42, .65) !important;
+  backdrop-filter: none !important;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer > div {
+  flex-wrap: wrap;
+}
+
+main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer button {
+  min-height: 2.4rem;
+  border-radius: .65rem !important;
+  padding: .5rem .75rem !important;
+  font-size: .75rem;
+}
+
+@media (max-width: 639px) {
+  main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer > div > div:last-child {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer button {
+    justify-content: center;
+    padding-inline: .45rem !important;
+  }
+}
+
 @media (forced-colors: active) {
   .theme-toggle,
   .network-status-banner {

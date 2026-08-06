@@ -1,0 +1,97 @@
+:root {
+  --brand-blue-50: #eff8ff;
+  --brand-blue-100: #dbeeff;
+  --brand-blue-600: #0869a8;
+  --brand-blue-700: #075784;
+  --brand-blue-800: #06476c;
+  --brand-green-50: #ecfdf5;
+  --brand-green-100: #d1fae5;
+  --brand-green-600: #07855d;
+  --brand-green-700: #066b4b;
+  --brand-yellow-50: #fff9e6;
+  --brand-yellow-500: #e7ad14;
+  --brand-red-50: #fff1f2;
+  --brand-red-600: #c92a3a;
+  --state-info-bg: var(--brand-blue-50);
+  --state-info-border: #9fd5f6;
+  --state-info-text: #07527e;
+  --state-success-bg: var(--brand-green-50);
+  --state-success-border: #8cddb9;
+  --state-success-text: #056640;
+  --state-warning-bg: var(--brand-yellow-50);
+  --state-warning-border: #efcc70;
+  --state-warning-text: #76520a;
+  --state-danger-bg: var(--brand-red-50);
+  --state-danger-border: #f2a6af;
+  --state-danger-text: #982232;
+  --interactive-primary: var(--brand-blue-700);
+  --interactive-primary-hover: var(--brand-blue-800);
+  --interactive-selected-bg: var(--brand-blue-50);
+  --interactive-selected-border: #4ca9dc;
+  --progress-start: var(--brand-blue-700);
+  --progress-middle: var(--brand-green-600);
+  --progress-end: #1598b8;
+}
+
+html[data-agsus-theme="dark"] {
+  --state-info-bg: #102a40;
+  --state-info-border: #285f82;
+  --state-info-text: #a8ddff;
+  --state-success-bg: #0f2d25;
+  --state-success-border: #27745b;
+  --state-success-text: #9aebca;
+  --state-warning-bg: #332a12;
+  --state-warning-border: #786221;
+  --state-warning-text: #f6dc8d;
+  --state-danger-bg: #371a21;
+  --state-danger-border: #85404e;
+  --state-danger-text: #ffbbc4;
+  --interactive-primary: #62b9ec;
+  --interactive-primary-hover: #8fd3ff;
+  --interactive-selected-bg: #102a40;
+  --interactive-selected-border: #62b9ec;
+}
+
+.agsus-form-surface {
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.agsus-form-control {
+  border: 1px solid var(--border-subtle);
+  border-radius: .9rem;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+.agsus-form-control:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--interactive-primary) 48%, var(--border-subtle));
+}
+
+.agsus-form-control:focus {
+  border-color: var(--interactive-selected-border);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+}
+
+.agsus-choice-selected {
+  border-color: var(--interactive-selected-border) !important;
+  background: var(--interactive-selected-bg) !important;
+  color: var(--brand-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+}
+
+.agsus-primary-action {
+  background: var(--interactive-primary);
+  color: white;
+}
+
+.agsus-primary-action:hover:not(:disabled) {
+  background: var(--interactive-primary-hover);
+}
+
+.agsus-progress-fill {
+  background: linear-gradient(90deg, var(--progress-start), var(--progress-middle), var(--progress-end));
+}
