@@ -7,7 +7,10 @@ export type ApplicationErrorReport = {
   httpStatus?: number | null;
 };
 
-function sanitizeText(value: string, maxLength: number) {
+const REPORT_DEDUPLICATION_WINDOW = 30_000;
+const recentReports = new Map<string, number>();
+
+export function sanitizeObservabilityText(value: string, maxLength: number) {
   return value
     .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[email removido]")
     .replace(/\b\d{5,}\b/g, "[numero removido]")
@@ -15,11 +18,53 @@ function sanitizeText(value: string, maxLength: number) {
     .slice(0, maxLength);
 }
 
+export function errorMessageFromUnknown(value: unknown) {
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Erro não serializável.";
+    }
+  }
+  return String(value ?? "Erro desconhecido.");
+}
+
 export function createErrorReference() {
-  return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `err-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function reportFingerprint(report: ApplicationErrorReport) {
+  return [
+    report.type,
+    sanitizeObservabilityText(report.route, 200),
+    sanitizeObservabilityText(report.message, 300),
+    report.httpStatus ?? "",
+  ].join("|");
+}
+
+function shouldSendReport(report: ApplicationErrorReport) {
+  const fingerprint = reportFingerprint(report);
+  const now = Date.now();
+  const lastReport = recentReports.get(fingerprint);
+
+  for (const [key, timestamp] of recentReports) {
+    if (now - timestamp > REPORT_DEDUPLICATION_WINDOW) recentReports.delete(key);
+  }
+
+  if (lastReport && now - lastReport < REPORT_DEDUPLICATION_WINDOW) return false;
+  recentReports.set(fingerprint, now);
+  return true;
 }
 
 export async function reportApplicationError(report: ApplicationErrorReport) {
+  if (!shouldSendReport(report)) return true;
+
   try {
     const response = await fetch("/api/observability/errors", {
       method: "POST",
@@ -27,12 +72,12 @@ export async function reportApplicationError(report: ApplicationErrorReport) {
       keepalive: true,
       body: JSON.stringify({
         ...report,
-        route: sanitizeText(report.route, 200),
-        message: sanitizeText(report.message, 1000),
+        route: sanitizeObservabilityText(report.route, 200),
+        message: sanitizeObservabilityText(report.message, 1000),
         context: Object.fromEntries(
           Object.entries(report.context ?? {}).slice(0, 12).map(([key, value]) => [
-            sanitizeText(key, 60),
-            typeof value === "string" ? sanitizeText(value, 200) : value,
+            sanitizeObservabilityText(key, 60),
+            typeof value === "string" ? sanitizeObservabilityText(value, 200) : value,
           ]),
         ),
       }),
