@@ -150,6 +150,34 @@ textarea {
   line-height: 1.35;
 }
 
+/* O banner institucional aparece apenas na tela inicial do CDDI. */
+main.pb-28 > div > img:first-child {
+  display: none;
+}
+
+/* O formulário usa rolagem natural e uma barra de ações compacta ao final. */
+main.pb-28 {
+  padding-bottom: 1rem !important;
+}
+
+main.pb-28 > footer.fixed {
+  position: static !important;
+  margin-top: 1rem;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  padding: .6rem 1rem;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+main.pb-28 > footer.fixed button {
+  min-height: 2.35rem;
+  border-radius: .65rem;
+  padding: .5rem .8rem;
+  font-size: .78rem;
+}
+
 html[data-agsus-theme="dark"] [class*="bg-white/"] {
   background-color: var(--surface-overlay) !important;
   border-color: var(--border-subtle) !important;
@@ -218,62 +246,21 @@ html[data-agsus-theme="dark"] textarea::placeholder {
   opacity: 1;
 }
 
-/* O CDDI mantém a identidade completa somente na tela de entrada.
-   Durante o preenchimento, o banner repetido é removido e a navegação
-   passa a fazer parte da rolagem natural da página. */
-main[class*="pb-28"][class*="bg-[#eef3f8]"] {
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  padding-bottom: 1rem !important;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > :first-child {
-  display: none !important;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > section:first-of-type {
-  margin-top: 0 !important;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > div > section:first-of-type h1 {
-  font-size: clamp(1.35rem, 2.8vw, 1.85rem) !important;
-  line-height: 1.2;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer {
-  position: static !important;
-  inset: auto !important;
-  width: min(calc(100% - 2rem), 60rem);
-  margin: .75rem auto 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: 1rem;
-  background: var(--surface-card) !important;
-  padding: .5rem .65rem !important;
-  box-shadow: 0 12px 30px -26px rgba(15, 23, 42, .65) !important;
-  backdrop-filter: none !important;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer > div {
-  flex-wrap: wrap;
-}
-
-main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer button {
-  min-height: 2.4rem;
-  border-radius: .65rem !important;
-  padding: .5rem .75rem !important;
-  font-size: .75rem;
-}
-
 @media (max-width: 639px) {
-  main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer > div > div:last-child {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  main.pb-28 > footer.fixed > div {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  main[class*="pb-28"][class*="bg-[#eef3f8]"] > footer button {
+  main.pb-28 > footer.fixed > div > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-left: 0;
+  }
+
+  main.pb-28 > footer.fixed button {
     justify-content: center;
-    padding-inline: .45rem !important;
+    padding-inline: .45rem;
   }
 }
 
