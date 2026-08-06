@@ -3,6 +3,7 @@ name: Internal quality gate
 on:
   push:
     branches:
+      - main
       - "feature/**"
       - "feat/**"
       - "fix/**"
@@ -14,15 +15,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: internal-quality-${{ github.ref }}
+  group: internal-quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Tests, TypeScript, lint and production build
+  application:
+    name: Application validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -40,9 +41,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate migration identifiers
+        run: npm run db:migrations
 
       - name: Validate database naming
         run: npm run db:naming
@@ -58,3 +63,36 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  database:
+    name: Supabase migrations and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Supabase CLI
+        uses: supabase/setup-cli@v2.1.1
+        with:
+          version: 2.109.1
+          github-token: ${{ github.token }}
+
+      - name: Initialize local Supabase configuration
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Rebuild database from migrations
+        run: supabase db reset
+
+      - name: Database and RLS tests
+        run: supabase test db
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
