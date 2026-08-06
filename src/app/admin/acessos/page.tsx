@@ -125,7 +125,7 @@ export default function AdminAccessPage() {
 
   return (
     <PlatformShell user={user} eyebrow="Administrador da Plataforma" title="Pessoas e permissões">
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         <PageHeader
           eyebrow="Segurança e governança"
           title="Controle de acesso baseado em papéis"
@@ -170,20 +170,22 @@ export default function AdminAccessPage() {
           </div>
         </Surface>
 
-        <DataTableContainer aria-label="Pessoas e permissões da plataforma">
+        <DataTableContainer className="min-w-0" aria-label="Pessoas e permissões da plataforma">
           {fetching && !workspace ? (
             <DataTableState aria-live="polite">
               <Loader2 className="mx-auto h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden="true" />
               <p className="mt-3 font-semibold">Carregando pessoas e permissões...</p>
             </DataTableState>
           ) : (
-            <DataTableScroll>
-              <DataTable>
-                <DataTableHead>
+            <DataTableScroll className="max-h-[65dvh] min-w-0 overflow-auto overscroll-contain [scrollbar-gutter:stable] lg:max-h-[calc(100dvh-22rem)]">
+              <DataTable className="min-w-max">
+                <DataTableHead className="sticky top-0 z-20">
                   <DataTableRow className="hover:bg-transparent">
-                    <DataTableHeaderCell>Pessoa</DataTableHeaderCell>
+                    <DataTableHeaderCell className="sticky left-0 z-30 min-w-[19rem] bg-slate-50 shadow-[10px_0_18px_-18px_rgba(15,23,42,.8)] sm:min-w-[22rem]">
+                      Pessoa
+                    </DataTableHeaderCell>
                     {roles.map((role) => (
-                      <DataTableHeaderCell key={role.code} className="min-w-36 text-center">
+                      <DataTableHeaderCell key={role.code} className="w-32 min-w-32 text-center">
                         <span title={role.description ?? role.name}>{role.name}</span>
                       </DataTableHeaderCell>
                     ))}
@@ -191,15 +193,15 @@ export default function AdminAccessPage() {
                 </DataTableHead>
                 <DataTableBody>
                   {(workspace?.people ?? []).map((person) => (
-                    <DataTableRow key={person.personId}>
-                      <DataTableCell>
+                    <DataTableRow key={person.personId} className="group">
+                      <DataTableCell className="sticky left-0 z-10 bg-white shadow-[10px_0_18px_-18px_rgba(15,23,42,.8)] transition-colors group-hover:bg-blue-50/40">
                         <div className="flex min-w-72 items-center gap-3">
                           <PersonAvatar
                             fullName={person.fullName}
                             className="h-10 w-10 rounded-xl"
                             fallbackClassName="text-xs"
                           />
-                          <div className="min-w-0">
+                          <div className="min-w-0 max-w-[17rem] sm:max-w-[20rem]">
                             <div className="flex flex-wrap items-center gap-2">
                               <strong className="truncate text-sm text-slate-900">{person.fullName}</strong>
                               <Badge variant={person.active ? "success" : "neutral"}>{person.active ? "Ativo" : "Inativo"}</Badge>
@@ -220,7 +222,7 @@ export default function AdminAccessPage() {
                         const busy = changing === key;
 
                         return (
-                          <DataTableCell key={role.code} className="text-center">
+                          <DataTableCell key={role.code} className="w-32 min-w-32 text-center">
                             <button
                               type="button"
                               role="switch"
