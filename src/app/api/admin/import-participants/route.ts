@@ -133,6 +133,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: syncError.message }, { status: 500, headers: securityHeaders() });
   }
 
+  const { data: managerSyncResult, error: managerSyncError } = await supabase.rpc("sync_cddi_manager_rows", {
+    p_rows: body.rows,
+    p_batch_id: batchId,
+  });
+
+  if (managerSyncError) {
+    await supabase.from("data_import_batches").update({
+      status: "FAILED",
+      completed_at: new Date().toISOString(),
+      metadata: {
+        import_mode: "MASTER_DATA_SYNC",
+        failure_stage: "MANAGER_SYNC",
+        failure_message: managerSyncError.message,
+      },
+    }).eq("id", batchId);
+    return NextResponse.json({ error: managerSyncError.message }, { status: 500, headers: securityHeaders() });
+  }
+
   const issues = body.rows.flatMap((row) => {
     const rowIssues: Array<Record<string, unknown>> = [];
     if (row.warnings.includes("E-mail institucional não informado")) {
@@ -164,10 +182,24 @@ export async function POST(request: NextRequest) {
       status: hasWarnings ? "COMPLETED_WITH_WARNINGS" : "COMPLETED",
       accepted_rows: body.totalRows - body.issueCounts.invalidRows,
       completed_at: new Date().toISOString(),
-      metadata: { import_channel: "VERCEL_ADMIN_UI", import_mode: "MASTER_DATA_SYNC", survey_assignment: false, issue_counts: body.issueCounts, source_format: body.rows[0]?.sourceFormat ?? "UNKNOWN" },
+      metadata: {
+        import_channel: "VERCEL_ADMIN_UI",
+        import_mode: "MASTER_DATA_SYNC",
+        survey_assignment: false,
+        issue_counts: body.issueCounts,
+        source_format: body.rows[0]?.sourceFormat ?? "UNKNOWN",
+        manager_sync: managerSyncResult,
+      },
     }).eq("id", batchId);
     if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500, headers: securityHeaders() });
   }
 
-  return NextResponse.json({ batchId, synchronizedRows: body.rows.length, syncResult, completed: body.isLastChunk, surveyAssignmentsCreated: 0 }, { headers: securityHeaders() });
+  return NextResponse.json({
+    batchId,
+    synchronizedRows: body.rows.length,
+    syncResult,
+    managerSyncResult,
+    completed: body.isLastChunk,
+    surveyAssignmentsCreated: 0,
+  }, { headers: securityHeaders() });
 }
