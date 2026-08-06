@@ -1,27 +1,51 @@
 "use client";
 
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { useEffect } from "react";
+import { AlertTriangle, Home, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo } from "react";
+import { createErrorReference, reportApplicationError } from "@/lib/observability";
 
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function RouteError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  const reference = useMemo(() => error.digest || createErrorReference(), [error.digest]);
+
   useEffect(() => {
-    console.error("Erro global da aplicação", error);
-  }, [error]);
+    void reportApplicationError({
+      reference,
+      route: window.location.pathname,
+      type: "CLIENTE",
+      message: error.message || "Erro inesperado na rota.",
+      context: { digest: error.digest ?? null },
+    });
+  }, [error.digest, error.message, reference]);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_50%_15%,rgba(239,68,68,.08),transparent_32%),#f5f8fb] px-6">
-      <section className="w-full max-w-lg rounded-[2rem] border border-white/80 bg-white/90 p-8 text-center shadow-[0_30px_80px_-45px_rgba(15,23,42,.55)] backdrop-blur-xl">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-red-700 ring-1 ring-red-100">
-          <AlertTriangle className="h-7 w-7" />
+    <main className="grid min-h-screen place-items-center bg-[var(--surface-page)] px-5 py-12">
+      <section className="w-full max-w-xl rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-7 text-center shadow-xl sm:p-10">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]">
+          <AlertTriangle className="h-7 w-7" aria-hidden="true" />
         </div>
-        <p className="mt-5 text-xs font-black uppercase tracking-[.18em] text-red-700">Falha temporária</p>
-        <h1 className="mt-2 text-2xl font-black tracking-tight text-[#003b70]">Não foi possível concluir esta ação</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Tente carregar novamente. Caso o problema continue, o identificador abaixo ajuda a Equipe Técnica na análise.</p>
-        {error.digest && <code className="mt-5 inline-flex rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">{error.digest}</code>}
-        <button type="button" onClick={reset} className="mx-auto mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#003b70] px-5 py-3 font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#075ea8] focus:outline-none focus:ring-4 focus:ring-blue-200">
-          <RotateCcw className="h-5 w-5" />
-          Tentar novamente
-        </button>
+        <p className="mt-5 text-xs font-black uppercase tracking-[.14em] text-[var(--status-danger-text)]">Falha recuperável</p>
+        <h1 className="mt-2 text-2xl font-black text-[var(--text-primary)]">Não foi possível concluir esta operação</h1>
+        <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
+          Seus dados já salvos permanecem protegidos. Tente carregar novamente ou retorne à tela inicial.
+        </p>
+        <p className="mt-4 rounded-xl bg-[var(--surface-interactive)] px-3 py-2 text-xs text-[var(--text-muted)]">
+          Referência técnica: <strong className="text-[var(--text-primary)]">{reference}</strong>
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button type="button" onClick={reset} className="primary-button inline-flex justify-center gap-2">
+            <RefreshCw className="h-4 w-4" aria-hidden="true" /> Tentar novamente
+          </button>
+          <Link href="/" className="secondary-button inline-flex justify-center gap-2">
+            <Home className="h-4 w-4" aria-hidden="true" /> Tela inicial
+          </Link>
+        </div>
       </section>
     </main>
   );
