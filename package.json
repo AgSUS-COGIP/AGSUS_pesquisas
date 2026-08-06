@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:naming": "node scripts/validate-db-naming.mjs"
   },
   "dependencies": {
     "@dicebear/core": "10.3.0",
