@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { ClientErrorReporter } from "@/components/client-error-reporter";
 import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { PlatformInteractionLayer } from "@/components/platform-interaction-layer";
 
@@ -24,6 +25,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ClientErrorReporter />
       <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
       <NetworkStatusBanner />
       <Toaster
