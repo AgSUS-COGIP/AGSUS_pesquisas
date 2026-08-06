@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { AppProviders } from "@/components/app-providers";
 import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
 import "./dark-theme.css";
+import "./theme-foundation.css";
 import "./sidebar-monitora.css";
 
 export const metadata: Metadata = {
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
     icon: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
     apple: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
   },
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f8fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#08111f" },
+  ],
 };
 
 export default function RootLayout({

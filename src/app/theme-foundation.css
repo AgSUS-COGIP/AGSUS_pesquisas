@@ -1,0 +1,226 @@
+:root {
+  color-scheme: light;
+  --brand-solid: #0b4f82;
+  --brand-solid-hover: #073b62;
+  --surface-elevated: #ffffff;
+  --surface-interactive: #f7fafc;
+  --surface-overlay: rgba(255, 255, 255, .92);
+  --border-strong: #b9c8d5;
+  --text-muted: #718096;
+  --text-on-brand: #ffffff;
+  --control-bg: #ffffff;
+  --control-hover: #edf5fa;
+  --control-active: #deedf6;
+  --status-info-bg: #eaf5fb;
+  --status-info-border: #9bd4ee;
+  --status-info-text: #075985;
+  --status-success-bg: #eaf8f1;
+  --status-success-border: #94d7b5;
+  --status-success-text: #07633f;
+  --status-warning-bg: #fff7df;
+  --status-warning-border: #eac56a;
+  --status-warning-text: #7a4a08;
+  --status-danger-bg: #fff0f0;
+  --status-danger-border: #efaaaa;
+  --status-danger-text: #a12121;
+}
+
+html[data-agsus-theme="dark"] {
+  color-scheme: dark;
+  --brand-solid: #126b98;
+  --brand-solid-hover: #0e5a82;
+  --surface-elevated: #152337;
+  --surface-interactive: #19283d;
+  --surface-overlay: rgba(12, 24, 39, .92);
+  --border-strong: #465b75;
+  --text-muted: #94a7bd;
+  --text-on-brand: #ffffff;
+  --control-bg: #101c2d;
+  --control-hover: #1b2d44;
+  --control-active: #243b57;
+  --status-info-bg: rgba(14, 116, 144, .22);
+  --status-info-border: #2587a8;
+  --status-info-text: #a5e5f7;
+  --status-success-bg: rgba(5, 150, 105, .2);
+  --status-success-border: #238b67;
+  --status-success-text: #98edc8;
+  --status-warning-bg: rgba(161, 98, 7, .22);
+  --status-warning-border: #a96e19;
+  --status-warning-text: #ffe092;
+  --status-danger-bg: rgba(185, 28, 28, .2);
+  --status-danger-border: #a94444;
+  --status-danger-text: #ffc2c2;
+  scrollbar-color: var(--border-strong) var(--surface-page);
+}
+
+.bg-brand-primary,
+.primary-button {
+  background-color: var(--brand-solid);
+}
+
+.primary-button:hover:not(:disabled) {
+  background-color: var(--brand-solid-hover);
+}
+
+.status-badge {
+  border-color: var(--status-success-border);
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+input,
+select,
+textarea {
+  accent-color: var(--brand-solid);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: .75rem;
+  background: var(--control-bg);
+  padding: .65rem .8rem;
+  color: var(--text-secondary);
+  box-shadow: 0 8px 20px -18px rgba(15, 23, 42, .7);
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--control-hover);
+  color: var(--brand-primary);
+  transform: translateY(-1px);
+}
+
+.theme-toggle[data-theme="dark"] {
+  color: var(--brand-primary);
+}
+
+.network-status-banner {
+  position: fixed;
+  left: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 90;
+  display: flex;
+  width: min(calc(100% - 2rem), 34rem);
+  transform: translateX(-50%);
+  align-items: flex-start;
+  gap: .75rem;
+  border: 1px solid;
+  border-radius: 1rem;
+  padding: .85rem 1rem;
+  box-shadow: 0 18px 50px -24px rgba(15, 23, 42, .75);
+  backdrop-filter: blur(14px);
+}
+
+.network-status-banner[data-status="offline"] {
+  border-color: var(--status-danger-border);
+  background: color-mix(in srgb, var(--status-danger-bg) 92%, transparent);
+  color: var(--status-danger-text);
+}
+
+.network-status-banner[data-status="restored"] {
+  border-color: var(--status-success-border);
+  background: color-mix(in srgb, var(--status-success-bg) 92%, transparent);
+  color: var(--status-success-text);
+}
+
+.network-status-banner strong {
+  display: block;
+  font-size: .85rem;
+}
+
+.network-status-banner span {
+  display: block;
+  margin-top: .1rem;
+  font-size: .75rem;
+  line-height: 1.35;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-white/"] {
+  background-color: var(--surface-overlay) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-slate-50/"] {
+  background-color: color-mix(in srgb, var(--surface-muted) 92%, transparent) !important;
+}
+
+html[data-agsus-theme="dark"] [class*="hover:bg-white"]:hover {
+  background-color: var(--control-hover) !important;
+}
+
+html[data-agsus-theme="dark"] .text-blue-700,
+html[data-agsus-theme="dark"] .text-sky-700 {
+  color: var(--status-info-text) !important;
+}
+
+html[data-agsus-theme="dark"] .text-amber-700,
+html[data-agsus-theme="dark"] .text-amber-800 {
+  color: var(--status-warning-text) !important;
+}
+
+html[data-agsus-theme="dark"] .text-emerald-700,
+html[data-agsus-theme="dark"] .text-emerald-800 {
+  color: var(--status-success-text) !important;
+}
+
+html[data-agsus-theme="dark"] .text-red-700,
+html[data-agsus-theme="dark"] .text-red-800 {
+  color: var(--status-danger-text) !important;
+}
+
+html[data-agsus-theme="dark"] .bg-blue-50,
+html[data-agsus-theme="dark"] .bg-sky-50 {
+  background-color: var(--status-info-bg) !important;
+}
+
+html[data-agsus-theme="dark"] .bg-amber-50,
+html[data-agsus-theme="dark"] .bg-amber-100 {
+  background-color: var(--status-warning-bg) !important;
+}
+
+html[data-agsus-theme="dark"] .bg-emerald-50,
+html[data-agsus-theme="dark"] .bg-emerald-100 {
+  background-color: var(--status-success-bg) !important;
+}
+
+html[data-agsus-theme="dark"] .bg-red-50,
+html[data-agsus-theme="dark"] .bg-red-100 {
+  background-color: var(--status-danger-bg) !important;
+}
+
+html[data-agsus-theme="dark"] input,
+html[data-agsus-theme="dark"] select,
+html[data-agsus-theme="dark"] textarea {
+  border-color: var(--border-subtle);
+  background-color: var(--control-bg);
+  color: var(--text-primary);
+  caret-color: var(--focus-ring);
+}
+
+html[data-agsus-theme="dark"] input::placeholder,
+html[data-agsus-theme="dark"] textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+@media (forced-colors: active) {
+  .theme-toggle,
+  .network-status-banner {
+    border: 1px solid CanvasText;
+  }
+}

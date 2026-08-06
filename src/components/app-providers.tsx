@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { PlatformInteractionLayer } from "@/components/platform-interaction-layer";
 
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -12,6 +13,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
         retry: 1,
       },
       mutations: {
@@ -23,6 +25,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
+      <NetworkStatusBanner />
       <Toaster
         position="top-right"
         richColors

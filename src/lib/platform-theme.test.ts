@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getPlatformThemeState,
   normalizePlatformTheme,
   PLATFORM_THEME_ATTRIBUTE,
+  PLATFORM_THEME_PREFERENCE_ATTRIBUTE,
   PLATFORM_THEME_STORAGE_KEY,
   platformThemeBootstrapScript,
   resolvePlatformTheme,
@@ -21,10 +23,18 @@ describe("platform theme", () => {
     expect(resolvePlatformTheme("light", true)).toBe("light");
   });
 
-  it("bootstraps the shared storage key and attribute", () => {
+  it("returns persisted and resolved theme independently", () => {
+    expect(getPlatformThemeState("system", true)).toEqual({
+      preference: "system",
+      resolved: "dark",
+    });
+  });
+
+  it("bootstraps the shared storage key and attributes", () => {
     const script = platformThemeBootstrapScript();
     expect(script).toContain(PLATFORM_THEME_STORAGE_KEY);
     expect(script).toContain(PLATFORM_THEME_ATTRIBUTE);
+    expect(script).toContain(PLATFORM_THEME_PREFERENCE_ATTRIBUTE);
     expect(script).toContain("prefers-color-scheme: dark");
   });
 });
