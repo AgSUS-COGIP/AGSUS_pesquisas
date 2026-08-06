@@ -6,6 +6,7 @@ import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
 import "./dark-theme.css";
 import "./theme-foundation.css";
+import "./theme-enhancements.css";
 import "./sidebar-monitora.css";
 
 export const metadata: Metadata = {
