@@ -9,6 +9,14 @@ body.cddi-route-active {
   min-height: 100dvh;
 }
 
+.cddi-route-shell > main:not(.cddi-form-mode) {
+  height: 100dvh;
+  min-height: 0 !important;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+
 .cddi-form-mode {
   height: 100dvh;
   min-height: 0 !important;
