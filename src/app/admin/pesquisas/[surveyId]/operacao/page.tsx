@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, CircleStop, Clock3, FileCheck2, Loader2, Play, RefreshCw, RotateCcw, Send, ShieldCheck, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { useConfirm } from "@/components/confirmation-provider";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -65,6 +66,7 @@ function cycleExplanation(status: string | undefined) {
 }
 
 export default function SurveyOperationsPage({ params }: { params: Promise<{ surveyId: string }> }) {
+  const confirm = useConfirm();
   const { surveyId } = use(params);
   const { context, loading, error } = usePlatformContext();
   const [operations, setOperations] = useState<Operations | null>(null);
@@ -73,7 +75,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
 
-  async function loadOperations() {
+  const loadOperations = useCallback(async () => {
     setDataLoading(true);
     try {
       const supabase = createBrowserSupabaseClient();
@@ -88,11 +90,11 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     } finally {
       setDataLoading(false);
     }
-  }
+  }, [surveyId]);
 
   useEffect(() => {
     if (context?.person) void loadOperations();
-  }, [context?.person, surveyId]);
+  }, [context?.person, loadOperations]);
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
@@ -104,7 +106,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       CANCEL: "Cancelar este ciclo? Esta ação não poderá ser revertida.",
     };
     const confirmation = confirmations[action];
-    if (confirmation && !window.confirm(confirmation)) return;
+    if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: action === "CANCEL" || action === "CLOSE" ? "Confirmar operação" : "Continuar", tone: action === "CANCEL" || action === "CLOSE" ? "danger" : "primary" }))) return;
 
     const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN";
     setWorking(action);

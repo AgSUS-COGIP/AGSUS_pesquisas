@@ -7,9 +7,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-[var(--brand-primary)] text-white shadow-sm hover:bg-[var(--brand-primary-strong)]",
-        secondary: "border border-[var(--border-subtle)] bg-white text-slate-700 hover:bg-slate-50",
-        ghost: "text-slate-700 hover:bg-slate-100",
+        primary: "bg-[var(--brand-solid)] text-[var(--text-on-brand)] shadow-sm hover:bg-[var(--brand-solid-hover)]",
+        secondary: "border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
+        ghost: "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
         danger: "bg-red-700 text-white shadow-sm hover:bg-red-800",
       },
       size: {

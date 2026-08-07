@@ -9,7 +9,7 @@ export type SurveyVisualIdentity = {
 type UnknownRecord = Record<string, unknown>;
 
 export const DEFAULT_CDDI_VISUAL_IDENTITY: SurveyVisualIdentity = {
-  bannerUrl: "https://i.postimg.cc/fTtNN9PM/Automatizacao-de-instrumento.png",
+  bannerUrl: "/evaluation-journey.svg",
   bannerAlt: "Ciclo de Devolutivas e Desenvolvimento Individual",
   heroTitle: "Ciclo de Devolutivas e Desenvolvimento Individual (CDDI)",
   heroSubtitle: "Instrumento sistematizado para promover avaliação por competências, devolutivas e alinhamentos entre trabalhadores e suas lideranças.",

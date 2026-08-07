@@ -294,13 +294,13 @@ export default function CddiMonitoringPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const modules = context ? deriveModules(context) : [];
 
   const dashboard = useQuery({
     queryKey: ["cddi-monitoring", context?.person?.id],
     enabled: Boolean(context?.person),
     queryFn: async () => {
+      const supabase = createBrowserSupabaseClient();
       const { data, error: rpcError } = await supabase.rpc("get_cddi_monitoring_dashboard", {
         target_application_code: "CDDI-2026",
       });

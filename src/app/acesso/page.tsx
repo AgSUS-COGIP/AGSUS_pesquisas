@@ -1,10 +1,11 @@
 "use client";
 
+import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { safeAuthNext } from "@/lib/auth-callback";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
-const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
+import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
+import { PlatformLogo } from "@/components/platform-logo";
+import { usePlatformBranding } from "@/components/platform-branding-provider";
 const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
 
 function accessErrorMessage(code: string | null) {
@@ -21,7 +22,7 @@ function preloadFirstAvailable(urls: string[]) {
   return new Promise<string | null>((resolve) => {
     const tryNext = (index: number) => {
       if (index >= urls.length) return resolve(null);
-      const image = new Image();
+      const image = new window.Image();
       const timeout = window.setTimeout(() => {
         image.src = "";
         tryNext(index + 1);
@@ -41,6 +42,8 @@ function preloadFirstAvailable(urls: string[]) {
 }
 
 export default function AccessPage() {
+  const { branding, loading: brandingLoading } = usePlatformBranding();
+  const supabaseConfigured = isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -59,6 +62,7 @@ export default function AccessPage() {
     });
 
     void (async () => {
+      if (!supabaseConfigured) return;
       try {
         const supabase = createBrowserSupabaseClient();
         const { data } = await supabase.auth.getUser();
@@ -71,10 +75,10 @@ export default function AccessPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [supabaseConfigured]);
 
   async function signInWithGoogle() {
-    if (signInPendingRef.current) return;
+    if (signInPendingRef.current || !supabaseConfigured) return;
 
     signInPendingRef.current = true;
     setLoading(true);
@@ -128,19 +132,29 @@ export default function AccessPage() {
         <div className="h-1.5 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
         <div className="px-7 py-9 sm:px-12 sm:py-11">
           <div className="text-center">
-            <img src={LOGO_AGSUS} alt="AgSUS" className="mx-auto h-20 w-20 object-contain" />
+            <PlatformLogo src={branding.logoUrl} alt={branding.organizationName} organizationName={branding.organizationName} width={80} height={80} priority loading={brandingLoading} className="mx-auto h-20 w-20 object-contain text-xl" />
             <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-[#0b8f58]">Acesso institucional</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">Plataforma de Pesquisas e Avaliações</h1>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">{branding.productName}</h1>
             <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As pesquisas exibidas dependem das autorizações do seu perfil.</p>
           </div>
 
-          <button type="button" onClick={signInWithGoogle} disabled={loading} className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#003b70] px-5 py-4 font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#075ea8] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={signInWithGoogle} disabled={loading || !supabaseConfigured} aria-describedby="access-help" className="mt-8 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#003b70] px-5 py-4 font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#075ea8] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-lg font-black text-[#4285f4]">G</span>
             {loading ? "Abrindo conta Google..." : "Entrar com Google institucional"}
           </button>
 
-          {message && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-800">{message}</div>}
-          <p className="mt-7 text-center text-xs leading-5 text-slate-500">Acesso permitido somente para contas <strong>@agenciasus.org.br</strong>.</p>
+          {!supabaseConfigured ? (
+            <div role="alert" className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-sm leading-6 text-amber-900">
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <div><strong className="block">Acesso temporariamente indisponível</strong><span>A configuração deste ambiente ainda precisa ser concluída pela equipe técnica.</span></div>
+            </div>
+          ) : message ? (
+            <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-800">{message}</div>
+          ) : null}
+          <div id="access-help" className="mt-7 flex items-center justify-center gap-2 text-center text-xs leading-5 text-slate-500">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-[#0b8f58]" aria-hidden="true" />
+            <span>Acesso seguro, exclusivo para contas <strong>@agenciasus.org.br</strong>.</span>
+          </div>
         </div>
         <footer className="border-t border-slate-100 bg-slate-50/90 px-6 py-4 text-center text-xs font-bold text-slate-500">Agência Brasileira de Apoio à Gestão do SUS</footer>
       </section>

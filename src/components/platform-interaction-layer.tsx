@@ -77,7 +77,7 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
         </div>
       )}
 
-      <div className={`transition-all duration-300 motion-reduce:transition-none ${pageVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}>
+      <div className={`transition-opacity duration-300 motion-reduce:transition-none ${pageVisible ? "opacity-100" : "opacity-0"}`}>
         {children}
       </div>
 

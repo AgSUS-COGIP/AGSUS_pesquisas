@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Loader2, Plus, RefreshCw, Search, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ExternalImage } from "@/components/external-image";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ApplicationItem = {
@@ -65,7 +66,7 @@ function Avatar({ name, url }: { name: string; url: string | null }) {
   const [failed, setFailed] = useState(false);
   return url && !failed ? (
     <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-      <img src={url} alt={`Avatar de ${name}`} onError={() => setFailed(true)} className="h-full w-full object-cover" />
+      <ExternalImage src={url} alt={`Avatar de ${name}`} width={40} height={40} onError={() => setFailed(true)} className="h-full w-full object-cover" />
     </span>
   ) : (
     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-xs font-black text-[#003b70] ring-1 ring-sky-100">{initials(name)}</span>
@@ -85,22 +86,22 @@ export function AdminParticipantManagement() {
 
   const selectedApplication = applications.find((item) => item.id === applicationId) ?? null;
 
-  async function loadApplications() {
+  const loadApplications = useCallback(async () => {
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.rpc("list_admin_participant_applications");
     if (error) throw error;
     const rows = Array.isArray(data) ? data as ApplicationItem[] : [];
     setApplications(rows);
     setApplicationId((current) => current || rows[0]?.id || "");
-  }
+  }, []);
 
-  async function loadParticipants(targetId = applicationId) {
+  const loadParticipants = useCallback(async (targetId: string) => {
     if (!targetId) return;
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.rpc("list_admin_application_participants", { target_application_id: targetId });
     if (error) throw error;
     setParticipants(Array.isArray(data) ? data as Participant[] : []);
-  }
+  }, []);
 
   async function refreshAll() {
     setLoading(true);
@@ -114,12 +115,12 @@ export function AdminParticipantManagement() {
     }
   }
 
-  useEffect(() => { void loadApplications().catch((error) => toast.error(error.message)).finally(() => setLoading(false)); }, []);
+  useEffect(() => { void loadApplications().catch((error) => toast.error(error.message)).finally(() => setLoading(false)); }, [loadApplications]);
   useEffect(() => {
     if (!applicationId) return;
     setLoading(true);
     void loadParticipants(applicationId).catch((error) => toast.error(error.message)).finally(() => setLoading(false));
-  }, [applicationId]);
+  }, [applicationId, loadParticipants]);
 
   useEffect(() => {
     if (!applicationId || search.trim().length < 2) { setPeople([]); return; }
@@ -148,7 +149,7 @@ export function AdminParticipantManagement() {
       });
       if (error) throw error;
       toast.success("Pessoa vinculada à pesquisa.");
-      await Promise.all([loadParticipants(), loadApplications()]);
+      await Promise.all([loadParticipants(applicationId), loadApplications()]);
       setSearch("");
       setPeople([]);
     } catch (error) {
@@ -174,7 +175,7 @@ export function AdminParticipantManagement() {
       toast.success("Pessoa cadastrada e vinculada à pesquisa.");
       setForm({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "", workplace: "" });
       setShowCreate(false);
-      await Promise.all([loadParticipants(), loadApplications()]);
+      await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível cadastrar a pessoa.");
     } finally { setWorking(""); }
@@ -190,7 +191,7 @@ export function AdminParticipantManagement() {
       });
       if (error) throw error;
       toast.success(status === "ELIGIBLE" ? "Participante reativado." : status === "BLOCKED" ? "Participante bloqueado." : "Participante removido da pesquisa.");
-      await Promise.all([loadParticipants(), loadApplications()]);
+      await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível alterar o participante.");
     } finally { setWorking(""); }

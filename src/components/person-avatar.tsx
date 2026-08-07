@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePlatformContext } from "@/lib/platform-context";
+import { ExternalImage } from "@/components/external-image";
 import { cn } from "@/lib/utils";
 
 type PersonAvatarProps = {
@@ -12,10 +12,6 @@ type PersonAvatarProps = {
   fallbackClassName?: string;
   alt?: string;
 };
-
-function normalizeName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleUpperCase("pt-BR");
-}
 
 function validAvatarUrl(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -43,14 +39,8 @@ export function PersonAvatar({
   fallbackClassName,
   alt,
 }: PersonAvatarProps) {
-  const { context } = usePlatformContext();
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const currentPerson = context?.person;
-  const isCurrentPerson = Boolean(currentPerson?.fullName) && normalizeName(currentPerson!.fullName) === normalizeName(fullName);
-  const metadataAvatar = validAvatarUrl(currentPerson?.metadata?.avatar_url);
-  const canonicalAvatar = validAvatarUrl(currentPerson?.avatarUrl) ?? metadataAvatar;
-  const requestedAvatar = validAvatarUrl(avatarUrl);
-  const normalizedUrl = isCurrentPerson ? canonicalAvatar ?? requestedAvatar : requestedAvatar;
+  const normalizedUrl = validAvatarUrl(avatarUrl);
   const imageFailed = Boolean(normalizedUrl && failedUrl === normalizedUrl);
 
   // Uma URL diferente da que falhou merece nova tentativa; sem isso, trocar de
@@ -62,9 +52,11 @@ export function PersonAvatar({
   if (normalizedUrl && !imageFailed) {
     return (
       <span className={cn("grid shrink-0 place-items-center overflow-hidden bg-white ring-1 ring-slate-200", className)}>
-        <img
+        <ExternalImage
           src={normalizedUrl}
           alt={alt ?? `Avatar de ${fullName}`}
+          width={128}
+          height={128}
           onError={() => setFailedUrl(normalizedUrl)}
           className={cn("h-full w-full object-cover", imageClassName)}
           // Exigido pelas URLs de foto do Google, que recusam requisição com referer.

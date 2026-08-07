@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AdminPeopleTeamsManagement } from "@/components/admin-people-teams-management";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
@@ -10,11 +11,11 @@ export default function AdminTeamsPage() {
   const { context, loading, error } = usePlatformContext();
 
   if (loading) return <PlatformSkeleton title="Carregando gestão institucional" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!context?.person) return <FullPageState title="Não foi possível abrir equipes" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
   if (!modules.includes(PLATFORM_MODULE.ADMIN_TEAMS) || !context.roles?.includes("ADMINISTRATOR")) {
-    return <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6"><section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl"><h1 className="text-3xl font-black text-[#003b70]">Acesso restrito</h1><p className="mt-3 text-slate-600">A edição de dados funcionais e vínculos institucionais é exclusiva do Administrador da Plataforma.</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao painel</Link></section></main>;
+    return <FullPageState tone="restricted" title="Gestão institucional restrita" description="A edição de dados funcionais e vínculos é exclusiva do Administrador da Plataforma." />;
   }
 
   const user = {

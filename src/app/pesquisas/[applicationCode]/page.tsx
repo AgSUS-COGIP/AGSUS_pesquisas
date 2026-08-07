@@ -6,7 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { useConfirm } from "@/components/confirmation-provider";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Option = { id: string; label: string; value: string };
@@ -17,23 +19,15 @@ type Definition = {
   survey: { code: string; name: string; description: string | null };
   sections: Section[];
 };
-type StoredAnswer = { answerText?: string | null; answerBoolean?: boolean | null; optionIds?: string[] };
 type SubmissionContext = {
   canEdit: boolean;
   submission: { id: string; status: string; submittedAt: string | null } | null;
-  answers: Record<string, StoredAnswer>;
+  answers: Record<string, StoredSurveyAnswer>;
 };
-type AnswerValue = { text?: string; boolean?: boolean; optionIds?: string[] };
-type Answers = Record<string, AnswerValue>;
-
-function isAnswered(question: Question, value?: AnswerValue) {
-  if (!value) return false;
-  if (["SCALE", "SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(question.type)) return Boolean(value.optionIds?.length);
-  if (question.type === "BOOLEAN") return typeof value.boolean === "boolean";
-  return Boolean(value.text?.trim());
-}
+type Answers = Record<string, SurveyAnswerValue>;
 
 export default function GenericSurveyPage() {
+  const confirm = useConfirm();
   const params = useParams<{ applicationCode: string }>();
   const applicationCode = decodeURIComponent(params.applicationCode);
   const { context, loading: contextLoading, error } = usePlatformContext();
@@ -47,6 +41,7 @@ export default function GenericSurveyPage() {
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const formTopRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     latestAnswers.current = answers;
@@ -71,11 +66,7 @@ export default function GenericSurveyPage() {
         const restored: Answers = {};
         const resolvedSubmission = submissionResponse.data as SubmissionContext;
         Object.entries(resolvedSubmission.answers ?? {}).forEach(([questionId, value]) => {
-          restored[questionId] = {
-            text: value.answerText ?? undefined,
-            boolean: value.answerBoolean ?? undefined,
-            optionIds: value.optionIds ?? [],
-          };
+          restored[questionId] = restoreSurveyAnswer(value);
         });
 
         if (!active) return;
@@ -91,17 +82,18 @@ export default function GenericSurveyPage() {
     };
 
     void load();
+    const timersToClear = timers.current;
     return () => {
       active = false;
-      Object.values(timers.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
     };
   }, [applicationCode, context?.person]);
 
-  const sections = definition?.sections ?? [];
+  const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
   const currentSection = sections[step];
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
-  const answeredRequired = requiredQuestions.filter((question) => isAnswered(question, answers[question.id])).length;
+  const answeredRequired = requiredQuestions.filter((question) => isSurveyAnswerComplete(question.type, answers[question.id])).length;
   const progress = requiredQuestions.length ? Math.round((answeredRequired / requiredQuestions.length) * 100) : 100;
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
@@ -114,7 +106,7 @@ export default function GenericSurveyPage() {
    * banco fora de ordem e gravem o valor antigo por último. O `catch` que precede
    * o `then` mantém a corrente viva depois de uma falha.
    */
-  function enqueueSave(question: Question, value: AnswerValue) {
+  function enqueueSave(question: Question, value: SurveyAnswerValue) {
     if (!canEdit || !submission?.submission?.id) return saveQueue.current;
     const submissionId = submission.submission.id;
     setPendingSaves((current) => current + 1);
@@ -124,13 +116,7 @@ export default function GenericSurveyPage() {
       const { error: saveError } = await supabase.rpc("save_my_survey_answer", {
         target_submission_id: submissionId,
         target_question_id: question.id,
-        target_option_ids: value.optionIds ?? [],
-        target_text: value.text ?? null,
-        target_number: null,
-        target_boolean: value.boolean ?? null,
-        target_date: null,
-        target_datetime: null,
-        target_json: null,
+        ...buildSurveyAnswerPayload(question.type, value),
       });
       if (saveError) throw saveError;
     };
@@ -147,7 +133,7 @@ export default function GenericSurveyPage() {
     return saveQueue.current;
   }
 
-  function update(question: Question, value: AnswerValue, delay = 0) {
+  function update(question: Question, value: SurveyAnswerValue, delay = 0) {
     latestAnswers.current = { ...latestAnswers.current, [question.id]: value };
     setAnswers((current) => ({ ...current, [question.id]: value }));
     if (timers.current[question.id]) window.clearTimeout(timers.current[question.id]);
@@ -182,12 +168,17 @@ export default function GenericSurveyPage() {
 
   function validateCurrentSection() {
     if (!currentSection || !canEdit) return true;
-    const missing = currentSection.questions.filter((question) => question.required && !isAnswered(question, answers[question.id]));
+    const missing = currentSection.questions.filter((question) => question.required && !isSurveyAnswerComplete(question.type, answers[question.id]));
     if (missing.length) {
       toast.warning(`Preencha ${missing.length} pergunta(s) obrigatória(s) desta etapa.`);
       return false;
     }
     return true;
+  }
+
+  function goToStep(target: number) {
+    setStep(Math.max(0, Math.min(target, sections.length - 1)));
+    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   async function submitSurvey() {
@@ -196,7 +187,7 @@ export default function GenericSurveyPage() {
       toast.warning("Ainda existem perguntas obrigatórias sem resposta.");
       return;
     }
-    if (!window.confirm("Confirma o envio definitivo desta pesquisa?")) return;
+    if (!(await confirm({ title: "Enviar pesquisa definitivamente?", description: "Depois do envio, as respostas não poderão mais ser alteradas.", confirmLabel: "Enviar pesquisa" }))) return;
 
     setSubmitting(true);
     try {
@@ -238,6 +229,7 @@ export default function GenericSurveyPage() {
     institutionalEmail: context.person.institutionalEmail,
     employeeNumber: context.person.employeeNumber,
     profileLabel: profileLabel(context),
+    avatarUrl: context.person.avatarUrl,
     roles: context.roles,
     modules,
   };
@@ -259,14 +251,14 @@ export default function GenericSurveyPage() {
         <div className="h-1 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
       </section>
 
-      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section ref={formTopRef} className="mt-5 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div><strong className="text-[#003b70]">Progresso</strong><p className="mt-1 text-xs text-slate-500">{answeredRequired} de {requiredQuestions.length} obrigatórias respondidas</p></div>
           <span className="text-2xl font-black text-[#003b70]">{progress}%</span>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-[#003b70] via-emerald-500 to-cyan-500" style={{ width: `${progress}%` }} /></div>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => setStep(index)} className={`min-w-fit rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
+          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => goToStep(index)} className={`min-w-fit rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
         </div>
       </section>
 
@@ -285,6 +277,9 @@ export default function GenericSurveyPage() {
                   {["SCALE", "SINGLE_CHOICE"].includes(question.type) && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{question.options.map((option) => <label key={option.id} className={`cursor-pointer rounded-2xl border p-4 font-bold ${value.optionIds?.includes(option.id) ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="radio" className="sr-only" name={question.id} checked={value.optionIds?.includes(option.id) ?? false} onChange={() => update(question, { optionIds: [option.id] })} />{option.label}</label>)}</div>}
                   {question.type === "MULTIPLE_CHOICE" && <div className="mt-4 grid gap-2 sm:grid-cols-2">{question.options.map((option) => { const selected = value.optionIds?.includes(option.id) ?? false; return <label key={option.id} className={`cursor-pointer rounded-2xl border p-4 font-bold ${selected ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="checkbox" className="mr-3" checked={selected} onChange={() => { const current = value.optionIds ?? []; update(question, { optionIds: selected ? current.filter((id) => id !== option.id) : [...current, option.id] }); }} />{option.label}</label>; })}</div>}
                   {question.type === "BOOLEAN" && <div className="mt-4 grid grid-cols-2 gap-3">{([{ value: true, label: "Sim" }, { value: false, label: "Não" }] as const).map((item) => <button key={item.label} type="button" onClick={() => update(question, { boolean: item.value })} className={`rounded-2xl border p-4 font-black ${value.boolean === item.value ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}>{item.label}</button>)}</div>}
+                  {["INTEGER", "DECIMAL"].includes(question.type) && <input type="number" inputMode={question.type === "INTEGER" ? "numeric" : "decimal"} step={question.type === "INTEGER" ? 1 : "any"} value={value.number ?? ""} onChange={(event) => { const rawValue = event.target.value; update(question, { number: rawValue === "" ? undefined : Number(rawValue) }, 500); }} className="mt-4 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3.5 text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)]" />}
+                  {question.type === "DATE" && <input type="date" value={value.date ?? ""} onChange={(event) => update(question, { date: event.target.value || undefined })} className="mt-4 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3.5 text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)]" />}
+                  {question.type === "DATETIME" && <input type="datetime-local" value={value.datetime ?? ""} onChange={(event) => update(question, { datetime: event.target.value || undefined })} className="mt-4 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3.5 text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)]" />}
                   {["SHORT_TEXT", "LONG_TEXT"].includes(question.type) && (question.type === "LONG_TEXT" ? <textarea rows={6} maxLength={12000} value={value.text ?? ""} onChange={(event) => update(question, { text: event.target.value }, 700)} className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 outline-none focus:border-blue-400 focus:bg-white" /> : <input maxLength={12000} value={value.text ?? ""} onChange={(event) => update(question, { text: event.target.value }, 700)} className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-blue-400 focus:bg-white" />)}
                 </fieldset>
               );
@@ -293,14 +288,14 @@ export default function GenericSurveyPage() {
         </section>
       )}
 
-      <footer className="sticky bottom-4 z-20 mt-5 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+      <footer className="mt-5 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-slate-500">{saving ? <><Loader2 className="h-4 w-4 animate-spin" />Salvando {pendingSaves > 1 ? `${pendingSaves} alterações` : "alteração"}...</> : <><Save className="h-4 w-4" />{canEdit ? "Todas as alterações foram salvas" : isSubmitted ? "Envio concluído" : "Modo somente leitura"}</>}</div>
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/pesquisas" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-black text-slate-600"><FileText className="h-4 w-4" />Catálogo</Link>
-            <button type="button" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0 || submitting} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-black text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4" />Anterior</button>
+            <button type="button" onClick={() => goToStep(step - 1)} disabled={step === 0 || submitting} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-black text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4" />Anterior</button>
             {step < sections.length - 1 ? (
-              <button type="button" onClick={() => { if (validateCurrentSection()) setStep((current) => current + 1); }} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 font-black text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => { if (validateCurrentSection()) goToStep(step + 1); }} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 font-black text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" /></button>
             ) : canEdit ? (
               <button type="button" onClick={submitSurvey} disabled={submitting || answeredRequired !== requiredQuestions.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Salvando e enviando..." : "Enviar pesquisa"}</button>
             ) : isSubmitted ? (

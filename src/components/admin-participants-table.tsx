@@ -139,6 +139,8 @@ export function AdminParticipantsTable() {
     { accessorKey: "status", header: "Situação", cell: ({ getValue }) => { const value = String(getValue()); return <Badge variant={statusVariant(value)}>{statusLabel(value)}</Badge>; } },
   ], []);
 
+  // TanStack Table manages callback identity internally; React Compiler skips this hook safely.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({ data: filteredData, columns, state: { sorting, globalFilter }, onSortingChange: setSorting, onGlobalFilterChange: setGlobalFilter, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel(), getFilteredRowModel: getFilteredRowModel(), getPaginationRowModel: getPaginationRowModel(), initialState: { pagination: { pageSize: 20 } } });
   const total = query.data?.length ?? 0;
   const withoutEmail = query.data?.filter((row) => !row.institutionalEmail).length ?? 0;

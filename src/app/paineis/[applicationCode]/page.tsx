@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, BarChart3, CircleCheckBig, Clock3, UsersRound } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
@@ -48,6 +49,15 @@ type DashboardData = {
   questions: DashboardQuestion[];
 };
 
+async function fetchDashboard(applicationCode: string) {
+  const supabase = createBrowserSupabaseClient();
+  const { data, error } = await supabase.rpc("get_survey_dashboard", {
+    target_application_code: applicationCode,
+  });
+  if (error) throw error;
+  return data as DashboardData;
+}
+
 function formatDate(value: string | null) {
   if (!value) return "Não informado";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -86,39 +96,17 @@ export default function SurveyDashboardPage() {
   const params = useParams<{ applicationCode: string }>();
   const applicationCode = decodeURIComponent(params.applicationCode);
   const { context, loading: contextLoading, error: contextError } = usePlatformContext();
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!context?.person) return;
-    let active = true;
-
-    async function loadDashboard() {
-      setLoading(true);
-      setError("");
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: dashboardError } = await supabase.rpc("get_survey_dashboard", {
-        target_application_code: applicationCode,
-      });
-
-      if (!active) return;
-      if (dashboardError) {
-        setError(dashboardError.message);
-        setDashboard(null);
-      } else {
-        setDashboard(data as DashboardData);
-      }
-      setLoading(false);
-    }
-
-    void loadDashboard();
-    return () => { active = false; };
-  }, [applicationCode, context?.person]);
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboards", applicationCode],
+    queryFn: () => fetchDashboard(applicationCode),
+    enabled: Boolean(context?.person && applicationCode),
+    staleTime: 30_000,
+  });
+  const dashboard = dashboardQuery.data ?? null;
 
   const modules = useMemo(() => context ? deriveModules(context) : [], [context]);
 
-  if (contextLoading || loading) return <PlatformSkeleton title="Carregando painel da pesquisa" />;
+  if (contextLoading || dashboardQuery.isLoading) return <PlatformSkeleton title="Carregando painel da pesquisa" />;
   if (!context?.person) return <main className="p-10 text-red-700">{contextError || "Acesso não identificado."}</main>;
 
   const user = {
@@ -138,7 +126,7 @@ export default function SurveyDashboardPage() {
           <EmptyState
             icon={<BarChart3 className="h-6 w-6" aria-hidden="true" />}
             title="Não foi possível abrir este painel"
-            description={error || "A pesquisa não possui dados disponíveis ou seu perfil não tem acesso."}
+            description={dashboardQuery.error instanceof Error ? dashboardQuery.error.message : "A pesquisa não possui dados disponíveis ou seu perfil não tem acesso."}
             action={<Link href="/paineis" className="secondary-button">Voltar aos painéis</Link>}
           />
         </Surface>
@@ -163,11 +151,18 @@ export default function SurveyDashboardPage() {
       />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Participantes" value={summary.totalParticipants} description="Público vinculado" />
-        <StatCard label="Enviadas" value={summary.submitted} description={`${summary.completionRate}% de conclusão`} />
-        <StatCard label="Rascunhos" value={summary.drafts} description="Preenchimentos iniciados" />
-        <StatCard label="Não iniciadas" value={summary.notStarted} description="Ainda sem resposta" />
+        <StatCard label="Participantes" value={summary.totalParticipants} description="Público vinculado" className="border-l-4 border-l-sky-500" />
+        <StatCard label="Enviadas" value={summary.submitted} description={`${summary.completionRate}% de conclusão`} className="border-l-4 border-l-emerald-500" />
+        <StatCard label="Rascunhos" value={summary.drafts} description="Preenchimentos iniciados" className="border-l-4 border-l-amber-500" />
+        <StatCard label="Não iniciadas" value={summary.notStarted} description="Ainda sem resposta" className="border-l-4 border-l-slate-400" />
       </div>
+
+      <Surface className="mt-6 overflow-hidden">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="p-5 sm:p-6"><div className="flex items-center justify-between gap-4"><div><p className="section-eyebrow">Progresso do ciclo</p><h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">{summary.completionRate}% concluído</h2></div><CircleCheckBig className="h-7 w-7 text-[var(--status-success-text)]" /></div><div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--brand-solid),var(--brand-secondary))]" style={{ width: `${Math.min(100, Math.max(0, summary.completionRate))}%` }} /></div><p className="mt-3 text-sm text-[var(--text-secondary)]">{summary.submitted} de {summary.totalParticipants} participantes enviaram respostas.</p></div>
+          <div className="grid grid-cols-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] lg:border-l lg:border-t-0"><div className="flex flex-col justify-center p-5"><Clock3 className="h-5 w-5 text-amber-500" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.drafts}</strong><span className="text-xs text-[var(--text-secondary)]">em andamento</span></div><div className="flex flex-col justify-center border-l border-[var(--border-subtle)] p-5"><UsersRound className="h-5 w-5 text-slate-400" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.notStarted}</strong><span className="text-xs text-[var(--text-secondary)]">sem iniciar</span></div></div>
+        </div>
+      </Surface>
 
       <Surface className="mt-6 p-5 sm:p-6">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -185,7 +180,7 @@ export default function SurveyDashboardPage() {
 
       <div className="mt-6 space-y-5">
         {questions.map((question, index) => (
-          <Surface key={question.id} className="p-5 sm:p-6">
+          <Surface key={question.id} className="p-5 [content-visibility:auto] [contain-intrinsic-size:1px_320px] sm:p-6">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
                 <p className="section-eyebrow">{question.sectionTitle} · Pergunta {index + 1}</p>
