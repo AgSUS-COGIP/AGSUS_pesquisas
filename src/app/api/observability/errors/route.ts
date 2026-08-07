@@ -3,12 +3,17 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const ALLOWED_TYPES = new Set(["CLIENTE", "SERVIDOR", "REDE", "BANCO", "DESCONHECIDO"]);
 
+// Requisição sem `Origin` é aceita de propósito: `fetch(keepalive)` disparado
+// durante o descarregamento da página pode omitir o header, e é justamente esse
+// relatório — o do erro que derrubou a navegação — que mais interessa.
 function isSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   return new URL(origin).host === new URL(request.url).host;
 }
 
+// Sanitização repetida no servidor, embora o cliente já a aplique: a rota é
+// pública para a mesma origem e não pode confiar no que recebe.
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value
@@ -33,6 +38,13 @@ function cleanContext(value: unknown) {
   );
 }
 
+/**
+ * Registra um relatório técnico de erro em `tl_erro_aplicacao`.
+ *
+ * Responde `202` com a referência exibida ao usuário, para correlação com o
+ * suporte. O `upsert` por `co_referencia` com `ignoreDuplicates` torna o envio
+ * idempotente: o mesmo erro reportado por mais de um boundary grava uma só linha.
+ */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });

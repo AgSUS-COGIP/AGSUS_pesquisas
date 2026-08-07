@@ -15,6 +15,12 @@ export type PlatformNavGroup = {
   items: readonly PlatformNavItem[];
 };
 
+/**
+ * Fonte única do menu lateral e da paleta de comandos.
+ *
+ * Item sem `module` aparece para todo usuário autenticado — por isso toda entrada
+ * administrativa precisa declarar o módulo correspondente.
+ */
 export const platformNavigationGroups: readonly PlatformNavGroup[] = [
   {
     title: "Principal",
@@ -44,6 +50,7 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
   },
 ];
 
+/** Filtra o menu pelos módulos permitidos e descarta grupos que ficaram vazios. */
 export function navigationGroupsForModules(modules: readonly string[]) {
   const allowedModules = new Set(normalizePlatformModules(modules));
   return platformNavigationGroups
@@ -54,6 +61,12 @@ export function navigationGroupsForModules(modules: readonly string[]) {
     .filter((group) => group.items.length > 0);
 }
 
+/**
+ * Indica se um item do menu corresponde à rota atual.
+ *
+ * `exact` existe para rotas que são prefixo de outras: sem ele, `/admin` ficaria
+ * ativo em `/admin/pesquisas` e dois itens apareceriam selecionados ao mesmo tempo.
+ */
 export function isPlatformNavItemActive(pathname: string, item: PlatformNavItem) {
   if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);

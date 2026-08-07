@@ -46,6 +46,9 @@ type RequestBody = {
   issueCounts: IssueCounts;
 };
 
+// Comparação em tempo constante: `===` vazaria o prefixo correto do token por
+// diferença de tempo. `timingSafeEqual` exige buffers de mesmo tamanho, daí a
+// checagem prévia de comprimento.
 function isAuthorized(request: NextRequest) {
   const expected = process.env.ADMIN_IMPORT_TOKEN;
   const received = request.headers.get("x-admin-import-token");
@@ -66,6 +69,18 @@ function warningCount(counts: IssueCounts) {
   return counts.missingEmail + counts.invalidEmail + counts.duplicateEmail + counts.duplicateEmployee;
 }
 
+/**
+ * Sincroniza um lote da base institucional de pessoas.
+ *
+ * Chamada por `/admin/importacao` uma vez por lote de até
+ * {@link MAX_ROWS_PER_REQUEST} linhas. O primeiro lote abre o registro em
+ * `data_import_batches`; o último o encerra. Falha em qualquer etapa marca o lote
+ * como `FAILED`, preservando a trilha de auditoria da tentativa.
+ *
+ * **Atualiza apenas a base mestra.** Ninguém é vinculado a pesquisa — daí
+ * `survey_assignment: false` e `surveyAssignmentsCreated: 0`. Vincular público a
+ * um ciclo é ato explícito do administrador em `/admin/participantes`.
+ */
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Acesso não autorizado." }, { status: 401, headers: securityHeaders() });
@@ -151,6 +166,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: managerSyncError.message }, { status: 500, headers: securityHeaders() });
   }
 
+  // As pendências são derivadas do texto exato dos avisos produzidos por
+  // `parsePeopleImportRows` em `@/lib/people-import`. Alterar uma dessas mensagens
+  // exige atualizar os literais aqui, senão a pendência deixa de ser registrada
+  // silenciosamente. Todas são WARNING: a pessoa entra na base mesmo sem e-mail
+  // utilizável, apenas sem identidade de acesso.
   const issues = body.rows.flatMap((row) => {
     const rowIssues: Array<Record<string, unknown>> = [];
     if (row.warnings.includes("E-mail institucional não informado")) {

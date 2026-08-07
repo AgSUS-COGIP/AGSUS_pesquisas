@@ -1,0 +1,230 @@
+# Módulo `supabase` — banco de dados, RLS e RPCs
+
+## Objetivo
+
+**Este é o módulo onde vivem as regras de negócio.** O esquema, as políticas de RLS, as funções `SECURITY DEFINER` e os triggers formam a fronteira de autorização e integridade da plataforma. O frontend é uma casca de apresentação sobre este contrato.
+
+Toda alteração de comportamento começa aqui, não em React.
+
+## Responsabilidades
+
+- Garantir que nenhuma pessoa leia ou grave o que não lhe pertence (RLS em toda tabela exposta).
+- Validar identidade, papel, escopo, período e estado antes de qualquer gravação (RPCs e triggers).
+- Calcular resultados e agregados de painéis no banco, evitando divergência entre registro e consolidação.
+- Registrar eventos críticos em `audit_events` e preservar histórico.
+
+## Estrutura
+
+```text
+supabase/
+├── migrations/      48 arquivos .sql versionados (fonte da verdade)
+│   └── README.md
+└── tests/
+    └── rls_exposed_tables.sql   pgTAP: nenhuma tabela de `public` sem RLS
+```
+
+## Modelo de dados
+
+### Núcleo genérico — `20260730200000_initial_platform_schema.sql`
+
+```text
+organizational_units ──┐
+                       ├──▶ people ──▶ person_role_assignments ──▶ system_roles
+                       │       │
+surveys ──▶ survey_versions ──▶ survey_applications
+                                     │        │
+              survey_sections ◀──────┘        ├──▶ application_participants
+                     │                        │
+              survey_questions                └──▶ submissions ──▶ answers ──▶ answer_options
+                     │                                                 ▲
+              question_options ─────────────────────────────────────────┘
+
+user_preferences · audit_events
+```
+
+Hierarquia conceitual: **pesquisa** (produto permanente, ex. CDDI) → **versão** (estrutura congelada de uma edição) → **aplicação/ciclo** (período, público e regras de uma execução).
+
+### Módulo CDDI — `20260730203000_cddi_module.sql`
+
+`person_access_identities`, `cddi_leadership_links`, `cddi_link_correction_requests`, `cddi_competency_results`, `cddi_final_results`, `data_import_batches`, `data_import_issues`.
+
+### Permissões e acesso
+
+`platform_modules`, `role_module_permissions`, `person_module_permissions`, `institutional_domains`.
+
+### Governança e observabilidade
+
+`db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
+
+### Camada institucional de leitura — `20260805184500_institutional_naming_views.sql`
+
+Schema `"DB_PESQUISAS"` com views `VW_PESSOA`, `VW_PESQUISA`, `VW_APLICACAO_PESQUISA`, `VW_SUBMISSAO`, `VW_RESPOSTA`, `VW_RESPOSTA_OPCAO`, `VW_RESULTADO_COMPETENCIA`, `VW_RESULTADO_FINAL_CDDI` — colunas renomeadas para o padrão corporativo (`SQ_PESSOA`, `NO_PESSOA`, `DT_INCLUSAO`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI); a aplicação continua usando as tabelas `public`.
+
+## Superfície de RPCs
+
+O frontend só interage por estas funções. Assinaturas em `migrations/`; sempre confira a **migration mais recente** que redefine a função.
+
+### Contexto e acesso
+
+| RPC | Uso |
+|---|---|
+| `get_my_platform_context()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. |
+| `resolve_authenticated_person(target_employee_number)` | Vincula ou cria o cadastro institucional no primeiro acesso. |
+| `sync_my_google_avatar()` | Copia a foto da conta Google para os metadados da pessoa. |
+| `set_my_avatar_choice(p_source, p_avatar_url)` | Define origem do avatar (`GOOGLE`, `INITIALS`, `GENERATED`). |
+| `is_allowed_institutional_email(...)` | Valida o domínio contra `institutional_domains`. |
+
+### Catálogo e runtime genérico
+
+`list_my_survey_catalog()` · `get_public_survey_form(target_application_code)` · `start_or_resume_my_survey_submission(...)` · `save_my_survey_answer(...)` · `submit_my_survey_submission(target_submission_id)` · `get_survey_dashboard(target_application_code)`
+
+### Runtime CDDI
+
+`start_or_resume_my_cddi_submission(target_application_code, target_submission_type, target_subject_person_id)` · `save_my_cddi_answer(...)` · `submit_my_cddi_submission(target_submission_id)` · `get_my_cddi_identity(...)` · `search_cddi_leaders(...)` · `set_my_cddi_leader(...)` · `get_cddi_monitoring_dashboard(...)`
+
+### Equipe e liderança
+
+`get_my_team_workspace(target_application_code)` · `search_team_candidates(target_application_id, search_term)` · `add_person_to_my_team(...)` · `remove_person_from_my_team(target_link_id)`
+
+### Construtor e ciclo
+
+`create_survey_draft(...)` · `list_managed_surveys()` · `get_survey_builder(target_survey_id)` · `add_survey_section` / `update_survey_section` · `add_survey_question` / `update_survey_question` / `delete_survey_question` · `duplicate_survey_builder_item` · `reorder_survey_builder_item` · `move_survey_question_to_section` · `get_survey_operations(target_survey_id)` · `manage_survey_cycle(target_survey_id, target_action, target_opens_at, target_closes_at)` · `update_application_visual_settings(...)` · `get_application_visual_settings(...)`
+
+### Administração
+
+`list_access_workspace()` · `set_person_role(...)` · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
+
+### Service role apenas
+
+`sync_people_base_rows(p_rows, p_batch_id)` e `sync_cddi_manager_rows(p_rows, p_batch_id)` — chamadas exclusivamente por `/api/admin/import-participants`.
+
+### Helpers internos (não são RPCs)
+
+`current_person_id()`, `has_active_role(...)`, `can_manage_surveys()`, `can_access_application(...)`, `is_platform_administrator()`, `unaccent_lower(...)`, `set_updated_at()`, `validate_survey_version_integrity(...)`.
+
+`private.can_audit_platform()` e `private.can_edit_submission(uuid)` foram movidos para o schema `private` em `20260804172000` — schema **não exposto** pela Data API, com `EXECUTE` concedido apenas a `authenticated`.
+
+## Regras de negócio no banco
+
+### Autorização por aplicação
+
+`survey_applications.access_mode` decide quem entra:
+
+- `INSTITUTIONAL` — qualquer usuário institucional autenticado e ativo, durante o período aberto.
+- `RESTRICTED` — apenas participantes elegíveis em `application_participants` e administradores.
+
+`CDDI-2026` é `RESTRICTED`.
+
+### Submissões
+
+- `submissions.submission_type` distingue `AUTO`, `CHEFIA` e outros fluxos.
+- Trigger `validate_cddi_submission` (só quando `surveys.code = 'CDDI'`):
+  - tipo precisa ser `AUTO` ou `CHEFIA`;
+  - `subject_person_id` é obrigatório;
+  - em `AUTO`, respondente e avaliado precisam ser a mesma pessoa;
+  - em `CHEFIA`, precisa existir vínculo `ACTIVE` e **vigente** em `cddi_leadership_links` entre respondente e avaliado.
+- Trigger `validate_cddi_final_result` garante que as submissões referenciadas pertencem à mesma aplicação e ao mesmo avaliado, e que os tipos correspondem aos campos (`auto_submission_id` → `AUTO`, `leader_submission_id` → `CHEFIA`).
+- **Respostas só mudam enquanto a submissão está `DRAFT`** (`can_edit_submission`).
+- Uma avaliação de chefia por pessoa e ciclo.
+
+### Cálculo do CDDI (`calculation_version = 'CDDI-2026-V1'`)
+
+| Componente | Peso |
+|---|---|
+| Média dos três comportamentos da competência | 70 % |
+| Nível de desenvolvimento | 30 % |
+| Autoavaliação no resultado final | 40 % |
+| Avaliação da chefia no resultado final | 60 % |
+
+Escala de 1 a 5, validada por `check` em `cddi_competency_results` e `cddi_final_results`. `cddi_final_results.status` percorre `PENDING → PARTIAL → CALCULATED → PUBLISHED` (ou `INVALIDATED`); `PUBLISHED` exige `published_at`.
+
+### Ciclo de vida da aplicação
+
+`manage_survey_cycle` implementa a máquina de estados; `validate_survey_version_integrity` bloqueia publicação inconsistente; `enforce_draft_survey_structure` impede alterar estrutura após a publicação. Detalhes das transições em [../src/app/admin/CLAUDE.md](../src/app/admin/CLAUDE.md).
+
+### Identidade de acesso
+
+- `people.employee_number` é único e identifica a pessoa.
+- `people.institutional_email` preserva o dado recebido da fonte, mesmo repetido.
+- `person_access_identities.email` representa identidade **validada** para login; e-mail duplicado entre matrículas **não** é ativado automaticamente.
+- Vinculação automática só por matrícula permanece desabilitada.
+
+Contexto completo: [../docs/auditoria-base-cddi-2026.md](../docs/auditoria-base-cddi-2026.md).
+
+### Fotos de perfil
+
+`20260805194500_block_uploaded_profile_photos.sql` adiciona `prevent_uploaded_profile_photos` e redefine `set_my_avatar_url` — upload de foto está bloqueado. As opções válidas são foto do Google, iniciais ou avatar gerado.
+
+## Convenções específicas
+
+### Nome do arquivo
+
+`AAAAMMDDHHMMSS_nome_em_snake_case.sql`, timestamp único. Validado por `npm run db:migrations`.
+
+### Estrutura do arquivo
+
+```sql
+begin;
+
+-- comentário explicando a decisão de negócio, não a sintaxe
+
+create table ... ;
+alter table ... enable row level security;
+revoke all on ... from public, anon, authenticated;
+grant select, insert on ... to authenticated;
+create policy nome_explicito on ... for ... to ... using (...) with check (...);
+
+commit;
+
+-- Rollback:
+-- begin;
+--   ...
+-- commit;
+```
+
+Migrations recentes (a partir de `20260804172000`) incluem o bloco de rollback comentado. Siga esse padrão.
+
+### Nomenclatura
+
+Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para tabelas, `co_`/`sq_`/`dt_`/`ds_`/`no_`/`nu_`/`st_`/`tp_` para colunas, `pk_`/`fk_`/`uk_`/`ck_`/`in_` para constraints e índices, `vw_`/`fc_` para views e funções. Constraints **sempre** nomeadas explicitamente. Validado por `npm run db:naming` **apenas nas migrations alteradas em relação a `main`** — objetos legados (`people`, `surveys`, `submissions`…) permanecem com os nomes atuais e são catalogados em `db_governanca.tb_catalogo_objeto`. Regras completas: [../docs/database-naming-standard.md](../docs/database-naming-standard.md).
+
+### Segurança obrigatória em toda migration
+
+1. RLS habilitada em qualquer tabela de schema exposto.
+2. Privilégios padrão revogados; só os grants necessários concedidos.
+3. Políticas, constraints e índices com nome explícito.
+4. `set search_path = pg_catalog, public` em toda função privilegiada.
+5. `EXECUTE` revogado de `public` e `anon` em função interna.
+6. RPC pública valida `auth.uid()`, pessoa, papel e escopo.
+7. Security e Performance Advisors executados após DDL.
+
+`20260803133300_harden_rpc_permissions.sql` aplica a regra 5 em massa: revoga `EXECUTE` de `public`/`anon` em **todas** as funções `SECURITY DEFINER` de `public` e concede a `authenticated`. Ao criar uma nova função `SECURITY DEFINER`, repita esses grants explicitamente — o bloco `do $$` foi executado uma única vez.
+
+### Timezone
+
+`timezone('utc', now())` em todo default e comparação. A conversão para `America/Sao_Paulo` acontece na apresentação.
+
+## Testes
+
+```bash
+supabase start
+supabase db reset       # reconstrói o banco a partir das migrations
+supabase test db        # pgTAP
+supabase stop --no-backup
+```
+
+`tests/rls_exposed_tables.sql` afirma que a contagem de tabelas de `public` com `relrowsecurity = false` é zero. **Criar tabela em `public` sem RLS quebra o CI** — é o comportamento desejado.
+
+## Pontos de atenção
+
+- **Nunca renomeie objeto legado diretamente.** Exige inventário de dependências, compatibilidade temporária, atualização de RPCs e frontend, testes de RLS/autossalvamento/envio/painéis, rollback documentado e aprovação do Data Owner.
+- **Nunca aplique DDL manualmente em produção.** Toda mudança é migration revisada.
+- **Nunca comite credencial, token ou dado pessoal.** A base de pessoas é carregada por processo controlado.
+- **Várias funções foram redefinidas múltiplas vezes** (`get_my_platform_context`, `manage_survey_cycle`, `set_my_avatar_url`, `search_team_candidates`, `get_survey_dashboard`, `duplicate_survey_builder_item`, `resolve_authenticated_person`, `can_access_application`, `list_my_survey_catalog`, `start_or_resume_my_survey_submission`, `get_public_survey_form`). Antes de editar, encontre a definição vigente:
+  ```bash
+  grep -rn "function public.nome_da_funcao" supabase/migrations | sort
+  ```
+  A migration com timestamp mais alto é a que vale.
+- Mudar mensagem de `raise exception` altera texto que chega ao usuário final — as telas exibem `error.message` diretamente.
+- `supabase/config.toml` não está versionado; o CI executa `supabase init` quando ausente.
+- `supabase/migrations/README.md` está desatualizado (afirma que a primeira migration ainda será criada).

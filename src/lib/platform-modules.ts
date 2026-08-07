@@ -34,6 +34,12 @@ export function isPlatformModule(value: unknown): value is PlatformModule {
   return typeof value === "string" && PLATFORM_MODULES.includes(value as PlatformModule);
 }
 
+/**
+ * Descarta módulos desconhecidos e duplicados, preservando a ordem de entrada.
+ *
+ * O banco pode devolver módulos que esta versão do frontend ainda não conhece
+ * (ou já removeu); ignorá-los evita renderizar navegação inválida.
+ */
 export function normalizePlatformModules(modules: readonly string[] | null | undefined) {
   const seen = new Set<PlatformModule>();
   const normalized: PlatformModule[] = [];
@@ -47,6 +53,18 @@ export function normalizePlatformModules(modules: readonly string[] | null | und
   return normalized;
 }
 
+/**
+ * Resolve os módulos visíveis para uma pessoa, em ordem estrita de precedência:
+ *
+ * 1. `ADMINISTRATOR` recebe tudo e ignora qualquer outra fonte;
+ * 2. módulos explícitos do banco (`person_module_permissions`) vencem os papéis,
+ *    permitindo exceção individual sem criar papel novo;
+ * 3. `TECHNICAL_TEAM` recebe tudo; `SURVEY_MANAGER` recebe tudo menos `ADMIN_ACCESS`
+ *    (quem gerencia pesquisa não concede papéis);
+ * 4. caso restante: módulos de participante, mais `TEAM` para liderança.
+ *
+ * O resultado governa apenas a interface. A autorização efetiva é a RLS do banco.
+ */
 export function resolvePlatformModules({
   roles,
   explicitModules,

@@ -24,6 +24,8 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// Só HTTPS: o banner é renderizado em página autenticada e uma origem `http:`
+// causaria conteúdo misto, além de permitir substituição da imagem em trânsito.
 function httpsUrl(value: unknown): string | null {
   const candidate = text(value);
   if (!candidate) return null;
@@ -35,6 +37,17 @@ function httpsUrl(value: unknown): string | null {
   }
 }
 
+/**
+ * Deriva a identidade visual de uma aplicação a partir de `survey_applications.settings`.
+ *
+ * `themeVariant: "CUSTOM"` é obrigatório para que o banner personalizado valha —
+ * voltar a `INSTITUTIONAL` restaura a capa padrão sem apagar a URL configurada,
+ * permitindo alternar sem perder o ajuste anterior. Título e subtítulo podem ser
+ * personalizados em qualquer variante.
+ *
+ * Recebe `unknown` porque o JSON vem do banco sem esquema garantido: qualquer
+ * campo ausente, vazio ou de tipo inesperado cai no `fallback`.
+ */
 export function resolveSurveyVisualIdentity(
   settings: unknown,
   fallback: SurveyVisualIdentity = DEFAULT_CDDI_VISUAL_IDENTITY,

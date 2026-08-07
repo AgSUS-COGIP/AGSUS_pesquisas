@@ -70,6 +70,12 @@ export function optionLines(optionsText: string) {
     .filter(Boolean);
 }
 
+/**
+ * Valida o rascunho de uma pergunta e devolve as mensagens a exibir ao operador.
+ *
+ * Espelha os limites aplicados pelo banco, para dar retorno imediato sem ida ao
+ * servidor — o banco continua sendo a validação autoritativa.
+ */
 export function questionDraftErrors(draft: QuestionDraft) {
   const errors: string[] = [];
   const normalizedTitle = draft.title.trim();
@@ -90,6 +96,8 @@ export function questionDraftErrors(draft: QuestionDraft) {
     if (lines.some((line) => line.length > 200))
       errors.push("Cada alternativa deve ter no máximo 200 caracteres.");
 
+    // Comparação com locale pt-BR: duas alternativas que diferem apenas por
+    // caixa são a mesma opção para quem responde.
     const normalizedLines = lines.map((line) =>
       line.toLocaleLowerCase("pt-BR"),
     );
@@ -104,6 +112,14 @@ export function questionOptionsToText(options: SurveyOption[]) {
   return options.map((option) => option.label).join("\n");
 }
 
+/**
+ * Converte o texto do editor (uma alternativa por linha) em alternativas graváveis.
+ *
+ * Preserva `id`, `value` e `score` das alternativas existentes **pela posição**:
+ * renomear o rótulo de uma alternativa não pode invalidar as respostas já
+ * gravadas que apontam para o `id` dela. Em escalas, `score` novo é a posição
+ * (1, 2, 3…), refletindo a escala de 1 a 5 usada pelo CDDI.
+ */
 export function buildQuestionOptions(
   optionsText: string,
   questionType: string,

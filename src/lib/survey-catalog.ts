@@ -18,10 +18,23 @@ export type SurveyCatalogItem = {
 
 export type SurveyItemState = "COMPLETED" | "IN_PROGRESS" | "CLOSED" | "SCHEDULED" | "PENDING";
 
+/**
+ * Rota de resposta de um item do catálogo.
+ *
+ * O CDDI tem jornada própria porque exige seleção de chefia imediata e avaliação
+ * de liderança; qualquer outro instrumento usa o runtime genérico.
+ */
 export function surveyApplicationHref(item: SurveyCatalogItem) {
   return item.surveyCode === "CDDI" ? "/cddi" : `/pesquisas/${encodeURIComponent(item.applicationCode)}`;
 }
 
+/**
+ * Estado exibido para um item do catálogo, em ordem estrita de precedência:
+ * concluída → em andamento → encerrada → agendada → pendente.
+ *
+ * A conclusão vem primeiro de propósito: uma pessoa que já enviou deve ver
+ * "Concluída" mesmo que o ciclo tenha encerrado depois.
+ */
 export function surveyItemState(item: SurveyCatalogItem): SurveyItemState {
   if (["SUBMITTED", "VALIDATED"].includes(item.submissionStatus ?? "") || item.completedAt) return "COMPLETED";
   if (item.submissionStatus === "DRAFT") return "IN_PROGRESS";
@@ -41,6 +54,8 @@ export function surveyStateRank(item: SurveyCatalogItem) {
   return ranks[surveyItemState(item)];
 }
 
+// Item sem prazo — ou com data corrompida — vai para o fim da fila em vez de
+// gerar NaN e desestabilizar a ordenação.
 function sortableDate(item: SurveyCatalogItem) {
   const value = item.closesAt ?? item.opensAt;
   if (!value) return Number.MAX_SAFE_INTEGER;
@@ -48,6 +63,7 @@ function sortableDate(item: SurveyCatalogItem) {
   return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
 }
 
+/** Ordena por urgência operacional: primeiro o estado, depois o prazo mais próximo. */
 export function compareSurveyPriority(a: SurveyCatalogItem, b: SurveyCatalogItem) {
   const rankDifference = surveyStateRank(a) - surveyStateRank(b);
   if (rankDifference !== 0) return rankDifference;

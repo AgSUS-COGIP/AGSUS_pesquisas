@@ -33,6 +33,16 @@ function visibleFocusableElements(panel: HTMLElement) {
     .filter((element) => !element.hasAttribute("hidden") && element.getAttribute("aria-hidden") !== "true");
 }
 
+/**
+ * Painel modal acessível, com aprisionamento de foco.
+ *
+ * Guarda o elemento focado antes de abrir, trava o scroll da página, foca o
+ * primeiro elemento interativo, circula `Tab`/`Shift+Tab` dentro do painel, fecha
+ * com `Escape` e devolve o foco ao elemento de origem ao fechar.
+ *
+ * Prefira {@link Dialog} e {@link Drawer} — este componente é a implementação
+ * comum das duas variantes.
+ */
 export function OverlayPanel({
   open,
   onOpenChange,
@@ -53,6 +63,9 @@ export function OverlayPanel({
   const titleId = useId();
   const descriptionId = useId();
 
+  // O callback é lido de um ref para que o efeito de abertura dependa apenas de
+  // `open`: um `onOpenChange` recriado a cada render remontaria os listeners e
+  // roubaria o foco do usuário no meio da interação.
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
   }, [onOpenChange]);
@@ -157,10 +170,17 @@ export function OverlayPanel({
   );
 }
 
+/**
+ * Modal centralizado.
+ *
+ * Atenção: `src/components/ui/dialog.tsx` exporta outro componente chamado
+ * `Dialog`, baseado no elemento `<dialog>` nativo. Confira o caminho do import.
+ */
 export function Dialog(props: Omit<OverlayPanelProps, "type" | "side">) {
   return <OverlayPanel {...props} type="dialog" />;
 }
 
+/** Painel lateral deslizante. Usado pela navegação móvel da casca. */
 export function Drawer(props: Omit<OverlayPanelProps, "type">) {
   return <OverlayPanel {...props} type="drawer" />;
 }

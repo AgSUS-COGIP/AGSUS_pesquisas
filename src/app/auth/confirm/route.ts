@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { pkceExchangeOptions, safeAuthNext } from "@/lib/auth-callback";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+// A restrição de domínio é reaplicada aqui porque o parâmetro `hd` enviado ao
+// Google é uma sugestão de interface, não uma garantia: uma conta de outro domínio
+// pode concluir o OAuth e precisa ser recusada no callback.
+//
+// A camada SQL valida contra a lista de `institutional_domains`
+// (ALLOWED_INSTITUTIONAL_DOMAINS); esta constante é mais restritiva.
+// Ver "Observações e Melhorias Sugeridas" no README.
 const ALLOWED_DOMAIN = "agenciasus.org.br";
 
 function redirectToAccess(url: URL, errorCode: string, next?: string) {
@@ -11,6 +18,13 @@ function redirectToAccess(url: URL, errorCode: string, next?: string) {
   return NextResponse.redirect(destination);
 }
 
+/**
+ * Callback OAuth: troca o código de autorização por uma sessão e valida o domínio.
+ *
+ * Conta de domínio não autorizado é desconectada antes do redirecionamento, para
+ * não deixar sessão parcial ativa. Todo erro volta para `/acesso` com um código em
+ * `erro`, traduzido para mensagem legível pela própria tela de acesso.
+ */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const next = safeAuthNext(url.searchParams.get("next"));
