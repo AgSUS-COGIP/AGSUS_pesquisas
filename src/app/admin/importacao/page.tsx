@@ -12,7 +12,6 @@ type ImportStatus = "idle" | "reading" | "ready" | "importing" | "done" | "error
 export default function ImportPeopleBasePage() {
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<PeopleImportRow[]>([]);
-  const [token, setToken] = useState("");
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [message, setMessage] = useState("Selecione a base institucional em CSV, XLSX ou XLS.");
   const [progress, setProgress] = useState(0);
@@ -53,11 +52,6 @@ export default function ImportPeopleBasePage() {
 
   async function synchronizeBase() {
     const validRows = rows.filter((row) => row.valid);
-    if (!token.trim()) {
-      setStatus("error");
-      setMessage("Informe o token administrativo de atualização.");
-      return;
-    }
     if (!validRows.length) return;
 
     setStatus("importing");
@@ -73,7 +67,7 @@ export default function ImportPeopleBasePage() {
         setMessage(`Atualizando lote ${index + 1} de ${chunks.length}...`);
         const response = await fetch("/api/admin/import-participants", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-admin-import-token": token },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             batchId,
             fileName,
@@ -123,7 +117,7 @@ export default function ImportPeopleBasePage() {
 
         <section className="mt-5 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
           <Database className="mt-0.5 h-5 w-5 shrink-0" />
-          <span><strong>Regra da arquitetura:</strong> esta operação atualiza apenas a base mestra de pessoas. Depois, o administrador escolhe uma pesquisa e vincula somente o público necessário.</span>
+          <span><strong>Regra da arquitetura:</strong> esta operação atualiza apenas a base mestra de pessoas. A autorização é validada pela sessão institucional e pelo perfil do usuário.</span>
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -132,9 +126,6 @@ export default function ImportPeopleBasePage() {
 
             <label htmlFor="file" className="mt-6 block text-sm font-black text-slate-700">Base oficial de pessoas</label>
             <input id="file" type="file" accept=".csv,.xlsx,.xls" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void readFile(file); }} className="mt-3 block w-full rounded-xl border border-slate-300 bg-slate-50 p-3" />
-
-            <label htmlFor="token" className="mt-6 block text-sm font-black text-slate-700">Token administrativo</label>
-            <input id="token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} disabled={busy} className="mt-3 block w-full rounded-xl border border-slate-300 bg-slate-50 p-3" />
 
             <button type="button" onClick={() => void synchronizeBase()} disabled={!summary.valid || busy || status === "done"} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#003b70] px-5 py-4 font-black text-white transition hover:bg-[#075ea8] disabled:cursor-not-allowed disabled:opacity-40">
               {status === "importing" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Database className="h-5 w-5" />}
