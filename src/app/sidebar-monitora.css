@@ -30,7 +30,7 @@
     max-height: 100dvh !important;
     contain: layout paint;
     border-right-color: rgba(148, 163, 184, 0.24) !important;
-    background: linear-gradient(180deg, #073b62 0%, #064a78 54%, #073b62 100%) !important;
+    background: linear-gradient(180deg, var(--sidebar-background) 0%, color-mix(in srgb, var(--sidebar-background) 82%, var(--brand-solid)) 54%, var(--sidebar-background) 100%) !important;
     box-shadow: 14px 0 38px -30px rgba(2, 20, 38, 0.9) !important;
   }
 
@@ -76,7 +76,7 @@
 
   aside.platform-desktop-sidebar nav a[aria-current="page"] {
     border-color: rgba(125, 211, 252, 0.45) !important;
-    background: linear-gradient(135deg, #0f6da4, #1388b8) !important;
+    background: linear-gradient(135deg, var(--brand-solid), color-mix(in srgb, var(--brand-solid) 72%, #38bdf8)) !important;
     color: #ffffff !important;
     box-shadow: 0 12px 26px -18px rgba(0, 0, 0, 0.9) !important;
   }
@@ -88,13 +88,13 @@
 
   aside.platform-desktop-sidebar > div > button {
     border-color: rgba(125, 211, 252, 0.5) !important;
-    background: #0b4f82 !important;
+    background: var(--brand-solid) !important;
     color: #ffffff !important;
     box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.85) !important;
   }
 
   aside.platform-desktop-sidebar > div > button:hover {
-    background: #1388b8 !important;
+    background: var(--brand-solid-hover) !important;
   }
 
   aside.platform-desktop-sidebar > div > div:last-child {

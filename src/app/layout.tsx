@@ -4,20 +4,20 @@ import { AppProviders } from "@/components/app-providers";
 import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
-import "./dark-theme.css";
 import "./theme-foundation.css";
 import "./theme-enhancements.css";
 import "./sidebar-monitora.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "AgSUS Pesquisas e Avaliações",
+    default: "AgSUS Pesquisas",
     template: "%s | AgSUS",
   },
   description: "Plataforma institucional de pesquisas, avaliações e formulários da AgSUS.",
   icons: {
-    icon: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
-    apple: "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png",
+    icon: "/agsus-logo-oficial.jpg",
+    shortcut: "/agsus-logo-oficial.jpg",
+    apple: "/agsus-logo-oficial.jpg",
   },
 };
 

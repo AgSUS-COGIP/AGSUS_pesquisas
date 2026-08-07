@@ -3,6 +3,7 @@
 import { CheckSquare2, Loader2, Search, Square, UserRoundPlus, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/confirmation-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ApplicationItem = {
@@ -32,6 +33,7 @@ type BulkResult = {
 };
 
 export function AdminParticipantBulkSelector() {
+  const confirm = useConfirm();
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [applicationId, setApplicationId] = useState("");
   const [search, setSearch] = useState("");
@@ -141,9 +143,11 @@ export function AdminParticipantBulkSelector() {
 
   async function assignAllAvailable() {
     if (!applicationId || !selectedApplication) return;
-    const confirmed = window.confirm(
-      `Vincular todas as pessoas ativas e elegíveis à pesquisa “${selectedApplication.code} — ${selectedApplication.name}”?\n\nLideranças institucionais marcadas como não avaliáveis serão excluídas automaticamente.`,
-    );
+    const confirmed = await confirm({
+      title: "Vincular todas as pessoas elegíveis?",
+      description: `Todas as pessoas ativas e elegíveis serão vinculadas a “${selectedApplication.code} — ${selectedApplication.name}”. Lideranças marcadas como não avaliáveis serão excluídas automaticamente.`,
+      confirmLabel: "Vincular todas",
+    });
     if (!confirmed) return;
 
     setAssigningAll(true);

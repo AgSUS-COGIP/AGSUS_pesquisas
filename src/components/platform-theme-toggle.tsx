@@ -49,7 +49,7 @@ function updateDocumentTheme(theme: PlatformTheme, prefersDark: boolean) {
   document.documentElement.style.colorScheme = state.resolved;
 }
 
-export function PlatformThemeToggle({ compact = false }: { compact?: boolean }) {
+export function PlatformThemeToggle({ compact = false, sidebar = false }: { compact?: boolean; sidebar?: boolean }) {
   const [theme, setTheme] = useState<PlatformTheme>("system");
 
   useEffect(() => {
@@ -102,13 +102,13 @@ export function PlatformThemeToggle({ compact = false }: { compact?: boolean }) 
     <button
       type="button"
       onClick={() => applyTheme(nextTheme)}
-      className="theme-toggle text-xs font-black"
+      className={`theme-toggle text-xs font-black ${sidebar ? "w-full" : ""}`}
       data-theme={theme}
       aria-label={`Tema atual: ${THEME_LABELS[theme]}. Alterar para ${THEME_LABELS[nextTheme]}.`}
       title={`Tema: ${THEME_LABELS[theme]}`}
     >
       <ThemeIcon className="h-4 w-4" aria-hidden="true" />
-      <span className={compact ? "sr-only" : "hidden xl:inline"}>
+      <span className={compact ? "sr-only" : sidebar ? "inline" : "hidden xl:inline"}>
         {THEME_LABELS[theme]}
       </span>
     </button>

@@ -11,9 +11,12 @@ export type SurveyCatalogItem = {
   closesAt: string | null;
   completedAt: string | null;
   submissionStatus: string | null;
+  submissionUpdatedAt?: string | null;
+  participantStatus?: string | null;
   sections: number;
   questions: number;
   canRespond: boolean;
+  canManage?: boolean;
 };
 
 export type SurveyItemState = "COMPLETED" | "IN_PROGRESS" | "CLOSED" | "SCHEDULED" | "PENDING";
@@ -71,7 +74,9 @@ export function compareSurveyPriority(a: SurveyCatalogItem, b: SurveyCatalogItem
 }
 
 export function selectPrioritySurvey(items: SurveyCatalogItem[]) {
-  return [...items].sort(compareSurveyPriority)[0] ?? null;
+  return items
+    .filter((item) => !["COMPLETED", "CLOSED"].includes(surveyItemState(item)))
+    .toSorted(compareSurveyPriority)[0] ?? null;
 }
 
 export function summarizeSurveyCatalog(items: SurveyCatalogItem[]) {

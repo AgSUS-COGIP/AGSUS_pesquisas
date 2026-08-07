@@ -6,6 +6,8 @@ import { Toaster } from "sonner";
 import { ClientErrorReporter } from "@/components/client-error-reporter";
 import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { PlatformInteractionLayer } from "@/components/platform-interaction-layer";
+import { ConfirmationProvider } from "@/components/confirmation-provider";
+import { PlatformBrandingProvider } from "@/components/platform-branding-provider";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -25,21 +27,25 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ClientErrorReporter />
-      <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
-      <NetworkStatusBanner />
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        toastOptions={{
-          classNames: {
-            toast: "rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] shadow-xl",
-            title: "font-black text-[var(--brand-primary)]",
-            description: "text-[var(--text-secondary)]",
-          },
-        }}
-      />
+      <PlatformBrandingProvider>
+        <ConfirmationProvider>
+          <ClientErrorReporter />
+          <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
+          <NetworkStatusBanner />
+          <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: "rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] shadow-xl",
+              title: "font-black text-[var(--brand-primary)]",
+              description: "text-[var(--text-secondary)]",
+            },
+          }}
+          />
+        </ConfirmationProvider>
+      </PlatformBrandingProvider>
     </QueryClientProvider>
   );
 }

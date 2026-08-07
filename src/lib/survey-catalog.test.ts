@@ -69,6 +69,13 @@ describe("selectPrioritySurvey", () => {
     ]);
     expect(priority?.applicationId).toBe("valid");
   });
+
+  it("não transforma pesquisas concluídas ou encerradas em próxima ação", () => {
+    expect(selectPrioritySurvey([
+      item({ applicationId: "done", submissionStatus: "SUBMITTED" }),
+      item({ applicationId: "closed", applicationStatus: "CLOSED" }),
+    ])).toBeNull();
+  });
 });
 
 describe("summarizeSurveyCatalog", () => {

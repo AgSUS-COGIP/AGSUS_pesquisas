@@ -32,6 +32,10 @@ export function errorMessageFromUnknown(value: unknown) {
   if (value instanceof Error) return value.message || value.name;
   if (typeof value === "string") return value;
   if (value && typeof value === "object") {
+    const candidate = value as { message?: unknown; details?: unknown; hint?: unknown };
+    for (const detail of [candidate.message, candidate.details, candidate.hint]) {
+      if (typeof detail === "string" && detail.trim()) return detail.trim();
+    }
     try {
       return JSON.stringify(value);
     } catch {

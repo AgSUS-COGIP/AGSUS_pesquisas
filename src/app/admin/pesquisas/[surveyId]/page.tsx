@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { useConfirm } from "@/components/confirmation-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorSummary } from "@/components/ui/feedback";
@@ -155,6 +156,7 @@ function UnsavedChangesNotice() {
 }
 
 export default function SurveyBuilderPage({ params }: { params: Promise<{ surveyId: string }> }) {
+  const confirm = useConfirm();
   const { surveyId } = use(params);
   const { context, loading, error } = usePlatformContext();
   const [builder, setBuilder] = useState<BuilderData | null>(null);
@@ -252,10 +254,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     });
   }
 
-  function closeSectionEditor() {
+  async function closeSectionEditor() {
     if (!sectionEditor || working) return;
     const dirty = sectionSignature(sectionEditor) !== sectionEditor.initialSignature;
-    if (dirty && !window.confirm("Descartar as alterações desta seção?")) return;
+    if (dirty && !(await confirm({ title: "Descartar alterações da seção?", description: "Os dados editados nesta seção ainda não foram salvos e serão perdidos.", confirmLabel: "Descartar alterações", tone: "danger" }))) return;
     setSectionEditor(null);
     setSectionErrors([]);
   }
@@ -302,10 +304,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     });
   }
 
-  function closeQuestionEditor() {
+  async function closeQuestionEditor() {
     if (!questionEditor || working) return;
     const dirty = questionSignature(questionEditor) !== questionEditor.initialSignature;
-    if (dirty && !window.confirm("Descartar as alterações desta pergunta?")) return;
+    if (dirty && !(await confirm({ title: "Descartar alterações da pergunta?", description: "Os dados editados nesta pergunta ainda não foram salvos e serão perdidos.", confirmLabel: "Descartar alterações", tone: "danger" }))) return;
     setQuestionEditor(null);
     setQuestionErrors([]);
   }

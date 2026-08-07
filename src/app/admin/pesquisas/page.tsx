@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, FilePlus2, FileQuestion, Loader2, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -56,15 +57,16 @@ export default function AdminSurveysPage() {
   }, [search, surveys]);
 
   if (loading) return <PlatformSkeleton title="Carregando pesquisas" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!context?.person) return <FullPageState title="Não foi possível abrir as pesquisas" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
+  if (!modules.includes("ADMIN_SURVEYS")) return <FullPageState tone="restricted" title="Gestão de pesquisas restrita" description="Seu perfil não possui permissão para construir ou operar pesquisas." />;
 
   const user = {
     fullName: context.person.fullName,
     institutionalEmail: context.person.institutionalEmail,
     employeeNumber: context.person.employeeNumber,
     profileLabel: profileLabel(context),
+    avatarUrl: context.person.avatarUrl,
     roles: context.roles,
     modules,
   };

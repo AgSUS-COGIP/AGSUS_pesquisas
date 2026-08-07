@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
@@ -48,11 +49,11 @@ export default function NewSurveyPage() {
   });
 
   if (loading) return <PlatformSkeleton title="Preparando nova pesquisa" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!context?.person) return <FullPageState title="Não foi possível criar a pesquisa" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
   if (!modules.includes("ADMIN_SURVEYS")) {
-    return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6"><section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl"><h1 className="text-3xl font-black text-[#003b70]">Acesso restrito</h1><p className="mt-3 text-slate-600">Somente a Equipe Técnica pode criar pesquisas.</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar</Link></section></main>;
+    return <FullPageState tone="restricted" title="Criação de pesquisas restrita" description="Somente a Equipe Técnica pode criar e configurar novas pesquisas." />;
   }
 
   const person = context.person;

@@ -60,4 +60,28 @@ describe("ReliableSaveQueue", () => {
 
     expect(statuses).toEqual(["IDLE:0", "SAVING:1", "IDLE:0"]);
   });
+
+  it("conclui os salvamentos antes de liberar a submissão", async () => {
+    const queue = new ReliableSaveQueue();
+    const events: string[] = [];
+    let releaseSave: (() => void) | undefined;
+    let markSaveStarted: (() => void) | undefined;
+    const saveStarted = new Promise<void>((resolve) => { markSaveStarted = resolve; });
+    const saveGate = new Promise<void>((resolve) => { releaseSave = resolve; });
+
+    const save = queue.enqueue(async () => {
+      events.push("salvamento-iniciado");
+      markSaveStarted?.();
+      await saveGate;
+      events.push("salvamento-concluido");
+    });
+    const submission = queue.flush().then(() => { events.push("submissao"); });
+
+    await saveStarted;
+    expect(events).toEqual(["salvamento-iniciado"]);
+
+    releaseSave?.();
+    await Promise.all([save, submission]);
+    expect(events).toEqual(["salvamento-iniciado", "salvamento-concluido", "submissao"]);
+  });
 });
