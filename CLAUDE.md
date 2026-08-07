@@ -49,7 +49,8 @@ proxy.ts (middleware)
 
 src/app/layout.tsx
   └─ scripts beforeInteractive: aplicam tema e sidebar antes da 1ª pintura
-  └─ AppProviders: React Query · ClientErrorReporter · PlatformInteractionLayer
+  └─ AppProviders: React Query · PlatformBrandingProvider · ConfirmationProvider
+                   ClientErrorReporter · PlatformInteractionLayer
                    NetworkStatusBanner · Toaster
 
 página ("use client")
@@ -79,17 +80,20 @@ Precedência em `resolvePlatformModules()`: `ADMINISTRATOR` → módulos explíc
 app/**  →  components/**  →  components/ui/**
    │            │
    │            └────────→  lib/utils, lib/platform-*
+   ├──────────→  hooks/**  →  lib/**  (consulta cacheada por React Query)
    └──────────→  lib/**   →  lib/supabase/client  →  Supabase (RPC + RLS)
 
 app/api/**  →  lib/supabase/admin   (service role — nunca no cliente)
+            →  lib/supabase/server  (sessão do administrador → papel)
 proxy.ts    →  lib/supabase/proxy
 ```
 
 Invariantes a preservar:
 
-- `src/lib/**` nunca importa de `src/components/**` ou `src/app/**` (exceção: o *tipo* `PlatformIconName` em `platform-navigation.ts`).
+- `src/lib/**` nunca importa de `src/components/**`, `src/app/**` ou `src/hooks/**` (exceção: o *tipo* `PlatformIconName` em `platform-navigation.ts`).
 - `src/components/ui/**` não conhece Supabase nem regras de negócio.
 - `lib/supabase/admin.ts` só é importado por `src/app/api/**`.
+- Função pura vai para `src/lib`; hook que consulta o Supabase vai para `src/hooks`.
 
 ## Comandos
 
@@ -97,7 +101,7 @@ Invariantes a preservar:
 npm ci                    # instalar (reproduz o lockfile)
 npm run dev               # desenvolvimento em :3000
 npm run build             # build de produção
-npm test                  # Vitest (64 testes)
+npm test                  # Vitest (84 testes)
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run db:migrations     # timestamps das migrations
@@ -119,7 +123,7 @@ npm run db:naming         # nomenclatura institucional (migrations alteradas)
 ## Pontos de atenção ao alterar o projeto
 
 - **Não altere regra de negócio no frontend.** Se a validação está numa RPC, a correção é uma nova migration.
-- **Nunca exponha `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` / `ADMIN_IMPORT_TOKEN`** ao navegador nem os comite.
+- **Nunca exponha `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY`** ao navegador nem os comite. São os únicos segredos de servidor do projeto: as rotas administrativas autorizam por sessão institucional e papel, não por token compartilhado.
 - **Nunca comite dados pessoais.** A base de pessoas é carregada direto no Supabase por processo controlado.
 - **Migration nova exige**: RLS habilitada em tabela exposta, políticas e constraints nomeadas, `search_path` fixo em função privilegiada, `EXECUTE` revogado de `anon`/`authenticated` em função interna.
 - **O CDDI tem jornada própria** (`/cddi`) por causa da seleção de chefia e da avaliação de liderança. Outras pesquisas usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.

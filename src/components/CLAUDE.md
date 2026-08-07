@@ -21,15 +21,21 @@ components/
 ├── platform-icons.tsx            20 ícones SVG inline (navegação)
 ├── platform-theme-toggle.tsx     ciclo automático → claro → escuro
 ├── platform-interaction-layer.tsx barra de progresso, voltar ao topo, atalhos
-├── app-providers.tsx             React Query, Toaster, reporter de erro
+├── platform-logo.tsx             logotipo institucional resolvido da marca
+├── platform-branding-provider.tsx marca da plataforma (nome, cor, logotipo)
+├── confirmation-provider.tsx     diálogo de confirmação + useConfirm()
+├── app-providers.tsx             React Query, marca, confirmação, Toaster, reporter
 ├── client-error-reporter.tsx     captura window.error e unhandledrejection
 ├── network-status-banner.tsx     aviso de offline e de conexão restabelecida
+├── full-page-state.tsx           tela inteira de acesso restrito / erro / vazio
+├── external-image.tsx            next/image sem otimização, para host externo
 ├── person-avatar.tsx             avatar com fallback de iniciais
 ├── survey-banner.tsx             banner com fallback em cadeia
 ├── avatar-identity-picker.tsx    escolha da origem do avatar
 ├── avatar-studio.tsx             editor de avatar (DiceBear lorelei)
 ├── cddi-loading-state.tsx        skeleton do formulário CDDI
-├── cddi-scroll-boundary.tsx      classes de scroll da rota /cddi
+├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
+├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
 ├── people-base-summary.tsx       retrato da base mestra de pessoas
 ├── admin-participant-management.tsx     participantes por pesquisa
 ├── admin-participant-bulk-selector.tsx  vinculação em lote
@@ -65,6 +71,16 @@ components/
 <EmptyState title description icon? action? />
 <ErrorSummary errors={string[]} title? />
 <Input label hint? error? … />                        // idem Textarea, Select, Checkbox, Radio
+
+<FullPageState tone="restricted|error|empty" title description action? />
+<PlatformLogo src alt organizationName width height loading? … />
+<CddiPlatformFrame title>{children}</CddiPlatformFrame>
+<ExternalImage {...propsDeNextImage} />               // sem loader nem otimização
+
+const confirm = useConfirm();                          // confirmation-provider.tsx
+if (!(await confirm({ title, description, confirmLabel, tone: "danger" }))) return;
+
+const { branding, loading } = usePlatformBranding();   // platform-branding-provider.tsx
 ```
 
 `personInitials(fullName)` também é exportado de `person-avatar.tsx`.
@@ -76,11 +92,15 @@ components/
 ```text
 1. modules = user.modules ?? ["HOME","SURVEYS","DASHBOARDS","RESULTS"]
 2. navigationGroupsForModules(modules) → grupos Principal / Atuação / Administração
-3. estado compacto lido do atributo data-agsus-sidebar-compact no <html>
+3. usePlatformBranding() → nome, cor e logotipo; PlatformLogo cobre o intervalo
+   de carregamento sem trocar o tamanho da caixa
+4. estado compacto lido do atributo data-agsus-sidebar-compact no <html>
    (já definido pelo script beforeInteractive do layout raiz — sem flash)
-4. alternar compacto grava em localStorage e no atributo do documento
-5. troca de rota fecha o drawer móvel (useEffect em pathname)
-6. logout: auth.signOut({ scope: "local" }) → window.location.replace("/acesso")
+5. alternar compacto grava em localStorage e no atributo do documento
+6. PlatformCommandMenu recebe os mesmos `modules` — a paleta (Ctrl+K) nunca
+   oferece destino que a navegação esconde
+7. troca de rota fecha o drawer móvel (useEffect em pathname)
+8. logout: auth.signOut({ scope: "local" }) → window.location.replace("/acesso")
 ```
 
 Estrutura acessível: skip link (`#conteudo-principal`), `<aside aria-label="Navegação principal">`, `aria-current="page"` no item ativo, `<main tabIndex={-1}>`. Em modo compacto os rótulos somem e vão para `title` + `aria-label` (`"Rótulo: descrição"`).
@@ -114,7 +134,15 @@ Cadeia de fallback: `src` → `fallbackSrc` → bloco com gradiente instituciona
 
 ### `CddiScrollBoundary`
 
-Adiciona `cddi-route-active` em `<html>` e `<body>` e usa um `MutationObserver` para detectar se a tela atual é a de formulário (presença de `<footer>` fixo) ou a inicial, aplicando `cddi-form-mode` / `cddi-form-content` / `cddi-form-banner`. É um acoplamento deliberado com a estrutura DOM de `/cddi/page.tsx` — alterar a hierarquia daquela página exige revisar este componente.
+Hoje é só `<div className="cddi-route-shell">{children}</div>` — componente de servidor, sem hook nem efeito. A versão anterior adicionava classes em `<html>`/`<body>` e usava um `MutationObserver` para distinguir a tela inicial da de formulário; isso foi removido junto com a correção de rolagem dos formulários, e o comportamento passou a ser inteiramente do CSS de `src/app/cddi/cddi-route.css`. **Não reintroduza observação de DOM aqui**: se a rolagem quebrar, a correção é no CSS da rota.
+
+### `PlatformBrandingProvider`
+
+Carrega a marca institucional (nome da organização, nome do produto, cor principal, logotipo) por React Query sob `platformBrandingQueryKey`, com cache local em `localStorage` (`agsus-platform-branding-v1`) para não piscar o padrão na primeira pintura. `usePlatformBranding()` entrega `{ branding, loading }`; `/admin/configuracoes` grava e atualiza a chave por `setQueryData`, então a mudança aparece na casca sem recarregar. Valor inválido degrada para `DEFAULT_PLATFORM_BRANDING` via `normalizePlatformBranding()`.
+
+### `ConfirmationProvider` e `useConfirm()`
+
+Substitui `window.confirm` em toda a aplicação. `await confirm({ title, description?, confirmLabel?, tone? })` devolve `boolean`; `tone: "danger"` marca ação irreversível. É montado por `AppProviders`, portanto qualquer componente de cliente pode chamar o hook. Como devolve promise, o padrão nas telas é `if (!(await confirm({ … }))) return;`.
 
 ### `OverlayPanel`
 
@@ -129,14 +157,14 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 
 ## Dependências
 
-- [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `observability`, `utils`, `supabase/client`.
-- `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `@dicebear/core` + `@dicebear/styles` (avatares), `class-variance-authority` (variantes).
+- [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `platform-branding`, `observability`, `utils`, `supabase/client`.
+- `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `@dicebear/core` + `@dicebear/styles` (avatares), `class-variance-authority` (variantes).
 
 `platform-icons.tsx` é um conjunto **próprio** de 20 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
 
 ## Convenções específicas
 
-- `"use client"` em tudo que usa hook, `window` ou Supabase. `surface.tsx`, `badge.tsx`, `button.tsx`, `feedback.tsx`, `page-navigation.tsx`, `skeleton.tsx` e `platform-icons.tsx` são componentes de servidor — mantenha assim.
+- `"use client"` em tudo que usa hook, `window` ou Supabase. `surface.tsx`, `badge.tsx`, `button.tsx`, `feedback.tsx`, `page-navigation.tsx`, `skeleton.tsx`, `platform-icons.tsx` e `cddi-scroll-boundary.tsx` são componentes de servidor — mantenha assim.
 - Variantes por `cva`; a função de variantes é exportada junto (`buttonVariants`) para uso em `<Link>` que precisa parecer botão.
 - Composição de classes sempre por `cn()`, com o `className` recebido por último para permitir sobrescrita.
 - Todo primitivo aceita `className` e repassa o resto das props ao elemento nativo.
@@ -150,5 +178,5 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `platform-command-menu.tsx`, `admin-module-page.tsx`, `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md).
+- Não utilizados: `admin-module-page.tsx`, `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário.
 - `avatar-uploader.tsx` chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` bloqueia fotos enviadas — não reative sem revisar o banco.

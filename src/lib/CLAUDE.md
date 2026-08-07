@@ -4,7 +4,7 @@
 
 Concentrar tudo que não é apresentação: identidade e permissões, fábricas de cliente Supabase e **funções puras** que carregam a parte testável do domínio.
 
-É a camada mais testada do projeto — 12 arquivos de teste, 64 casos.
+É a camada mais testada do projeto — 18 arquivos de teste, 84 casos.
 
 ## Responsabilidades
 
@@ -42,6 +42,10 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | `survey-catalog.ts` | `surveyItemState()`, `surveyStateRank()`, `compareSurveyPriority()`, `selectPrioritySurvey()`, `summarizeSurveyCatalog()`, `surveyApplicationHref()` |
 | `survey-builder.ts` | `QUESTION_TYPES`, `sectionDraftErrors()`, `questionDraftErrors()`, `buildQuestionOptions()`, `questionOptionsToText()`, `needsQuestionOptions()`, `moveAvailability()`, `questionMoveTargets()`, `hasUnsavedChanges()` |
 | `survey-visual-identity.ts` | `resolveSurveyVisualIdentity()`, `DEFAULT_CDDI_VISUAL_IDENTITY` |
+| `survey-runtime.ts` | `restoreSurveyAnswer()`, `isSurveyAnswerComplete()`, `buildSurveyAnswerPayload()`, tipos `StoredSurveyAnswer`, `SurveyAnswerValue` |
+| `cddi-question-applicability.ts` | `isCddiQuestionVisible()`, `visibleCddiSections()` |
+| `platform-branding.ts` | `PlatformBranding`, `DEFAULT_PLATFORM_BRANDING`, `normalizePlatformBranding()`, `platformBrandingTitle()` |
+| `admin-import-contract.ts` | `adminImportRequestSchema`, `parseAdminImportRequest()`, `formatAdminImportValidationErrors()`, `MAX_IMPORT_ROWS_PER_REQUEST`, `MAX_IMPORT_TOTAL_ROWS`, tipos `AdminImportRequest`, `ParticipantImportRow` |
 | `people-import.ts` | `parsePeopleImportRows()`, `summarizePeopleImport()`, tipos `PeopleImportRow`, `PeopleImportSummary` |
 | `avatar-config.ts` | `defaultAvatarConfig()`, `normalizeAvatarConfig()`, catálogos de opções e cores |
 | `observability.ts` | `reportApplicationError()`, `sanitizeObservabilityText()`, `errorMessageFromUnknown()`, `createErrorReference()` |
@@ -111,12 +115,18 @@ Deduplicação por impressão digital (`type|route|message|httpStatus`) com jane
 - **`normalizeAvatarConfig()`** valida cada campo contra o catálogo permitido e degrada para o padrão derivado do nome da pessoa. Metadado corrompido nunca quebra a renderização; `seed` limitado a 120 caracteres.
 - **`buildQuestionOptions()`** preserva `id` e `value` das alternativas existentes por posição ao renomear rótulos — evita invalidar respostas já gravadas.
 - **`surveyItemState()`** — precedência: concluída > rascunho > encerrada > agendada > pendente.
+- **`survey-runtime.ts` é a tradução entre banco e formulário**, por tipo de pergunta. `buildSurveyAnswerPayload()` zera todo campo que não pertence ao tipo — texto em pergunta numérica vai como `null`, não como string. `DATETIME` é o único caso com conversão de fuso: o banco guarda ISO em UTC e o input `datetime-local` exige hora local, então `restoreSurveyAnswer()` reformata na ida e `buildSurveyAnswerPayload()` volta para ISO. Adicionar tipo de pergunta exige mexer nas três funções **e** em `isSurveyAnswerComplete()`, que é quem decide se uma obrigatória está respondida.
+- **`isCddiQuestionVisible()`** esconde toda pergunta `PERSON` (a chefia é vínculo institucional, gravado por `set_my_cddi_leader`, não campo do formulário) e respeita `validation.allowed_submission_types`. Lista ausente ou vazia significa "vale para os dois tipos".
+- **`normalizePlatformBranding()`** exige cor no formato `#RRGGBB` e degrada campo a campo para `DEFAULT_PLATFORM_BRANDING` — marca corrompida no banco nunca deixa a casca sem logotipo ou sem nome.
+- **`admin-import-contract.ts` é a fonte única do formato da importação**, compartilhada entre a tela, a rota de API e o teste. Limite de 250 linhas por requisição e 50.000 no total.
 
 ## Dependências
 
-Externas: `@supabase/ssr`, `@supabase/supabase-js`, `clsx`, `tailwind-merge`, `react` (só em `platform-context.ts`), `next/headers` e `next/server` (só nos clientes de servidor/proxy).
+Externas: `@supabase/ssr`, `@supabase/supabase-js`, `clsx`, `tailwind-merge`, `zod` (só em `admin-import-contract.ts`), `react` (só em `platform-context.ts`), `next/headers` e `next/server` (só nos clientes de servidor/proxy).
 
 Internas: apenas entre arquivos deste módulo. `platform-navigation.ts` importa o **tipo** `PlatformIconName` de `@/components/platform-icons` — única dependência para fora, deliberada e sem custo em runtime.
+
+`src/hooks/` fica **fora** deste módulo e pode depender dele: `use-survey-catalog.ts` combina React Query com o tipo `SurveyCatalogItem` daqui. Função pura vai para `src/lib`; hook que consulta o Supabase vai para `src/hooks`.
 
 ## Convenções específicas
 
@@ -132,5 +142,5 @@ Internas: apenas entre arquivos deste módulo. `platform-navigation.ts` importa 
 - O cache de contexto é global ao módulo. Ao alterar papel, módulo ou avatar, chame `invalidatePlatformContext()` ou o usuário vê dado velho por até 2 minutos.
 - `server.ts` engole a falha de escrita de cookie em `try/catch` porque Server Components não podem escrever cookies — o proxy mantém a sessão. Não "corrija" removendo o catch.
 - `platform-navigation.ts` é a **única** fonte do menu. Nova rota no menu = nova entrada aqui, com `module` associado, senão ela aparece para todos.
-- `survey-catalog.ts` e `reliable-save-queue.ts` estão totalmente testados mas **não são importados por código de produção** — as telas reimplementam a lógica inline. Ver melhorias no [README](../../README.md).
+- `survey-catalog.ts` e `reliable-save-queue.ts` saíram do limbo: `/area` e `/pesquisas` consomem o catálogo (pelo hook `@/hooks/use-survey-catalog`) e as duas jornadas do CDDI usam `ReliableSaveQueue`. O runtime genérico (`/pesquisas/[applicationCode]`) ainda serializa gravações com um `useRef<Promise>` próprio — é a última duplicação viva desse par. Ver melhorias no [README](../../README.md).
 - `people-import.ts` compara warnings por **string literal** (`row.warnings.includes("E-mail institucional não informado")`), e `src/app/api/admin/import-participants/route.ts` depende dos mesmos literais para derivar `data_import_issues`. Alterar um texto exige alterar o outro.

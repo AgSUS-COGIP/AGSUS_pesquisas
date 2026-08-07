@@ -57,7 +57,7 @@ export default function AlgumaPagina() {
 
   // 3. guarda de módulo
   const modules = deriveModules(context);
-  if (!modules.includes("MODULO")) return /* tela de acesso restrito */;
+  if (!modules.includes("MODULO")) return <FullPageState tone="restricted" title="…" description="…" />;
 
   // 4. montar o usuário da casca e renderizar
   const user = { fullName: …, profileLabel: profileLabel(context), roles: context.roles, modules };
@@ -78,7 +78,7 @@ useEffect(() => {
 
 ## Regras de negócio visíveis nesta camada
 
-**Roteamento do catálogo.** `surveyCode === "CDDI"` → `/cddi`; qualquer outro → `/pesquisas/[applicationCode]` com o código codificado por `encodeURIComponent`. A função canônica é `surveyApplicationHref()` em `@/lib/survey-catalog`, mas `/area` e `/pesquisas` reimplementam essa decisão inline (ver melhorias no [README](../../README.md)).
+**Roteamento do catálogo.** `surveyCode === "CDDI"` → `/cddi`; qualquer outro → `/pesquisas/[applicationCode]` com o código codificado por `encodeURIComponent`. A função canônica é `surveyApplicationHref()` em `@/lib/survey-catalog`, hoje importada por `/area` e `/pesquisas` — as duas telas também compartilham a consulta do catálogo pelo hook `useSurveyCatalog` (`src/hooks/use-survey-catalog.ts`).
 
 **Estado de um item do catálogo**, na ordem de precedência:
 
@@ -91,7 +91,7 @@ A "próxima ação" de `/area` ordena por esse estado (`IN_PROGRESS` → `PENDIN
 
 **Edição só em rascunho.** `canEdit = submission.canEdit && submission.status === "DRAFT"`. Fora disso a tela vira somente leitura — os `fieldset` são desabilitados e o botão de envio desaparece.
 
-**Envio é irreversível.** Confirmação explícita antes de `submit_*`, e o runtime genérico chama `flushPendingSaves()` antes de enviar para não perder gravações com debounce pendente.
+**Envio é irreversível.** Confirmação explícita antes de `submit_*` por `await confirm({ … })` (`useConfirm()`, diálogo acessível da aplicação — não `window.confirm`), e as telas descarregam as gravações pendentes antes de enviar para não perder debounce em voo.
 
 **Painéis não respondem formulários.** `/paineis` filtra o CDDI da lista de cartões (`isCddiSurvey`) e exibe um cartão dedicado ao painel de monitoramento. Nenhum link de painel inicia ou continua preenchimento.
 
@@ -101,18 +101,20 @@ A "próxima ação" de `/area` ordena por esse estado (`IN_PROGRESS` → `PENDIN
 - **A etapa 0 exige chefia selecionada** para avançar (`validateCurrentStep`) e para enviar.
 - Só quem tem `identity.canChangeLeader` vê o campo de busca de chefia.
 - Avançar valida as obrigatórias da etapa atual; voltar e navegar para etapa anterior não valida (`goToStep(target, false)`).
-- Perguntas `SCALE` salvam imediatamente por `optionId`; texto salva com debounce de 700 ms por pergunta.
+- **A definição é filtrada por tipo de submissão** antes de renderizar: `visibleCddiSections(sections, "AUTO" | "CHEFIA")` remove perguntas `PERSON` (a chefia é vínculo institucional, não campo do formulário) e as que declaram `validation.allowed_submission_types` sem o tipo atual. Seção que fica sem pergunta desaparece — logo `sections.length` **não** é o número de competências do instrumento, e sim o das aplicáveis àquela jornada.
+- Perguntas `SCALE` salvam imediatamente por `optionId`; texto salva com debounce de 700 ms por pergunta. As gravações passam por `ReliableSaveQueue`, e `flushPendingSaves()` descarrega os debounces pendentes antes de validar ou enviar.
 - Busca de chefia: mínimo 2 caracteres, debounce de 350 ms.
 - A tela `home` do CDDI oferece autoavaliação e atalho para `/equipe`; a avaliação de chefia vive em `/cddi/chefia/[personId]`.
 
 ## Interfaces públicas
 
-Cada `page.tsx` exporta apenas o componente padrão. `layout.tsx` exporta `metadata`, `viewport` e o layout. `cddi/layout.tsx` exporta `metadata` e envolve a rota em `CddiScrollBoundary` (que aplica classes de scroll observando mutações do DOM) e importa `cddi-route.css`.
+Cada `page.tsx` exporta apenas o componente padrão. `layout.tsx` exporta `metadata`, `viewport` e o layout. `cddi/layout.tsx` exporta `metadata`, importa `cddi-route.css` e envolve a rota em `CddiScrollBoundary` — hoje um invólucro estático que só aplica a classe `cddi-route-shell`; o comportamento de scroll ficou por conta do CSS da rota.
 
 ## Dependências
 
 - [@/lib](../lib/CLAUDE.md) — `usePlatformContext`, `deriveModules`, `profileLabel`, `createBrowserSupabaseClient`, helpers de domínio.
-- [@/components](../components/CLAUDE.md) — `PlatformShell`, `PlatformSkeleton`, `PersonAvatar`, primitivos `ui/`.
+- [@/components](../components/CLAUDE.md) — `PlatformShell`, `PlatformSkeleton`, `PersonAvatar`, `FullPageState` (telas de acesso restrito e erro de página inteira), `useConfirm`, primitivos `ui/`.
+- [@/hooks/use-survey-catalog](../hooks/use-survey-catalog.ts) — consulta cacheada de `list_my_survey_catalog`, compartilhada por `/area` e `/pesquisas`.
 - `sonner` (`toast`) para retorno de ação; `lucide-react` para ícones.
 
 ## Pontos de atenção
