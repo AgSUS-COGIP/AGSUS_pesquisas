@@ -228,6 +228,7 @@ export default function GenericSurveyPage() {
     institutionalEmail: context.person.institutionalEmail,
     employeeNumber: context.person.employeeNumber,
     profileLabel: profileLabel(context),
+    avatarUrl: context.person.avatarUrl,
     roles: context.roles,
     modules,
   };

@@ -21,11 +21,11 @@ export function ErrorSummary({ title = "Revise as informações", errors, classN
 
 export function EmptyState({ title, description, icon, action, className }: { title: string; description: string; icon?: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center", className)}>
-      <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
+    <section className={cn("rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-card)] p-8 text-center", className)}>
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[var(--surface-muted)] text-[var(--text-secondary)]">
         {icon ?? <Inbox className="h-6 w-6" aria-hidden="true" />}
       </div>
-      <h3 className="mt-4 text-lg font-semibold text-slate-950">{title}</h3>
+      <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">{title}</h3>
       <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">{description}</p>
       {action && <div className="mt-5 flex justify-center">{action}</div>}
     </section>

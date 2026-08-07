@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
+import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -214,8 +215,8 @@ export default function CddiFormPage() {
     } finally { setSubmitting(false); }
   }
 
-  if (loading) return <CddiLoadingState />;
-  if (!definition || !identity) return <main className="grid min-h-screen place-items-center bg-slate-50 px-6"><section className="max-w-xl rounded-2xl border border-red-200 bg-white p-8"><h1 className="text-2xl font-black text-[#24368b]">Não foi possível abrir o CDDI</h1><p className="mt-3 text-slate-600">{message}</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#075ea8] px-5 py-3 font-bold text-white">Voltar à área</Link></section></main>;
+  if (loading) return <CddiPlatformFrame title="CDDI 2026"><CddiLoadingState /></CddiPlatformFrame>;
+  if (!definition || !identity) return <CddiPlatformFrame title="CDDI 2026"><div className="grid min-h-[60vh] place-items-center px-6"><section className="max-w-xl rounded-2xl border border-red-200 bg-[var(--surface-card)] p-8"><h1 className="text-2xl font-black text-[var(--text-primary)]">Não foi possível abrir o CDDI</h1><p className="mt-3 text-[var(--text-secondary)]">{message}</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[var(--brand-solid)] px-5 py-3 font-bold text-white">Voltar à área</Link></section></div></CddiPlatformFrame>;
 
   const periodClosed = definition.application.status !== "OPEN";
   const person = identity.person;
@@ -223,7 +224,8 @@ export default function CddiFormPage() {
   const visualIdentity = resolveSurveyVisualIdentity(definition.application.settings);
 
   if (screen === "home") return (
-    <main className="min-h-screen bg-[#eef3f8] px-4 py-5 text-slate-900 sm:px-6">
+    <CddiPlatformFrame title="CDDI 2026">
+    <div className="min-h-[60vh] text-[var(--text-primary)]">
       <div className="mx-auto max-w-[960px] space-y-4">
         <SurveyBanner key={visualIdentity.bannerUrl} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
         <section className="rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-7">
@@ -242,11 +244,13 @@ export default function CddiFormPage() {
         <section className={`rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? `O período de participação foi encerrado em ${dateLabel(definition.application.closesAt)}. O modo de consulta permanece disponível.` : "O ciclo está disponível para preenchimento."}</p><p className="mt-2 text-sm text-slate-500">Abertura: {dateLabel(definition.application.opensAt)} · Encerramento: {dateLabel(definition.application.closesAt)}</p></section>
         <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-black text-[#26368d]">Selecione o tipo de avaliação</h2><p className="mt-1 text-sm text-slate-500">Gestores e coordenadores podem realizar a própria autoavaliação e avaliar os subordinados vinculados.</p></div><Link href="/area" className="rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-bold text-white">Tela inicial</Link></div><div className="mt-4 grid gap-3 md:grid-cols-2"><button onClick={() => { setScreen("auto"); setStep(0); }} className="rounded-xl bg-[#086ab6] p-5 text-left text-white transition hover:bg-[#05558f]"><UserRound className="h-6 w-6"/><strong className="mt-3 block text-lg">Responder minha autoavaliação</strong><span className="mt-1 block text-sm text-blue-100">Preencher minha autoavaliação.</span></button><Link href="/equipe" className="rounded-xl bg-[#086ab6] p-5 text-left text-white transition hover:bg-[#05558f]"><UsersRound className="h-6 w-6"/><strong className="mt-3 block text-lg">Minha equipe</strong><span className="mt-1 block text-sm text-blue-100">Consultar avaliações pendentes, rascunhos e concluídas.</span></Link></div></section>
       </div>
-    </main>
+    </div>
+    </CddiPlatformFrame>
   );
 
   return (
-    <main className="min-h-screen bg-[#eef3f8] pb-28 text-slate-900">
+    <CddiPlatformFrame title="Autoavaliação CDDI">
+    <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
       <div className="mx-auto max-w-[960px] px-4 py-4 sm:px-6">
         <SurveyBanner key={`form-${visualIdentity.bannerUrl}`} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
         <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
@@ -259,6 +263,7 @@ export default function CddiFormPage() {
         {step === totalSteps - 1 && <section className="mt-4 rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-2xl font-black text-[#26368d]">Revisão da autoavaliação</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{sections.map((section, index) => { const completion = sectionCompletion(section, answers); return <button key={section.id} onClick={() => goToStep(index + 1, false)} className="rounded-xl border border-slate-200 p-4 text-left hover:bg-blue-50"><div className="flex justify-between gap-3"><strong className="text-[#26368d]">{section.title}</strong><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${completion === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{completion}%</span></div></button>; })}</div><div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><strong className="text-[#26368d]">Confirmação do envio</strong><p className="mt-2 text-sm text-slate-600">Após o envio definitivo, as respostas não poderão ser alteradas.</p>{canEdit && <button onClick={submitEvaluation} disabled={submitting || answeredRequired !== requiredQuestions.length || !identity.leader} className="mt-4 w-full rounded-xl bg-[#086ab6] px-5 py-4 font-black text-white disabled:opacity-50">{submitting ? "Enviando..." : "Confirmar e enviar autoavaliação"}</button>}{isSubmitted && <p className="mt-4 font-bold text-emerald-800">Avaliação enviada em {dateLabel(submission?.submission?.submittedAt)}.</p>}</div></section>}
       </div>
       <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur"><div className="mx-auto flex max-w-[960px] items-center justify-between gap-3"><div className="hidden text-sm text-slate-500 sm:block">{saveState === "saving" ? "Salvando rascunho..." : saveState === "error" ? "Falha ao salvar" : savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</div><div className="ml-auto flex gap-2"><button onClick={() => setScreen("home")} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Tela inicial</button><button onClick={() => goToStep(step - 1, false)} disabled={step === 0} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></div></div></footer>
-    </main>
+    </div>
+    </CddiPlatformFrame>
   );
 }

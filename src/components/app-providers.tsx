@@ -7,6 +7,7 @@ import { ClientErrorReporter } from "@/components/client-error-reporter";
 import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { PlatformInteractionLayer } from "@/components/platform-interaction-layer";
 import { ConfirmationProvider } from "@/components/confirmation-provider";
+import { PlatformBrandingProvider } from "@/components/platform-branding-provider";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -26,11 +27,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfirmationProvider>
-        <ClientErrorReporter />
-        <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
-        <NetworkStatusBanner />
-        <Toaster
+      <PlatformBrandingProvider>
+        <ConfirmationProvider>
+          <ClientErrorReporter />
+          <PlatformInteractionLayer>{children}</PlatformInteractionLayer>
+          <NetworkStatusBanner />
+          <Toaster
           position="top-right"
           richColors
           closeButton
@@ -41,8 +43,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
               description: "text-[var(--text-secondary)]",
             },
           }}
-        />
-      </ConfirmationProvider>
+          />
+        </ConfirmationProvider>
+      </PlatformBrandingProvider>
     </QueryClientProvider>
   );
 }

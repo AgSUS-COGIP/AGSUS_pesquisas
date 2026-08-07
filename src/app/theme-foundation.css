@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --brand-solid: #0b4f82;
-  --brand-solid-hover: #073b62;
+  --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
   --surface-elevated: #ffffff;
   --surface-interactive: #f7fafc;
   --surface-overlay: rgba(255, 255, 255, .92);
@@ -28,7 +28,7 @@
 html[data-agsus-theme="dark"] {
   color-scheme: dark;
   --brand-solid: #126b98;
-  --brand-solid-hover: #0e5a82;
+  --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
   --surface-elevated: #152337;
   --surface-interactive: #19283d;
   --surface-overlay: rgba(12, 24, 39, .92);
@@ -151,16 +151,16 @@ textarea {
 }
 
 /* O banner institucional aparece apenas na tela inicial do CDDI. */
-main.pb-28 > div > img:first-child {
+.cddi-form-shell > div > img:first-child {
   display: none;
 }
 
 /* O formulário usa rolagem natural e uma barra de ações compacta ao final. */
-main.pb-28 {
+.cddi-form-shell {
   padding-bottom: 1rem !important;
 }
 
-main.pb-28 > footer.fixed {
+.cddi-form-shell > footer.fixed {
   position: static !important;
   margin-top: 1rem;
   border: 0;
@@ -171,7 +171,7 @@ main.pb-28 > footer.fixed {
   backdrop-filter: none;
 }
 
-main.pb-28 > footer.fixed button {
+.cddi-form-shell > footer.fixed button {
   min-height: 2.35rem;
   border-radius: .65rem;
   padding: .5rem .8rem;
@@ -192,22 +192,28 @@ html[data-agsus-theme="dark"] [class*="hover:bg-white"]:hover {
 }
 
 html[data-agsus-theme="dark"] .text-blue-700,
-html[data-agsus-theme="dark"] .text-sky-700 {
+html[data-agsus-theme="dark"] .text-blue-900,
+html[data-agsus-theme="dark"] .text-sky-700,
+html[data-agsus-theme="dark"] .text-sky-900 {
   color: var(--status-info-text) !important;
 }
 
 html[data-agsus-theme="dark"] .text-amber-700,
-html[data-agsus-theme="dark"] .text-amber-800 {
+html[data-agsus-theme="dark"] .text-amber-800,
+html[data-agsus-theme="dark"] .text-amber-900 {
   color: var(--status-warning-text) !important;
 }
 
 html[data-agsus-theme="dark"] .text-emerald-700,
-html[data-agsus-theme="dark"] .text-emerald-800 {
+html[data-agsus-theme="dark"] .text-emerald-800,
+html[data-agsus-theme="dark"] .text-emerald-900,
+html[data-agsus-theme="dark"] .text-emerald-950 {
   color: var(--status-success-text) !important;
 }
 
 html[data-agsus-theme="dark"] .text-red-700,
-html[data-agsus-theme="dark"] .text-red-800 {
+html[data-agsus-theme="dark"] .text-red-800,
+html[data-agsus-theme="dark"] .text-red-900 {
   color: var(--status-danger-text) !important;
 }
 
@@ -246,19 +252,37 @@ html[data-agsus-theme="dark"] textarea::placeholder {
   opacity: 1;
 }
 
+/* Compatibilidade para telas CDDI e administrativas anteriores ao design system. */
+html[data-agsus-theme="dark"] [class*="text-[#003b70]"],
+html[data-agsus-theme="dark"] [class*="text-[#0b4f82]"],
+html[data-agsus-theme="dark"] [class*="text-[#26368d]"] {
+  color: var(--text-primary) !important;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-[#eef3f8]"],
+html[data-agsus-theme="dark"] [class*="bg-[#edf5fc]"] {
+  background-color: var(--surface-page) !important;
+}
+
+html[data-agsus-theme="dark"] [class*="bg-[#003b70]"],
+html[data-agsus-theme="dark"] [class*="bg-[#0b4f82]"],
+html[data-agsus-theme="dark"] [class*="bg-[#086ab6]"] {
+  background-color: var(--brand-solid) !important;
+}
+
 @media (max-width: 639px) {
-  main.pb-28 > footer.fixed > div {
+  .cddi-form-shell > footer.fixed > div {
     align-items: stretch;
     flex-direction: column;
   }
 
-  main.pb-28 > footer.fixed > div > div:last-child {
+  .cddi-form-shell > footer.fixed > div > div:last-child {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-left: 0;
   }
 
-  main.pb-28 > footer.fixed button {
+  .cddi-form-shell > footer.fixed button {
     justify-content: center;
     padding-inline: .45rem;
   }
