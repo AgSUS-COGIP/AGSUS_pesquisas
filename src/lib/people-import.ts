@@ -100,6 +100,10 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+// Reduz um cabeçalho a uma chave comparável: remove acentos, força maiúsculas e
+// colapsa qualquer separador em espaço. Assim "Matrícula", "MATRICULA" e
+// "NU_MATRICULA" colidem no mesmo token e um único alias atende às três grafias
+// encontradas nas planilhas oficiais.
 function normalizeToken(value: unknown) {
   return text(value)
     .normalize("NFD")
@@ -183,6 +187,19 @@ function detectSourceFormat(headers: string[]): PeopleImportRow["sourceFormat"] 
     : "STANDARD_PEOPLE_BASE";
 }
 
+/**
+ * Converte as linhas cruas de uma planilha institucional em registros validados.
+ *
+ * Executa duas passagens porque as regras de duplicidade são relacionais:
+ *
+ * 1. **Por linha** — resolve aliases de cabeçalho, normaliza e-mail e data, e
+ *    separa problemas em *erro* (bloqueia a linha: matrícula ou nome ausentes) e
+ *    *aviso* (preserva a pessoa: e-mail ausente, inválido, data inválida).
+ * 2. **Entre linhas** — detecta matrícula repetida e e-mail compartilhado, e
+ *    decide quem fica elegível a identidade de acesso automática.
+ *
+ * Nenhuma linha é descartada: quem chama decide o que enviar usando `valid`.
+ */
 export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportRow[] {
   if (!data.length) return [];
 
@@ -213,6 +230,8 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
     if (rawAdmissionDate && !admissionDate) warnings.push("Data de admissão inválida");
 
     return {
+      // +2 porque a linha 1 da planilha é o cabeçalho e o operador precisa
+      // localizar a linha exata na ferramenta que usou.
       rowNumber: index + 2,
       status,
       detailedStatus: firstValue(values, FIELD_ALIASES.detailedStatus),
@@ -244,6 +263,8 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
     if (row.employeeNumber) employeeCounts.set(row.employeeNumber, (employeeCounts.get(row.employeeNumber) ?? 0) + 1);
   });
 
+  // Conta e-mails por matrícula distinta, não por linha: uma matrícula repetida
+  // duas vezes não deve fazer o e-mail dela parecer compartilhado.
   const emailCounts = new Map<string, number>();
   const uniqueEmployeesForEmail = new Set<string>();
   preliminary.forEach((row) => {
@@ -256,6 +277,9 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
   return preliminary.map((row) => {
     const errors = [...row.errors];
     const warnings = [...row.warnings];
+    // Matrícula repetida: a primeira ocorrência recebe aviso e é importada; as
+    // seguintes recebem erro e são rejeitadas. Assim a pessoa entra na base uma
+    // única vez, sem exigir que o operador limpe a planilha antes.
     if (row.employeeNumber && (employeeCounts.get(row.employeeNumber) ?? 0) > 1) {
       if (seenEmployees.has(row.employeeNumber)) errors.push("Matrícula repetida; mantenha apenas um registro");
       else warnings.push("Matrícula repetida; registros posteriores serão ignorados");
@@ -271,6 +295,11 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
       valid: errors.length === 0,
       errors,
       warnings,
+      // Regra institucional: e-mail só se torna identidade de acesso quando é
+      // válido, exclusivo de uma matrícula e a linha não tem erro. A base oficial
+      // contém endereços compartilhados entre matrículas distintas, e ativá-los
+      // daria a uma pessoa acesso ao cadastro de outra.
+      // Ver docs/auditoria-base-cddi-2026.md.
       emailEligibleForAccess: Boolean(
         row.institutionalEmail
         && emailCounts.get(row.institutionalEmail) === 1
@@ -280,6 +309,14 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
   });
 }
 
+/**
+ * Agrega o retrato da planilha exibido antes da confirmação da carga.
+ *
+ * As categorias são identificadas pelo texto exato dos avisos produzidos por
+ * {@link parsePeopleImportRows}; alterar uma dessas mensagens exige atualizar
+ * também `src/app/api/admin/import-participants/route.ts`, que deriva os códigos
+ * de `data_import_issues` a partir dos mesmos literais.
+ */
 export function summarizePeopleImport(rows: PeopleImportRow[]): PeopleImportSummary {
   const duplicateEmployeeValues = new Set(
     rows.filter((row) => row.warnings.some((warning) => warning.startsWith("Matrícula repetida"))

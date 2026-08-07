@@ -140,15 +140,27 @@ function DesktopSidebar({ user, compact, modules, onToggle, onSignOut }: { user:
   );
 }
 
+/**
+ * Casca visual de todas as telas internas: barra lateral, cabeçalho, gaveta móvel
+ * e encerramento de sessão.
+ *
+ * A navegação é filtrada por `user.modules`, de modo que ninguém vê link para área
+ * que não pode abrir. O fallback é o conjunto do participante — nunca um módulo
+ * administrativo.
+ */
 export function PlatformShell({ user, title, eyebrow, children, actions }: { user: PlatformUser; title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode }) {
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const modules = user.modules ?? ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
 
+  // O estado recolhido já foi aplicado ao <html> pelo script beforeInteractive do
+  // layout raiz; aqui apenas sincronizamos o React com o DOM para não sobrescrever
+  // a preferência com o valor inicial `false`.
   useEffect(() => {
     setCompact(isPlatformSidebarCompact(document.documentElement.getAttribute(PLATFORM_SIDEBAR_ATTRIBUTE)));
   }, []);
+  // Trocar de rota fecha a gaveta móvel, senão ela permanece sobre a nova tela.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   function toggleCompact() {
@@ -162,6 +174,8 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
 
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
+    // `scope: "local"` encerra apenas esta sessão: quem usa a plataforma em outro
+    // dispositivo não é desconectado ao sair aqui.
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) {
       toast.error("Não foi possível encerrar esta sessão. Tente novamente.");

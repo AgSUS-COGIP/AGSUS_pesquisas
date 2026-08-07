@@ -14,6 +14,16 @@ type DialogProps = {
   className?: string;
 };
 
+/**
+ * Modal baseado no elemento `<dialog>` nativo.
+ *
+ * O navegador cuida de foco, camada superior e `::backdrop`, então não há
+ * aprisionamento manual de foco aqui. `onCancel` intercepta o `Escape` para que o
+ * fechamento passe pelo estado do React em vez de acontecer só no DOM.
+ *
+ * Atenção: `src/components/ui/overlay-panel.tsx` exporta outro `Dialog`, com
+ * aprisionamento manual de foco e suporte a `footer`. Confira o caminho do import.
+ */
 export function Dialog({
   open,
   onOpenChange,

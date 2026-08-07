@@ -7,9 +7,19 @@ export type ApplicationErrorReport = {
   httpStatus?: number | null;
 };
 
+// Um erro em laço de render dispararia centenas de relatórios idênticos; a janela
+// de deduplicação protege a rota de coleta e o banco.
 const REPORT_DEDUPLICATION_WINDOW = 30_000;
 const recentReports = new Map<string, number>();
 
+/**
+ * Remove dado pessoal e credencial de um texto antes de enviá-lo à observabilidade.
+ *
+ * Elimina e-mails, sequências de 5 ou mais dígitos (matrícula, CPF) e tokens
+ * `Bearer`. A mesma sanitização é repetida no servidor
+ * (`src/app/api/observability/errors/route.ts`) de propósito: o cliente pode ser
+ * contornado, o servidor não.
+ */
 export function sanitizeObservabilityText(value: string, maxLength: number) {
   return value
     .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[email removido]")
@@ -31,6 +41,10 @@ export function errorMessageFromUnknown(value: unknown) {
   return String(value ?? "Erro desconhecido.");
 }
 
+/**
+ * Gera o código opaco exibido ao usuário e usado para localizar o registro em
+ * `tl_erro_aplicacao`. O fallback cobre navegadores sem `crypto.randomUUID`.
+ */
 export function createErrorReference() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -62,6 +76,14 @@ function shouldSendReport(report: ApplicationErrorReport) {
   return true;
 }
 
+/**
+ * Envia um relatório de erro sanitizado para a rota de observabilidade.
+ *
+ * Nunca lança: falha de rede devolve `false`. Observabilidade não pode ser causa
+ * de erro — um `throw` aqui apareceria como novo erro não tratado.
+ *
+ * @returns `true` se enviado ou deduplicado; `false` se a requisição falhou.
+ */
 export async function reportApplicationError(report: ApplicationErrorReport) {
   if (!shouldSendReport(report)) return true;
 
@@ -69,6 +91,8 @@ export async function reportApplicationError(report: ApplicationErrorReport) {
     const response = await fetch("/api/observability/errors", {
       method: "POST",
       headers: { "content-type": "application/json" },
+      // Mantém a requisição viva durante o descarregamento da página, para não
+      // perder justamente o erro que causou a navegação ou o fechamento.
       keepalive: true,
       body: JSON.stringify({
         ...report,

@@ -9,6 +9,13 @@ type SurveyBannerProps = {
   className?: string;
 };
 
+/**
+ * Banner de capa de uma pesquisa, com degradação em cadeia.
+ *
+ * `src` (configurado pela administração) → `fallbackSrc` (capa institucional) →
+ * bloco com gradiente e `role="img"`. A capa nunca deixa um buraco no layout,
+ * mesmo quando a URL externa configurada sai do ar.
+ */
 export function SurveyBanner({
   src,
   fallbackSrc,

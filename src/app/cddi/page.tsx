@@ -28,6 +28,7 @@ function dateLabel(value: string | null | undefined) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
 }
 function answered(question: Question, answers: Answers) { return Boolean(answers[question.id]?.value?.trim()); }
+/** Percentual das perguntas obrigatórias da competência já respondidas. Seção sem obrigatórias conta como completa. */
 function sectionCompletion(section: Section, answers: Answers) {
   const required = section.questions.filter((question) => question.required);
   if (!required.length) return 100;
@@ -105,11 +106,14 @@ export default function CddiFormPage() {
   }, []);
 
   const sections = definition?.sections ?? [];
+  // Etapa 0 = identificação e chefia; 1..N = uma competência cada; N+1 = revisão.
   const totalSteps = sections.length + 2;
   const currentSection = step > 0 && step <= sections.length ? sections[step - 1] : null;
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
   const answeredRequired = requiredQuestions.filter((question) => answered(question, answers)).length;
   const progress = requiredQuestions.length ? Math.round(answeredRequired / requiredQuestions.length * 100) : 0;
+  // Respostas só mudam enquanto a submissão está em rascunho. Fora disso a tela
+  // vira consulta: os fieldsets são desabilitados e o envio desaparece.
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = submission?.submission?.status === "SUBMITTED" || submission?.submission?.status === "VALIDATED";
 
@@ -134,6 +138,8 @@ export default function CddiFormPage() {
     setMessage("");
     void persistAnswer(question, answer);
   }
+  // Escala salva na hora (um clique = uma decisão); texto salva com atraso para
+  // não gravar a cada tecla digitada.
   function updateText(question: Question, value: string) {
     const answer = { value };
     setAnswers((current) => ({ ...current, [question.id]: answer }));
@@ -143,6 +149,8 @@ export default function CddiFormPage() {
     saveTimers.current[question.id] = window.setTimeout(() => void persistAnswer(question, answer), 700);
   }
   function validateCurrentStep() {
+    // A chefia precisa estar confirmada antes de qualquer competência: é ela que
+    // forma o vínculo usado pela liderança para avaliar esta pessoa no ciclo.
     if (step === 0 && !identity?.leader) {
       setMessageType("warning");
       setMessage("Selecione sua chefia imediata antes de avançar.");
@@ -157,6 +165,7 @@ export default function CddiFormPage() {
     }
     return true;
   }
+  /** Navega entre etapas. Só valida ao avançar — voltar para revisar é sempre livre. */
   function goToStep(target: number, validateAdvance = true) {
     if (validateAdvance && target > step && !validateCurrentStep()) return;
     setMessage("");
@@ -191,6 +200,13 @@ export default function CddiFormPage() {
       setMessage(error instanceof Error ? error.message : "Não foi possível confirmar a chefia.");
     } finally { setLeaderSaving(false); }
   }
+  /**
+   * Envio definitivo da autoavaliação — irreversível.
+   *
+   * As três condições (chefia confirmada, todas as obrigatórias respondidas,
+   * confirmação explícita) espelham a validação da RPC; o banco recusa de novo se
+   * qualquer uma falhar.
+   */
   async function submitEvaluation() {
     if (!submission?.submission?.id || !canEdit) return;
     if (!identity?.leader) { setMessageType("warning"); setMessage("Confirme sua chefia antes de enviar a avaliação."); return; }

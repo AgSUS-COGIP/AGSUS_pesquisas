@@ -1,0 +1,154 @@
+# Módulo `src/components` — casca visual e design system
+
+## Objetivo
+
+Fornecer a linguagem visual institucional em três níveis: **primitivos** acessíveis (`ui/`), a **casca da aplicação** (`PlatformShell` e satélites) e **blocos de negócio** reutilizáveis (componentes `admin-*`, `avatar-*`, `cddi-*`).
+
+Princípios e tokens em [../../docs/design-system.md](../../docs/design-system.md).
+
+## Responsabilidades
+
+- Encapsular acessibilidade (foco visível, `aria-*`, focus trap, alvo de 44 px, `prefers-reduced-motion`) para que as páginas não reimplementem.
+- Manter estados visuais consistentes: carregando, vazio, erro, offline.
+- **`ui/` não conhece Supabase nem regra de negócio.** Componentes de negócio podem chamar RPCs.
+
+## Estrutura
+
+```text
+components/
+├── platform-shell.tsx            casca: sidebar, cabeçalho, drawer, logout
+├── platform-skeleton.tsx         skeleton no formato da casca
+├── platform-icons.tsx            20 ícones SVG inline (navegação)
+├── platform-theme-toggle.tsx     ciclo automático → claro → escuro
+├── platform-interaction-layer.tsx barra de progresso, voltar ao topo, atalhos
+├── app-providers.tsx             React Query, Toaster, reporter de erro
+├── client-error-reporter.tsx     captura window.error e unhandledrejection
+├── network-status-banner.tsx     aviso de offline e de conexão restabelecida
+├── person-avatar.tsx             avatar com fallback de iniciais
+├── survey-banner.tsx             banner com fallback em cadeia
+├── avatar-identity-picker.tsx    escolha da origem do avatar
+├── avatar-studio.tsx             editor de avatar (DiceBear lorelei)
+├── cddi-loading-state.tsx        skeleton do formulário CDDI
+├── cddi-scroll-boundary.tsx      classes de scroll da rota /cddi
+├── people-base-summary.tsx       retrato da base mestra de pessoas
+├── admin-participant-management.tsx     participantes por pesquisa
+├── admin-participant-bulk-selector.tsx  vinculação em lote
+├── admin-people-teams-management.tsx    pessoas, dados funcionais, lideranças
+└── ui/                           primitivos do design system
+    ├── surface.tsx      Surface · PageHeader · StatCard
+    ├── button.tsx       Button + buttonVariants (primary·secondary·ghost·danger)
+    ├── badge.tsx        Badge + badgeVariants (neutral·info·success·warning·danger·outline)
+    ├── form-controls.tsx Input · Textarea · Select · Choice · Checkbox · Radio
+    ├── data-table.tsx   11 primitivos de tabela
+    ├── feedback.tsx     ErrorSummary · EmptyState
+    ├── overlay-panel.tsx OverlayPanel · Dialog · Drawer  (focus trap manual)
+    ├── dialog.tsx       Dialog  (<dialog> nativo) — homônimo, comportamento diferente
+    ├── page-navigation.tsx Breadcrumbs · PageActions
+    ├── skeleton.tsx     Skeleton · TextSkeleton
+    └── tabs.tsx         Tabs  (não utilizado)
+```
+
+## Interfaces públicas principais
+
+```tsx
+<PlatformShell user={PlatformUser} title="…" eyebrow="…" actions={…}>{children}</PlatformShell>
+// PlatformUser: { fullName, profileLabel, institutionalEmail?, employeeNumber?,
+//                 avatarUrl?, roles?, modules? }
+
+<PlatformSkeleton title="Carregando …" />
+<PersonAvatar fullName avatarUrl? className? imageClassName? fallbackClassName? alt? />
+<PlatformIcon name={PlatformIconName} className? />
+<SurveyBanner src fallbackSrc? alt className? />
+
+<Drawer  open onOpenChange title description? side="left|right" … />
+<Dialog  open onOpenChange title description? … />   // de overlay-panel.tsx
+<EmptyState title description icon? action? />
+<ErrorSummary errors={string[]} title? />
+<Input label hint? error? … />                        // idem Textarea, Select, Checkbox, Radio
+```
+
+`personInitials(fullName)` também é exportado de `person-avatar.tsx`.
+
+## Fluxo interno
+
+### `PlatformShell`
+
+```text
+1. modules = user.modules ?? ["HOME","SURVEYS","DASHBOARDS","RESULTS"]
+2. navigationGroupsForModules(modules) → grupos Principal / Atuação / Administração
+3. estado compacto lido do atributo data-agsus-sidebar-compact no <html>
+   (já definido pelo script beforeInteractive do layout raiz — sem flash)
+4. alternar compacto grava em localStorage e no atributo do documento
+5. troca de rota fecha o drawer móvel (useEffect em pathname)
+6. logout: auth.signOut({ scope: "local" }) → window.location.replace("/acesso")
+```
+
+Estrutura acessível: skip link (`#conteudo-principal`), `<aside aria-label="Navegação principal">`, `aria-current="page"` no item ativo, `<main tabIndex={-1}>`. Em modo compacto os rótulos somem e vão para `title` + `aria-label` (`"Rótulo: descrição"`).
+
+`data-print-hidden="true"` marca sidebar e cabeçalho para exclusão na impressão.
+
+### `PersonAvatar` — resolução da imagem
+
+```text
+1. É a pessoa da sessão? (comparação de nome normalizado: trim, espaços
+   colapsados, maiúsculas pt-BR)
+2. Se sim  → context.person.avatarUrl ?? metadata.avatar_url ?? avatarUrl da prop
+   Se não  → apenas avatarUrl da prop
+3. Erro de carregamento → grava a URL falhada e cai para iniciais
+4. Nova URL diferente da falhada → limpa o estado e tenta de novo
+```
+
+A preferência pelo avatar canônico do contexto garante que, ao trocar a imagem em `/perfil`, todas as ocorrências do próprio usuário atualizem juntas. `referrerPolicy="no-referrer"` é necessário para as URLs de foto do Google.
+
+### `AvatarIdentityPicker` e `AvatarStudio`
+
+Três origens: `GOOGLE` (recomendada, exige `googleUrl`), `INITIALS` e `GENERATED` (avatar DiceBear configurado no estúdio). Todas gravam por `set_my_avatar_choice`. Após salvar: `invalidatePlatformContext()` e recarga da página após 300 ms — a casca inteira depende do contexto cacheado.
+
+### `PlatformThemeToggle`
+
+Ciclo `system → light → dark → system`. Grava em `localStorage` e escreve três coisas no `<html>`: atributo de tema resolvido, atributo de preferência e `style.colorScheme`. Escuta `matchMedia("(prefers-color-scheme: dark)")` (só reage quando a preferência é `system`) e `storage` (sincroniza entre abas). `localStorage` indisponível degrada silenciosamente — o tema ainda vale para a aba atual.
+
+### `SurveyBanner`
+
+Cadeia de fallback: `src` → `fallbackSrc` → bloco com gradiente institucional e `role="img"`. Nunca deixa buraco no layout. As páginas passam `key={bannerUrl}` para forçar remontagem quando a URL configurada muda.
+
+### `CddiScrollBoundary`
+
+Adiciona `cddi-route-active` em `<html>` e `<body>` e usa um `MutationObserver` para detectar se a tela atual é a de formulário (presença de `<footer>` fixo) ou a inicial, aplicando `cddi-form-mode` / `cddi-form-content` / `cddi-form-banner`. É um acoplamento deliberado com a estrutura DOM de `/cddi/page.tsx` — alterar a hierarquia daquela página exige revisar este componente.
+
+### `OverlayPanel`
+
+Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o primeiro elemento focável, circula `Tab`/`Shift+Tab`, fecha com `Escape` e restaura o foco anterior na desmontagem. `onOpenChange` é lido de um ref para não recriar os listeners a cada render.
+
+## Regras de negócio nesta camada
+
+- **A navegação nunca mostra o que o usuário não pode acessar.** `PlatformShell` filtra por `modules`; grupos que ficam vazios desaparecem.
+- **Fallback de módulos** é o conjunto do participante — jamais um módulo administrativo.
+- **`PeopleBaseSummaryCard`** alerta quando `totalPeople <= 1`: sinal de base não carregada, com instrução explícita de reimportar.
+- **Cor nunca é o único indicador de estado.** `Badge` e cartões sempre acompanham rótulo textual.
+
+## Dependências
+
+- [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `observability`, `utils`, `supabase/client`.
+- `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `@dicebear/core` + `@dicebear/styles` (avatares), `class-variance-authority` (variantes).
+
+`platform-icons.tsx` é um conjunto **próprio** de 20 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
+
+## Convenções específicas
+
+- `"use client"` em tudo que usa hook, `window` ou Supabase. `surface.tsx`, `badge.tsx`, `button.tsx`, `feedback.tsx`, `page-navigation.tsx`, `skeleton.tsx` e `platform-icons.tsx` são componentes de servidor — mantenha assim.
+- Variantes por `cva`; a função de variantes é exportada junto (`buttonVariants`) para uso em `<Link>` que precisa parecer botão.
+- Composição de classes sempre por `cn()`, com o `className` recebido por último para permitir sobrescrita.
+- Todo primitivo aceita `className` e repassa o resto das props ao elemento nativo.
+- Controles de formulário geram `id` com `useId()` e ligam `aria-describedby` a dica e erro, preservando qualquer `aria-describedby` recebido.
+- Ícone decorativo leva `aria-hidden="true"`; botão só com ícone leva `aria-label`.
+- Skeleton usa `motion-reduce:animate-none`.
+
+## Pontos de atenção
+
+- **Dois `Dialog` diferentes.** `ui/overlay-panel.tsx` (focus trap manual, aceita `footer`) e `ui/dialog.tsx` (`<dialog>` nativo, aceita `eyebrow`). Confira o caminho do import.
+- `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
+- `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
+- `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
+- Não utilizados: `platform-command-menu.tsx`, `admin-module-page.tsx`, `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md).
+- `avatar-uploader.tsx` chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` bloqueia fotos enviadas — não reative sem revisar o banco.

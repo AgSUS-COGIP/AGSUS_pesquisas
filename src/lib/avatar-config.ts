@@ -81,6 +81,12 @@ function seedValue(value: unknown, fallback: string) {
   return normalized && normalized.length <= 120 ? normalized : fallback;
 }
 
+/**
+ * Configuração inicial do avatar gerado, semeada pelo nome da pessoa.
+ *
+ * A semente vem do nome para que o mesmo servidor produza sempre o mesmo desenho
+ * e a identidade visual permaneça estável entre sessões e dispositivos.
+ */
 export function defaultAvatarConfig(personName: string): AvatarConfig {
   return {
     version: 1,
@@ -106,6 +112,13 @@ export function defaultAvatarConfig(personName: string): AvatarConfig {
   };
 }
 
+/**
+ * Valida a configuração de avatar vinda de `people.metadata.avatar_config`.
+ *
+ * Cada campo é conferido contra o catálogo permitido e, quando inválido, cai no
+ * padrão derivado do nome. Metadado antigo, incompleto ou corrompido nunca pode
+ * impedir a renderização do avatar nem quebrar a página.
+ */
 export function normalizeAvatarConfig(value: unknown, personName: string): AvatarConfig {
   const source = recordValue(value);
   const fallback = defaultAvatarConfig(personName);

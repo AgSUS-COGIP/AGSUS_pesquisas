@@ -31,11 +31,17 @@ type AccessResolution = {
   message?: string;
 };
 
+// Cache de módulo (não de React): sobrevive à navegação no cliente, de modo que
+// abrir várias telas não repete a resolução de permissões. Após alterar papel,
+// módulo ou avatar, chame `invalidatePlatformContext()`.
 const CONTEXT_TTL = 2 * 60_000;
 let cachedContext: PlatformContext | null = null;
 let cachedAt = 0;
+// Requisição em voo compartilhada: várias instâncias montadas no mesmo ciclo
+// (por exemplo cada PersonAvatar da página) aguardam a mesma promessa.
 let pendingContext: Promise<PlatformContext> | null = null;
 
+/** Traduz o contexto institucional nos módulos que a interface deve exibir. */
 export function deriveModules(context: PlatformContext) {
   return resolvePlatformModules({
     roles: context.roles,
@@ -44,6 +50,13 @@ export function deriveModules(context: PlatformContext) {
   });
 }
 
+/**
+ * Rótulo do perfil principal exibido na casca e no perfil.
+ *
+ * A ordem é de maior para menor privilégio e é independente de
+ * `resolvePlatformModules`: uma pessoa pode acumular papéis, mas só um rótulo
+ * aparece na interface.
+ */
 export function profileLabel(context: PlatformContext) {
   const roles = context.roles ?? [];
   if (roles.includes("ADMINISTRATOR")) return "Administrador da Plataforma";
@@ -60,6 +73,9 @@ async function loadContextFromDatabase() {
   return data as PlatformContext | null;
 }
 
+// A foto é acessório: falha de sincronização não pode impedir o acesso, então o
+// erro fica apenas em aviso. `AUTH_REQUIRED` é silenciado porque o fluxo
+// principal já vai tratá-lo redirecionando para /acesso.
 async function syncGoogleAvatar() {
   const supabase = createBrowserSupabaseClient();
   const { error } = await supabase.rpc("sync_my_google_avatar");
@@ -93,6 +109,9 @@ async function fetchPlatformContext() {
     await syncGoogleAvatar();
     let resolved = await loadContextFromDatabase();
 
+    // Primeiro acesso: a conta autenticou no Google mas ainda não está ligada a
+    // um registro em `people`. A RPC valida o domínio institucional, vincula por
+    // e-mail quando existe cadastro prévio ou cria um cadastro mínimo.
     if (resolved?.status === "UNLINKED") {
       await provisionInstitutionalAccess();
       await syncGoogleAvatar();
@@ -111,11 +130,23 @@ async function fetchPlatformContext() {
   return pendingContext;
 }
 
+/**
+ * Descarta o contexto cacheado.
+ *
+ * Obrigatório após qualquer operação que altere papéis, módulos ou identidade
+ * visual da própria pessoa — sem isso a casca exibe dado antigo por até 2 minutos.
+ */
 export function invalidatePlatformContext() {
   cachedContext = null;
   cachedAt = 0;
 }
 
+/**
+ * Carrega identidade institucional e permissões da pessoa autenticada.
+ *
+ * Sessão ausente ou expirada redireciona para `/acesso` em vez de expor erro:
+ * nenhuma tela autenticada tem o que mostrar sem contexto.
+ */
 export function usePlatformContext() {
   const [context, setContext] = useState<PlatformContext | null>(() => cachedContext);
   const [loading, setLoading] = useState(!cachedContext);

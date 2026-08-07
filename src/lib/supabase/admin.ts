@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
+// Nomes modernos primeiro, legados como alternativa: projetos criados antes da
+// renomeação do Supabase continuam funcionando sem editar variáveis.
 const ADMIN_URL_VARIABLES = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"] as const;
 const ADMIN_KEY_VARIABLES = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"] as const;
 
@@ -20,6 +22,13 @@ function firstConfiguredValue(environment: Environment, variables: readonly stri
   return undefined;
 }
 
+/**
+ * Verifica se as variáveis administrativas estão presentes, sem criar cliente.
+ *
+ * Usada por `/api/health` para diagnosticar configuração incompleta sem tocar no
+ * banco. Recebe `environment` como parâmetro para permitir teste sem mutar
+ * `process.env`.
+ */
 export function getAdminSupabaseConfigurationStatus(
   environment: Environment = process.env,
 ): ConfigurationStatus {
@@ -48,6 +57,16 @@ export class AdminSupabaseConfigurationError extends Error {
   }
 }
 
+/**
+ * Cria um cliente Supabase com a chave de serviço.
+ *
+ * **Este cliente ignora Row Level Security.** Só pode ser usado em Route Handlers
+ * (`src/app/api/**`) — importá-lo em componente de cliente vazaria a chave secreta
+ * no bundle enviado ao navegador. Nunca aceite nome de tabela ou coluna vindo da
+ * requisição em consultas feitas com ele.
+ *
+ * @throws {AdminSupabaseConfigurationError} quando falta URL ou chave secreta.
+ */
 export function createAdminSupabaseClient() {
   const configuration = getAdminSupabaseConfigurationStatus();
   if (!configuration.configured) {
@@ -58,6 +77,8 @@ export function createAdminSupabaseClient() {
   const secretKey = firstConfiguredValue(process.env, ADMIN_KEY_VARIABLES)!;
 
   return createClient(url, secretKey, {
+    // Sem sessão nem renovação: o cliente é criado por requisição e não deve
+    // guardar estado entre invocações da função serverless.
     auth: {
       persistSession: false,
       autoRefreshToken: false,

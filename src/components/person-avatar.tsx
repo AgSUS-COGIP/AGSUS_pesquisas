@@ -21,11 +21,20 @@ function validAvatarUrl(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+/** Iniciais do primeiro e do último nome; `--` quando o nome está vazio. */
 export function personInitials(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase() || "--";
 }
 
+/**
+ * Avatar institucional com degradação para iniciais.
+ *
+ * Quando a pessoa exibida é a da sessão, prefere o avatar canônico do contexto em
+ * vez da prop recebida: assim, trocar a imagem em `/perfil` atualiza todas as
+ * ocorrências do próprio usuário na mesma navegação, sem esperar o recarregamento
+ * de cada tela que passou a URL antiga.
+ */
 export function PersonAvatar({
   fullName,
   avatarUrl,
@@ -44,6 +53,8 @@ export function PersonAvatar({
   const normalizedUrl = isCurrentPerson ? canonicalAvatar ?? requestedAvatar : requestedAvatar;
   const imageFailed = Boolean(normalizedUrl && failedUrl === normalizedUrl);
 
+  // Uma URL diferente da que falhou merece nova tentativa; sem isso, trocar de
+  // avatar depois de um erro manteria as iniciais para sempre.
   useEffect(() => {
     if (failedUrl && failedUrl !== normalizedUrl) setFailedUrl(null);
   }, [failedUrl, normalizedUrl]);
@@ -56,6 +67,7 @@ export function PersonAvatar({
           alt={alt ?? `Avatar de ${fullName}`}
           onError={() => setFailedUrl(normalizedUrl)}
           className={cn("h-full w-full object-cover", imageClassName)}
+          // Exigido pelas URLs de foto do Google, que recusam requisição com referer.
           referrerPolicy="no-referrer"
         />
       </span>

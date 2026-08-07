@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Única lista de rotas acessíveis sem sessão. Tudo o que não estiver aqui exige
+// autenticação — o padrão é fechado, de modo que uma rota nova nasce protegida.
 const PUBLIC_PATHS = new Set(["/", "/acesso", "/auth/confirm", "/api/health"]);
 
 function isPublicPath(pathname: string) {
@@ -16,6 +18,17 @@ function addResponseHeaders(response: NextResponse) {
   return response;
 }
 
+/**
+ * Renova a sessão Supabase a cada requisição e guarda as rotas privadas.
+ *
+ * Executada pelo middleware (`proxy.ts` na raiz). Três efeitos:
+ * 1. atualiza os cookies de sessão, para que a sessão não expire durante o uso;
+ * 2. redireciona anônimo em rota privada para `/acesso`, preservando o destino;
+ * 3. aplica cabeçalhos de segurança em toda resposta.
+ *
+ * Sem as variáveis públicas configuradas, rota privada responde 503 em vez de
+ * falhar de forma opaca.
+ */
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -37,6 +50,8 @@ export async function updateSession(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
+      // Os cookies renovados precisam ser gravados na requisição (para o restante
+      // desta execução) e numa resposta recriada (para chegarem ao navegador).
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });

@@ -107,6 +107,13 @@ export default function GenericSurveyPage() {
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
   const saving = pendingSaves > 0;
 
+  /**
+   * Encadeia a gravação após as anteriores.
+   *
+   * A serialização evita que dois autossalvamentos da mesma pergunta cheguem ao
+   * banco fora de ordem e gravem o valor antigo por último. O `catch` que precede
+   * o `then` mantém a corrente viva depois de uma falha.
+   */
   function enqueueSave(question: Question, value: AnswerValue) {
     if (!canEdit || !submission?.submission?.id) return saveQueue.current;
     const submissionId = submission.submission.id;
@@ -155,6 +162,12 @@ export default function GenericSurveyPage() {
     }
   }
 
+  /**
+   * Dispara imediatamente as gravações ainda em espera e aguarda a fila.
+   *
+   * Necessário antes do envio definitivo: sem isso, texto digitado nos últimos
+   * milissegundos ficaria preso no debounce e seria perdido.
+   */
   async function flushPendingSaves() {
     const delayedQuestionIds = Object.keys(timers.current);
     delayedQuestionIds.forEach((questionId) => {

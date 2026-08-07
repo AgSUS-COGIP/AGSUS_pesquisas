@@ -27,6 +27,10 @@ export function AvatarIdentityPicker({ personName, currentUrl, currentSource, cu
       const { error } = await supabase.rpc("set_my_avatar_choice", { p_source: source, p_avatar_url: null });
       if (error) throw error;
       setSelectedSource(source);
+      // A casca inteira (cabeçalho, barra lateral, avatares em listas) deriva do
+      // contexto cacheado, então descartá-lo e recarregar é o caminho mais simples
+      // para refletir a nova imagem em todos os lugares de uma vez. O atraso deixa
+      // o toast visível antes da recarga.
       invalidatePlatformContext();
       toast.success("Imagem de perfil atualizada em toda a plataforma.");
       window.setTimeout(() => window.location.reload(), 300);

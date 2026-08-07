@@ -23,6 +23,13 @@ export function getPlatformThemeState(theme: PlatformTheme, prefersDark: boolean
   } as const;
 }
 
+/**
+ * Script executado antes da primeira pintura (`beforeInteractive` no layout raiz).
+ *
+ * Aplica o tema salvo direto no `<html>` para evitar o flash de tema claro numa
+ * sessão configurada como escura. Precisa ser string síncrona e independente do
+ * bundle React, que só carrega depois. Falha de `localStorage` degrada para claro.
+ */
 export function platformThemeBootstrapScript() {
   const storageKey = JSON.stringify(PLATFORM_THEME_STORAGE_KEY);
   const attribute = JSON.stringify(PLATFORM_THEME_ATTRIBUTE);
