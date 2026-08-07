@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const controlClass =
-  "mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-white px-3.5 py-3 text-sm font-medium text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-600 aria-[invalid=true]:focus:ring-red-100";
+  "mt-2 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3.5 py-3 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-secondary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/20";
 
 function FieldText({ id, children, error = false }: { id: string; children: ReactNode; error?: boolean }) {
   return (
@@ -40,7 +40,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
   return (
     <div className={containerClassName}>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+      <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
         {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
       </label>
@@ -78,7 +78,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 
   return (
     <div className={containerClassName}>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+      <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
         {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
       </label>
@@ -116,7 +116,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
 
   return (
     <div className={containerClassName}>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+      <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
         {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
       </label>
@@ -160,7 +160,7 @@ export const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
       <label
         htmlFor={id}
         className={cn(
-          "flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-4 transition hover:border-slate-300",
+          "flex cursor-pointer items-start gap-3 rounded-xl border bg-[var(--surface-card)] p-4 transition hover:border-[var(--border-strong)]",
           error ? "border-red-400" : "border-[var(--border-subtle)]",
         )}
       >
@@ -177,8 +177,8 @@ export const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
           )}
         />
         <span className="min-w-0">
-          <strong className="block text-sm font-semibold text-slate-900">{label}</strong>
-          {description && <span id={descriptionId} className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>}
+          <strong className="block text-sm font-semibold text-[var(--text-primary)]">{label}</strong>
+          {description && <span id={descriptionId} className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">{description}</span>}
         </span>
       </label>
       {error && <FieldText id={errorId!} error>{error}</FieldText>}

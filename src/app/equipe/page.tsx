@@ -6,14 +6,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownUp, CheckCircle2, ClipboardCheck, Clock3, Loader2, Plus, Search, UserMinus, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { FullPageState } from "@/components/full-page-state";
+import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
-type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null };
+type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
+type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null };
 type TeamWorkspace = { status: string; application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null }; members: TeamMember[]; total: number };
 type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
 type SortMode = "PRIORITY" | "NAME" | "UPDATED";
@@ -22,14 +23,14 @@ const teamWorkspaceKey = ["team", "workspace"] as const;
 
 async function fetchTeamWorkspace() {
   const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("get_my_team_workspace", { target_application_code: null });
+  const { data, error } = await supabase.rpc("fc_obter_minha_equipe", { target_application_code: null });
   if (error) throw error;
   return data as TeamWorkspace;
 }
 
 async function fetchTeamCandidates(applicationId: string, searchTerm: string) {
   const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("search_team_candidates", {
+  const { data, error } = await supabase.rpc("fc_pesquisar_equipe", {
     target_application_id: applicationId,
     search_term: searchTerm,
   });
@@ -37,7 +38,6 @@ async function fetchTeamCandidates(applicationId: string, searchTerm: string) {
   return Array.isArray(data) ? data as Candidate[] : [];
 }
 
-function initials(name: string) { const parts = name.trim().split(/\s+/).filter(Boolean); return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase(); }
 function submissionLabel(status: string | null) {
   if (status === "SUBMITTED" || status === "VALIDATED") return "Avaliação enviada";
   if (status === "DRAFT") return "Em preenchimento";
@@ -135,7 +135,7 @@ export default function TeamPage() {
   if (teamQuery.isError) return <FullPageState title="Não foi possível carregar sua equipe" description={teamQuery.error instanceof Error ? teamQuery.error.message : "Tente novamente em alguns instantes."} />;
   const modules = deriveModules(context);
   const person = context.person;
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
+  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: person.avatarUrl, roles: context.roles, modules };
   const sent = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "SUBMITTED").length ?? 0;
   const drafts = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "DRAFT").length ?? 0;
   const notStarted = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "NOT_STARTED").length ?? 0;
@@ -169,7 +169,7 @@ export default function TeamPage() {
         {teamQuery.isLoading ? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : filtered.length ? filtered.map((member) => {
           const state = normalizedStatus(member.submissionStatus);
           return <article key={member.linkId} className={`grid gap-4 rounded-xl border p-4 transition lg:grid-cols-[auto_1fr_auto_auto] lg:items-center ${state === "NOT_STARTED" ? "border-amber-200 bg-amber-50/40" : state === "DRAFT" ? "border-blue-200 bg-blue-50/30" : "border-slate-200 hover:border-emerald-200"}`}>
-            <div className="grid h-12 w-12 place-items-center rounded-xl bg-white font-black text-[#003b70] shadow-sm">{initials(member.fullName)}</div>
+            <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-12 w-12 rounded-xl shadow-sm" fallbackClassName="text-sm" />
             <div className="min-w-0"><strong className="block truncate text-[#003b70]">{member.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{member.unit ?? member.workplace ?? "Unidade não informada"}</p></div>
             <div className="min-w-[150px]"><span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-black ${state === "SUBMITTED" ? "bg-emerald-100 text-emerald-800" : state === "DRAFT" ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"}`}>{submissionLabel(member.submissionStatus)}</span><p className="mt-2 text-xs text-slate-500">{dateTime(member.submissionUpdatedAt)}</p></div>
             <div className="flex flex-wrap gap-2"><Link href={`/cddi/chefia/${member.personId}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-4 py-2.5 text-sm font-black text-white"><ClipboardCheck className="h-4 w-4"/>{actionLabel(member.submissionStatus)}</Link><button type="button" disabled={workingId === member.linkId} onClick={() => removeMember(member)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-black text-red-700 disabled:opacity-50">{workingId === member.linkId ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserMinus className="h-4 w-4"/>}Retirar</button></div>
@@ -192,7 +192,7 @@ export default function TeamPage() {
         <input autoFocus value={candidateSearch} onChange={(event) => setCandidateSearch(event.target.value)} placeholder="Digite nome, matrícula ou e-mail" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 font-semibold outline-none focus:border-blue-400 focus:bg-white" />
       </label>
       <div className="mt-5 max-h-[55vh] space-y-3 overflow-y-auto pr-1" aria-live="polite">
-        {candidateQuery.isFetching ? <div className="flex items-center justify-center py-16 text-slate-500"><Loader2 className="mr-3 h-5 w-5 animate-spin" />Pesquisando participantes...</div> : candidateQuery.isError ? <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">Não foi possível pesquisar pessoas. Feche a janela e tente novamente.</div> : candidates.length ? candidates.map((candidate) => <article key={candidate.personId} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center"><div className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 font-black text-[#003b70]">{initials(candidate.fullName)}</div><div className="min-w-0 flex-1"><strong className="block truncate text-[#003b70]">{candidate.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">{candidate.employeeNumber} · {candidate.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{candidate.unit ?? candidate.institutionalEmail ?? "Sem unidade informada"}</p></div><button type="button" disabled={workingId === candidate.personId} onClick={() => addMember(candidate)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{workingId === candidate.personId ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Adicionar</button></article>) : <div className="rounded-xl bg-slate-50 p-10 text-center text-sm text-slate-500">Nenhuma pessoa elegível encontrada.</div>}
+        {candidateQuery.isFetching ? <div className="flex items-center justify-center py-16 text-slate-500"><Loader2 className="mr-3 h-5 w-5 animate-spin" />Pesquisando participantes...</div> : candidateQuery.isError ? <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">Não foi possível pesquisar pessoas. Feche a janela e tente novamente.</div> : candidates.length ? candidates.map((candidate) => <article key={candidate.personId} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center"><PersonAvatar fullName={candidate.fullName} avatarUrl={candidate.avatarUrl} className="h-11 w-11 rounded-xl" fallbackClassName="text-sm" /><div className="min-w-0 flex-1"><strong className="block truncate text-[#003b70]">{candidate.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">{candidate.employeeNumber} · {candidate.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{candidate.unit ?? candidate.institutionalEmail ?? "Sem unidade informada"}</p></div><button type="button" disabled={workingId === candidate.personId} onClick={() => addMember(candidate)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{workingId === candidate.personId ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Adicionar</button></article>) : <div className="rounded-xl bg-slate-50 p-10 text-center text-sm text-slate-500">Nenhuma pessoa elegível encontrada.</div>}
       </div>
     </Dialog>
   </PlatformShell>;

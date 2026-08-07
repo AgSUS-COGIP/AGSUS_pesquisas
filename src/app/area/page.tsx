@@ -3,29 +3,11 @@
 import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, ShieldCheck, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
-type CatalogItem = {
-  surveyId: string;
-  surveyCode: string;
-  surveyName: string;
-  description: string | null;
-  applicationId: string;
-  applicationCode: string;
-  applicationName: string;
-  applicationStatus: string;
-  opensAt: string | null;
-  closesAt: string | null;
-  completedAt: string | null;
-  submissionStatus: string | null;
-  sections: number;
-  questions: number;
-  canRespond: boolean;
-};
+import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 
 function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
   for (const key of keys) {
@@ -40,18 +22,6 @@ function greeting() {
   if (hour < 12) return "Bom dia";
   if (hour < 18) return "Boa tarde";
   return "Boa noite";
-}
-
-function applicationHref(item: CatalogItem) {
-  return item.surveyCode === "CDDI" ? "/cddi" : `/pesquisas/${encodeURIComponent(item.applicationCode)}`;
-}
-
-function itemState(item: CatalogItem) {
-  if (["SUBMITTED", "VALIDATED"].includes(item.submissionStatus ?? "") || item.completedAt) return "COMPLETED";
-  if (item.submissionStatus === "DRAFT") return "IN_PROGRESS";
-  if (item.applicationStatus === "CLOSED") return "CLOSED";
-  if (item.applicationStatus === "SCHEDULED") return "SCHEDULED";
-  return "PENDING";
 }
 
 function stateLabel(state: string) {
@@ -69,52 +39,15 @@ function dateLabel(value: string | null) {
 
 export default function ParticipantAreaPage() {
   const { context, loading, error } = usePlatformContext();
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
   const [salutation, setSalutation] = useState("Olá");
+  const catalogQuery = useSurveyCatalog(Boolean(context?.person));
+  const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
+  const catalogLoading = catalogQuery.isLoading;
 
   useEffect(() => setSalutation(greeting()), []);
 
-  useEffect(() => {
-    if (!context?.person) return;
-    const load = async () => {
-      try {
-        const supabase = createBrowserSupabaseClient();
-        const { data, error: catalogError } = await supabase.rpc("list_my_survey_catalog");
-        if (catalogError) throw catalogError;
-        setCatalog(Array.isArray(data) ? data as CatalogItem[] : []);
-      } catch (loadError) {
-        toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar sua jornada de pesquisas.");
-      } finally {
-        setCatalogLoading(false);
-      }
-    };
-    void load();
-  }, [context?.person]);
-
-  const metrics = useMemo(() => {
-    const completed = catalog.filter((item) => itemState(item) === "COMPLETED").length;
-    const inProgress = catalog.filter((item) => itemState(item) === "IN_PROGRESS").length;
-    const pending = catalog.filter((item) => ["PENDING", "SCHEDULED"].includes(itemState(item))).length;
-    return { completed, inProgress, pending, total: catalog.length };
-  }, [catalog]);
-
-  const priorityItem = useMemo(() => {
-    return catalog
-      .filter((item) => !["COMPLETED", "CLOSED"].includes(itemState(item)))
-      .sort((a, b) => {
-        const rank = (item: CatalogItem) => {
-          const state = itemState(item);
-          if (state === "IN_PROGRESS") return 0;
-          if (state === "PENDING") return 1;
-          if (state === "SCHEDULED") return 2;
-          return 3;
-        };
-        const rankDiff = rank(a) - rank(b);
-        if (rankDiff !== 0) return rankDiff;
-        return new Date(a.closesAt ?? a.opensAt ?? "2999-12-31").getTime() - new Date(b.closesAt ?? b.opensAt ?? "2999-12-31").getTime();
-      })[0] ?? null;
-  }, [catalog]);
+  const metrics = useMemo(() => summarizeSurveyCatalog(catalog), [catalog]);
+  const priorityItem = useMemo(() => selectPrioritySurvey(catalog), [catalog]);
 
   if (loading) return <PlatformSkeleton title="Preparando painel institucional" />;
   if (!context?.person || context.status !== "OK") {

@@ -33,7 +33,7 @@ export function PlatformCommandMenu({ modules }: { modules: string[] }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-10 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 transition hover:border-blue-200 hover:bg-white hover:text-[var(--brand-primary)] md:w-auto md:px-3"
+        className="flex h-10 w-10 items-center justify-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] text-sm font-bold text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:bg-[var(--control-hover)] hover:text-[var(--brand-primary)] md:w-auto md:px-3"
         aria-label="Abrir busca rápida"
       >
         <Search className="h-4 w-4" />
@@ -64,9 +64,9 @@ export function PlatformCommandMenu({ modules }: { modules: string[] }) {
                   key={item.href}
                   value={`${item.label} ${item.description}`}
                   onSelect={() => navigate(item.href)}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-slate-700 outline-none data-[selected=true]:bg-blue-50 data-[selected=true]:text-[var(--brand-primary)]"
+                  className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-[var(--text-primary)] outline-none data-[selected=true]:bg-[var(--status-info-bg)] data-[selected=true]:text-[var(--brand-primary)]"
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-[var(--brand-primary)]">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
                     <PlatformIcon name={item.icon} className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{item.label}</strong><small className="block truncate text-xs text-slate-500">{item.description}</small></span>

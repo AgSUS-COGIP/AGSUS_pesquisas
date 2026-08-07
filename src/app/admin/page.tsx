@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, FileCog, FilePlus2, LockKeyhole, Network, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
+import { ArrowRight, BarChart3, FileCog, FilePlus2, LockKeyhole, Network, Settings2, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
 import Link from "next/link";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
@@ -12,6 +12,7 @@ const cards = [
   { href: "/admin/equipes", tag: "Estrutura", title: "Equipes e lideranças", description: "Gerencie vínculos de avaliação, responsáveis e ajustes organizacionais.", metric: "Vínculos auditáveis", icon: Network, tone: "bg-amber-50 text-amber-700" },
   { href: "/admin/acessos", tag: "Segurança", title: "Acessos e permissões", description: "Controle papéis, módulos e exceções de acesso por pessoa.", metric: "Permissão por perfil", icon: LockKeyhole, tone: "bg-violet-50 text-violet-700" },
   { href: "/admin/importacao", tag: "Dados", title: "Importações", description: "Valide planilhas oficiais, trate pendências e acompanhe lotes processados.", metric: "Pré-validação em lotes", icon: UploadCloud, tone: "bg-cyan-50 text-cyan-700" },
+  { href: "/admin/configuracoes", tag: "Sistema", title: "Marca e aparência", description: "Altere logotipo, nomes institucionais e a cor principal da plataforma.", metric: "Identidade centralizada", icon: Settings2, tone: "bg-sky-50 text-sky-700" },
   { href: "/paineis", tag: "Governança", title: "Indicadores e auditoria", description: "Acompanhe adesão, conclusão, inconsistências e eventos relevantes.", metric: "Visão gerencial", icon: BarChart3, tone: "bg-rose-50 text-rose-700" },
 ];
 
@@ -24,7 +25,7 @@ export default function AdminDashboardPage() {
   if (!isAdmin) return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
 
   const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
-  const visibleCards = cards.filter((card) => card.href !== "/admin/acessos" || modules.includes("ADMIN_ACCESS"));
+  const visibleCards = cards.filter((card) => !["/admin/acessos", "/admin/configuracoes"].includes(card.href) || modules.includes("ADMIN_ACCESS"));
 
   return <PlatformShell user={user} eyebrow="Equipe Técnica" title="Central administrativa" actions={<Link href="/admin/pesquisas/nova" className="hidden items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#075ea8] md:inline-flex"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link>}>
     <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_80%_15%,rgba(45,212,191,.22),transparent_25%),linear-gradient(125deg,#08243f,#064f89_58%,#0878a6)] p-7 text-white shadow-[0_24px_60px_rgba(0,47,89,.22)] sm:p-9">

@@ -1,12 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { safeAuthNext } from "@/lib/auth-callback";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
-
-const LOGO_AGSUS = "/agsus-mark.svg";
+import { ExternalImage } from "@/components/external-image";
+import { usePlatformBranding } from "@/components/platform-branding-provider";
 const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
 
 function accessErrorMessage(code: string | null) {
@@ -43,6 +42,7 @@ function preloadFirstAvailable(urls: string[]) {
 }
 
 export default function AccessPage() {
+  const { branding } = usePlatformBranding();
   const supabaseConfigured = isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -132,9 +132,9 @@ export default function AccessPage() {
         <div className="h-1.5 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
         <div className="px-7 py-9 sm:px-12 sm:py-11">
           <div className="text-center">
-            <Image src={LOGO_AGSUS} alt="AgSUS" width={80} height={80} priority className="mx-auto h-20 w-20 object-contain" />
+            <ExternalImage src={branding.logoUrl} alt={branding.organizationName} width={80} height={80} priority className="mx-auto h-20 w-20 object-contain" />
             <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-[#0b8f58]">Acesso institucional</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">Plataforma de Pesquisas e Avaliações</h1>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">{branding.productName}</h1>
             <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As pesquisas exibidas dependem das autorizações do seu perfil.</p>
           </div>
 

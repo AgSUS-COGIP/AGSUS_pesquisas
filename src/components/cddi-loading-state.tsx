@@ -2,8 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function CddiLoadingState() {
   return (
-    <main
-      className="min-h-screen bg-[#eef3f8] px-4 py-5 text-slate-900 sm:px-6"
+    <div
+      className="min-h-[60vh] bg-[var(--surface-page)] px-4 py-5 text-[var(--text-primary)] sm:px-6"
       aria-busy="true"
       aria-live="polite"
       aria-label="Carregando o Ciclo de Devolutivas e Desenvolvimento Individual"
@@ -56,6 +56,6 @@ export function CddiLoadingState() {
 
         <p className="sr-only">Carregando informações, identidade e etapas do CDDI.</p>
       </div>
-    </main>
+    </div>
   );
 }
