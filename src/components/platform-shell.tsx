@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { ExternalImage } from "@/components/external-image";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
+import { PlatformLogo } from "@/components/platform-logo";
 import { PlatformIcon } from "@/components/platform-icons";
 import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
 import { PlatformCommandMenu } from "@/components/platform-command-menu";
@@ -46,7 +46,7 @@ function Avatar({ user, compact = false }: { user: PlatformUser; compact?: boole
   );
 }
 
-function BrandLockup({ compact, branding, mobile = false }: { compact: boolean; branding: PlatformBranding; mobile?: boolean }) {
+function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { compact: boolean; branding: PlatformBranding; brandingLoading: boolean; mobile?: boolean }) {
   const showName = !compact || mobile;
   return (
     <Link
@@ -55,7 +55,7 @@ function BrandLockup({ compact, branding, mobile = false }: { compact: boolean; 
       className={`flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${compact && !mobile ? "justify-center" : ""}`}
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200/80 bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
-        <ExternalImage src={branding.logoUrl} alt="" width={32} height={32} sizes="32px" className="h-8 w-8 object-contain" />
+        <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={32} height={32} sizes="32px" loading={brandingLoading} className="h-8 w-8 object-contain text-[10px]" />
       </span>
       {showName ? (
         <span className="min-w-0 leading-none">
@@ -96,14 +96,14 @@ function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNav
   );
 }
 
-function SidebarContent({ user, branding, compact, modules, mobile = false, onNavigate, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void }) {
+function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
 
   return (
     <div className={`relative flex h-full min-h-0 flex-col overflow-hidden ${mobile ? "bg-[var(--surface-card)] text-[var(--text-primary)]" : "bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
       <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
-        <BrandLockup compact={compact} branding={branding} mobile={mobile} />
+        <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
       {!mobile ? (
         <button
@@ -136,16 +136,16 @@ function SidebarContent({ user, branding, compact, modules, mobile = false, onNa
   );
 }
 
-function DesktopSidebar({ user, branding, compact, modules, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
+function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
   return (
     <aside data-print-hidden="true" aria-label="Navegação principal" className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex">
-      <SidebarContent user={user} branding={branding} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} />
+      <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} />
     </aside>
   );
 }
 
 export function PlatformShell({ user, title, eyebrow, children, actions }: { user: PlatformUser; title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode }) {
-  const { branding } = usePlatformBranding();
+  const { branding, loading: brandingLoading } = usePlatformBranding();
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -178,7 +178,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-primary)]">
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
-      <DesktopSidebar user={user} branding={branding} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
+      <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
       <Drawer
         id={MOBILE_NAVIGATION_ID}
         open={mobileOpen}
@@ -190,7 +190,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
         contentClassName="flex p-0 sm:p-0"
         closeLabel="Fechar menu"
       >
-        <SidebarContent user={user} branding={branding} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
+        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
       </Drawer>
       <div className="platform-shell-content min-w-0 transition-[padding] duration-300">
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">

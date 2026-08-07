@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding, type PlatformBranding } from "@/lib/platform-branding";
 
 export const platformBrandingQueryKey = ["platform", "branding"] as const;
+const PLATFORM_BRANDING_CACHE_KEY = "agsus-platform-branding-v1";
 
 type PlatformBrandingContextValue = {
   branding: PlatformBranding;
@@ -26,13 +27,30 @@ async function fetchPlatformBranding() {
 }
 
 export function PlatformBrandingProvider({ children }: { children: ReactNode }) {
+  const [cachedBranding, setCachedBranding] = useState<PlatformBranding | null>(null);
   const query = useQuery({
     queryKey: platformBrandingQueryKey,
     queryFn: fetchPlatformBranding,
     staleTime: 10 * 60_000,
     retry: false,
   });
-  const branding = query.data ?? DEFAULT_PLATFORM_BRANDING;
+  const branding = query.data ?? cachedBranding ?? DEFAULT_PLATFORM_BRANDING;
+  const brandingResolved = !isBrowserSupabaseConfigured() || Boolean(query.data ?? cachedBranding);
+
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(PLATFORM_BRANDING_CACHE_KEY);
+      if (cached) setCachedBranding(normalizePlatformBranding(JSON.parse(cached)));
+    } catch {
+      window.localStorage.removeItem(PLATFORM_BRANDING_CACHE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!query.data) return;
+    setCachedBranding(query.data);
+    window.localStorage.setItem(PLATFORM_BRANDING_CACHE_KEY, JSON.stringify(query.data));
+  }, [query.data]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--brand-solid", branding.primaryColor);
@@ -40,7 +58,7 @@ export function PlatformBrandingProvider({ children }: { children: ReactNode }) 
   }, [branding.primaryColor]);
 
   return (
-    <PlatformBrandingContext.Provider value={{ branding, loading: query.isLoading }}>
+    <PlatformBrandingContext.Provider value={{ branding, loading: !brandingResolved }}>
       {children}
     </PlatformBrandingContext.Provider>
   );
