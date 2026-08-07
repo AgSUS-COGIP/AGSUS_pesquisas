@@ -1,6 +1,7 @@
 import { BrainCircuit, CheckCircle2, Network, ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
-const INSTRUMENT_IMAGE = "https://i.postimg.cc/fTtNN9PM/Automatizacao-de-instrumento.png";
+const INSTRUMENT_IMAGE = "/evaluation-journey.svg";
 
 export function CddiVisualBanner() {
   return (
@@ -31,7 +32,7 @@ export function CddiVisualBanner() {
         <div className="relative mx-auto w-full max-w-xl">
           <div className="absolute inset-6 rounded-[2rem] bg-cyan-300/15 blur-3xl" />
           <div className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-white/95 p-3 shadow-2xl">
-            <img src={INSTRUMENT_IMAGE} alt="Representação visual da automação do instrumento de avaliação" className="h-auto w-full rounded-[1.4rem] object-contain" />
+            <Image src={INSTRUMENT_IMAGE} alt="Representação visual da automação do instrumento de avaliação" width={1200} height={675} sizes="(max-width: 1024px) 100vw, 45vw" className="h-auto w-full rounded-[1.4rem] object-contain" />
           </div>
         </div>
       </div>
