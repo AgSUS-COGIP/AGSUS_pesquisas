@@ -176,7 +176,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   }
 
   return (
-    <div className="min-h-screen bg-[var(--surface-page)] text-[var(--text-primary)]">
+    <div className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-primary)]">
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
       <DesktopSidebar user={user} branding={branding} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
       <Drawer
@@ -192,7 +192,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
       >
         <SidebarContent user={user} branding={branding} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
       </Drawer>
-      <div className="platform-shell-content transition-[padding] duration-300">
+      <div className="platform-shell-content min-w-0 transition-[padding] duration-300">
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
           <div className="mx-auto flex min-h-16 max-w-[1560px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -214,7 +214,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
             </div>
           </div>
         </header>
-        <main id="conteudo-principal" tabIndex={-1} className="mx-auto max-w-[1560px] px-4 py-5 outline-none sm:px-5 lg:px-6 lg:py-6">{children}</main>
+        <main id="conteudo-principal" tabIndex={-1} className="mx-auto min-w-0 max-w-[1560px] px-4 py-5 outline-none sm:px-5 lg:px-6 lg:py-6">{children}</main>
       </div>
     </div>
   );
