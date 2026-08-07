@@ -8,11 +8,13 @@ import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useConfirm } from "@/components/confirmation-provider";
+import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
-type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; settings: Record<string, unknown>; options: Option[] };
+type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; validation?: Record<string, unknown>; settings: Record<string, unknown>; options: Option[] };
 type Section = { id: string; code: string; title: string; description: string | null; position: number; questions: Question[] };
 type FormDefinition = { application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null; settings?: unknown }; survey: { name: string; description: string | null }; sections: Section[] };
 type StoredAnswer = { answerText?: string | null; answerNumber?: number | null; optionId?: string | null; optionValue?: string | null };
@@ -87,7 +89,8 @@ export default function CddiFormPage() {
           const value = answer.answerText ?? answer.optionValue ?? (answer.answerNumber != null ? String(answer.answerNumber) : "");
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
-        setDefinition(formResponse.data as FormDefinition);
+        const rawDefinition = formResponse.data as FormDefinition;
+        setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "AUTO") });
         setSubmission(context);
         setIdentity(identityResponse.data as IdentityContext);
         setAnswers(restored);
@@ -124,7 +127,7 @@ export default function CddiFormPage() {
     try {
       const supabase = createBrowserSupabaseClient();
       const { data, error } = await supabase.rpc("save_my_cddi_answer", { target_submission_id: submission.submission.id, target_question_id: question.id, target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null, target_text: question.type === "SCALE" ? null : answer.value });
-      if (error) throw error;
+      if (error) throw new Error(errorMessageFromUnknown(error));
       setSavedAt((data as { savedAt?: string } | null)?.savedAt ?? new Date().toISOString());
       setSaveState("saved");
     } catch (error) {
@@ -205,14 +208,14 @@ export default function CddiFormPage() {
     try {
       const supabase = createBrowserSupabaseClient();
       const { data, error } = await supabase.rpc("submit_my_cddi_submission", { target_submission_id: submission.submission.id });
-      if (error) throw error;
+      if (error) throw new Error(errorMessageFromUnknown(error));
       const result = data as { submittedAt?: string; result?: number } | null;
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessageType("success");
       setMessage("Autoavaliação enviada com sucesso.");
     } catch (error) {
       setMessageType("error");
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a avaliação.");
+      setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
     } finally { setSubmitting(false); }
   }
 

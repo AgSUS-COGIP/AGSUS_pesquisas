@@ -8,9 +8,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirmation-provider";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { PersonAvatar } from "@/components/person-avatar";
+import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 
 type Option = { id: string; label: string; value: string; position: number };
-type Question = { id: string; title: string; description: string | null; type: string; required: boolean; options: Option[] };
+type Question = { id: string; title: string; description: string | null; type: string; required: boolean; validation?: Record<string, unknown>; options: Option[] };
 type Section = { id: string; code: string; title: string; description: string | null; questions: Question[] };
 type FormDefinition = { application: { status: string; opensAt: string | null; closesAt: string | null }; sections: Section[] };
 type StoredAnswer = { answerText?: string | null; answerNumber?: number | null; optionId?: string | null; optionValue?: string | null };
@@ -40,10 +43,18 @@ export default function LeaderEvaluationPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const timers = useRef<Record<string, number>>({});
+  const latestAnswers = useRef<Answers>({});
+  const [saveQueue] = useState(() => new ReliableSaveQueue());
+  const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
   const formTopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => saveQueue.subscribe(setSaveSnapshot), [saveQueue]);
+
+  useEffect(() => {
+    latestAnswers.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     const load = async () => {
@@ -65,12 +76,14 @@ export default function LeaderEvaluationPage() {
           const value = answer.answerText ?? answer.optionValue ?? (answer.answerNumber != null ? String(answer.answerNumber) : "");
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
-        setDefinition(formResponse.data as FormDefinition);
+        const rawDefinition = formResponse.data as FormDefinition;
+        setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "CHEFIA") });
         setSubmission(context);
         setMember(selected);
+        latestAnswers.current = restored;
         setAnswers(restored);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Não foi possível abrir a avaliação.");
+        setMessage(errorMessageFromUnknown(error) || "Não foi possível abrir a avaliação.");
       } finally { setLoading(false); }
     };
     void load();
@@ -82,35 +95,53 @@ export default function LeaderEvaluationPage() {
   const totalSteps = sections.length + 1;
   const currentSection = step < sections.length ? sections[step] : null;
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
+  const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
   const progress = requiredQuestions.length ? Math.round(requiredQuestions.filter((question) => answered(question, answers)).length / requiredQuestions.length * 100) : 0;
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
+  const saving = saveSnapshot.pending > 0;
 
-  async function saveAnswer(question: Question, answer: AnswerValue) {
-    if (!canEdit || !submission?.submission?.id) return;
-    setSaving(true);
-    try {
+  function saveAnswer(question: Question, answer: AnswerValue) {
+    if (!canEdit || !submission?.submission?.id) return Promise.resolve();
+    const submissionId = submission.submission.id;
+    return saveQueue.enqueue(async () => {
       const supabase = createBrowserSupabaseClient();
       const { error } = await supabase.rpc("save_my_cddi_answer", {
-        target_submission_id: submission.submission.id,
+        target_submission_id: submissionId,
         target_question_id: question.id,
         target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null,
         target_text: question.type === "SCALE" ? null : answer.value,
       });
-      if (error) throw error;
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível salvar a resposta.");
-    } finally { setSaving(false); }
+      if (error) throw new Error(errorMessageFromUnknown(error));
+    }).catch((error) => {
+      setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
+      throw error;
+    });
   }
   function updateScale(question: Question, option: Option) {
     const answer = { value: option.value, optionId: option.id };
-    setAnswers((current) => ({ ...current, [question.id]: answer }));
-    void saveAnswer(question, answer);
+    latestAnswers.current = { ...latestAnswers.current, [question.id]: answer };
+    setAnswers(latestAnswers.current);
+    void saveAnswer(question, answer).catch(() => undefined);
   }
   function updateText(question: Question, value: string) {
     const answer = { value };
-    setAnswers((current) => ({ ...current, [question.id]: answer }));
+    latestAnswers.current = { ...latestAnswers.current, [question.id]: answer };
+    setAnswers(latestAnswers.current);
     if (timers.current[question.id]) window.clearTimeout(timers.current[question.id]);
-    timers.current[question.id] = window.setTimeout(() => void saveAnswer(question, answer), 700);
+    timers.current[question.id] = window.setTimeout(() => {
+      delete timers.current[question.id];
+      void saveAnswer(question, latestAnswers.current[question.id] ?? answer).catch(() => undefined);
+    }, 700);
+  }
+  async function flushPendingSaves() {
+    Object.keys(timers.current).forEach((questionId) => {
+      window.clearTimeout(timers.current[questionId]);
+      delete timers.current[questionId];
+      const question = questionsById.get(questionId);
+      const answer = latestAnswers.current[questionId];
+      if (question && answer) void saveAnswer(question, answer).catch(() => undefined);
+    });
+    await saveQueue.flush();
   }
   function goTo(target: number) {
     if (target > step && currentSection && canEdit) {
@@ -127,14 +158,15 @@ export default function LeaderEvaluationPage() {
     if (!(await confirm({ title: "Enviar avaliação da chefia?", description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`, confirmLabel: "Enviar avaliação" }))) return;
     setSubmitting(true);
     try {
+      await flushPendingSaves();
       const supabase = createBrowserSupabaseClient();
       const { data, error } = await supabase.rpc("submit_my_cddi_submission", { target_submission_id: submission.submission.id });
-      if (error) throw error;
+      if (error) throw new Error(errorMessageFromUnknown(error));
       const result = data as { submittedAt?: string; result?: number } | null;
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessage("Avaliação da chefia enviada com sucesso.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a avaliação.");
+      setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
     } finally { setSubmitting(false); }
   }
 
