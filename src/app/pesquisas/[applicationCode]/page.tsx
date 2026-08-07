@@ -49,6 +49,7 @@ export default function GenericSurveyPage() {
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const formTopRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     latestAnswers.current = answers;
@@ -180,6 +181,11 @@ export default function GenericSurveyPage() {
     return true;
   }
 
+  function goToStep(target: number) {
+    setStep(Math.max(0, Math.min(target, sections.length - 1)));
+    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   async function submitSurvey() {
     if (!submission?.submission?.id || !canEdit) return;
     if (answeredRequired !== requiredQuestions.length) {
@@ -250,14 +256,14 @@ export default function GenericSurveyPage() {
         <div className="h-1 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
       </section>
 
-      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section ref={formTopRef} className="mt-5 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div><strong className="text-[#003b70]">Progresso</strong><p className="mt-1 text-xs text-slate-500">{answeredRequired} de {requiredQuestions.length} obrigatórias respondidas</p></div>
           <span className="text-2xl font-black text-[#003b70]">{progress}%</span>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-[#003b70] via-emerald-500 to-cyan-500" style={{ width: `${progress}%` }} /></div>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => setStep(index)} className={`min-w-fit rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
+          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => goToStep(index)} className={`min-w-fit rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
         </div>
       </section>
 
@@ -284,14 +290,14 @@ export default function GenericSurveyPage() {
         </section>
       )}
 
-      <footer className="sticky bottom-4 z-20 mt-5 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+      <footer className="mt-5 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-slate-500">{saving ? <><Loader2 className="h-4 w-4 animate-spin" />Salvando {pendingSaves > 1 ? `${pendingSaves} alterações` : "alteração"}...</> : <><Save className="h-4 w-4" />{canEdit ? "Todas as alterações foram salvas" : isSubmitted ? "Envio concluído" : "Modo somente leitura"}</>}</div>
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/pesquisas" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-black text-slate-600"><FileText className="h-4 w-4" />Catálogo</Link>
-            <button type="button" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0 || submitting} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-black text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4" />Anterior</button>
+            <button type="button" onClick={() => goToStep(step - 1)} disabled={step === 0 || submitting} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-black text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4" />Anterior</button>
             {step < sections.length - 1 ? (
-              <button type="button" onClick={() => { if (validateCurrentSection()) setStep((current) => current + 1); }} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 font-black text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => { if (validateCurrentSection()) goToStep(step + 1); }} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 font-black text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" /></button>
             ) : canEdit ? (
               <button type="button" onClick={submitSurvey} disabled={submitting || answeredRequired !== requiredQuestions.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Salvando e enviando..." : "Enviar pesquisa"}</button>
             ) : isSubmitted ? (

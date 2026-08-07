@@ -65,6 +65,7 @@ export default function CddiFormPage() {
   const [leaderSaving, setLeaderSaving] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
   const leaderTimer = useRef<number | null>(null);
+  const formTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -165,7 +166,7 @@ export default function CddiFormPage() {
     if (validateAdvance && target > step && !validateCurrentStep()) return;
     setMessage("");
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
   function searchLeaders(value: string) {
     setLeaderQuery(value);
@@ -251,7 +252,7 @@ export default function CddiFormPage() {
   return (
     <CddiPlatformFrame title="Autoavaliação CDDI">
     <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[960px] px-4 py-4 sm:px-6">
+      <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] px-4 py-4 sm:px-6">
         <SurveyBanner key={`form-${visualIdentity.bannerUrl}`} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
         <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
         <section className={`mt-4 rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? "O formulário está disponível em modo de consulta." : "Suas respostas são salvas automaticamente durante o preenchimento."}</p></section>

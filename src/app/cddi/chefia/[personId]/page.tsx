@@ -43,6 +43,7 @@ export default function LeaderEvaluationPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const timers = useRef<Record<string, number>>({});
+  const formTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -118,7 +119,7 @@ export default function LeaderEvaluationPage() {
     }
     setMessage("");
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
@@ -141,7 +142,7 @@ export default function LeaderEvaluationPage() {
   if (!definition || !member || !submission) return <CddiPlatformFrame title="Avaliação da chefia"><div className="grid min-h-[60vh] place-items-center px-6"><section className="max-w-xl rounded-2xl bg-[var(--surface-card)] p-8 shadow-sm"><h1 className="text-2xl font-black text-[var(--text-primary)]">Avaliação indisponível</h1><p className="mt-3 text-[var(--text-secondary)]">{message}</p><Link href="/equipe" className="mt-5 inline-flex rounded-xl bg-[var(--brand-solid)] px-5 py-3 font-bold text-white">Voltar à equipe</Link></section></div></CddiPlatformFrame>;
 
   return <CddiPlatformFrame title={`Avaliação de ${member.fullName}`}><div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
-    <div className="mx-auto max-w-[960px] px-4 py-5 sm:px-6">
+    <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] px-4 py-5 sm:px-6">
       <header className="rounded-2xl border-t-4 border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
