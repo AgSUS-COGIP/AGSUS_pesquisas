@@ -25,7 +25,8 @@ Convenções gerais de rota em [../CLAUDE.md](../CLAUDE.md).
 | `/admin/participantes` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `ADMIN_TEAMS` **e** papel `ADMINISTRATOR` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `ADMIN_ACCESS` | `list_access_workspace`, `set_person_role` |
-| `/admin/importacao` | — (protegida por token, não por módulo) | via `POST /api/admin/import-participants` |
+| `/admin/configuracoes` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
+| `/admin/importacao` | — (autorizada na rota de API, não por guarda de módulo) | via `POST /api/admin/import-participants` |
 
 ## Fluxo interno
 
@@ -78,6 +79,23 @@ Três blocos independentes na mesma página:
 
 **Regra da arquitetura:** a base mestra de pessoas e o público de uma pesquisa são decisões separadas. A importação atualiza só a base; vincular alguém a um ciclo é ato explícito do administrador.
 
+### Identidade da plataforma (`/admin/configuracoes`)
+
+```text
+formulário react-hook-form + zodResolver
+  organizationName ≤ 60 · productName ≤ 60 · primaryColor /^#RRGGBB$/
+logotipo (opcional)
+  tipos aceitos: image/jpeg · image/png · image/webp
+  validateLogoComposition(): ≥ 128 × 128 px e proporção entre 0,5 e 2
+  upload em storage "platform-assets" → branding/logo-<uuid>.<ext>
+fc_atualizar_marca_plataforma(no_organizacao, no_produto,
+                              tx_url_logotipo, tx_caminho, co_cor_principal)
+  falha depois do upload → remove o arquivo enviado (sem órfão no storage)
+sucesso → queryClient.setQueryData(platformBrandingQueryKey, …)
+```
+
+A marca resolvida é distribuída por `PlatformBrandingProvider` (ver [../../components/CLAUDE.md](../../components/CLAUDE.md)), então salvar aqui muda cabeçalho e logotipo de toda a aplicação sem recarregar.
+
 ### Importação da base institucional
 
 ```text
@@ -85,8 +103,10 @@ navegador                       lê CSV/XLSX com `xlsx`
                                 aba preferida: BASE_PARTICIPANTES → BASE → primeira
                                 parsePeopleImportRows() + summarizePeopleImport()
                                 lotes de CHUNK_SIZE = 200 linhas válidas
-        ↓ POST /api/admin/import-participants  (header x-admin-import-token)
-servidor                        sync_people_base_rows → sync_cddi_manager_rows
+        ↓ POST /api/admin/import-participants  (sessão institucional, sem token)
+servidor                        resolveAuthorizedActor() → papel administrativo
+                                parseAdminImportRequest() → esquema zod
+                                sync_people_base_rows → sync_cddi_manager_rows
                                 registra data_import_batches / data_import_issues
 ```
 
@@ -108,19 +128,21 @@ servidor                        sync_people_base_rows → sync_cddi_manager_rows
 - [@/components](../../components/CLAUDE.md) — `admin-participant-*`, `admin-people-teams-management`, `people-base-summary`, primitivos `ui/`.
 - [@/lib/survey-builder](../../lib/CLAUDE.md) — validação de rascunhos.
 - [@/lib/people-import](../../lib/CLAUDE.md) — parsing e resumo da planilha.
+- [@/lib/platform-branding](../../lib/CLAUDE.md) — normalização da marca em `/admin/configuracoes`.
 - [/api/admin/import-participants](../api/CLAUDE.md) — única rota administrativa com service role.
+- `react-hook-form` + `zod` (via `zodResolver`) nos formulários de `/admin/configuracoes` e `/admin/pesquisas/nova`; o restante das telas usa estado local.
 
 ## Convenções específicas
 
-- Ação destrutiva ou irreversível pede `window.confirm` com texto que cita o objeto afetado.
+- Ação destrutiva ou irreversível pede confirmação por `await confirm({ … })` (`useConfirm()` de `@/components/confirmation-provider`), com `tone: "danger"` quando o efeito não se desfaz e texto que cita o objeto afetado.
 - Erros de RPC passam por um helper que percorre `message` → `details` → `hint` antes do texto genérico (ver `errorMessage()` em `operacao/page.tsx`).
 - Depois de mutação, recarregue o agregado do banco (`loadOperations()`, `loadTeam()`) em vez de tentar reconciliar estado local — o banco é a fonte da verdade.
 - Rótulos de sucesso ficam num mapa por ação, não concatenados em texto livre.
 
 ## Pontos de atenção
 
-- `/admin/importacao` **não** aplica guarda de módulo nem usa `PlatformShell`; a proteção é o `ADMIN_IMPORT_TOKEN` digitado pelo operador e validado no servidor em tempo constante. Isso circula um segredo pelo navegador — ver melhorias no [README](../../../README.md).
-- O corpo de `/api/admin/import-participants` é convertido com `as RequestBody`, sem validação de esquema.
+- `/admin/importacao` **não** aplica guarda de módulo nem usa `PlatformShell`. A proteção fica inteira na rota de API, que exige sessão institucional com papel `ADMINISTRATOR`, `SURVEY_MANAGER` ou `TECHNICAL_TEAM` — a tela em si não esconde nada de quem chega até ela.
+- O corpo de `/api/admin/import-participants` é validado por esquema `zod` (`@/lib/admin-import-contract`). Mudança no formato enviado pela tela exige mudança no contrato.
 - `/admin` exibe "CDDI 2026 · ciclo encerrado" como texto fixo, independente do estado real da aplicação.
-- Cada página `/admin/*` reimplementa a tela de "Acesso restrito" inline; existe um `AdminModulePage` pronto e não utilizado em `@/components/admin-module-page.tsx`.
+- A tela de "Acesso restrito" está migrando para `FullPageState` (`tone="restricted"`): `/admin`, `/admin/pesquisas`, `/admin/pesquisas/nova`, `/admin/participantes`, `/admin/equipes` e `/admin/configuracoes` já usam; as três rotas sob `/admin/pesquisas/[surveyId]` ainda reimplementam inline. Existe também um `AdminModulePage` pronto e sem consumidores em `@/components/admin-module-page.tsx`.
 - `Dialog` importado de `@/components/ui/dialog` (`<dialog>` nativo) é diferente do `Dialog` de `@/components/ui/overlay-panel` (focus trap manual). O construtor usa o primeiro.

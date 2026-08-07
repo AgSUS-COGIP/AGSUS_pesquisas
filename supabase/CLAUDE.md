@@ -17,7 +17,7 @@ Toda alteração de comportamento começa aqui, não em React.
 
 ```text
 supabase/
-├── migrations/      48 arquivos .sql versionados (fonte da verdade)
+├── migrations/      51 arquivos .sql versionados (fonte da verdade)
 │   └── README.md
 └── tests/
     └── rls_exposed_tables.sql   pgTAP: nenhuma tabela de `public` sem RLS
@@ -56,6 +56,12 @@ Hierarquia conceitual: **pesquisa** (produto permanente, ex. CDDI) → **versão
 
 `db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
 
+### Marca da plataforma — `20260807093000_platform_branding_settings.sql`
+
+`public.tb_config_plataforma` é uma tabela de **linha única**, garantida pela constraint `ck_tb_config_plataforma_unica (co_configuracao = 1)`: não há como criar uma segunda configuração. Guarda nome da organização, nome do produto, cor principal e o par URL + caminho do logotipo. RLS habilitada e `all` revogado de `anon`/`authenticated` — o acesso é só pelas duas funções `security definer`.
+
+O bucket `platform-assets` é público para leitura, limitado a 2 MB e a `image/jpeg`, `image/png`, `image/webp`. As quatro políticas de `storage.objects` (select, insert, update, delete) exigem `can_manage_surveys()`, então apenas a administração troca o logotipo.
+
 ### Camada institucional de leitura — `20260805184500_institutional_naming_views.sql`
 
 Schema `"DB_PESQUISAS"` com views `VW_PESSOA`, `VW_PESQUISA`, `VW_APLICACAO_PESQUISA`, `VW_SUBMISSAO`, `VW_RESPOSTA`, `VW_RESPOSTA_OPCAO`, `VW_RESULTADO_COMPETENCIA`, `VW_RESULTADO_FINAL_CDDI` — colunas renomeadas para o padrão corporativo (`SQ_PESSOA`, `NO_PESSOA`, `DT_INCLUSAO`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI); a aplicação continua usando as tabelas `public`.
@@ -85,6 +91,15 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 ### Equipe e liderança
 
 `get_my_team_workspace(target_application_code)` · `search_team_candidates(target_application_id, search_term)` · `add_person_to_my_team(...)` · `remove_person_from_my_team(target_link_id)`
+
+`20260807101500_team_avatar_contracts.sql` redefiniu `fc_obter_minha_equipe(...)` e `fc_pesquisar_equipe(...)` para devolver também o avatar canônico de cada integrante — a tela de equipe deixou de resolver imagem por conta própria.
+
+### Marca da plataforma
+
+| RPC | Uso |
+|---|---|
+| `fc_obter_marca_plataforma()` | Devolve `organizationName`, `productName`, `logoUrl`, `logoPath`, `primaryColor`, `updatedAt`. Leitura para qualquer sessão. |
+| `fc_atualizar_marca_plataforma(no_organizacao, no_produto, tx_url_logotipo, tx_caminho, co_cor_principal)` | Grava a linha única. Exige `can_manage_surveys()`; valida nomes (1–60), cor `^#[0-9a-f]{6}$`, logotipo obrigatoriamente **HTTPS** e URL + caminho informados **em conjunto**. |
 
 ### Construtor e ciclo
 
@@ -126,6 +141,14 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 - Trigger `validate_cddi_final_result` garante que as submissões referenciadas pertencem à mesma aplicação e ao mesmo avaliado, e que os tipos correspondem aos campos (`auto_submission_id` → `AUTO`, `leader_submission_id` → `CHEFIA`).
 - **Respostas só mudam enquanto a submissão está `DRAFT`** (`can_edit_submission`).
 - Uma avaliação de chefia por pessoa e ciclo.
+
+**A chefia responsável não é campo de formulário** (`20260807113000_fix_cddi_leader_submission_contract.sql`). A versão publicada declara uma pergunta `PERSON` de código `CHEFIA_RESPONSAVEL`, mas ela é preenchida pelo banco a partir do vínculo institucional, nunca digitada:
+
+- `sync_cddi_leader_technical_answer(application, subordinado, chefia)` grava `answer_json = {personId, source: "cddi_leadership_links"}` nas submissões `DRAFT` (`AUTO` e `CHEFIA`) daquele avaliado, limpando os demais campos de resposta no `on conflict`.
+- O trigger `sync_new_cddi_submission_leader_answer` faz o mesmo ao criar submissão, e a definição do vínculo o refaz — trocar a chefia atualiza a resposta técnica sozinha.
+- Se a versão publicada não tiver a pergunta, a função retorna sem erro: instrumento sem esse contrato continua válido.
+
+No frontend, `visibleCddiSections()` remove toda pergunta `PERSON` antes de renderizar, para que o operador não veja um campo que não deve preencher (ver [../src/lib/CLAUDE.md](../src/lib/CLAUDE.md)).
 
 ### Cálculo do CDDI (`calculation_version = 'CDDI-2026-V1'`)
 

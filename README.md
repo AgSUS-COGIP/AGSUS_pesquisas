@@ -80,6 +80,7 @@ Três decisões estruturantes explicam quase todo o código:
 | Rotas e telas | [src/app/](src/app/) | Uma pasta por jornada. Componentes de cliente que orquestram RPCs. |
 | Casca e design system | [src/components/](src/components/) | `PlatformShell`, primitivos acessíveis em `ui/`, blocos administrativos. |
 | Domínio no cliente | [src/lib/](src/lib/) | Funções puras testáveis (validação, ordenação, normalização) e clientes Supabase. |
+| Consultas cacheadas | [src/hooks/](src/hooks/) | Hooks que combinam React Query com RPCs — o que não é função pura nem componente. |
 | Banco e regras | [supabase/migrations/](supabase/migrations/) | Esquema, RLS, RPCs, triggers, views institucionais. Fonte da verdade das regras. |
 | Qualidade | [scripts/](scripts/), [.github/workflows/validate.yml](.github/workflows/validate.yml) | Quality gates de nomenclatura, migrations, testes, lint, build e RLS. |
 
@@ -131,6 +132,7 @@ agsus-pesquisas/
     ├── components/
     │   ├── CLAUDE.md
     │   └── ui/                   # Primitivos do design system
+    ├── hooks/                    # Hooks de consulta (React Query + Supabase)
     └── lib/
         ├── CLAUDE.md
         └── supabase/             # Fábricas de cliente (browser, server, admin, proxy)
@@ -156,7 +158,7 @@ agsus-pesquisas/
 
 **Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
 
-> `@hookform/resolvers`, `react-hook-form`, `zod` e `@tanstack/react-table` estão declarados mas não são importados pelo código atual. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
+> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`; `zod` também define o contrato da importação em `src/lib/admin-import-contract.ts`. `@tanstack/react-table` só é importado por um componente sem consumidores. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
 
 ## Variáveis de ambiente
 
@@ -169,11 +171,12 @@ Copie [.env.example](.env.example) para `.env.local` e preencha os valores.
 | `SUPABASE_URL` | Servidor | Não | Alternativa à variável pública nas rotas administrativas. |
 | `SUPABASE_SECRET_KEY` | **Servidor** | Sim (rotas admin) | Chave secreta moderna, usada por `createAdminSupabaseClient()`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Servidor** | Sim (rotas admin) | Nome legado, aceito como alternativa à anterior. |
-| `ADMIN_IMPORT_TOKEN` | **Servidor** | Sim (importação) | Token comparado em tempo constante em `/api/admin/import-participants`. |
 | `NEXT_PUBLIC_SITE_URL` | Navegador | Não | URL canônica de produção. |
 | `ALLOWED_INSTITUTIONAL_DOMAINS` | Banco de dados | Não | Lida pela função SQL de acesso institucional. Padrão: `agenciasus.org.br,agsus.org.br`. |
 
-> **Segurança.** `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` e `ADMIN_IMPORT_TOKEN` **nunca** podem receber o prefixo `NEXT_PUBLIC_`, ser importados por componentes de cliente nem ser gravados no repositório. Sem essas chaves a aplicação sobe, mas `/api/health` responde `503 degraded` e a importação de base falha.
+> **Segurança.** `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` **nunca** podem receber o prefixo `NEXT_PUBLIC_`, ser importados por componentes de cliente nem ser gravados no repositório. Sem essas chaves a aplicação sobe, mas `/api/health` responde `503 degraded` e a importação de base falha.
+>
+> A importação **não** usa segredo próprio: `/api/admin/import-participants` autoriza pela sessão institucional e pelo papel do usuário. Não existe mais `ADMIN_IMPORT_TOKEN`.
 
 **Sem as variáveis públicas configuradas** o proxy devolve `503` em rotas privadas e permite apenas `/`, `/acesso`, `/auth/confirm` e `/api/health`.
 
@@ -248,8 +251,12 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 
 | Arquivo | O que garante |
 |---|---|
+| [src/lib/admin-import-contract.test.ts](src/lib/admin-import-contract.test.ts) | Esquema da importação rejeita lote sem `batchId`, linha marcada como inválida, total acima do limite e propriedade inesperada. |
 | [src/lib/auth-callback.test.ts](src/lib/auth-callback.test.ts) | Redirecionamento pós-login não aceita destinos externos; compatibilidade do fluxo PKCE. |
 | [src/lib/avatar-config.test.ts](src/lib/avatar-config.test.ts) | Metadados de avatar inválidos degradam para padrões seguros. |
+| [src/lib/cddi-question-applicability.test.ts](src/lib/cddi-question-applicability.test.ts) | Perguntas `PERSON` e fora do tipo de submissão não chegam ao formulário. |
+| [src/lib/observability.test.ts](src/lib/observability.test.ts) | `errorMessageFromUnknown()` extrai a mensagem do PostgREST e preserva a de erros nativos. |
+| [src/lib/platform-branding.test.ts](src/lib/platform-branding.test.ts) | Marca ausente ou inválida cai no padrão institucional; aceita só logotipo seguro e cor `#RRGGBB` completa. |
 | [src/lib/people-import.test.ts](src/lib/people-import.test.ts) | Aliases de coluna, datas reinterpretadas pelo leitor de CSV, duplicidades e elegibilidade de acesso. |
 | [src/lib/platform-modules.test.ts](src/lib/platform-modules.test.ts) | Precedência entre papéis, módulos explícitos e liderança. |
 | [src/lib/platform-navigation.test.ts](src/lib/platform-navigation.test.ts) | Menu exibe só o permitido; rota exata não ativa páginas aninhadas. |
@@ -258,8 +265,10 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 | [src/lib/reliable-save-queue.test.ts](src/lib/reliable-save-queue.test.ts) | Fila serializa operações e preserva o último erro. |
 | [src/lib/survey-builder.test.ts](src/lib/survey-builder.test.ts) | Limites e validações de seções, perguntas e alternativas. |
 | [src/lib/survey-catalog.test.ts](src/lib/survey-catalog.test.ts) | Estado, prioridade e roteamento dos itens do catálogo. |
+| [src/lib/survey-runtime.test.ts](src/lib/survey-runtime.test.ts) | Conversão de resposta por tipo de pergunta, incluindo o fuso do `DATETIME`. |
 | [src/lib/survey-visual-identity.test.ts](src/lib/survey-visual-identity.test.ts) | Identidade visual personalizada rejeita URLs não-HTTPS. |
 | [src/lib/supabase/admin.test.ts](src/lib/supabase/admin.test.ts) | Detecção das variáveis administrativas modernas e legadas. |
+| [src/lib/supabase/client.test.ts](src/lib/supabase/client.test.ts) | Detecção da configuração pública: só há cliente quando URL **e** chave publicável existem. |
 
 **Testes de banco** ficam em [supabase/tests/](supabase/tests/) e rodam via `supabase test db` (pgTAP). O teste atual assegura que nenhuma tabela do schema `public` fique sem RLS.
 
@@ -280,7 +289,7 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 
 1. `proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
 2. `src/app/layout.tsx` injeta dois scripts `beforeInteractive` que leem `localStorage` e aplicam tema e estado da sidebar **antes** da primeira pintura, evitando flash.
-3. `AppProviders` monta `QueryClientProvider`, `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
+3. `AppProviders` monta `QueryClientProvider`, `PlatformBrandingProvider` (marca institucional, com cache em `localStorage` para não piscar o padrão), `ConfirmationProvider` (diálogo de confirmação disponível a qualquer tela), `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
 4. A página chama `usePlatformContext()`, que executa `get_my_platform_context()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
 5. `deriveModules(context)` resolve os módulos visíveis e `PlatformShell` renderiza apenas a navegação permitida.
 
@@ -330,8 +339,10 @@ A estrutura só é editável enquanto a versão está em rascunho; `validate_sur
 ```text
 /admin/importacao   lê CSV/XLSX no navegador (xlsx)
                     parsePeopleImportRows() + summarizePeopleImport()
-                    envia lotes de 200 linhas com x-admin-import-token
+                    envia lotes de 200 linhas com a sessão institucional
 /api/admin/import-participants
+                    resolveAuthorizedActor()   exige papel administrativo
+                    parseAdminImportRequest()  valida o lote com zod
                     sync_people_base_rows      atualiza a base mestra
                     sync_cddi_manager_rows     vínculos de gestor
                     data_import_batches / data_import_issues  auditoria
@@ -350,6 +361,8 @@ A importação **nunca** vincula pessoas a pesquisas automaticamente (`survey_as
 | `createBrowserSupabaseClient` ([src/lib/supabase/client.ts](src/lib/supabase/client.ts)) | Cliente singleton autenticado por cookie. | Toda chamada RPC do navegador |
 | `resolvePlatformModules` ([src/lib/platform-modules.ts](src/lib/platform-modules.ts)) | Traduz papéis em módulos visíveis. | `platform-context`, navegação, guardas de página |
 | `get_my_platform_context` (SQL) | Contrato de autorização servidor→cliente. | `platform-context` |
+| `usePlatformBranding` ([src/components/platform-branding-provider.tsx](src/components/platform-branding-provider.tsx)) | Marca institucional (nome, cor, logotipo) resolvida uma vez e cacheada. | `PlatformShell`, `PlatformLogo`, `/admin/configuracoes` |
+| `useConfirm` ([src/components/confirmation-provider.tsx](src/components/confirmation-provider.tsx)) | Confirmação acessível de ação irreversível, em promise. | Envio de formulário, operação de ciclo, gestão de equipe |
 
 ### Dependências entre camadas
 
@@ -357,20 +370,23 @@ A importação **nunca** vincula pessoas a pesquisas automaticamente (`survey_as
 app/**            →  components/**  →  components/ui/**
    │                     │
    │                     └──────────→  lib/utils, lib/platform-*
+   ├──────────────────→  hooks/**    →  lib/**
    └──────────────────→  lib/**      →  lib/supabase/client
                                           │
                                           ▼
                                     Supabase (RPC + RLS)
 
 app/api/**        →  lib/supabase/admin   (service role, nunca no cliente)
+                  →  lib/supabase/server  (sessão do administrador → papel)
 proxy.ts          →  lib/supabase/proxy
 ```
 
 Regras respeitadas em todo o código:
 
-- `src/lib/**` não importa de `src/components/**` nem de `src/app/**`. Exceção deliberada: `platform-navigation.ts` importa apenas o *tipo* `PlatformIconName`.
+- `src/lib/**` não importa de `src/components/**`, `src/app/**` nem `src/hooks/**`. Exceção deliberada: `platform-navigation.ts` importa apenas o *tipo* `PlatformIconName`.
 - `src/components/ui/**` não conhece Supabase nem regras de negócio.
 - `lib/supabase/admin.ts` só é importado por Route Handlers (`src/app/api/**`).
+- Função pura vai para `src/lib`; hook que consulta o Supabase vai para `src/hooks`.
 
 ### Pontos de entrada
 
@@ -441,28 +457,25 @@ Nenhum destes arquivos é importado por código de produção:
 
 | Arquivo | Situação |
 |---|---|
-| [src/components/platform-command-menu.tsx](src/components/platform-command-menu.tsx) | Paleta de comandos (Ctrl+K) completa e funcional, nunca renderizada. |
-| [src/components/admin-module-page.tsx](src/components/admin-module-page.tsx) | Casca genérica de página administrativa; cada página `/admin/*` reimplementa a guarda de módulo inline. |
-| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. |
+| [src/components/admin-module-page.tsx](src/components/admin-module-page.tsx) | Casca genérica de página administrativa; cada página `/admin/*` monta a guarda de módulo por conta própria. |
+| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
 | [src/components/cddi-visual-banner.tsx](src/components/cddi-visual-banner.tsx) | Substituído por `survey-banner.tsx`. |
 | [src/components/avatar-uploader.tsx](src/components/avatar-uploader.tsx) | Chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` passou a bloquear fotos enviadas — o fluxo atual usa `avatar-studio.tsx`. |
 | [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
-| [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) | Coberto por 10 testes, importado apenas pelo próprio teste. |
-| [src/lib/reliable-save-queue.ts](src/lib/reliable-save-queue.ts) | Coberto por 4 testes, importado apenas pelo próprio teste. |
 
-**Sugestão:** decidir caso a caso entre adotar (ex.: renderizar `PlatformCommandMenu` no `PlatformShell`) e remover. Manter código testado mas morto dá falsa sensação de cobertura.
+**Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
+
+**Resolvidos.** `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI.
 
 ### Duplicação de lógica
 
-1. **Estado do catálogo de pesquisas reimplementado três vezes.** `itemState`, `applicationHref` e a ordenação por prioridade aparecem inline em [src/app/area/page.tsx](src/app/area/page.tsx#L45-L55) e [src/app/pesquisas/page.tsx](src/app/pesquisas/page.tsx), enquanto [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) já contém exatamente essas funções — testadas. Consolidar remove a chance de as telas divergirem.
+1. **Uma fila de autossalvamento ainda fora do padrão.** [src/app/pesquisas/[applicationCode]/page.tsx](src/app/pesquisas/[applicationCode]/page.tsx) serializa gravações com um `useRef<Promise>` próprio, enquanto as duas jornadas do CDDI já usam `ReliableSaveQueue` — que faz o mesmo com testes e notificação de estado. Migrar o runtime genérico encerra a duplicação.
 
-2. **Duas filas de autossalvamento.** [src/app/pesquisas/[applicationCode]/page.tsx](src/app/pesquisas/[applicationCode]/page.tsx#L117-L147) implementa serialização de gravações inline; `ReliableSaveQueue` faz o mesmo com testes e notificação de estado. O CDDI usa uma terceira abordagem (timers por pergunta, sem serialização).
+2. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
 
-3. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
+3. **`metadataText()` repetido** em [src/app/area/page.tsx](src/app/area/page.tsx) e [src/app/perfil/page.tsx](src/app/perfil/page.tsx#L9-L15) com implementação idêntica.
 
-4. **Diálogos ad hoc.** `/equipe` e componentes admin constroem modais manualmente em vez de usar `OverlayPanel`, perdendo focus trap, `Escape` e bloqueio de scroll consistentes.
-
-5. **`metadataText()` repetido** em [src/app/area/page.tsx](src/app/area/page.tsx#L30-L36) e [src/app/perfil/page.tsx](src/app/perfil/page.tsx#L9-L15) com implementação idêntica.
+**Resolvidos.** O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
 
 ### Inconsistências
 
@@ -474,13 +487,13 @@ Nenhum destes arquivos é importado por código de produção:
 
 4. **`/cddi/README.md` desatualizado.** Afirma que "a persistência definitiva depende da autenticação institucional", mas o envio já está implementado (`submit_my_cddi_submission`). O mesmo vale para o último parágrafo de [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md).
 
-5. **`supabase/migrations/README.md` desatualizado.** Diz que "a primeira migration será criada após a modelagem"; existem 48 migrations aplicadas.
+5. **`supabase/migrations/README.md` desatualizado.** Diz que "a primeira migration será criada após a modelagem"; existem 51 migrations aplicadas.
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
 7. **Ciclo CDDI descrito como encerrado** em texto fixo do painel administrativo ([src/app/admin/page.tsx](src/app/admin/page.tsx#L32)), independente do estado real da aplicação.
 
-8. **Dependências declaradas e não usadas.** `react-hook-form`, `@hookform/resolvers`, `zod` e `@tanstack/react-table` estão em `dependencies` sem nenhum import — os formulários usam estado local e as tabelas usam os primitivos de `ui/data-table.tsx`. Ou adotar as bibliotecas, ou removê-las do bundle.
+8. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
 
 9. **`@dicebear/core` fixado sem `^`** (`10.3.0` / `10.2.0`) enquanto o restante usa faixas. Provavelmente intencional, mas vale documentar o motivo.
 
@@ -488,15 +501,15 @@ Nenhum destes arquivos é importado por código de produção:
 
 ### Segurança e robustez
 
-1. **Token administrativo digitado na interface.** [src/app/admin/importacao/page.tsx](src/app/admin/importacao/page.tsx) pede o `ADMIN_IMPORT_TOKEN` em um campo de senha e o envia por header. A comparação no servidor é em tempo constante, mas o segredo circula pelo navegador. Alternativa: autorizar a rota pela sessão do usuário + verificação de papel (`is_platform_administrator()`), como as demais operações.
+1. **`isSameOrigin()` aceita requisições sem header `Origin`** em [src/app/api/observability/errors/route.ts](src/app/api/observability/errors/route.ts#L9-L13) — comportamento necessário para `keepalive`; a decisão está registrada em comentário no próprio arquivo.
 
-2. **`/api/admin/import-participants` não valida o formato das linhas.** O corpo é convertido para `RequestBody` com `as` e repassado à RPC. Validar com `zod` (já instalado) daria erro `400` claro em vez de falha no banco.
+2. **`/admin/importacao` não tem guarda de módulo.** A autorização é inteira da rota de API; a tela abre para qualquer sessão autenticada, e a negativa só aparece ao enviar o primeiro lote. Funciona, mas o retorno para o operador sem permissão é tardio.
 
-3. **`isSameOrigin()` aceita requisições sem header `Origin`** em [src/app/api/observability/errors/route.ts](src/app/api/observability/errors/route.ts#L9-L13) — comportamento necessário para `keepalive`; a decisão está registrada em comentário no próprio arquivo.
+3. **`/api/background/[id]` faz proxy de imagens do Unsplash** apenas para o plano de fundo da tela de login. Índice validado e cache longo, mas é uma dependência externa em rota pública.
 
-4. **`window.confirm` para ações destrutivas** (envio definitivo, encerrar ciclo, retirar pessoa da equipe). Funciona, mas não é estilizável nem plenamente acessível; `OverlayPanel` já oferece a base para um diálogo de confirmação próprio.
+4. **Upload de logotipo validado só no navegador.** [src/app/admin/configuracoes/page.tsx](src/app/admin/configuracoes/page.tsx) checa tipo, dimensão mínima e proporção antes de enviar ao storage `platform-assets`; quem chamar a API direto não passa por essa checagem. A limpeza do arquivo órfão em caso de falha da RPC está implementada.
 
-5. **`/api/background/[id]` faz proxy de imagens do Unsplash** apenas para o plano de fundo da tela de login. Índice validado e cache longo, mas é uma dependência externa em rota pública.
+**Resolvidos.** O token administrativo digitado na interface deu lugar à autorização por sessão + papel em `/api/admin/import-participants` (era a alternativa sugerida aqui), o corpo da rota passou a ser validado por esquema `zod`, e `window.confirm` foi substituído pelo diálogo acessível de `confirmation-provider.tsx`.
 
 ### Manutenibilidade
 
