@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { useConfirm } from "@/components/confirmation-provider";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -34,6 +35,7 @@ function isAnswered(question: Question, value?: AnswerValue) {
 }
 
 export default function GenericSurveyPage() {
+  const confirm = useConfirm();
   const params = useParams<{ applicationCode: string }>();
   const applicationCode = decodeURIComponent(params.applicationCode);
   const { context, loading: contextLoading, error } = usePlatformContext();
@@ -91,13 +93,14 @@ export default function GenericSurveyPage() {
     };
 
     void load();
+    const timersToClear = timers.current;
     return () => {
       active = false;
-      Object.values(timers.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
     };
   }, [applicationCode, context?.person]);
 
-  const sections = definition?.sections ?? [];
+  const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
   const currentSection = sections[step];
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
@@ -183,7 +186,7 @@ export default function GenericSurveyPage() {
       toast.warning("Ainda existem perguntas obrigatórias sem resposta.");
       return;
     }
-    if (!window.confirm("Confirma o envio definitivo desta pesquisa?")) return;
+    if (!(await confirm({ title: "Enviar pesquisa definitivamente?", description: "Depois do envio, as respostas não poderão mais ser alteradas.", confirmLabel: "Enviar pesquisa" }))) return;
 
     setSubmitting(true);
     try {

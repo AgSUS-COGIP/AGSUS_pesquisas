@@ -3,6 +3,7 @@
 import { Camera, Loader2, Trash2 } from "lucide-react";
 import { ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ExternalImage } from "@/components/external-image";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type AvatarUploaderProps = {
@@ -80,7 +81,7 @@ export function AvatarUploader({ personName, initialUrl, initials }: AvatarUploa
     <div className="flex flex-col items-center">
       <div className="relative">
         {avatarUrl ? (
-          <img src={avatarUrl} alt={`Foto de ${personName}`} className="h-32 w-32 rounded-[2rem] object-cover ring-4 ring-white/20 shadow-2xl" />
+          <ExternalImage src={avatarUrl} alt={`Foto de ${personName}`} width={128} height={128} className="h-32 w-32 rounded-[2rem] object-cover ring-4 ring-white/20 shadow-2xl" />
         ) : (
           <div className="grid h-32 w-32 place-items-center rounded-[2rem] bg-white text-4xl font-black text-[#003b70] shadow-2xl">{initials}</div>
         )}

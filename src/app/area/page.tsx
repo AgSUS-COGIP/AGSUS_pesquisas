@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, Building2, CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, ShieldCheck, Users2 } from "lucide-react";
+import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, ShieldCheck, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";

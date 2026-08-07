@@ -3,6 +3,7 @@
 import { ArrowRight, BarChart3, FileCog, FilePlus2, LockKeyhole, Network, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
 import Link from "next/link";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 
 const cards = [
@@ -17,10 +18,10 @@ const cards = [
 export default function AdminDashboardPage() {
   const { context, loading, error } = usePlatformContext();
   if (loading) return <PlatformSkeleton title="Carregando administração" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!context?.person) return <FullPageState title="Não foi possível abrir a administração" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
   const modules = deriveModules(context);
   const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
-  if (!isAdmin) return <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6"><section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl"><h1 className="text-3xl font-black text-[#003b70]">Acesso restrito</h1><p className="mt-3 text-slate-600">Seu perfil não possui permissão para acessar a central administrativa.</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao painel</Link></section></main>;
+  if (!isAdmin) return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
 
   const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
   const visibleCards = cards.filter((card) => card.href !== "/admin/acessos" || modules.includes("ADMIN_ACCESS"));

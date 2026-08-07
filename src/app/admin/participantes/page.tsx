@@ -5,17 +5,18 @@ import { AdminParticipantBulkSelector } from "@/components/admin-participant-bul
 import { AdminParticipantManagement } from "@/components/admin-participant-management";
 import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 
 export default function AdminParticipantsPage() {
   const { context, loading, error } = usePlatformContext();
 
   if (loading) return <PlatformSkeleton title="Carregando participantes" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!context?.person) return <FullPageState title="Não foi possível abrir participantes" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
   if (!modules.includes("ADMIN_PARTICIPANTS")) {
-    return <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6"><section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl"><h1 className="text-3xl font-black text-[#003b70]">Acesso restrito</h1><p className="mt-3 text-slate-600">Seu perfil não possui permissão para gerenciar participantes.</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao painel</Link></section></main>;
+    return <FullPageState tone="restricted" title="Gestão de participantes restrita" description="Seu perfil não possui permissão para gerenciar participantes e elegibilidade." />;
   }
 
   const user = {

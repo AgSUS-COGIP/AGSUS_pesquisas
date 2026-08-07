@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
+import { PlatformCommandMenu } from "@/components/platform-command-menu";
 import { Drawer } from "@/components/ui/overlay-panel";
 import {
   isPlatformNavItemActive,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/platform-sidebar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-const LOGO_AGSUS = "https://i.postimg.cc/7PztC6jq/79255fad-06f0-4963-81f5-1fa4a116475e.png";
+const LOGO_AGSUS = "/agsus-mark.svg";
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
@@ -200,6 +201,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <PlatformCommandMenu modules={modules} />
               {actions}
               <PlatformThemeToggle />
               <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-slate-200 hover:bg-slate-50 sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>

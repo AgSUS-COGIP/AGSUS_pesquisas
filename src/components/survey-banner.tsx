@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ExternalImage } from "@/components/external-image";
 
 type SurveyBannerProps = {
   src: string;
@@ -38,9 +39,11 @@ export function SurveyBanner({
   }
 
   return (
-    <img
+    <ExternalImage
       src={activeSrc}
       alt={alt}
+      width={1600}
+      height={400}
       className={className}
       onError={handleError}
     />

@@ -5,6 +5,7 @@ import { ChangeEvent, use, useEffect, useState } from "react";
 import { ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { ExternalImage } from "@/components/external-image";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
@@ -281,9 +282,11 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
               <div className="bg-[#eef3f8] p-5">
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   {visual.themeVariant === "CUSTOM" && visual.bannerUrl ? (
-                    <img
+                    <ExternalImage
                       src={visual.bannerUrl}
                       alt={visual.bannerAlt || "Pré-visualização da capa do instrumento"}
+                      width={1600}
+                      height={400}
                       className="aspect-[4/1] w-full object-cover"
                     />
                   ) : (

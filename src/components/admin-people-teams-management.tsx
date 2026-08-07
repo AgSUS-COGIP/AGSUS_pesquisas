@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { History, Loader2, RefreshCw, Save, Search, UserRoundCog, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -110,35 +110,40 @@ export function AdminPeopleTeamsManagement() {
   const [leadershipJustification, setLeadershipJustification] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const selectedPersonIdRef = useRef<string | null>(null);
 
-  async function searchPeople(term = search) {
+  useEffect(() => {
+    selectedPersonIdRef.current = selectedPerson?.personId ?? null;
+  }, [selectedPerson?.personId]);
+
+  const searchPeople = useCallback(async (term: string) => {
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.rpc("search_platform_admin_people", { target_search: term.trim(), target_limit: 80 });
     if (error) throw error;
     const rows = Array.isArray(data) ? data as Person[] : [];
     setPeople(rows);
-    if (selectedPerson) {
-      const refreshed = rows.find((item) => item.personId === selectedPerson.personId);
+    if (selectedPersonIdRef.current) {
+      const refreshed = rows.find((item) => item.personId === selectedPersonIdRef.current);
       if (refreshed) { setSelectedPerson(refreshed); setForm(personToForm(refreshed)); }
     }
-  }
+  }, []);
 
-  async function loadApplications() {
+  const loadApplications = useCallback(async () => {
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.rpc("list_admin_participant_applications");
     if (error) throw error;
     const rows = Array.isArray(data) ? data as Application[] : [];
     setApplications(rows);
     setApplicationId((current) => current || rows[0]?.id || "");
-  }
+  }, []);
 
-  async function loadLinks(targetApplicationId = applicationId, term = teamSearch) {
+  const loadLinks = useCallback(async (targetApplicationId: string, term = "") => {
     if (!targetApplicationId) return;
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.rpc("list_platform_admin_leadership_links", { target_application_id: targetApplicationId, target_search: term.trim(), target_limit: 200 });
     if (error) throw error;
     setLinks(Array.isArray(data) ? data as LeadershipLink[] : []);
-  }
+  }, []);
 
   async function loadAudit(personId: string) {
     const supabase = createBrowserSupabaseClient();
@@ -151,17 +156,17 @@ export function AdminPeopleTeamsManagement() {
     void Promise.all([searchPeople(""), loadApplications()])
       .catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível carregar a gestão institucional."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [loadApplications, searchPeople]);
 
   useEffect(() => {
     if (!applicationId) return;
     void loadLinks(applicationId).catch((error) => toast.error(error.message));
-  }, [applicationId]);
+  }, [applicationId, loadLinks]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => { void searchPeople(search).catch((error) => toast.error(error.message)); }, 300);
     return () => window.clearTimeout(timeout);
-  }, [search]);
+  }, [search, searchPeople]);
 
   const activeLinks = useMemo(() => links.filter((item) => item.status === "ACTIVE" && !item.validTo), [links]);
   const subordinateOptions = useMemo(() => people.filter((item) => item.active && item.personId !== leader?.personId && (`${item.fullName} ${item.employeeNumber}`).toLowerCase().includes(subordinateSearch.toLowerCase())).slice(0, 8), [people, subordinateSearch, leader]);

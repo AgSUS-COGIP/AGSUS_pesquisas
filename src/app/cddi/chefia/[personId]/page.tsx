@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Home, UserRoundCheck } from "lucide-react";
 import { useParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { useConfirm } from "@/components/confirmation-provider";
 
 type Option = { id: string; label: string; value: string; position: number };
 type Question = { id: string; title: string; description: string | null; type: string; required: boolean; options: Option[] };
@@ -28,6 +29,7 @@ function completion(section: Section, answers: Answers) {
 }
 
 export default function LeaderEvaluationPage() {
+  const confirm = useConfirm();
   const params = useParams<{ personId: string }>();
   const personId = params.personId;
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
@@ -70,10 +72,11 @@ export default function LeaderEvaluationPage() {
       } finally { setLoading(false); }
     };
     void load();
-    return () => Object.values(timers.current).forEach((timer) => window.clearTimeout(timer));
+    const timersToClear = timers.current;
+    return () => Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
   }, [personId]);
 
-  const sections = definition?.sections ?? [];
+  const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   const totalSteps = sections.length + 1;
   const currentSection = step < sections.length ? sections[step] : null;
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
@@ -119,7 +122,7 @@ export default function LeaderEvaluationPage() {
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
     if (requiredQuestions.some((question) => !answered(question, answers))) { setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
-    if (!window.confirm(`Confirma o envio definitivo da avaliação de ${member?.fullName}?`)) return;
+    if (!(await confirm({ title: "Enviar avaliação da chefia?", description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`, confirmLabel: "Enviar avaliação" }))) return;
     setSubmitting(true);
     try {
       const supabase = createBrowserSupabaseClient();

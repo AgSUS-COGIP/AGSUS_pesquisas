@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRoun
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
+import { useConfirm } from "@/components/confirmation-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
@@ -44,6 +45,7 @@ function institutionalAvatarUrl(person: PersonIdentity) {
 }
 
 export default function CddiFormPage() {
+  const confirm = useConfirm();
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [identity, setIdentity] = useState<IdentityContext | null>(null);
@@ -98,13 +100,14 @@ export default function CddiFormPage() {
       } finally { setLoading(false); }
     };
     void load();
+    const timersToClear = saveTimers.current;
     return () => {
-      Object.values(saveTimers.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
       if (leaderTimer.current) window.clearTimeout(leaderTimer.current);
     };
   }, []);
 
-  const sections = definition?.sections ?? [];
+  const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   const totalSteps = sections.length + 2;
   const currentSection = step > 0 && step <= sections.length ? sections[step - 1] : null;
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
@@ -195,7 +198,7 @@ export default function CddiFormPage() {
     if (!submission?.submission?.id || !canEdit) return;
     if (!identity?.leader) { setMessageType("warning"); setMessage("Confirme sua chefia antes de enviar a avaliação."); return; }
     if (answeredRequired !== requiredQuestions.length) { setMessageType("warning"); setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
-    if (!window.confirm("Confirma o envio definitivo da sua autoavaliação?")) return;
+    if (!(await confirm({ title: "Enviar autoavaliação?", description: "Depois do envio, suas respostas serão bloqueadas para edição e encaminhadas para consolidação.", confirmLabel: "Enviar autoavaliação" }))) return;
     setSubmitting(true);
     try {
       const supabase = createBrowserSupabaseClient();
