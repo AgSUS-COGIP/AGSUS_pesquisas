@@ -26,7 +26,9 @@ export class ReliableSaveQueue {
   subscribe(listener: Listener) {
     this.listeners.add(listener);
     listener(this.getSnapshot());
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   enqueue(operation: SaveOperation) {
