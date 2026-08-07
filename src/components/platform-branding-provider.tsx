@@ -57,6 +57,21 @@ export function PlatformBrandingProvider({ children }: { children: ReactNode }) 
     return () => { document.documentElement.style.removeProperty("--brand-solid"); };
   }, [branding.primaryColor]);
 
+  useEffect(() => {
+    if (!brandingResolved || !branding.logoPath) return;
+
+    const favicon = document.createElement("link");
+    favicon.id = "platform-branding-favicon";
+    favicon.rel = "icon";
+
+    const logoUrl = new URL(branding.logoUrl, window.location.origin);
+    if (branding.updatedAt) logoUrl.searchParams.set("v", branding.updatedAt);
+    favicon.href = logoUrl.toString();
+    document.head.appendChild(favicon);
+
+    return () => { favicon.remove(); };
+  }, [branding.logoPath, branding.logoUrl, branding.updatedAt, brandingResolved]);
+
   return (
     <PlatformBrandingContext.Provider value={{ branding, loading: !brandingResolved }}>
       {children}
