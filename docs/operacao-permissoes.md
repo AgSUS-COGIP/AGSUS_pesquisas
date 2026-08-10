@@ -22,7 +22,7 @@ exceção de módulo por pessoa. `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` 
 só do Superadmin.
 
 A exclusividade é garantida por índice único parcial
-(`in_perfil_unico_vigente_por_pessoa`, de `20260810140000`) sobre
+(`in_perfil_unico_vigente`, de `20260810140000`) sobre
 `person_role_assignments (person_id) where ends_at is null`. Quem escrever RPC
 que conceda perfil precisa **encerrar o vigente antes de conceder o novo** — a
 ordem inversa viola o índice.

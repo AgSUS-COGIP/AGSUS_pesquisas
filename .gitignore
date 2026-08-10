@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Supabase CLI — estado local do link (contém o ref do projeto e credenciais
+# de sessão). `config.toml` não é versionado por decisão do projeto: o CI roda
+# `supabase init` quando ausente.
+supabase/.temp/
+supabase/.branches/
+supabase/config.toml
