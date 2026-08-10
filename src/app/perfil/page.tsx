@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BadgeCheck, Building2, KeyRound, Mail, MapPin, UserRound } from "lucide-react";
+import { BadgeCheck, Building2, KeyRound, Mail, UserRound } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
@@ -35,7 +35,6 @@ export default function ProfilePage() {
     { label: "Diretoria", value: directorate ?? "Não informada", icon: Building2 },
     { label: "Unidade", value: unit ?? "Não informada", icon: Building2 },
     { label: "Coordenação", value: coordination ?? "Não informada", icon: Building2 },
-    { label: "Local de trabalho", value: person.workplace ?? "Não informado", icon: MapPin },
   ];
 
   return (

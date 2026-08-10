@@ -59,7 +59,6 @@ type PersonForm = {
   institutionalEmail: string;
   jobTitle: string;
   costCenter: string;
-  workplace: string;
   directorate: string;
   organizationalUnit: string;
   coordination: string;
@@ -74,7 +73,6 @@ function personToForm(person: Person): PersonForm {
     institutionalEmail: person.institutionalEmail ?? "",
     jobTitle: person.jobTitle ?? "",
     costCenter: person.costCenter ?? "",
-    workplace: person.workplace ?? "",
     directorate: person.directorate ?? "",
     organizationalUnit: person.organizationalUnit ?? "",
     coordination: person.coordination ?? "",
@@ -183,7 +181,7 @@ export function AdminPeopleTeamsManagement() {
         target_institutional_email: form.institutionalEmail || null,
         target_job_title: form.jobTitle || null,
         target_cost_center: form.costCenter || null,
-        target_workplace: form.workplace || null,
+        target_workplace: form.organizationalUnit || form.costCenter || null,
         target_directorate: form.directorate || null,
         target_organizational_unit: form.organizationalUnit || null,
         target_coordination: form.coordination || null,
@@ -245,7 +243,6 @@ export function AdminPeopleTeamsManagement() {
             <Field label="Unidade" value={form.organizationalUnit} onChange={(value) => setForm({ ...form, organizationalUnit: value })} />
             <Field label="Coordenação" value={form.coordination} onChange={(value) => setForm({ ...form, coordination: value })} />
             <Field label="Centro de custo" value={form.costCenter} onChange={(value) => setForm({ ...form, costCenter: value })} />
-            <Field label="Local de trabalho" value={form.workplace} onChange={(value) => setForm({ ...form, workplace: value })} />
             <Field label="Situação funcional" value={form.employmentStatus} onChange={(value) => setForm({ ...form, employmentStatus: value })} />
             <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 md:mt-6"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4"/><span className="text-sm font-bold text-slate-700">Pessoa ativa no sistema</span></label>
           </div>
