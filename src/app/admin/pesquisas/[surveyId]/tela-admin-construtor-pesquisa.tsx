@@ -30,13 +30,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/form-controls";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import {
   buildQuestionOptions,
@@ -159,7 +160,8 @@ function UnsavedChangesNotice() {
 export default function SurveyBuilderPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const confirm = useConfirm();
   const { surveyId } = use(params);
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  const granted = guard.state === "granted";
   const [builder, setBuilder] = useState<BuilderData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -194,8 +196,8 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   }, [surveyId]);
 
   useEffect(() => {
-    if (context?.person) void loadBuilder();
-  }, [context?.person, loadBuilder]);
+    if (granted) void loadBuilder();
+  }, [granted, loadBuilder]);
 
   const totalQuestions = useMemo(
     () => builder?.sections.reduce((sum, section) => sum + section.questions.length, 0) ?? 0,
@@ -546,28 +548,18 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     }
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando construtor" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
-
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) {
-    return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="construtor"
+      restrictedTitle="Construtor de avaliações restrito"
+      restrictedDescription="Seu perfil não possui permissão para construir avaliações."
+    />;
   }
-
-  const person = context.person;
-  const user = {
-    fullName: person.fullName,
-    institutionalEmail: person.institutionalEmail,
-    employeeNumber: person.employeeNumber,
-    avatarUrl: person.avatarUrl,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
 
   return (
     <PlatformShell
-      user={user}
+      user={guard.user}
       eyebrow="Administração"
       title={builder?.survey.name ?? "Studio de avaliação"}
       actions={(

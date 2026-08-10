@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, FilePlus2, FileQuestion, Loader2, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -30,13 +30,16 @@ function statusClass(status: string | null) {
 }
 
 export default function AdminSurveysPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const [surveys, setSurveys] = useState<ManagedSurvey[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const granted = guard.state === "granted";
 
+  // Só consulta depois que a guarda liberou: sem módulo, a RPC seria negada
+  // pela RLS e o erro apareceria como toast numa tela que nem chega a abrir.
   useEffect(() => {
-    if (!context?.person) return;
+    if (!granted) return;
     const load = async () => {
       setDataLoading(true);
       try {
@@ -49,7 +52,7 @@ export default function AdminSurveysPage() {
       } finally { setDataLoading(false); }
     };
     void load();
-  }, [context?.person]);
+  }, [granted]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -57,25 +60,20 @@ export default function AdminSurveysPage() {
     return surveys.filter((item) => `${item.code} ${item.name} ${item.applicationName ?? ""}`.toLowerCase().includes(term));
   }, [search, surveys]);
 
-  if (loading) return <PlatformSkeleton title="Carregando avaliações" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir as avaliações" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <FullPageState tone="restricted" title="Gestão de pesquisas restrita" description="Seu perfil não possui permissão para construir ou operar pesquisas." />;
-
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    avatarUrl: context.person.avatarUrl,
-    roles: context.roles,
-    modules,
-  };
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="avaliações"
+      unidentifiedTitle="Não foi possível abrir as avaliações"
+      restrictedTitle="Gestão de pesquisas restrita"
+      restrictedDescription="Seu perfil não possui permissão para construir ou operar pesquisas."
+    />;
+  }
 
   const activeCycles = surveys.filter((item) => ["OPEN", "SCHEDULED"].includes(item.applicationStatus ?? "")).length;
   const totalQuestions = surveys.reduce((sum, item) => sum + Number(item.questions || 0), 0);
 
-  return <PlatformShell user={user} eyebrow="Administração" title="Avaliações e ciclos" actions={<Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white"><FilePlus2 className="h-4 w-4" />Nova avaliação</Link>}>
+  return <PlatformShell user={guard.user} eyebrow="Administração" title="Avaliações e ciclos" actions={<Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white"><FilePlus2 className="h-4 w-4" />Nova avaliação</Link>}>
     <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_80%_0%,rgba(45,212,191,.25),transparent_28%),linear-gradient(125deg,#062f54,#007f8f)] p-7 text-white shadow-xl sm:p-9">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><Sparkles className="h-4 w-4" />Estúdio e operação</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">Da construção à abertura do ciclo</h2><p className="mt-3 leading-7 text-cyan-50/85">Edite o instrumento, valide a prontidão, configure o período e controle a publicação em um fluxo auditável.</p></div><Link href="/admin/pesquisas/nova" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 font-black text-[#003b70] shadow-lg"><FilePlus2 className="h-5 w-5" />Criar avaliação</Link></div>
     </section>

@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -289,18 +290,18 @@ function RadarChart({ competencies, scores }: { competencies: Competency[]; scor
 }
 
 export default function CddiMonitoringPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [view, setView] = useState<DashboardView>("OVERVIEW");
   const [query, setQuery] = useState("");
   const [directorate, setDirectorate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const modules = context ? deriveModules(context) : [];
+  const granted = guard.state === "granted";
 
   const dashboard = useQuery({
-    queryKey: ["cddi-monitoring", context?.person?.id],
-    enabled: Boolean(context?.person),
+    queryKey: ["cddi-monitoring", granted ? guard.person.id : null],
+    enabled: granted,
     queryFn: async () => {
       const supabase = createBrowserSupabaseClient();
       const { data, error: rpcError } = await supabase.rpc("get_cddi_monitoring_dashboard", {
@@ -315,17 +316,23 @@ export default function CddiMonitoringPage() {
     setPage(1);
   }, [query, directorate, statusFilter, pageSize]);
 
-  if (loading) return <PlatformSkeleton title="Carregando monitoramento CDDI" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
-  if (!modules.includes(PLATFORM_MODULE.DASHBOARDS)) {
-    return <FullPageState tone="restricted" title="Painéis restritos" description="O módulo Painéis está disponível para a administração da plataforma." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="monitoramento CDDI"
+      restrictedTitle="Painéis restritos"
+      restrictedDescription="O módulo Painéis está disponível para a administração da plataforma."
+    />;
   }
   if (dashboard.isLoading) return <PlatformSkeleton title="Montando painel analítico" />;
   if (dashboard.error || !dashboard.data) {
     return (
-      <main className="p-10 text-red-700">
-        Não foi possível carregar o painel: {dashboard.error instanceof Error ? dashboard.error.message : "erro desconhecido"}
-      </main>
+      <FullPageState
+        title="Não foi possível carregar o painel"
+        description={dashboard.error instanceof Error ? dashboard.error.message : "Tente novamente em alguns instantes."}
+        actionHref="/paineis"
+        actionLabel="Voltar aos painéis"
+      />
     );
   }
 
@@ -376,14 +383,7 @@ export default function CddiMonitoringPage() {
     };
   });
 
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
+  const user = guard.user;
 
   function exportCsv() {
     const rows = [

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, CircleStop, Clock3, FileCheck2, Loader2, Play, RefreshCw, RotateCcw, Send, ShieldCheck, Users2 } from "lucide-react";
 import { toast } from "sonner";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -69,7 +70,8 @@ function cycleExplanation(status: string | undefined) {
 export default function SurveyOperationsPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const confirm = useConfirm();
   const { surveyId } = use(params);
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  const granted = guard.state === "granted";
   const [operations, setOperations] = useState<Operations | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
@@ -94,8 +96,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   }, [surveyId]);
 
   useEffect(() => {
-    if (context?.person) void loadOperations();
-  }, [context?.person, loadOperations]);
+    if (granted) void loadOperations();
+  }, [granted, loadOperations]);
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
@@ -132,12 +134,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     }
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando operação do ciclo" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="operação do ciclo"
+      restrictedTitle="Operação de ciclos restrita"
+      restrictedDescription="Seu perfil não possui permissão para operar ciclos de avaliação."
+    />;
+  }
 
-  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
   const cycleStatus = operations?.application?.status;
   const canEditPeriod = cycleStatus === "DRAFT" || cycleStatus === "SCHEDULED";
   const canReopen = cycleStatus === "CLOSED";
@@ -152,7 +157,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     { label: "Pendências", value: operations.issues.length, icon: AlertTriangle },
   ] : [];
 
-  return <PlatformShell user={user} eyebrow="Centro de operações" title={operations?.survey.name ?? "Operação do ciclo"} actions={<div className="flex gap-2"><button onClick={() => void loadOperations()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600"><RefreshCw className="h-4 w-4" />Atualizar</button><Link href={`/admin/pesquisas/${surveyId}`} className="inline-flex items-center rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white">Abrir construtor</Link></div>}>
+  return <PlatformShell user={guard.user} eyebrow="Centro de operações" title={operations?.survey.name ?? "Operação do ciclo"} actions={<div className="flex gap-2"><button onClick={() => void loadOperations()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600"><RefreshCw className="h-4 w-4" />Atualizar</button><Link href={`/admin/pesquisas/${surveyId}`} className="inline-flex items-center rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white">Abrir construtor</Link></div>}>
     {dataLoading || !operations ? <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-9 w-9 animate-spin text-[#003b70]" /></div> : <>
       <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,.22),transparent_28%),linear-gradient(125deg,#062f54,#075ea8)] p-7 text-white shadow-xl sm:p-9"><div className="grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end"><div><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><ShieldCheck className="h-4 w-4" />Governança do ciclo</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">{operations.survey.name}</h2><p className="mt-3 max-w-3xl leading-7 text-blue-100">Publique a versão, defina o período, abra o ciclo e acompanhe a execução sem ajustes manuais no banco.</p></div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Versão {operations.version.number} · {operations.version.status}</span><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-black">Ciclo · {cycleStatus ?? "Não configurado"}</span></div></div></section>
 

@@ -28,6 +28,7 @@ components/
 ├── client-error-reporter.tsx     captura window.error e unhandledrejection
 ├── network-status-banner.tsx     aviso de offline e de conexão restabelecida
 ├── full-page-state.tsx           tela inteira de acesso restrito / erro / vazio
+├── platform-guard-state.tsx      renderiza os estados negados de usePlatformGuard()
 ├── external-image.tsx            next/image sem otimização, para host externo
 ├── person-avatar.tsx             avatar com fallback de iniciais
 ├── survey-banner.tsx             banner com fallback em cadeia
@@ -73,6 +74,7 @@ components/
 <Input label hint? error? … />                        // idem Textarea, Select, Checkbox, Radio
 
 <FullPageState tone="restricted|error|empty" title description action? />
+<PlatformGuardState guard={usePlatformGuard(…)} title restrictedTitle? restrictedDescription? unidentifiedTitle? />
 <PlatformLogo src alt organizationName width height loading? … />
 <CddiPlatformFrame title>{children}</CddiPlatformFrame>
 <ExternalImage {...propsDeNextImage} />               // sem loader nem otimização
@@ -178,5 +180,5 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `admin-module-page.tsx`, `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário.
+- Não utilizados: `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas.
 - `avatar-uploader.tsx` chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` bloqueia fotos enviadas — não reative sem revisar o banco.

@@ -54,10 +54,12 @@ src/app/layout.tsx
                    NetworkStatusBanner · Toaster
 
 página ("use client")
-  └─ usePlatformContext() → fc_obter_contexto_plataforma()
+  └─ usePlatformGuard(módulo?) → usePlatformContext() → fc_obter_contexto_plataforma()
        status UNLINKED → resolve_authenticated_person(null) → recarrega
        status AUTH_REQUIRED → window.location.replace("/acesso")
-  └─ deriveModules(context) → PlatformShell renderiza só o permitido
+  └─ decisão em 4 estados: loading · unidentified · restricted · granted
+       negado  → <PlatformGuardState guard={…} />
+       granted → PlatformShell recebe `user` e `modules` já resolvidos
 ```
 
 ## Mapa de módulos e perfis
@@ -75,7 +77,7 @@ O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado *
 
 `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` são exclusivos do Superadmin: gestão de dados funcionais, de perfis e a carga da base institucional são administração global.
 
-`resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto correspondente. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md); para **aplicar** o modelo num banco ou diagnosticar divergência, [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
+`resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto correspondente. Nas páginas, os dois chegam por `usePlatformGuard(módulo?)`, que traduz o contexto em quatro estados de acesso e entrega `user` e `modules` prontos — nenhuma tela repete a sequência de verificações. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md); para **aplicar** o modelo num banco ou diagnosticar divergência, [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
 
 Trocar o mapa de perfis exige mexer em **dois lugares que precisam concordar**: o `case` de `fc_obter_contexto_plataforma()` (banco, autoridade efetiva) e `ROLE_MODULES` em `src/lib/platform-modules.ts` (interface). As tabelas `role_module_permissions` e `person_module_permissions` **não** governam acesso — são catálogo descritivo, sem leitor em runtime.
 
@@ -118,6 +120,7 @@ npm run db:naming         # nomenclatura institucional (migrations alteradas)
 ## Convenções globais
 
 - Arquivos `kebab-case`; componentes/tipos `PascalCase`; constantes de módulo `SCREAMING_SNAKE_CASE`.
+- **Rota = `page.tsx` + `tela-*.tsx`.** `page.tsx` é nome reservado do App Router e não pode ser renomeado, então ele fica com uma linha (`export { default } from "./tela-…";`) e a tela mora num arquivo de nome descritivo ao lado. Edite sempre a `tela-*.tsx`. Detalhes em [src/app/CLAUDE.md](src/app/CLAUDE.md).
 - Rotas em português; identificadores de código em inglês; enums de domínio em maiúsculas (`DRAFT`, `SUBMITTED`, `OPEN`, `CLOSED`).
 - Alias `@/*` → `./src/*`.
 - Texto de interface sempre em português, dizendo o que aconteceu e o que fazer.

@@ -6,31 +6,26 @@ import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Breadcrumbs, PageActions } from "@/components/ui/page-navigation";
 import { PageHeader, Surface } from "@/components/ui/surface";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 export default function ResultsPage() {
-  const { context, loading, error } = usePlatformContext();
-  if (loading) return <PlatformSkeleton title="Carregando resultados" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.RESULTS)) {
-    return <FullPageState tone="restricted" title="Resultados restritos" description="O módulo Resultados está disponível para a administração da plataforma." />;
+  const guard = usePlatformGuard(PLATFORM_MODULE.RESULTS);
+
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="resultados"
+      restrictedTitle="Resultados restritos"
+      restrictedDescription="O módulo Resultados está disponível para a administração da plataforma."
+    />;
   }
 
   return (
     <PlatformShell
-      user={{
-        fullName: context.person.fullName,
-        institutionalEmail: context.person.institutionalEmail,
-        employeeNumber: context.person.employeeNumber,
-        profileLabel: profileLabel(context),
-        avatarUrl: context.person.avatarUrl,
-        roles: context.roles,
-        modules,
-      }}
+      user={guard.user}
       eyebrow="Devolutivas e publicações"
       title="Meus resultados"
     >

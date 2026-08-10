@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, ClipboardList, FilePlus2, FileText, Filter, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
-import { FullPageState } from "@/components/full-page-state";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { PlatformShell } from "@/components/platform-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { cn } from "@/lib/utils";
 import { summarizeSurveyCatalog, surveyApplicationHref, surveyItemState, type SurveyCatalogItem } from "@/lib/survey-catalog";
@@ -61,10 +61,10 @@ const stateBadgeVariant: Record<Exclude<FilterKey, "ALL">, "success" | "warning"
 };
 
 export default function SurveysPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKey>("ALL");
-  const catalogQuery = useSurveyCatalog(Boolean(context?.person));
+  const catalogQuery = useSurveyCatalog(guard.state === "granted");
   const items = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
 
@@ -85,20 +85,21 @@ export default function SurveysPage() {
     });
   }, [items, search, filter]);
 
-  if (loading) return <PlatformSkeleton title="Carregando avaliações" />;
-  if (!context?.person) return <FullPageState title="Acesso não identificado" description={error || "Não foi possível associar sua sessão a um cadastro ativo."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.SURVEYS)) {
-    return <FullPageState tone="restricted" title="Módulo indisponível" description="Seu perfil não possui acesso ao módulo de avaliações. Fale com a administração se acredita que isso é um engano." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="avaliações"
+      restrictedTitle="Módulo indisponível"
+      restrictedDescription="Seu perfil não possui acesso ao módulo de avaliações. Fale com a administração se acredita que isso é um engano."
+    />;
   }
 
-  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
+  const { modules } = guard;
   const isAdmin = modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS);
 
   return (
     <PlatformShell
-      user={user}
+      user={guard.user}
       eyebrow="Catálogo institucional"
       title="Avaliações"
       actions={isAdmin ? <Link href="/admin/pesquisas/nova" className={cn(buttonVariants({ variant: "primary" }), "hidden sm:inline-flex")}><FilePlus2 className="h-4 w-4" aria-hidden="true" />Nova avaliação</Link> : undefined}

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { ChangeEvent, use, useEffect, useState } from "react";
 import { ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { ExternalImage } from "@/components/external-image";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -44,7 +45,8 @@ const EMPTY_VISUAL: VisualIdentity = {
 
 export default function SurveyVisualIdentityPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = use(params);
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  const granted = guard.state === "granted";
   const [builder, setBuilder] = useState<BuilderData | null>(null);
   const [visual, setVisual] = useState<VisualIdentity>(EMPTY_VISUAL);
   const [dataLoading, setDataLoading] = useState(true);
@@ -52,7 +54,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (!context?.person) return;
+    if (!granted) return;
     const load = async () => {
       setDataLoading(true);
       try {
@@ -78,7 +80,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
       }
     };
     void load();
-  }, [context?.person, surveyId]);
+  }, [granted, surveyId]);
 
   async function uploadBanner(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -156,24 +158,18 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
     setVisual(EMPTY_VISUAL);
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando identidade visual" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
-
-  const person = context.person;
-  const user = {
-    fullName: person.fullName,
-    institutionalEmail: person.institutionalEmail,
-    employeeNumber: person.employeeNumber,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="identidade visual"
+      restrictedTitle="Identidade visual restrita"
+      restrictedDescription="Seu perfil não possui permissão para configurar a identidade visual das avaliações."
+    />;
+  }
 
   return (
     <PlatformShell
-      user={user}
+      user={guard.user}
       eyebrow="Administração"
       title="Identidade visual"
       actions={

@@ -7,10 +7,11 @@ import { ArrowDownUp, CheckCircle2, ClipboardCheck, Clock3, Loader2, Plus, Searc
 import { toast } from "sonner";
 import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Dialog } from "@/components/ui/overlay-panel";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -74,7 +75,8 @@ function normalizeSearchText(value: string) {
 
 export default function TeamPage() {
   const confirm = useConfirm();
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.TEAM);
+  const granted = guard.state === "granted";
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -87,7 +89,7 @@ export default function TeamPage() {
   const cyclesQuery = useQuery({
     queryKey: teamCyclesKey,
     queryFn: fetchTeamCycles,
-    enabled: Boolean(context?.person),
+    enabled: granted,
     staleTime: 60_000,
   });
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
@@ -99,7 +101,7 @@ export default function TeamPage() {
   const teamQuery = useQuery({
     queryKey: ["team", "workspace", activeCycleCode],
     queryFn: () => fetchTeamWorkspace(activeCycleCode),
-    enabled: Boolean(context?.person) && cyclesReady,
+    enabled: granted && cyclesReady,
   });
   const workspace = teamQuery.data ?? null;
   const applicationId = workspace?.application.id ?? "";
@@ -158,13 +160,16 @@ export default function TeamPage() {
     finally { setWorkingId(null); }
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando equipe" />;
-  if (!context?.person) return <FullPageState title="Acesso não identificado" description={error || "Não foi possível associar sua sessão a um cadastro ativo."} />;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.TEAM)) return <FullPageState tone="restricted" title="Acesso restrito à liderança" description="O módulo Minha equipe está disponível para avaliadores e para a administração das avaliações." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="equipe"
+      restrictedTitle="Acesso restrito à liderança"
+      restrictedDescription="O módulo Minha equipe está disponível para avaliadores e para a administração das avaliações."
+    />;
+  }
   if (teamQuery.isError) return <FullPageState title="Não foi possível carregar sua equipe" description={teamQuery.error instanceof Error ? teamQuery.error.message : "Tente novamente em alguns instantes."} />;
-  const person = context.person;
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: person.avatarUrl, roles: context.roles, modules };
+  const user = guard.user;
   const sent = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "SUBMITTED").length ?? 0;
   const drafts = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "DRAFT").length ?? 0;
   const notStarted = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "NOT_STARTED").length ?? 0;

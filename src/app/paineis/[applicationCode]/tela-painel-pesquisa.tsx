@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart3, CircleCheckBig, Clock3, UsersRound } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -97,32 +96,27 @@ function OptionDistribution({ options }: { options: DashboardOption[] }) {
 export default function SurveyDashboardPage() {
   const params = useParams<{ applicationCode: string }>();
   const applicationCode = decodeURIComponent(params.applicationCode);
-  const { context, loading: contextLoading, error: contextError } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const dashboardQuery = useQuery({
     queryKey: ["dashboards", applicationCode],
     queryFn: () => fetchDashboard(applicationCode),
-    enabled: Boolean(context?.person && applicationCode),
+    enabled: guard.state === "granted" && Boolean(applicationCode),
     staleTime: 30_000,
   });
   const dashboard = dashboardQuery.data ?? null;
 
-  const modules = useMemo(() => context ? deriveModules(context) : [], [context]);
-
-  if (contextLoading || dashboardQuery.isLoading) return <PlatformSkeleton title="Carregando painel da avaliação" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{contextError || "Acesso não identificado."}</main>;
-  if (!modules.includes(PLATFORM_MODULE.DASHBOARDS)) {
-    return <FullPageState tone="restricted" title="Painéis restritos" description="O módulo Painéis está disponível para a administração da plataforma." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="painel da avaliação"
+      restrictedTitle="Painéis restritos"
+      restrictedDescription="O módulo Painéis está disponível para a administração da plataforma."
+    />;
   }
 
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    avatarUrl: context.person.avatarUrl,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
+  if (dashboardQuery.isLoading) return <PlatformSkeleton title="Carregando painel da avaliação" />;
+
+  const user = guard.user;
 
   if (!dashboard) {
     return (

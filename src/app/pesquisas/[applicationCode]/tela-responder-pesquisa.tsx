@@ -6,8 +6,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -30,7 +32,8 @@ export default function GenericSurveyPage() {
   const confirm = useConfirm();
   const params = useParams<{ applicationCode: string }>();
   const applicationCode = decodeURIComponent(params.applicationCode);
-  const { context, loading: contextLoading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS);
+  const granted = guard.state === "granted";
   const [definition, setDefinition] = useState<Definition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
@@ -48,7 +51,7 @@ export default function GenericSurveyPage() {
   }, [answers]);
 
   useEffect(() => {
-    if (!context?.person) return;
+    if (!granted) return;
     let active = true;
 
     const load = async () => {
@@ -87,7 +90,7 @@ export default function GenericSurveyPage() {
       active = false;
       Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
     };
-  }, [applicationCode, context?.person]);
+  }, [applicationCode, granted]);
 
   const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
@@ -211,8 +214,15 @@ export default function GenericSurveyPage() {
     }
   }
 
-  if (contextLoading || loading) return <PlatformSkeleton title="Abrindo avaliação" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="avaliação"
+      restrictedTitle="Módulo indisponível"
+      restrictedDescription="Seu perfil não possui acesso ao módulo de avaliações."
+    />;
+  }
+  if (loading) return <PlatformSkeleton title="Abrindo avaliação" />;
   if (!definition) return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
       <section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl">
@@ -223,19 +233,8 @@ export default function GenericSurveyPage() {
     </main>
   );
 
-  const modules = deriveModules(context);
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    avatarUrl: context.person.avatarUrl,
-    roles: context.roles,
-    modules,
-  };
-
   return (
-    <PlatformShell user={user} eyebrow={definition.survey.code} title={definition.application.name}>
+    <PlatformShell user={guard.user} eyebrow={definition.survey.code} title={definition.application.name}>
       <div className="mx-auto w-full max-w-5xl">
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-5 p-6 lg:grid-cols-[1fr_auto] lg:items-start lg:p-8">

@@ -10,25 +10,27 @@ Convenções gerais de rota em [../CLAUDE.md](../CLAUDE.md).
 
 ## Responsabilidades
 
-- Aplicar a guarda de módulo antes de qualquer operação (`deriveModules(context).includes("ADMIN_…")`).
+- Aplicar a guarda de módulo antes de qualquer operação (`usePlatformGuard(PLATFORM_MODULE.ADMIN_…)`, ver [../CLAUDE.md](../CLAUDE.md)).
 - Traduzir ações administrativas em chamadas RPC e apresentar o resultado (toast de sucesso, mensagem de erro do banco).
 - Explicar ao operador **por que** uma ação está indisponível — nunca apenas desabilitar o botão.
 
 ## Rotas e RPCs
 
-| Rota | Módulo exigido | RPCs |
-|---|---|---|
-| `/admin` | qualquer `ADMIN_*` | — (cartões de navegação) |
-| `/admin/pesquisas` | `ADMIN_SURVEYS` | `list_managed_surveys` |
-| `/admin/pesquisas/nova` | `ADMIN_SURVEYS` | `create_survey_draft` |
-| `/admin/pesquisas/[surveyId]` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section` |
-| `/admin/pesquisas/[surveyId]/identidade` | `ADMIN_SURVEYS` | `get_survey_builder`, `update_application_visual_settings` |
-| `/admin/pesquisas/[surveyId]/operacao` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
-| `/admin/participantes` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
-| `/admin/equipes` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
-| `/admin/acessos` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
-| `/admin/configuracoes` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
-| `/admin/importacao` | `ADMIN_IMPORT` | via `POST /api/admin/import-participants` |
+A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado só re-exporta (convenção descrita em [../CLAUDE.md](../CLAUDE.md)). Caminhos relativos a `src/app/admin/`.
+
+| Rota | Tela | Módulo exigido | RPCs |
+|---|---|---|---|
+| `/admin` | `tela-central-admin.tsx` | qualquer `ADMIN_*` | — (cartões de navegação) |
+| `/admin/pesquisas` | `pesquisas/tela-admin-lista-pesquisas.tsx` | `ADMIN_SURVEYS` | `list_managed_surveys` |
+| `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `create_survey_draft` |
+| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section` |
+| `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `update_application_visual_settings` |
+| `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
+| `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
+| `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
+| `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
+| `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
+| `/admin/importacao` | `importacao/tela-admin-importacao.tsx` | `ADMIN_IMPORT` | via `POST /api/admin/import-participants` |
 
 ## Fluxo interno
 
@@ -138,7 +140,7 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 ## Convenções específicas
 
 - Ação destrutiva ou irreversível pede confirmação por `await confirm({ … })` (`useConfirm()` de `@/components/confirmation-provider`), com `tone: "danger"` quando o efeito não se desfaz e texto que cita o objeto afetado.
-- Erros de RPC passam por um helper que percorre `message` → `details` → `hint` antes do texto genérico (ver `errorMessage()` em `operacao/page.tsx`).
+- Erros de RPC passam por um helper que percorre `message` → `details` → `hint` antes do texto genérico (ver `errorMessage()` em `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx`).
 - Depois de mutação, recarregue o agregado do banco (`loadOperations()`, `loadTeam()`) em vez de tentar reconciliar estado local — o banco é a fonte da verdade.
 - Rótulos de sucesso ficam num mapa por ação, não concatenados em texto livre.
 
@@ -147,5 +149,6 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 - `/admin/importacao` aplica a guarda de `ADMIN_IMPORT` mas **não** usa `PlatformShell` (layout próprio de página inteira). A proteção efetiva continua na rota de API, que exige sessão institucional com perfil Superadmin.
 - O corpo de `/api/admin/import-participants` é validado por esquema `zod` (`@/lib/admin-import-contract`). Mudança no formato enviado pela tela exige mudança no contrato.
 - `/admin` exibe "CDDI 2026 · ciclo encerrado" como texto fixo, independente do estado real da aplicação.
-- A tela de "Acesso restrito" está migrando para `FullPageState` (`tone="restricted"`): `/admin`, `/admin/pesquisas`, `/admin/pesquisas/nova`, `/admin/participantes`, `/admin/equipes` e `/admin/configuracoes` já usam; as três rotas sob `/admin/pesquisas/[surveyId]` ainda reimplementam inline. Existe também um `AdminModulePage` pronto e sem consumidores em `@/components/admin-module-page.tsx`.
+- **Toda** rota administrativa usa `usePlatformGuard()` + `PlatformGuardState`; as telas inline de "Acesso restrito" (`<main className="p-10 text-red-700">`, sem caminho de volta) deixaram de existir — inclusive nas três rotas sob `/admin/pesquisas/[surveyId]`. O `AdminModulePage` sem consumidores foi removido.
+- `/admin` e `/admin/acessos` chamam `usePlatformGuard()` **sem** módulo, de propósito: a central abre para qualquer `ADMIN_*` (regra de prefixo, não de cartão) e a tela de acessos apresenta a restrição dentro da casca, preservando a navegação.
 - `Dialog` importado de `@/components/ui/dialog` (`<dialog>` nativo) é diferente do `Dialog` de `@/components/ui/overlay-panel` (focus trap manual). O construtor usa o primeiro.

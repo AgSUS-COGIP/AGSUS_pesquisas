@@ -4,20 +4,15 @@ import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileTe
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { metadataText } from "@/lib/person-metadata";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
-
-function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = metadata?.[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return null;
-}
 
 function greeting() {
   const hour = Number(new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date()).replace(/\D/g, ""));
@@ -40,42 +35,45 @@ function dateLabel(value: string | null) {
 }
 
 export default function ParticipantAreaPage() {
-  const { context, loading, error } = usePlatformContext();
+  // Sem módulo exigido no hook: o Participante não tem Visão Geral, mas /area é
+  // o destino padrão pós-login — a resposta correta é redirecionar para
+  // Pesquisas, não apresentar "acesso restrito".
+  const guard = usePlatformGuard();
+  const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
-  const catalogQuery = useSurveyCatalog(Boolean(context?.person));
+  const catalogQuery = useSurveyCatalog(granted);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
 
   useEffect(() => setSalutation(greeting()), []);
 
-  // O Participante não tem Visão Geral: sua jornada começa em Pesquisas. Como
-  // /area é o destino padrão pós-login, redirecionar é melhor que barrar.
-  const hasHomeModule = context ? deriveModules(context).includes(PLATFORM_MODULE.HOME) : true;
+  const hasHomeModule = granted ? guard.modules.includes(PLATFORM_MODULE.HOME) : true;
   useEffect(() => {
-    if (!loading && context?.person && !hasHomeModule) router.replace("/pesquisas");
-  }, [loading, context?.person, hasHomeModule, router]);
+    if (granted && !hasHomeModule) router.replace("/pesquisas");
+  }, [granted, hasHomeModule, router]);
 
   const metrics = useMemo(() => summarizeSurveyCatalog(catalog), [catalog]);
   const priorityItem = useMemo(() => selectPrioritySurvey(catalog), [catalog]);
 
-  if (loading) return <PlatformSkeleton title="Preparando painel institucional" />;
-  if (!context?.person || context.status !== "OK") {
-    return <main className="grid min-h-screen place-items-center bg-slate-50 px-6"><section className="w-full max-w-xl rounded-2xl border border-red-200 bg-white p-7 shadow-sm"><p className="text-xs font-black uppercase tracking-[.16em] text-red-700">Acesso institucional</p><h1 className="mt-2 text-2xl font-black text-[#003b70]">Não foi possível abrir seu painel</h1><p className="mt-4 leading-7 text-slate-600">{error || context?.message || "Cadastro institucional não localizado."}</p><Link href="/acesso" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao acesso</Link></section></main>;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState guard={guard} title="painel institucional" unidentifiedTitle="Não foi possível abrir seu painel" />;
   }
 
-  const person = context.person;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.HOME)) {
-    return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
+  const { context, person, modules, user } = guard;
+  // `status` fora de OK significa cadastro inativo ou pendente: o contexto veio,
+  // mas não autoriza abrir o painel.
+  if (context.status !== "OK") {
+    return <FullPageState title="Não foi possível abrir seu painel" description={context.message || "Cadastro institucional não localizado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
   }
+
+  if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
+
   const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
   const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
   const firstName = person.fullName.split(/\s+/)[0];
   const unit = metadataText(person.metadata, "unit", "unidade", "organizational_unit") ?? person.costCenter ?? "Unidade não informada";
   const coordination = metadataText(person.metadata, "coordination", "coordenacao");
-  const profile = profileLabel(context);
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profile, avatarUrl: person.avatarUrl, roles: context.roles, modules };
 
   const actions = [
     { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar pesquisas", icon: FileText, accent: "text-blue-700 bg-blue-50" },
