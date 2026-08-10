@@ -48,7 +48,6 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | `platform-branding.ts` | `PlatformBranding`, `DEFAULT_PLATFORM_BRANDING`, `normalizePlatformBranding()`, `platformBrandingTitle()` |
 | `admin-import-contract.ts` | `adminImportRequestSchema`, `parseAdminImportRequest()`, `formatAdminImportValidationErrors()`, `MAX_IMPORT_ROWS_PER_REQUEST`, `MAX_IMPORT_TOTAL_ROWS`, tipos `AdminImportRequest`, `ParticipantImportRow` |
 | `people-import.ts` | `parsePeopleImportRows()`, `summarizePeopleImport()`, tipos `PeopleImportRow`, `PeopleImportSummary` |
-| `avatar-config.ts` | `defaultAvatarConfig()`, `normalizeAvatarConfig()`, catálogos de opções e cores |
 | `observability.ts` | `reportApplicationError()`, `sanitizeObservabilityText()`, `errorMessageFromUnknown()`, `createErrorReference()` |
 | `reliable-save-queue.ts` | classe `ReliableSaveQueue` |
 | `utils.ts` | `cn()` — `twMerge(clsx(...))` |

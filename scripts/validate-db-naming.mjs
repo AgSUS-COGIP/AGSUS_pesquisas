@@ -43,6 +43,16 @@ const LEGACY_RESTORED_OBJECTS = {
       "role_id", "module_code", "allowed", "person_id", "granted_by", "updated_at",
     ]),
   },
+  // RPCs de avatar legadas mantidas como pontes para bundles já publicados.
+  // A migration apenas redefine funções existentes; não cria uma nova API fora
+  // do padrão institucional.
+  "supabase/migrations/20260810140000_usar_foto_google_automaticamente.sql": {
+    função: new Set([
+      "set_my_avatar_choice",
+      "set_my_avatar_url",
+      "sync_my_google_avatar",
+    ]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
@@ -51,13 +61,13 @@ function isLegacyRestored(file, kind, name) {
 
 function changedMigrationFiles() {
   try {
-    const output = execFileSync(
-      "git",
+    const commands = [
       ["diff", "--name-only", `${BASE_REF}...HEAD`, "--", "supabase/migrations"],
-      { encoding: "utf8" },
-    );
-    return output
-      .split("\n")
+      ["diff", "--name-only", "--", "supabase/migrations"],
+      ["ls-files", "--others", "--exclude-standard", "--", "supabase/migrations"],
+    ];
+    const files = commands.flatMap((arguments_) => execFileSync("git", arguments_, { encoding: "utf8" }).split("\n"));
+    return [...new Set(files)]
       .map((value) => value.trim())
       .filter((value) => migrationPattern.test(value));
   } catch {

@@ -154,7 +154,7 @@ agsus-pesquisas/
 
 ## Dependências
 
-**Produção** — `@dicebear/core` e `@dicebear/styles` (avatares gerados), `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (leitura de planilhas na importação).
+**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (leitura de planilhas na importação).
 
 **Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
 
@@ -253,7 +253,6 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 |---|---|
 | [src/lib/admin-import-contract.test.ts](src/lib/admin-import-contract.test.ts) | Esquema da importação rejeita lote sem `batchId`, linha marcada como inválida, total acima do limite e propriedade inesperada. |
 | [src/lib/auth-callback.test.ts](src/lib/auth-callback.test.ts) | Redirecionamento pós-login não aceita destinos externos; compatibilidade do fluxo PKCE. |
-| [src/lib/avatar-config.test.ts](src/lib/avatar-config.test.ts) | Metadados de avatar inválidos degradam para padrões seguros. |
 | [src/lib/cddi-question-applicability.test.ts](src/lib/cddi-question-applicability.test.ts) | Perguntas `PERSON` e fora do tipo de submissão não chegam ao formulário. |
 | [src/lib/observability.test.ts](src/lib/observability.test.ts) | `errorMessageFromUnknown()` extrai a mensagem do PostgREST e preserva a de erros nativos. |
 | [src/lib/platform-branding.test.ts](src/lib/platform-branding.test.ts) | Marca ausente ou inválida cai no padrão institucional; aceita só logotipo seguro e cor `#RRGGBB` completa. |
@@ -460,12 +459,11 @@ Nenhum destes arquivos é importado por código de produção:
 | [src/components/admin-module-page.tsx](src/components/admin-module-page.tsx) | Casca genérica de página administrativa; cada página `/admin/*` monta a guarda de módulo por conta própria. |
 | [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
 | [src/components/cddi-visual-banner.tsx](src/components/cddi-visual-banner.tsx) | Substituído por `survey-banner.tsx`. |
-| [src/components/avatar-uploader.tsx](src/components/avatar-uploader.tsx) | Chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` passou a bloquear fotos enviadas — o fluxo atual usa `avatar-studio.tsx`. |
 | [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
 
 **Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
 
-**Resolvidos.** `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI.
+**Resolvidos.** `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
 
 ### Duplicação de lógica
 
@@ -495,7 +493,6 @@ Nenhum destes arquivos é importado por código de produção:
 
 8. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
 
-9. **`@dicebear/core` fixado sem `^`** (`10.3.0` / `10.2.0`) enquanto o restante usa faixas. Provavelmente intencional, mas vale documentar o motivo.
 
 10. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
 
