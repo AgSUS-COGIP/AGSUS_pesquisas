@@ -76,7 +76,6 @@ const FIELD_ALIASES = {
     "E MAIL INSTUCIONAL",
     "EMAIL INSTUCIONAL",
   ],
-  workplace: ["DS_LOCAL_TRABALHO", "LOCAL DE TRABALHO"],
   accessProfile: ["TP_PERFIL_ACESSO", "PERFIL DE ACESSO"],
   participates: ["ST_PARTICIPA_CICLO", "PARTICIPA DO CICLO"],
   participantKey: ["CO_CHAVE_PARTICIPANTE", "CHAVE PARTICIPANTE"],
@@ -243,7 +242,8 @@ export function parsePeopleImportRows(data: RawPeopleImportRow[]): PeopleImportR
       unit,
       coordination,
       institutionalEmail,
-      workplace: firstValue(values, FIELD_ALIASES.workplace) || unit || costCenter,
+      // Campo legado exigido pela função atual do banco. A origem canônica é Unidade.
+      workplace: unit || costCenter,
       accessProfile: firstValue(values, FIELD_ALIASES.accessProfile).toUpperCase() || "PARTICIPANTE",
       participates: parseBoolean(firstValue(values, FIELD_ALIASES.participates)),
       participantKey: firstValue(values, FIELD_ALIASES.participantKey) || employeeNumber,

@@ -40,7 +40,6 @@ type ParticipantRow = {
   institutionalEmail: string | null;
   jobTitle: string | null;
   costCenter: string | null;
-  workplace: string | null;
   accessProfile: string | null;
   status: string;
   completedAt: string | null;
@@ -67,8 +66,7 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
         full_name,
         institutional_email,
         job_title,
-        cost_center,
-        workplace
+        cost_center
       )
     `)
     .eq("application_id", application.id)
@@ -84,7 +82,6 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
       institutionalEmail: person?.institutional_email ?? null,
       jobTitle: person?.job_title ?? null,
       costCenter: person?.cost_center ?? null,
-      workplace: person?.workplace ?? null,
       accessProfile: item.access_profile ?? null,
       status: item.status,
       completedAt: item.completed_at,
@@ -93,8 +90,8 @@ async function loadParticipants(): Promise<ParticipantRow[]> {
 }
 
 function exportCsv(rows: ParticipantRow[]) {
-  const header = ["Matrícula", "Nome", "E-mail institucional", "Cargo", "Centro de custo", "Local", "Perfil", "Situação", "Conclusão"];
-  const lines = rows.map((row) => [row.employeeNumber, row.fullName, row.institutionalEmail ?? "", row.jobTitle ?? "", row.costCenter ?? "", row.workplace ?? "", row.accessProfile ?? "", row.status, row.completedAt ? new Date(row.completedAt).toLocaleString("pt-BR") : ""]);
+  const header = ["Matrícula", "Nome", "E-mail institucional", "Cargo", "Unidade/Centro de custo", "Perfil", "Situação", "Conclusão"];
+  const lines = rows.map((row) => [row.employeeNumber, row.fullName, row.institutionalEmail ?? "", row.jobTitle ?? "", row.costCenter ?? "", row.accessProfile ?? "", row.status, row.completedAt ? new Date(row.completedAt).toLocaleString("pt-BR") : ""]);
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const csv = [header, ...lines].map((line) => line.map((value) => escape(String(value))).join(";")).join("\n");
   const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
@@ -134,7 +131,7 @@ export function AdminParticipantsTable() {
   const columns = useMemo<ColumnDef<ParticipantRow>[]>(() => [
     { accessorKey: "fullName", header: "Participante", cell: ({ row }) => <div className="min-w-64"><strong className="block text-sm text-slate-900">{row.original.fullName}</strong><span className="mt-1 block text-xs text-slate-500">Matrícula {row.original.employeeNumber}</span></div> },
     { accessorKey: "institutionalEmail", header: "Contato", cell: ({ row }) => row.original.institutionalEmail ? <span className="text-sm text-slate-700">{row.original.institutionalEmail}</span> : <Badge variant="warning"><MailWarning className="h-3.5 w-3.5" aria-hidden="true" />Sem e-mail</Badge> },
-    { accessorKey: "jobTitle", header: "Cargo e unidade", cell: ({ row }) => <div className="min-w-56 text-sm"><span className="block font-semibold text-slate-800">{row.original.jobTitle ?? "Cargo não informado"}</span><span className="mt-1 block text-xs text-slate-500">{row.original.costCenter ?? row.original.workplace ?? "Unidade não informada"}</span></div> },
+    { accessorKey: "jobTitle", header: "Cargo e unidade", cell: ({ row }) => <div className="min-w-56 text-sm"><span className="block font-semibold text-slate-800">{row.original.jobTitle ?? "Cargo não informado"}</span><span className="mt-1 block text-xs text-slate-500">{row.original.costCenter ?? "Unidade não informada"}</span></div> },
     { accessorKey: "accessProfile", header: "Perfil", cell: ({ getValue }) => <Badge variant="info">{String(getValue() ?? "Participante")}</Badge> },
     { accessorKey: "status", header: "Situação", cell: ({ getValue }) => { const value = String(getValue()); return <Badge variant={statusVariant(value)}>{statusLabel(value)}</Badge>; } },
   ], []);
