@@ -21,6 +21,12 @@ Perfis são **mutuamente exclusivos** e o acesso vem exclusivamente deles: não 
 exceção de módulo por pessoa. `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` são
 só do Superadmin.
 
+A exclusividade é garantida por índice único parcial
+(`in_perfil_unico_vigente_por_pessoa`, de `20260810140000`) sobre
+`person_role_assignments (person_id) where ends_at is null`. Quem escrever RPC
+que conceda perfil precisa **encerrar o vigente antes de conceder o novo** — a
+ordem inversa viola o índice.
+
 ## Duas armadilhas que custaram tempo
 
 ### 1. O histórico de migrations pode mentir
@@ -136,6 +142,7 @@ Cada arquivo é uma transação: falha reverte inteiro.
 | 4 | `20260807151000_remover_selecao_manual_chefia.sql` | Remove duas RPCs do CDDI |
 | 5 | `20260807151500_listar_ciclos_lideranca.sql` | Cria `fc_listar_ciclos_lideranca`, usada por `/equipe` |
 | 6 | `20260810120000_perfis_exclusivos_quatro_papeis.sql` | Consolida os quatro perfis |
+| 7 | `20260810140000_perfil_unico_por_pessoa.sql` | Cria o índice de exclusividade e reordena `fc_definir_perfil_pessoa` (encerrar antes de conceder). Consolida sozinha quem ainda acumula, então roda mesmo que o passo 6 tenha ficado incompleto |
 
 O passo 1 roda **fora da ordem cronológica de propósito**: o timestamp dele é o
 mais alto, mas precisa vir antes do 3. Num `supabase db reset` isso não importa,

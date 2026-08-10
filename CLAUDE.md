@@ -64,7 +64,7 @@ página ("use client")
 
 Módulos possíveis: `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS`, `ADMIN_IMPORT`.
 
-O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado **exclusivamente** por eles: não existe exceção de módulo por pessoa. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
+O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado **exclusivamente** por eles: não existe exceção de módulo por pessoa. A exclusividade é garantida pelo banco (índice `in_perfil_unico_vigente_por_pessoa`), não por convenção — uma pessoa não consegue ter dois perfis vigentes. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
 
 | Perfil | Código interno | Módulos |
 |---|---|---|
