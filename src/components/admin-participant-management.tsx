@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Loader2, Plus, RefreshCw, Search, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { ExternalImage } from "@/components/external-image";
+import { PersonAvatar } from "@/components/person-avatar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ApplicationItem = {
@@ -24,7 +24,6 @@ type Participant = {
   institutionalEmail: string | null;
   jobTitle: string | null;
   costCenter: string | null;
-  workplace: string | null;
   avatarUrl: string | null;
   accessProfile: string | null;
   status: string;
@@ -39,16 +38,10 @@ type PersonSearchResult = {
   institutionalEmail: string | null;
   jobTitle: string | null;
   costCenter: string | null;
-  workplace: string | null;
   avatarUrl: string | null;
   participantId: string | null;
   participantStatus: string | null;
 };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase() || "--";
-}
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -63,14 +56,7 @@ function statusLabel(status: string) {
 }
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
-  const [failed, setFailed] = useState(false);
-  return url && !failed ? (
-    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-      <ExternalImage src={url} alt={`Avatar de ${name}`} width={40} height={40} onError={() => setFailed(true)} className="h-full w-full object-cover" />
-    </span>
-  ) : (
-    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-xs font-black text-[#003b70] ring-1 ring-sky-100">{initials(name)}</span>
-  );
+  return <PersonAvatar fullName={name} avatarUrl={url} className="h-10 w-10 rounded-xl" />;
 }
 
 export function AdminParticipantManagement() {
@@ -82,7 +68,7 @@ export function AdminParticipantManagement() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "", workplace: "" });
+  const [form, setForm] = useState({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "" });
 
   const selectedApplication = applications.find((item) => item.id === applicationId) ?? null;
 
@@ -168,12 +154,12 @@ export function AdminParticipantManagement() {
         target_institutional_email: form.institutionalEmail,
         target_job_title: form.jobTitle || null,
         target_cost_center: form.costCenter || null,
-        target_workplace: form.workplace || null,
+        target_workplace: form.costCenter || null,
         target_access_profile: "PARTICIPANTE",
       });
       if (error) throw error;
       toast.success("Pessoa cadastrada e vinculada à avaliação.");
-      setForm({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "", workplace: "" });
+      setForm({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "" });
       setShowCreate(false);
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
@@ -221,7 +207,7 @@ export function AdminParticipantManagement() {
         {people.length > 0 && <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">{people.map((person) => <div key={person.personId} className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-0 sm:flex-row sm:items-center"><Avatar name={person.fullName} url={person.avatarUrl}/><div className="min-w-0 flex-1"><strong className="block truncate text-slate-900">{person.fullName}</strong><span className="block truncate text-xs text-slate-500">{person.employeeNumber} · {person.institutionalEmail || "Sem e-mail"} · {person.jobTitle || "Cargo não informado"}</span></div><button type="button" disabled={working === person.personId || (person.participantStatus !== null && person.participantStatus !== "BLOCKED" && person.participantStatus !== "EXCLUDED")} onClick={() => void assign(person.personId)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working === person.personId ? <Loader2 className="h-4 w-4 animate-spin"/> : <Plus className="h-4 w-4"/>}{person.participantStatus && !["BLOCKED","EXCLUDED"].includes(person.participantStatus) ? "Já vinculado" : "Vincular"}</button></div>)}</div>}
 
         {showCreate && <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-5"><h3 className="font-black text-[#003b70]">Cadastrar e vincular participante</h3><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{[
-          ["employeeNumber","Matrícula"],["fullName","Nome completo"],["institutionalEmail","E-mail institucional"],["jobTitle","Cargo"],["costCenter","Unidade/Centro de custo"],["workplace","Local de trabalho"]
+          ["employeeNumber","Matrícula"],["fullName","Nome completo"],["institutionalEmail","E-mail institucional"],["jobTitle","Cargo"],["costCenter","Unidade/Centro de custo"]
         ].map(([key,label]) => <label key={key} className="block"><span className="text-xs font-bold text-slate-600">{label}</span><input value={form[key as keyof typeof form]} onChange={(event)=>setForm((current)=>({...current,[key]:event.target.value}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/></label>)}</div><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setShowCreate(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 font-black text-slate-600">Cancelar</button><button type="button" onClick={()=>void createAndAssign()} disabled={working === "CREATE"} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 font-black text-white disabled:opacity-50">{working === "CREATE" && <Loader2 className="h-4 w-4 animate-spin"/>}Salvar e vincular</button></div></div>}
       </section>
 

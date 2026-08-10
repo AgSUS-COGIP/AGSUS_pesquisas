@@ -30,10 +30,8 @@ components/
 ├── full-page-state.tsx           tela inteira de acesso restrito / erro / vazio
 ├── platform-guard-state.tsx      renderiza os estados negados de usePlatformGuard()
 ├── external-image.tsx            next/image sem otimização, para host externo
-├── person-avatar.tsx             avatar com fallback de iniciais
+├── person-avatar.tsx             foto do Google com fallback de ícone neutro
 ├── survey-banner.tsx             banner com fallback em cadeia
-├── avatar-identity-picker.tsx    escolha da origem do avatar
-├── avatar-studio.tsx             editor de avatar (DiceBear lorelei)
 ├── cddi-loading-state.tsx        skeleton do formulário CDDI
 ├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
 ├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
@@ -85,8 +83,6 @@ if (!(await confirm({ title, description, confirmLabel, tone: "danger" }))) retu
 const { branding, loading } = usePlatformBranding();   // platform-branding-provider.tsx
 ```
 
-`personInitials(fullName)` também é exportado de `person-avatar.tsx`.
-
 ## Fluxo interno
 
 ### `PlatformShell`
@@ -112,19 +108,13 @@ Estrutura acessível: skip link (`#conteudo-principal`), `<aside aria-label="Nav
 ### `PersonAvatar` — resolução da imagem
 
 ```text
-1. É a pessoa da sessão? (comparação de nome normalizado: trim, espaços
-   colapsados, maiúsculas pt-BR)
-2. Se sim  → context.person.avatarUrl ?? metadata.avatar_url ?? avatarUrl da prop
-   Se não  → apenas avatarUrl da prop
-3. Erro de carregamento → grava a URL falhada e cai para iniciais
-4. Nova URL diferente da falhada → limpa o estado e tenta de novo
+1. Recebe `avatarUrl`, que os contratos do banco preenchem somente com a foto Google.
+2. URL válida → renderiza a foto com `referrerPolicy="no-referrer"`.
+3. URL ausente ou erro de carregamento → exibe ícone neutro, nunca iniciais.
+4. Nova URL diferente da falhada → limpa o estado e tenta de novo.
 ```
 
-A preferência pelo avatar canônico do contexto garante que, ao trocar a imagem em `/perfil`, todas as ocorrências do próprio usuário atualizem juntas. `referrerPolicy="no-referrer"` é necessário para as URLs de foto do Google.
-
-### `AvatarIdentityPicker` e `AvatarStudio`
-
-Três origens: `GOOGLE` (recomendada, exige `googleUrl`), `INITIALS` e `GENERATED` (avatar DiceBear configurado no estúdio). Todas gravam por `set_my_avatar_choice`. Após salvar: `invalidatePlatformContext()` e recarga da página após 300 ms — a casca inteira depende do contexto cacheado.
+`referrerPolicy="no-referrer"` é necessário para as URLs de foto do Google. A alteração da imagem acontece na conta Google e é sincronizada no carregamento do contexto.
 
 ### `PlatformThemeToggle`
 
@@ -160,7 +150,7 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 ## Dependências
 
 - [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `platform-branding`, `observability`, `utils`, `supabase/client`.
-- `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `@dicebear/core` + `@dicebear/styles` (avatares), `class-variance-authority` (variantes).
+- `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `class-variance-authority` (variantes).
 
 `platform-icons.tsx` é um conjunto **próprio** de 20 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
 
@@ -180,5 +170,5 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `avatar-uploader.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas.
-- `avatar-uploader.tsx` chama `set_my_avatar_url`, mas a migration `20260805194500_block_uploaded_profile_photos.sql` bloqueia fotos enviadas — não reative sem revisar o banco.
+- Não utilizados: `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário.
+- **Removidos.** `admin-module-page.tsx`: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas. `avatar-uploader.tsx`, `avatar-studio.tsx` e `avatar-identity-picker.tsx`: a foto de perfil passou a vir automaticamente da conta Google, sem escolha na interface — a migration `20260805194500_block_uploaded_profile_photos.sql` já bloqueava fotos enviadas no banco.

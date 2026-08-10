@@ -79,6 +79,18 @@ describe("parsePeopleImportRows", () => {
     expect(row).not.toHaveProperty("cpf");
   });
 
+  it("uses Unidade as the canonical value instead of Local de trabalho", () => {
+    const [row] = parsePeopleImportRows([{
+      MATRICULA: "321",
+      NOME: "Pessoa Exemplo",
+      UNIDADE: "Unidade Institucional",
+      "LOCAL DE TRABALHO": "Valor legado",
+    }]);
+
+    expect(row.unit).toBe("Unidade Institucional");
+    expect(row.workplace).toBe("Unidade Institucional");
+  });
+
   it("keeps people without valid email but does not activate their access identity", () => {
     const rows = parsePeopleImportRows([
       { NU_MATRICULA: "1", NO_NOME: "Sem Email", DS_EMAIL_INSTUCIONAL: "" },

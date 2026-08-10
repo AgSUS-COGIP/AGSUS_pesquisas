@@ -35,7 +35,6 @@ type Participant = {
   directorate: string;
   unit: string;
   coordination: string;
-  workplace?: string | null;
   managerName?: string | null;
   autoCompleted: boolean;
   leaderCompleted: boolean;
