@@ -1,29 +1,20 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { FullPageState } from "@/components/full-page-state";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { PlatformShell } from "@/components/platform-shell";
+import { usePlatformGuard } from "@/lib/platform-context";
 
+/**
+ * Moldura das telas do CDDI.
+ *
+ * Sem módulo exigido: a jornada é aberta a qualquer pessoa identificada — quem
+ * pode responder é decidido pela participação no ciclo, não pelo perfil.
+ */
 export function CddiPlatformFrame({ children, title }: { children: ReactNode; title: string }) {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard();
 
-  if (loading) return <PlatformSkeleton title={`Carregando ${title}`} />;
-  if (!context?.person) {
-    return <FullPageState title="Acesso não identificado" description={error || "Não foi possível carregar seu cadastro institucional."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-  }
+  if (guard.state !== "granted") return <PlatformGuardState guard={guard} title={title} />;
 
-  const person = context.person;
-  const modules = deriveModules(context);
-  const user = {
-    fullName: person.fullName,
-    institutionalEmail: person.institutionalEmail,
-    employeeNumber: person.employeeNumber,
-    profileLabel: profileLabel(context),
-    avatarUrl: person.avatarUrl,
-    roles: context.roles,
-    modules,
-  };
-
-  return <PlatformShell user={user} eyebrow="Ciclo institucional" title={title}>{children}</PlatformShell>;
+  return <PlatformShell user={guard.user} eyebrow="Ciclo institucional" title={title}>{children}</PlatformShell>;
 }

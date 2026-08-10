@@ -116,6 +116,11 @@ agsus-pesquisas/
     │   ├── page.tsx              # Redireciona para /acesso
     │   ├── error.tsx  global-error.tsx  not-found.tsx  loading.tsx
     │   ├── *.css                 # Tokens e temas globais
+    │   │
+    │   │   # Cada pasta de rota tem dois arquivos: o `page.tsx` reservado do
+    │   │   # App Router (uma linha, só re-exporta) e a `tela-*.tsx` com o
+    │   │   # componente de verdade — é nela que se edita a tela.
+    │   │
     │   ├── acesso/               # Login Google institucional
     │   ├── auth/confirm/         # Callback OAuth (troca de código por sessão)
     │   ├── area/                 # Visão geral do participante
@@ -289,8 +294,8 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 1. `proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
 2. `src/app/layout.tsx` injeta dois scripts `beforeInteractive` que leem `localStorage` e aplicam tema e estado da sidebar **antes** da primeira pintura, evitando flash.
 3. `AppProviders` monta `QueryClientProvider`, `PlatformBrandingProvider` (marca institucional, com cache em `localStorage` para não piscar o padrão), `ConfirmationProvider` (diálogo de confirmação disponível a qualquer tela), `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
-4. A página chama `usePlatformContext()`, que executa `fc_obter_contexto_plataforma()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
-5. `deriveModules(context)` resolve os módulos visíveis e `PlatformShell` renderiza apenas a navegação permitida.
+4. A página chama `usePlatformGuard(módulo?)`, que por baixo usa `usePlatformContext()` e executa `fc_obter_contexto_plataforma()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
+5. A guarda devolve um de quatro estados. Negado (`loading`, `unidentified`, `restricted`) vira `PlatformGuardState`; liberado (`granted`) entrega `user` e `modules` já resolvidos, e `PlatformShell` renderiza apenas a navegação permitida.
 
 ### Autenticação
 
@@ -355,7 +360,8 @@ A importação **nunca** vincula pessoas a pesquisas automaticamente (`survey_as
 
 | Componente | Papel | Consumidores |
 |---|---|---|
-| `usePlatformContext` ([src/lib/platform-context.ts](src/lib/platform-context.ts)) | Única fonte de identidade e permissões no cliente. Cache de 2 min e deduplicação de chamadas concorrentes. | Praticamente todas as páginas autenticadas |
+| `usePlatformContext` ([src/lib/platform-context.ts](src/lib/platform-context.ts)) | Única fonte de identidade e permissões no cliente. Cache de 2 min e deduplicação de chamadas concorrentes. | `usePlatformGuard`, `PersonAvatar` |
+| `usePlatformGuard` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) | Guarda de página: traduz o contexto em `loading · unidentified · restricted · granted` e entrega `user` e `modules` prontos. | Todas as páginas autenticadas |
 | `PlatformShell` ([src/components/platform-shell.tsx](src/components/platform-shell.tsx)) | Casca visual: sidebar, cabeçalho, drawer móvel, logout, skip link. | Todas as telas internas |
 | `createBrowserSupabaseClient` ([src/lib/supabase/client.ts](src/lib/supabase/client.ts)) | Cliente singleton autenticado por cookie. | Toda chamada RPC do navegador |
 | `resolvePlatformModules` ([src/lib/platform-modules.ts](src/lib/platform-modules.ts)) | Traduz papéis em módulos visíveis. | `platform-context`, navegação, guardas de página |
@@ -456,24 +462,21 @@ Nenhum destes arquivos é importado por código de produção:
 
 | Arquivo | Situação |
 |---|---|
-| [src/components/admin-module-page.tsx](src/components/admin-module-page.tsx) | Casca genérica de página administrativa; cada página `/admin/*` monta a guarda de módulo por conta própria. |
 | [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
 | [src/components/cddi-visual-banner.tsx](src/components/cddi-visual-banner.tsx) | Substituído por `survey-banner.tsx`. |
 | [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
 
 **Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
 
-**Resolvidos.** `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
+**Resolvidos.** `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou `usePlatformGuard()` + `PlatformGuardState`, hoje usada por todas as rotas. `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
 
 ### Duplicação de lógica
 
-1. **Uma fila de autossalvamento ainda fora do padrão.** [src/app/pesquisas/[applicationCode]/page.tsx](src/app/pesquisas/[applicationCode]/page.tsx) serializa gravações com um `useRef<Promise>` próprio, enquanto as duas jornadas do CDDI já usam `ReliableSaveQueue` — que faz o mesmo com testes e notificação de estado. Migrar o runtime genérico encerra a duplicação.
+1. **Uma fila de autossalvamento ainda fora do padrão.** [src/app/pesquisas/[applicationCode]/tela-responder-pesquisa.tsx](src/app/pesquisas/[applicationCode]/tela-responder-pesquisa.tsx) serializa gravações com um `useRef<Promise>` próprio, enquanto as duas jornadas do CDDI já usam `ReliableSaveQueue` — que faz o mesmo com testes e notificação de estado. Migrar o runtime genérico encerra a duplicação.
 
 2. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
 
-3. **`metadataText()` repetido** em [src/app/area/page.tsx](src/app/area/page.tsx) e [src/app/perfil/page.tsx](src/app/perfil/page.tsx#L9-L15) com implementação idêntica.
-
-**Resolvidos.** O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
+**Resolvidos.** A **guarda de acesso deixou de ser reescrita em cada página**: as 17 telas autenticadas repetiam a mesma sequência (carregando → identidade → módulo → montar o `user` da casca), com desfechos divergentes — parte usava `FullPageState`, parte um `<main>` vermelho sem caminho de volta. Hoje `usePlatformGuard()` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) resolve os quatro estados e `PlatformGuardState` os apresenta. `metadataText()` e `metadataObject()`, antes duplicadas em `/area` e `/perfil`, vivem em [src/lib/person-metadata.ts](src/lib/person-metadata.ts). O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
 
 ### Inconsistências
 
@@ -489,7 +492,7 @@ Nenhum destes arquivos é importado por código de produção:
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
-7. **Ciclo CDDI descrito como encerrado** em texto fixo do painel administrativo ([src/app/admin/page.tsx](src/app/admin/page.tsx#L32)), independente do estado real da aplicação.
+7. **Ciclo CDDI descrito como encerrado** em texto fixo do painel administrativo ([src/app/admin/tela-central-admin.tsx](src/app/admin/tela-central-admin.tsx#L32)), independente do estado real da aplicação.
 
 8. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
 
@@ -504,13 +507,13 @@ Nenhum destes arquivos é importado por código de produção:
 
 3. **`/api/background/[id]` faz proxy de imagens do Unsplash** apenas para o plano de fundo da tela de login. Índice validado e cache longo, mas é uma dependência externa em rota pública.
 
-4. **Upload de logotipo validado só no navegador.** [src/app/admin/configuracoes/page.tsx](src/app/admin/configuracoes/page.tsx) checa tipo, dimensão mínima e proporção antes de enviar ao storage `platform-assets`; quem chamar a API direto não passa por essa checagem. A limpeza do arquivo órfão em caso de falha da RPC está implementada.
+4. **Upload de logotipo validado só no navegador.** [src/app/admin/configuracoes/tela-admin-configuracoes.tsx](src/app/admin/configuracoes/tela-admin-configuracoes.tsx) checa tipo, dimensão mínima e proporção antes de enviar ao storage `platform-assets`; quem chamar a API direto não passa por essa checagem. A limpeza do arquivo órfão em caso de falha da RPC está implementada.
 
 **Resolvidos.** O token administrativo digitado na interface deu lugar à autorização por sessão + papel em `/api/admin/import-participants` (era a alternativa sugerida aqui), o corpo da rota passou a ser validado por esquema `zod`, e `window.confirm` foi substituído pelo diálogo acessível de `confirmation-provider.tsx`.
 
 ### Manutenibilidade
 
-1. **Arquivos muito grandes.** [src/app/admin/pesquisas/[surveyId]/page.tsx](src/app/admin/pesquisas/[surveyId]/page.tsx) tem ~54 KB e [src/app/paineis/cddi/page.tsx](src/app/paineis/cddi/page.tsx) ~37 KB em um único componente. Extrair editores, tabelas e cartões facilitaria revisão e testes.
+1. **Arquivos muito grandes.** [src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx](src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx) tem ~54 KB e [src/app/paineis/cddi/tela-painel-cddi.tsx](src/app/paineis/cddi/tela-painel-cddi.tsx) ~37 KB em um único componente. Extrair editores, tabelas e cartões facilitaria revisão e testes.
 
 2. **JSX em linhas muito longas.** Diversas telas concentram seções inteiras em uma única linha (algumas com mais de 3.000 caracteres), o que inviabiliza diffs legíveis. Reformatar é seguro (não altera comportamento), mas produz um diff grande — decisão da equipe.
 

@@ -1,0 +1,53 @@
+"use client";
+
+import { ArrowRight, BarChart3, FileCog, FilePlus2, LockKeyhole, Network, Settings2, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
+import Link from "next/link";
+import { PlatformShell } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
+
+// Cada cartão declara o módulo que o libera — o mesmo mapa de perfis que governa
+// o menu, sem lista de exceções por rota.
+const cards = [
+  { href: "/admin/pesquisas", module: PLATFORM_MODULE.ADMIN_SURVEYS, tag: "Configuração", title: "Pesquisas e ciclos", description: "Crie instrumentos, organize seções, defina períodos e publique versões controladas.", metric: "Construtor disponível", icon: FileCog, tone: "bg-blue-50 text-blue-700" },
+  { href: "/admin/participantes", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS, tag: "Público", title: "Participantes", description: "Consulte elegibilidade, perfis, e-mails, unidades e situação de participação.", metric: "Base oficial controlada", icon: Users2, tone: "bg-emerald-50 text-emerald-700" },
+  { href: "/admin/equipes", module: PLATFORM_MODULE.ADMIN_TEAMS, tag: "Estrutura", title: "Equipes e lideranças", description: "Gerencie vínculos de avaliação, responsáveis e ajustes organizacionais.", metric: "Vínculos auditáveis", icon: Network, tone: "bg-amber-50 text-amber-700" },
+  { href: "/admin/acessos", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Segurança", title: "Acessos e permissões", description: "Controle os perfis de acesso de cada pessoa.", metric: "Permissão por perfil", icon: LockKeyhole, tone: "bg-violet-50 text-violet-700" },
+  { href: "/admin/importacao", module: PLATFORM_MODULE.ADMIN_IMPORT, tag: "Dados", title: "Importações", description: "Valide planilhas oficiais, trate pendências e acompanhe lotes processados.", metric: "Pré-validação em lotes", icon: UploadCloud, tone: "bg-cyan-50 text-cyan-700" },
+  { href: "/admin/configuracoes", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Sistema", title: "Marca e aparência", description: "Altere logotipo, nomes institucionais e a cor principal da plataforma.", metric: "Identidade centralizada", icon: Settings2, tone: "bg-sky-50 text-sky-700" },
+  { href: "/paineis", module: PLATFORM_MODULE.DASHBOARDS, tag: "Governança", title: "Indicadores e auditoria", description: "Acompanhe adesão, conclusão, inconsistências e eventos relevantes.", metric: "Visão gerencial", icon: BarChart3, tone: "bg-rose-50 text-rose-700" },
+];
+
+export default function AdminDashboardPage() {
+  // A central não exige um módulo específico: abre para quem tem qualquer
+  // módulo administrativo e mostra apenas os cartões correspondentes.
+  const guard = usePlatformGuard();
+
+  if (guard.state !== "granted") {
+    return <PlatformGuardState guard={guard} title="administração" unidentifiedTitle="Não foi possível abrir a administração" restrictedTitle="Central administrativa restrita" restrictedDescription="Seu perfil não possui permissão para acessar os módulos de administração." />;
+  }
+
+  const { modules } = guard;
+  // A central abre para qualquer módulo administrativo — a regra é o prefixo,
+  // não a lista de cartões (que inclui atalhos não administrativos, como /paineis).
+  if (!modules.some((module) => module.startsWith("ADMIN_"))) {
+    return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
+  }
+
+  const visibleCards = cards.filter((card) => modules.includes(card.module));
+
+  return <PlatformShell user={guard.user} eyebrow="Administração" title="Central administrativa" actions={modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS) ? <Link href="/admin/pesquisas/nova" className="hidden items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#075ea8] md:inline-flex"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link> : null}>
+    <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_80%_15%,rgba(45,212,191,.22),transparent_25%),linear-gradient(125deg,#08243f,#064f89_58%,#0878a6)] p-7 text-white shadow-[0_24px_60px_rgba(0,47,89,.22)] sm:p-9">
+      <div className="relative grid gap-7 xl:grid-cols-[1.2fr_.8fr] xl:items-end">
+        <div><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-emerald-100 backdrop-blur"><ShieldCheck className="h-4 w-4" />Ambiente de governança</span><h2 className="mt-6 max-w-3xl text-3xl font-black tracking-tight sm:text-4xl">Transforme necessidades institucionais em avaliações estruturadas</h2><p className="mt-4 max-w-3xl leading-7 text-blue-100">Crie instrumentos, organize públicos, acompanhe equipes e controle cada etapa de publicação em um único fluxo auditável.</p><div className="mt-7 flex flex-wrap gap-3">{modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS) ? <Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-[#003b70] shadow-lg transition hover:-translate-y-0.5"><FilePlus2 className="h-4 w-4" />Criar nova pesquisa</Link> : null}{modules.includes(PLATFORM_MODULE.ADMIN_IMPORT) ? <Link href="/admin/importacao" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-black text-white backdrop-blur transition hover:bg-white/15"><UploadCloud className="h-4 w-4" />Importar participantes</Link> : null}</div></div>
+        <div className="grid grid-cols-2 gap-3"><div className="rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl"><span className="text-xs text-blue-100">Módulos disponíveis</span><strong className="mt-2 block text-4xl">{visibleCards.length}</strong><small className="mt-2 block text-blue-100">conforme seu perfil</small></div><div className="rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl"><span className="text-xs text-blue-100">Fluxo atual</span><strong className="mt-2 block text-2xl">CDDI 2026</strong><small className="mt-2 block text-blue-100">ciclo encerrado</small></div></div>
+      </div>
+    </section>
+
+    <section className="mt-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Operação da plataforma</p><h2 className="mt-1 text-2xl font-black text-[#003b70]">Módulos administrativos</h2><p className="mt-2 text-slate-600">Cada módulo representa uma etapa clara do ciclo de governança.</p></div>{modules.includes(PLATFORM_MODULE.DASHBOARDS) ? <Link href="/paineis" className="text-sm font-black text-[#0b8f58]">Ver indicadores →</Link> : null}</div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleCards.map((card) => { const Icon = card.icon; return <Link href={card.href} key={card.href} className="group rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"><div className="flex items-start justify-between gap-4"><div className={`grid h-11 w-11 place-items-center rounded-2xl ${card.tone}`}><Icon className="h-5 w-5" /></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[.08em] text-slate-500">{card.tag}</span></div><h3 className="mt-5 text-xl font-black text-[#003b70]">{card.title}</h3><p className="mt-3 min-h-18 text-sm leading-6 text-slate-500">{card.description}</p><div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4"><span className="text-xs font-black uppercase tracking-[.08em] text-slate-400">{card.metric}</span><ArrowRight className="h-4 w-4 text-[#0b8f58] transition group-hover:translate-x-1" /></div></Link>; })}</div></section>
+
+    <section className="mt-8 grid gap-5 lg:grid-cols-[1.05fr_.95fr]"><article className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-7"><p className="text-xs font-black uppercase tracking-[.15em] text-[#0b8f58]">Fluxo inteligente</p><h3 className="mt-1 text-xl font-black text-[#003b70]">Da ideia à publicação</h3><ol className="mt-6 grid gap-4 sm:grid-cols-2">{[["01","Estruture","Crie a avaliação, seções e perguntas."],["02","Valide","Revise regras, público e períodos."],["03","Publique","Abra o ciclo para o público definido."],["04","Monitore","Acompanhe adesão e resultados."]].map(([number,title,text]) => <li key={number} className="rounded-2xl bg-slate-50 p-4"><span className="text-xs font-black text-[#0b8f58]">{number}</span><strong className="mt-2 block text-[#003b70]">{title}</strong><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></li>)}</ol></article><article className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-7"><p className="text-xs font-black uppercase tracking-[.15em] text-[#0b8f58]">Controles essenciais</p><h3 className="mt-1 text-xl font-black text-[#003b70]">Segurança por padrão</h3><div className="mt-6 space-y-4">{[["Versionamento","Preserva versões anteriores e histórico."],["Rastreabilidade","Registra mudanças e operações críticas."],["Segregação","Libera módulos conforme o papel institucional."],["Privacidade","Mantém dados pessoais fora do repositório."]].map(([title,text]) => <div key={title} className="flex gap-3"><div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" /><div><strong className="text-[#003b70]">{title}</strong><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div></div>)}</div></article></section>
+  </PlatformShell>;
+}

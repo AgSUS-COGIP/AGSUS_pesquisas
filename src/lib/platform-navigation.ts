@@ -26,7 +26,7 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
     title: "Principal",
     items: [
       { href: "/area", label: "Visão geral", description: "Abrir o painel institucional", icon: "home", module: PLATFORM_MODULE.HOME, exact: true },
-      { href: "/pesquisas", label: "Pesquisas", description: "Consultar pesquisas e avaliações disponíveis", icon: "surveys", module: PLATFORM_MODULE.SURVEYS },
+      { href: "/pesquisas", label: "Avaliações", description: "Consultar avaliações disponíveis", icon: "surveys", module: PLATFORM_MODULE.SURVEYS },
       { href: "/paineis", label: "Painéis", description: "Abrir indicadores e análises", icon: "dashboard", module: PLATFORM_MODULE.DASHBOARDS },
     ],
   },

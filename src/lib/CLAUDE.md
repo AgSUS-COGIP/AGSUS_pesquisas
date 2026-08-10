@@ -19,9 +19,11 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 
 | Arquivo | Interface pública |
 |---|---|
-| `platform-context.ts` | `usePlatformContext()`, `deriveModules()`, `derivePlatformRole()`, `profileLabel()`, `invalidatePlatformContext()`, tipo `PlatformContext` |
+| `platform-context.ts` | **`usePlatformGuard()`** (o que as páginas usam), `usePlatformContext()`, `invalidatePlatformContext()`, tipo `PlatformContext` |
+| `platform-guard.ts` | `resolvePlatformGuard()`, tipos `PlatformGuardDecision`, `PlatformGuardInput`, `PlatformShellUser` — a guarda de página como função pura |
 | `platform-roles.ts` | `PLATFORM_ROLE`, `PLATFORM_ROLE_LABELS`, `platformRoleLabel()` — códigos internos e rótulos dos quatro perfis |
 | `platform-modules.ts` | `PLATFORM_MODULE`, `PLATFORM_MODULES`, `ROLE_MODULES`, `resolvePlatformRole()`, `resolvePlatformModules()`, `normalizePlatformModules()`, `isPlatformModule()` |
+| `person-metadata.ts` | `metadataText()`, `metadataObject()` — leitura tolerante de `people.metadata` |
 | `platform-navigation.ts` | `platformNavigationGroups`, `navigationGroupsForModules()`, `isPlatformNavItemActive()` |
 | `platform-theme.ts` | `normalizePlatformTheme()`, `resolvePlatformTheme()`, `getPlatformThemeState()`, `platformThemeBootstrapScript()` |
 | `platform-sidebar.ts` | `isPlatformSidebarCompact()`, `platformSidebarBootstrapScript()`, chave e atributo compartilhados |
@@ -73,6 +75,30 @@ senão:
 
 O hook trata `AUTH_REQUIRED` com `window.location.replace("/acesso")`; qualquer outro erro vira a string `error`. O cache é **de módulo, não de React** — sobrevive à navegação no cliente. Após alterar o perfil de alguém, chame `invalidatePlatformContext()`.
 
+### `usePlatformGuard()` e `resolvePlatformGuard()`
+
+A guarda de página em **quatro estados explícitos**, no lugar da sequência que cada tela repetia (carregando → identidade → módulo → montar o usuário da casca):
+
+```text
+loading                                    contexto ainda carregando
+unidentified  { message }                  sem pessoa; texto vem do erro do contexto
+restricted    { requiredModule }           identificada, mas sem o módulo exigido
+granted       { context, person,           liberada — `user` e `modules` prontos
+                modules, user }
+```
+
+`resolvePlatformGuard()` é a função pura (testada em `platform-guard.test.ts`); `usePlatformGuard(requiredModule?)` é o hook que a alimenta com `usePlatformContext()` e memoiza o resultado. A ordem dos desfechos **é** a regra: identidade antes de módulo, sempre.
+
+```tsx
+const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+if (guard.state !== "granted") return <PlatformGuardState guard={guard} title="…" restrictedTitle="…" restrictedDescription="…" />;
+// aqui `guard.user`, `guard.person` e `guard.modules` são não-nulos por tipo
+```
+
+Sem `requiredModule`, basta estar identificado — `restricted` nunca ocorre. É o caso de `/perfil`, `/area` (que **redireciona** quem não tem `HOME`, em vez de barrar), da moldura do CDDI e de `/admin/acessos` (que apresenta a restrição dentro da casca, preservando a navegação).
+
+O estado `granted` é o único que carrega dados: o tipo impede a página de ler `person` ou `modules` num desfecho negado. Consultas devem ser condicionadas a `guard.state === "granted"` — assim nenhuma RPC restrita é disparada antes de a guarda liberar.
+
 ### `resolvePlatformRole()` e `resolvePlatformModules()`
 
 Os códigos de perfil vêm de `PLATFORM_ROLE` (`platform-roles.ts`): Superadmin = `ADMINISTRATOR`, Admin = `SURVEY_MANAGER`, Avaliador = `LEADER`, Participante = `RESPONDENT`.
@@ -87,7 +113,7 @@ LEADER         → HOME, SURVEYS, TEAM
 RESPONDENT     → SURVEYS
 ```
 
-Papel desconhecido (`TECHNICAL_TEAM`, `AUDITOR` e outros já removidos) não concede nada: cai no piso de Participante. `profileLabel()` é o rótulo de `PLATFORM_ROLE_LABELS` para o perfil efetivo — a mesma resolução, sem ordem própria.
+Papel desconhecido (`TECHNICAL_TEAM`, `AUDITOR` e outros já removidos) não concede nada: cai no piso de Participante. O rótulo exibido (`user.profileLabel`) é `PLATFORM_ROLE_LABELS` aplicado a esse mesmo perfil efetivo — uma resolução só, sem ordem própria.
 
 ### `parsePeopleImportRows()` — duas passagens
 

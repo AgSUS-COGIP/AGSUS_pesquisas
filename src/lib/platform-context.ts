@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { resolvePlatformModules, resolvePlatformRole } from "@/lib/platform-modules";
-import { PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
+import { useEffect, useMemo, useState } from "react";
+import { type PlatformModule } from "@/lib/platform-modules";
+import { resolvePlatformGuard, type PlatformGuardDecision } from "@/lib/platform-guard";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export type PlatformContext = {
@@ -23,7 +23,7 @@ export type PlatformContext = {
   application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null } | null;
   /**
    * Papéis vigentes da pessoa. **Única** fonte de autorização de interface:
-   * `deriveModules()` e `profileLabel()` derivam tudo daqui.
+   * `resolvePlatformGuard()` deriva daqui os módulos e o rótulo do perfil.
    */
   roles?: string[];
   canManageSurveys?: boolean;
@@ -43,25 +43,6 @@ let cachedAt = 0;
 // Requisição em voo compartilhada: várias instâncias montadas no mesmo ciclo
 // (por exemplo cada PersonAvatar da página) aguardam a mesma promessa.
 let pendingContext: Promise<PlatformContext> | null = null;
-
-/**
- * Traduz o contexto institucional nos módulos que a interface deve exibir.
- *
- * Depende só de `roles`: o acesso vem exclusivamente do perfil da pessoa.
- */
-export function deriveModules(context: PlatformContext) {
-  return resolvePlatformModules({ roles: context.roles });
-}
-
-/** Papel efetivo da pessoa — o de maior privilégio entre os que ela acumula. */
-export function derivePlatformRole(context: PlatformContext) {
-  return resolvePlatformRole(context.roles);
-}
-
-/** Rótulo do perfil exibido na casca e na tela de perfil. */
-export function profileLabel(context: PlatformContext) {
-  return PLATFORM_ROLE_LABELS[derivePlatformRole(context)];
-}
 
 async function loadContextFromDatabase() {
   const supabase = createBrowserSupabaseClient();
@@ -170,4 +151,27 @@ export function usePlatformContext() {
   }, []);
 
   return { context, loading, error };
+}
+
+/**
+ * Guarda de página: contexto institucional já traduzido em decisão de acesso.
+ *
+ * Substitui a sequência que cada tela repetia — carregando, identidade ausente,
+ * módulo exigido e montagem do usuário da casca. A página passa a tratar quatro
+ * estados explícitos e recebe `user` e `modules` prontos em `granted`.
+ *
+ * ```tsx
+ * const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+ * if (guard.state !== "granted") return <PlatformGuardState guard={guard} … />;
+ * ```
+ *
+ * Sem `requiredModule`, basta estar identificado — o caso de `/perfil` e da
+ * moldura do CDDI, abertas a qualquer pessoa com cadastro ativo.
+ */
+export function usePlatformGuard(requiredModule?: PlatformModule): PlatformGuardDecision {
+  const { context, loading, error } = usePlatformContext();
+  return useMemo(
+    () => resolvePlatformGuard({ context, loading, error, requiredModule }),
+    [context, loading, error, requiredModule],
+  );
 }
