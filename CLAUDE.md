@@ -75,7 +75,9 @@ O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado *
 
 `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` são exclusivos do Superadmin: gestão de dados funcionais, de perfis e a carga da base institucional são administração global.
 
-`resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto correspondente. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md).
+`resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto correspondente. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md); para **aplicar** o modelo num banco ou diagnosticar divergência, [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
+
+Trocar o mapa de perfis exige mexer em **dois lugares que precisam concordar**: o `case` de `fc_obter_contexto_plataforma()` (banco, autoridade efetiva) e `ROLE_MODULES` em `src/lib/platform-modules.ts` (interface). As tabelas `role_module_permissions` e `person_module_permissions` **não** governam acesso — são catálogo descritivo, sem leitor em runtime.
 
 ## Dependências entre camadas
 
@@ -129,5 +131,7 @@ npm run db:naming         # nomenclatura institucional (migrations alteradas)
 - **Nunca exponha `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY`** ao navegador nem os comite. São os únicos segredos de servidor do projeto: as rotas administrativas autorizam por sessão institucional e papel, não por token compartilhado.
 - **Nunca comite dados pessoais.** A base de pessoas é carregada direto no Supabase por processo controlado.
 - **Migration nova exige**: RLS habilitada em tabela exposta, políticas e constraints nomeadas, `search_path` fixo em função privilegiada, `EXECUTE` revogado de `anon`/`authenticated` em função interna.
+- **Remover uma RPC quebra todo bundle já publicado que a chamava.** Frontend e banco são acoplados pelo nome da função: apagar uma RPC antes de o frontend novo estar no ar derruba a plataforma inteira com `Could not find the function … in the schema cache`. A ordem é **publicar o frontend, confirmar que está no ar, e só então aplicar a migration que remove a função antiga** — ou manter a antiga como ponte delegando à nova. Aconteceu em 10/08/2026 com `get_my_platform_context`; o procedimento está em [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
+- **O banco de produção já divergiu do histórico de migrations.** `supabase_migrations.schema_migrations` pode afirmar que uma migration rodou sem que os objetos dela existam (SQL aplicado direto não deixa registro). Antes de aplicar migration em produção, confronte histórico e esquema real com as queries de [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
 - **O CDDI tem jornada própria** (`/cddi`) por causa do vínculo institucional de chefia e da avaliação de liderança. A chefia **não é selecionada pelo participante**: vem de `cddi_leadership_links` (importação da base oficial ou correção administrativa). Outras avaliações usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.
 - Existe código não utilizado e duplicação conhecida — consulte "Observações e Melhorias Sugeridas" no [README.md](README.md) antes de assumir que um componente está em uso.
