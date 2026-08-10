@@ -67,11 +67,11 @@ where pra.starts_at <= timezone('utc', now())
 --
 --    Índice parcial, e não constraint: `unique` exigiria coluna gerada, e a
 --    condição depende de nulidade, não de valor.
-create unique index if not exists in_perfil_unico_vigente_por_pessoa
+create unique index if not exists in_perfil_unico_vigente
   on public.person_role_assignments (person_id)
   where ends_at is null;
 
-comment on index public.in_perfil_unico_vigente_por_pessoa is
+comment on index public.in_perfil_unico_vigente is
   'Perfis sao mutuamente exclusivos: uma pessoa tem no maximo um perfil vigente. Historico encerrado (ends_at preenchido) nao conflita.';
 
 -- 3) `fc_definir_perfil_pessoa` precisa encerrar antes de conceder.
@@ -204,7 +204,7 @@ values (
   'SYSTEM_ROLE',
   'ROLE_MODEL_2026_EXCLUSIVE',
   jsonb_build_object(
-    'constraint', 'in_perfil_unico_vigente_por_pessoa',
+    'constraint', 'in_perfil_unico_vigente',
     'scope', 'person_role_assignments where ends_at is null'
   ),
   jsonb_build_object('migration', '20260810140000_perfil_unico_por_pessoa')
@@ -216,7 +216,7 @@ commit;
 
 -- Rollback:
 -- begin;
---   drop index if exists public.in_perfil_unico_vigente_por_pessoa;
+--   drop index if exists public.in_perfil_unico_vigente;
 --   -- As atribuicoes encerradas pelo passo 1 nao voltam automaticamente;
 --   -- consultar audit_events para reconstituir, se necessario.
 -- commit;
