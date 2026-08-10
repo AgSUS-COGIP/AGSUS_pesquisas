@@ -13,18 +13,34 @@ begin;
 -- por RPCs SECURITY DEFINER, mas não devem ser invocados diretamente no Data API:
 --   is_allowed_institutional_email(text)
 --   is_platform_administrator()
-revoke execute on function public.claim_my_access()
-  from public, anon, authenticated, service_role;
-revoke execute on function public.get_my_cddi_context()
-  from public, anon, authenticated, service_role;
-revoke execute on function public.get_platform_health()
-  from public, anon, authenticated, service_role;
-revoke execute on function public.is_allowed_institutional_email(text)
-  from public, anon, authenticated, service_role;
-revoke execute on function public.is_platform_administrator()
-  from public, anon, authenticated, service_role;
-revoke execute on function public.start_or_resume_my_submission(text)
-  from public, anon, authenticated, service_role;
+-- Parte dessas RPCs existia apenas em ambientes antigos e não faz parte de uma
+-- instalação limpa. Revoga somente as assinaturas presentes para que o histórico
+-- de migrations possa ser reconstruído sem reintroduzir funções obsoletas.
+do $$
+declare
+  v_signature text;
+  v_function regprocedure;
+begin
+  foreach v_signature in array array[
+    'public.claim_my_access()',
+    'public.get_my_cddi_context()',
+    'public.get_platform_health()',
+    'public.is_allowed_institutional_email(text)',
+    'public.is_platform_administrator()',
+    'public.start_or_resume_my_submission(text)'
+  ]
+  loop
+    v_function := to_regprocedure(v_signature);
+
+    if v_function is not null then
+      execute format(
+        'revoke execute on function %s from public, anon, authenticated, service_role',
+        v_function
+      );
+    end if;
+  end loop;
+end;
+$$;
 
 commit;
 

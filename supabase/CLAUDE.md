@@ -95,8 +95,8 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 |---|---|
 | `fc_obter_contexto_plataforma()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. `roles` traz **um** perfil (o efetivo) e `modules` deriva só dele. Substituiu `get_my_platform_context()`, removida em `20260807150000`; redefinida em `20260810120000`. |
 | `resolve_authenticated_person(target_employee_number)` | Vincula ou cria o cadastro institucional no primeiro acesso. |
-| `sync_my_google_avatar()` | Copia a foto da conta Google para os metadados da pessoa. |
-| `set_my_avatar_choice(p_source, p_avatar_url)` | Define origem do avatar (`GOOGLE`, `INITIALS`, `GENERATED`). |
+| `sync_my_google_avatar()` | Copia automaticamente a foto da identidade OAuth Google para os metadados da pessoa. |
+| `set_my_avatar_choice(...)` / `set_my_avatar_url(...)` | Pontes de compatibilidade: ignoram escolhas antigas e restauram a foto Google. |
 | `is_allowed_institutional_email(...)` | Valida o domínio contra `institutional_domains`. |
 
 ### Catálogo e runtime genérico
@@ -197,7 +197,7 @@ Contexto completo: [../docs/auditoria-base-cddi-2026.md](../docs/auditoria-base-
 
 ### Fotos de perfil
 
-`20260805194500_block_uploaded_profile_photos.sql` adiciona `prevent_uploaded_profile_photos` e redefine `set_my_avatar_url` — upload de foto está bloqueado. As opções válidas são foto do Google, iniciais ou avatar gerado.
+`20260810140000_usar_foto_google_automaticamente.sql` remove escolhas anteriores, usa exclusivamente a imagem de `auth.identities` com provedor Google e mantém os setters antigos apenas como ponte. Sem imagem disponível, o frontend mostra um ícone neutro; não há iniciais, upload ou avatar gerado.
 
 ## Convenções específicas
 

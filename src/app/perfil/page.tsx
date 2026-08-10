@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BadgeCheck, Building2, KeyRound, Mail, MapPin, UserRound } from "lucide-react";
-import { AvatarIdentityPicker } from "@/components/avatar-identity-picker";
+import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { platformRoleLabel } from "@/lib/platform-roles";
@@ -15,11 +15,6 @@ function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
   return null;
 }
 
-function metadataObject(metadata: Record<string, unknown>, key: string) {
-  const value = metadata?.[key];
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
 export default function ProfilePage() {
   const { context, loading, error } = usePlatformContext();
   if (loading) return <PlatformSkeleton title="Carregando seu perfil" />;
@@ -27,14 +22,11 @@ export default function ProfilePage() {
 
   const person = context.person;
   const modules = deriveModules(context);
-  const avatarUrl = metadataText(person.metadata, "avatar_url");
-  const avatarSource = metadataText(person.metadata, "avatar_source");
-  const avatarConfig = metadataObject(person.metadata, "avatar_config");
-  const googleAvatarUrl = metadataText(person.metadata, "google_avatar_url");
+  const googleAvatarUrl = person.avatarUrl ?? metadataText(person.metadata, "google_avatar_url");
   const unit = metadataText(person.metadata, "unit", "unidade", "organizational_unit") ?? person.costCenter;
   const coordination = metadataText(person.metadata, "coordination", "coordenacao");
   const directorate = metadataText(person.metadata, "directorate", "diretoria");
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl, roles: context.roles, modules };
+  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: googleAvatarUrl, roles: context.roles, modules };
 
   const fields = [
     { label: "Matrícula", value: person.employeeNumber, icon: KeyRound },
@@ -53,18 +45,25 @@ export default function ProfilePage() {
           <div>
             <p className="section-eyebrow">Identidade institucional</p>
             <h2 className="page-title">Seu perfil na plataforma</h2>
-            <p className="page-description">Personalize como você aparece no sistema e consulte os dados sincronizados do cadastro institucional.</p>
+            <p className="page-description">Consulte sua foto da conta Google e os dados sincronizados do cadastro institucional.</p>
           </div>
           <span className="status-badge"><BadgeCheck className="h-4 w-4" />Cadastro validado</span>
         </section>
 
-        <AvatarIdentityPicker
-          personName={person.fullName}
-          currentUrl={avatarUrl}
-          currentSource={avatarSource}
-          currentConfig={avatarConfig}
-          googleUrl={googleAvatarUrl}
-        />
+        <section className="surface-card flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+          <PersonAvatar
+            fullName={person.fullName}
+            avatarUrl={googleAvatarUrl}
+            className="h-24 w-24 rounded-2xl"
+          />
+          <div>
+            <p className="section-eyebrow">Foto de perfil</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950">Gerenciada pela conta Google</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              A plataforma usa automaticamente a foto da sua conta Google. Para alterá-la, atualize a imagem no Google e entre novamente na plataforma.
+            </p>
+          </div>
+        </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
           <article className="surface-card p-6">

@@ -37,7 +37,7 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 | `/paineis` | `DASHBOARDS` | `list_managed_surveys` |
 | `/paineis/[applicationCode]` | `DASHBOARDS` | `get_survey_dashboard` |
 | `/paineis/cddi` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
-| `/perfil` | autenticado | `set_my_avatar_choice` (via `AvatarIdentityPicker`) |
+| `/perfil` | autenticado | foto do Google sincronizada por `usePlatformContext()`; dados institucionais somente leitura |
 | `/resultados` | `RESULTS` (Admin e Superadmin) | nenhuma — placeholder com `EmptyState` |
 | `/admin/**` | `ADMIN_*` | ver [admin/CLAUDE.md](admin/CLAUDE.md) |
 | `/api/**` | ver módulo | ver [api/CLAUDE.md](api/CLAUDE.md) |
