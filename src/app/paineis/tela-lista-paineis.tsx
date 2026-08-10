@@ -5,11 +5,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ArrowRight, FileText, Gauge, Radio } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -48,32 +48,30 @@ async function fetchManagedSurveys() {
 }
 
 export default function DashboardsPage() {
-  const { context, loading: contextLoading, error: contextError } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
+  // Consulta só depois da guarda: `list_managed_surveys` é restrita à
+  // administração, e disparar antes renderia um erro de RLS numa tela que já
+  // seria negada de qualquer forma.
   const surveysQuery = useQuery({
     queryKey: ["dashboards", "managed-surveys"],
     queryFn: fetchManagedSurveys,
-    enabled: Boolean(context?.person),
+    enabled: guard.state === "granted",
     staleTime: 60_000,
   });
   const surveys = useMemo(() => surveysQuery.data ?? [], [surveysQuery.data]);
 
-  const modules = useMemo(() => context ? deriveModules(context) : [], [context]);
-
-  if (contextLoading || surveysQuery.isLoading) return <PlatformSkeleton title="Carregando painéis" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{contextError || "Acesso não identificado."}</main>;
-  if (!modules.includes(PLATFORM_MODULE.DASHBOARDS)) {
-    return <FullPageState tone="restricted" title="Painéis restritos" description="O módulo Painéis está disponível para a administração da plataforma." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="painéis"
+      restrictedTitle="Painéis restritos"
+      restrictedDescription="O módulo Painéis está disponível para a administração da plataforma."
+    />;
   }
 
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    avatarUrl: context.person.avatarUrl,
-    profileLabel: profileLabel(context),
-    roles: context.roles,
-    modules,
-  };
+  if (surveysQuery.isLoading) return <PlatformSkeleton title="Carregando painéis" />;
+
+  const { user } = guard;
 
   const dashboardSurveys = surveys.filter((survey) => (
     survey.applicationCode

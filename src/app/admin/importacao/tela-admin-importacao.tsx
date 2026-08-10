@@ -4,17 +4,16 @@ import { AlertTriangle, CheckCircle2, Database, FileSpreadsheet, Loader2, Upload
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { FullPageState } from "@/components/full-page-state";
-import { PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { parsePeopleImportRows, summarizePeopleImport, type PeopleImportRow, type RawPeopleImportRow } from "@/lib/people-import";
-import { deriveModules, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 const CHUNK_SIZE = 200;
 type ImportStatus = "idle" | "reading" | "ready" | "importing" | "done" | "error";
 
 export default function ImportPeopleBasePage() {
-  const { context, loading, error: contextError } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_IMPORT);
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<PeopleImportRow[]>([]);
   const [status, setStatus] = useState<ImportStatus>("idle");
@@ -107,10 +106,14 @@ export default function ImportPeopleBasePage() {
 
   // A rota de API é a proteção efetiva, mas a tela também não deve abrir para
   // quem não tem o módulo: a carga da base institucional é do Superadmin.
-  if (loading) return <PlatformSkeleton title="Carregando importações" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir importações" description={contextError || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-  if (!deriveModules(context).includes(PLATFORM_MODULE.ADMIN_IMPORT)) {
-    return <FullPageState tone="restricted" title="Importações restritas" description="A atualização da base institucional é exclusiva do Superadmin." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="importações"
+      unidentifiedTitle="Não foi possível abrir importações"
+      restrictedTitle="Importações restritas"
+      restrictedDescription="A atualização da base institucional é exclusiva do Superadmin."
+    />;
   }
 
   return (

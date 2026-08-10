@@ -7,13 +7,13 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 const schema = z.object({
@@ -34,7 +34,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function NewSurveyPage() {
   const router = useRouter();
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -49,16 +49,16 @@ export default function NewSurveyPage() {
     },
   });
 
-  if (loading) return <PlatformSkeleton title="Preparando nova avaliação" />;
-  if (!context?.person) return <FullPageState title="Não foi possível criar a avaliação" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) {
-    return <FullPageState tone="restricted" title="Criação de avaliações restrita" description="Somente a administração pode criar e configurar novas avaliações." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="nova avaliação"
+      unidentifiedTitle="Não foi possível criar a avaliação"
+      restrictedTitle="Criação de avaliações restrita"
+      restrictedDescription="Somente a administração pode criar e configurar novas avaliações."
+    />;
   }
 
-  const person = context.person;
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
   const validationErrors = Object.values(form.formState.errors)
     .map((fieldError) => fieldError?.message)
     .filter((message): message is string => Boolean(message));
@@ -85,7 +85,7 @@ export default function NewSurveyPage() {
     }
   }
 
-  return <PlatformShell user={user} eyebrow="Administração" title="Nova avaliação">
+  return <PlatformShell user={guard.user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
       <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[#003b70]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>

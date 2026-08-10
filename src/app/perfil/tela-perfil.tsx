@@ -3,30 +3,21 @@
 import Link from "next/link";
 import { BadgeCheck, Building2, KeyRound, Mail, MapPin, UserRound } from "lucide-react";
 import { AvatarIdentityPicker } from "@/components/avatar-identity-picker";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { metadataObject, metadataText } from "@/lib/person-metadata";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { platformRoleLabel } from "@/lib/platform-roles";
 
-function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = metadata?.[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-function metadataObject(metadata: Record<string, unknown>, key: string) {
-  const value = metadata?.[key];
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
 export default function ProfilePage() {
-  const { context, loading, error } = usePlatformContext();
-  if (loading) return <PlatformSkeleton title="Carregando seu perfil" />;
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Não foi possível identificar seu acesso."}</main>;
+  // Sem módulo exigido: o próprio perfil é acessível a qualquer pessoa com
+  // cadastro institucional ativo.
+  const guard = usePlatformGuard();
+  if (guard.state !== "granted") {
+    return <PlatformGuardState guard={guard} title="seu perfil" unidentifiedTitle="Não foi possível identificar seu acesso" />;
+  }
 
-  const person = context.person;
-  const modules = deriveModules(context);
+  const { context, person, modules } = guard;
   const avatarUrl = metadataText(person.metadata, "avatar_url");
   const avatarSource = metadataText(person.metadata, "avatar_source");
   const avatarConfig = metadataObject(person.metadata, "avatar_config");
@@ -34,7 +25,9 @@ export default function ProfilePage() {
   const unit = metadataText(person.metadata, "unit", "unidade", "organizational_unit") ?? person.costCenter;
   const coordination = metadataText(person.metadata, "coordination", "coordenacao");
   const directorate = metadataText(person.metadata, "directorate", "diretoria");
-  const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl, roles: context.roles, modules };
+  // O avatar da casca vem do metadado desta tela, não do contexto: é aqui que a
+  // pessoa acabou de trocá-lo, e a prévia precisa refletir a escolha atual.
+  const user = { ...guard.user, avatarUrl };
 
   const fields = [
     { label: "Matrícula", value: person.employeeNumber, icon: KeyRound },
@@ -85,7 +78,7 @@ export default function ProfilePage() {
           <aside className="surface-card p-6">
             <p className="section-eyebrow">Acesso</p>
             <h3 className="mt-1 text-lg font-semibold text-slate-950">Perfil e permissões</h3>
-            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{profileLabel(context)}</p></div>
+            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{user.profileLabel}</p></div>
             <div className="mt-4 flex flex-wrap gap-2">{(context.roles ?? []).map((role) => <span key={role} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{platformRoleLabel(role)}</span>)}</div>
             <div className="mt-6 space-y-2">
               <Link href="/area" className="primary-button w-full justify-center">Voltar à visão geral</Link>

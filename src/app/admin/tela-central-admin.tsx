@@ -2,9 +2,10 @@
 
 import { ArrowRight, BarChart3, FileCog, FilePlus2, LockKeyhole, Network, Settings2, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
 import Link from "next/link";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 // Cada cartão declara o módulo que o libera — o mesmo mapa de perfis que governa
@@ -20,17 +21,24 @@ const cards = [
 ];
 
 export default function AdminDashboardPage() {
-  const { context, loading, error } = usePlatformContext();
-  if (loading) return <PlatformSkeleton title="Carregando administração" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir a administração" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-  const modules = deriveModules(context);
-  const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
-  if (!isAdmin) return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
+  // A central não exige um módulo específico: abre para quem tem qualquer
+  // módulo administrativo e mostra apenas os cartões correspondentes.
+  const guard = usePlatformGuard();
 
-  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
+  if (guard.state !== "granted") {
+    return <PlatformGuardState guard={guard} title="administração" unidentifiedTitle="Não foi possível abrir a administração" restrictedTitle="Central administrativa restrita" restrictedDescription="Seu perfil não possui permissão para acessar os módulos de administração." />;
+  }
+
+  const { modules } = guard;
+  // A central abre para qualquer módulo administrativo — a regra é o prefixo,
+  // não a lista de cartões (que inclui atalhos não administrativos, como /paineis).
+  if (!modules.some((module) => module.startsWith("ADMIN_"))) {
+    return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
+  }
+
   const visibleCards = cards.filter((card) => modules.includes(card.module));
 
-  return <PlatformShell user={user} eyebrow="Administração" title="Central administrativa" actions={modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS) ? <Link href="/admin/pesquisas/nova" className="hidden items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#075ea8] md:inline-flex"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link> : null}>
+  return <PlatformShell user={guard.user} eyebrow="Administração" title="Central administrativa" actions={modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS) ? <Link href="/admin/pesquisas/nova" className="hidden items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#075ea8] md:inline-flex"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link> : null}>
     <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_80%_15%,rgba(45,212,191,.22),transparent_25%),linear-gradient(125deg,#08243f,#064f89_58%,#0878a6)] p-7 text-white shadow-[0_24px_60px_rgba(0,47,89,.22)] sm:p-9">
       <div className="relative grid gap-7 xl:grid-cols-[1.2fr_.8fr] xl:items-end">
         <div><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-emerald-100 backdrop-blur"><ShieldCheck className="h-4 w-4" />Ambiente de governança</span><h2 className="mt-6 max-w-3xl text-3xl font-black tracking-tight sm:text-4xl">Transforme necessidades institucionais em avaliações estruturadas</h2><p className="mt-4 max-w-3xl leading-7 text-blue-100">Crie instrumentos, organize públicos, acompanhe equipes e controle cada etapa de publicação em um único fluxo auditável.</p><div className="mt-7 flex flex-wrap gap-3">{modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS) ? <Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-[#003b70] shadow-lg transition hover:-translate-y-0.5"><FilePlus2 className="h-4 w-4" />Criar nova pesquisa</Link> : null}{modules.includes(PLATFORM_MODULE.ADMIN_IMPORT) ? <Link href="/admin/importacao" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-black text-white backdrop-blur transition hover:bg-white/15"><UploadCloud className="h-4 w-4" />Importar participantes</Link> : null}</div></div>

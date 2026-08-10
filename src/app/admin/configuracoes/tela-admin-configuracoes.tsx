@@ -7,14 +7,14 @@ import { ImageUp, Loader2, RotateCcw, Save, SwatchBook } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { FullPageState } from "@/components/full-page-state";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { platformBrandingQueryKey, usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformLogo } from "@/components/platform-logo";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -97,7 +97,7 @@ async function validateLogoComposition(file: File) {
 }
 
 export default function PlatformSettingsPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_ACCESS);
   const { branding, loading: brandingLoading } = usePlatformBranding();
   const queryClient = useQueryClient();
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -202,16 +202,20 @@ export default function PlatformSettingsPage() {
     }
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando configurações" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir as configurações" description={error || "Seu acesso institucional não foi identificado."} />;
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_ACCESS)) return <FullPageState tone="restricted" title="Configurações restritas" description="Seu perfil não possui permissão para alterar a identidade da plataforma." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="configurações"
+      unidentifiedTitle="Não foi possível abrir as configurações"
+      restrictedTitle="Configurações restritas"
+      restrictedDescription="Seu perfil não possui permissão para alterar a identidade da plataforma."
+    />;
+  }
 
-  const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
   const displayedLogo = removeLogo ? DEFAULT_PLATFORM_BRANDING.logoUrl : previewUrl ?? branding.logoUrl;
 
   return (
-    <PlatformShell user={user} eyebrow="Administração" title="Configurações do sistema">
+    <PlatformShell user={guard.user} eyebrow="Administração" title="Configurações do sistema">
       <PageHeader eyebrow="Identidade global" title="Marca e aparência" description="Defina como a plataforma é identificada no menu, no acesso e nas áreas institucionais. As alterações ficam registradas para auditoria." />
 
       <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">

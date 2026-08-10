@@ -2,33 +2,25 @@
 
 import Link from "next/link";
 import { AdminPeopleTeamsManagement } from "@/components/admin-people-teams-management";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { FullPageState } from "@/components/full-page-state";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
+import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 export default function AdminTeamsPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_TEAMS);
 
-  if (loading) return <PlatformSkeleton title="Carregando gestão institucional" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir equipes" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
-
-  const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_TEAMS)) {
-    return <FullPageState tone="restricted" title="Gestão institucional restrita" description="A edição de dados funcionais e vínculos é exclusiva do Superadmin." />;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="gestão institucional"
+      unidentifiedTitle="Não foi possível abrir equipes"
+      restrictedTitle="Gestão institucional restrita"
+      restrictedDescription="A edição de dados funcionais e vínculos é exclusiva do Superadmin."
+    />;
   }
 
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    avatarUrl: context.person.avatarUrl,
-    roles: context.roles,
-    modules,
-  };
-
-  return <PlatformShell user={user} eyebrow="Estrutura organizacional" title="Pessoas, equipes e lideranças" actions={<Link href="/admin/importacao" className="hidden rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#075ea8] md:inline-flex">Revisar importações</Link>}>
+  return <PlatformShell user={guard.user} eyebrow="Estrutura organizacional" title="Pessoas, equipes e lideranças" actions={<Link href="/admin/importacao" className="hidden rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#075ea8] md:inline-flex">Revisar importações</Link>}>
     <section className="mb-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
       <p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Administração da plataforma</p>
       <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

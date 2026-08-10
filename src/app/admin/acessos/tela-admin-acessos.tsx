@@ -4,7 +4,8 @@ import { Check, Loader2, Search, ShieldCheck, UserCog } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
+import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,13 +24,16 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { deriveModules, invalidatePlatformContext, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
 import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type Role = { id: string; code: string; name: string; description: string | null };
-type PersonRole = { assignmentId: string; code: string; name: string };
+// Os tipos declaram só o que a tela lê. `list_access_workspace` devolve mais
+// campos (assignmentId, nome do papel na atribuição, status do workspace); tipar
+// o que não se usa sugere um consumo que não existe.
+type Role = { code: string; name: string; description: string | null };
+type PersonRole = { code: string };
 type Person = {
   personId: string;
   fullName: string;
@@ -40,7 +44,7 @@ type Person = {
   active: boolean;
   roles: PersonRole[];
 };
-type Workspace = { status: string; roles: Role[]; people: Person[] };
+type Workspace = { roles: Role[]; people: Person[] };
 
 const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
 
@@ -55,8 +59,15 @@ function effectiveRoleCode(person: Person) {
 }
 
 export default function AdminAccessPage() {
-  const { context, loading, error } = usePlatformContext();
+  const guard = usePlatformGuard();
+  const currentPersonId = guard.state === "granted" ? guard.person.id : undefined;
+  const canManageAccess = guard.state === "granted" && guard.modules.includes(PLATFORM_MODULE.ADMIN_ACCESS);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+
+  // `person.id` é opcional no contrato do contexto: sem o identificador, nenhuma
+  // linha pode ser tratada como "eu" — do contrário duas pessoas sem id se
+  // igualariam e a proteção de autorrebaixamento travaria a tela inteira.
+  const isCurrentPerson = (person: Person) => Boolean(currentPersonId) && person.personId === currentPersonId;
   const [query, setQuery] = useState("");
   const [fetching, setFetching] = useState(false);
   const [changing, setChanging] = useState("");
@@ -76,8 +87,8 @@ export default function AdminAccessPage() {
   }
 
   useEffect(() => {
-    if (context && deriveModules(context).includes(PLATFORM_MODULE.ADMIN_ACCESS)) void load();
-  }, [context]);
+    if (canManageAccess) void load();
+  }, [canManageAccess]);
 
   const roles = useMemo(
     () =>
@@ -100,7 +111,7 @@ export default function AdminAccessPage() {
     if (person.roles.length === 1 && person.roles[0]?.code === role.code) return;
     // Guarda de interface espelhando a do banco; o botão correspondente também
     // fica desabilitado, então aqui é só rede de segurança.
-    if (person.personId === context?.person?.id && role.code !== PLATFORM_ROLE.SUPER_ADMIN) {
+    if (isCurrentPerson(person) && role.code !== PLATFORM_ROLE.SUPER_ADMIN) {
       toast.error("Você não pode retirar seu próprio perfil de Superadmin.");
       return;
     }
@@ -132,19 +143,14 @@ export default function AdminAccessPage() {
     }
   }
 
-  if (loading) return <PlatformSkeleton title="Carregando acessos" />;
-  if (!context?.person) return <main className="p-8 text-red-700">{error || "Acesso não identificado."}</main>;
+  // A guarda de módulo não é passada ao hook porque esta tela mostra o acesso
+  // negado **dentro** da casca, preservando a navegação — e não como página
+  // inteira. Só os dois primeiros estados delegam a `PlatformGuardState`.
+  if (guard.state !== "granted") {
+    return <PlatformGuardState guard={guard} title="acessos" />;
+  }
 
-  const modules = deriveModules(context);
-  const user = {
-    fullName: context.person.fullName,
-    institutionalEmail: context.person.institutionalEmail,
-    employeeNumber: context.person.employeeNumber,
-    profileLabel: profileLabel(context),
-    avatarUrl: context.person.avatarUrl,
-    roles: context.roles,
-    modules,
-  };
+  const { modules, user } = guard;
 
   if (!modules.includes(PLATFORM_MODULE.ADMIN_ACCESS)) {
     return (
@@ -259,7 +265,7 @@ export default function AdminAccessPage() {
                         // `fc_definir_perfil_pessoa` recusa rebaixar o próprio
                         // Superadmin. Desabilitar aqui evita o clique que só
                         // falharia no banco, e o title diz por quê.
-                        const isSelfDowngrade = person.personId === context.person?.id
+                        const isSelfDowngrade = isCurrentPerson(person)
                           && role.code !== PLATFORM_ROLE.SUPER_ADMIN;
                         const blocked = busy || isSelfDowngrade;
 
