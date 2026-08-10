@@ -48,12 +48,12 @@ export default function NewSurveyPage() {
     },
   });
 
-  if (loading) return <PlatformSkeleton title="Preparando nova pesquisa" />;
-  if (!context?.person) return <FullPageState title="Não foi possível criar a pesquisa" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
+  if (loading) return <PlatformSkeleton title="Preparando nova avaliação" />;
+  if (!context?.person) return <FullPageState title="Não foi possível criar a avaliação" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
   if (!modules.includes("ADMIN_SURVEYS")) {
-    return <FullPageState tone="restricted" title="Criação de pesquisas restrita" description="Somente a Equipe Técnica pode criar e configurar novas pesquisas." />;
+    return <FullPageState tone="restricted" title="Criação de avaliações restrita" description="Somente a administração pode criar e configurar novas avaliações." />;
   }
 
   const person = context.person;
@@ -77,27 +77,27 @@ export default function NewSurveyPage() {
       });
       if (createError) throw createError;
       const result = data as { code?: string } | null;
-      toast.success(`Pesquisa ${result?.code ?? values.code.toUpperCase()} criada como rascunho.`);
+      toast.success(`Avaliação ${result?.code ?? values.code.toUpperCase()} criada como rascunho.`);
       router.push("/admin/pesquisas");
     } catch (submitError) {
-      toast.error(submitError instanceof Error ? submitError.message : "Não foi possível criar a pesquisa.");
+      toast.error(submitError instanceof Error ? submitError.message : "Não foi possível criar a avaliação.");
     }
   }
 
-  return <PlatformShell user={user} eyebrow="Equipe Técnica" title="Nova pesquisa">
+  return <PlatformShell user={user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
       <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[#003b70]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Crie a base da pesquisa</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a pesquisa, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
+        <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[#003b70]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
 
         <ErrorSummary errors={validationErrors} className="mt-6" />
 
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
           <Input label="Código institucional" placeholder="EX.: CLIMA-2027" required error={form.formState.errors.code?.message} {...form.register("code")} />
-          <Input label="Nome da pesquisa" placeholder="Pesquisa de Clima Organizacional" required error={form.formState.errors.name?.message} {...form.register("name")} />
+          <Input label="Nome da avaliação" placeholder="Avaliação de Clima Organizacional" required error={form.formState.errors.name?.message} {...form.register("name")} />
         </div>
 
-        <Textarea label="Descrição" rows={4} placeholder="Objetivo, público e contexto da pesquisa." error={form.formState.errors.description?.message} containerClassName="mt-5" {...form.register("description")} />
-        <Input label="Nome do primeiro ciclo" placeholder="Pesquisa de Clima 2027 — 1º ciclo" required error={form.formState.errors.applicationName?.message} containerClassName="mt-5" {...form.register("applicationName")} />
+        <Textarea label="Descrição" rows={4} placeholder="Objetivo, público e contexto da avaliação." error={form.formState.errors.description?.message} containerClassName="mt-5" {...form.register("description")} />
+        <Input label="Nome do primeiro ciclo" placeholder="Avaliação de Clima 2027 — 1º ciclo" required error={form.formState.errors.applicationName?.message} containerClassName="mt-5" {...form.register("applicationName")} />
 
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <Input type="datetime-local" label="Abertura planejada" error={form.formState.errors.opensAt?.message} {...form.register("opensAt")} />
@@ -106,7 +106,7 @@ export default function NewSurveyPage() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <Checkbox label="Permitir rascunhos" description="A pessoa poderá salvar e continuar depois." {...form.register("allowDrafts")} />
-          <Checkbox label="Pesquisa anônima" description="Respostas sem identificação nominal nos resultados." {...form.register("anonymous")} />
+          <Checkbox label="Avaliação anônima" description="Respostas sem identificação nominal nos resultados." {...form.register("anonymous")} />
         </div>
 
         <div className="mt-8 flex flex-wrap justify-end gap-3">
@@ -119,7 +119,7 @@ export default function NewSurveyPage() {
       </form>
 
       <aside className="space-y-5">
-        <article className="rounded-[2rem] bg-[linear-gradient(145deg,#003b70,#075ea8)] p-7 text-white shadow-xl"><ShieldCheck className="h-8 w-8 text-emerald-300" /><h3 className="mt-5 text-2xl font-black">Governança desde o início</h3><p className="mt-3 leading-7 text-blue-100">Toda pesquisa nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da Equipe Técnica.</p></article>
+        <article className="rounded-[2rem] bg-[linear-gradient(145deg,#003b70,#075ea8)] p-7 text-white shadow-xl"><ShieldCheck className="h-8 w-8 text-emerald-300" /><h3 className="mt-5 text-2xl font-black">Governança desde o início</h3><p className="mt-3 leading-7 text-blue-100">Toda avaliação nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da administração.</p></article>
         {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[#0b8f58]" /><h3 className="mt-4 text-lg font-black text-[#003b70]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
       </aside>
     </section>

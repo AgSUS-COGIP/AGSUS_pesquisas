@@ -148,7 +148,7 @@ export function AdminParticipantManagement() {
         target_access_profile: "PARTICIPANTE",
       });
       if (error) throw error;
-      toast.success("Pessoa vinculada à pesquisa.");
+      toast.success("Pessoa vinculada à avaliação.");
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
       setSearch("");
       setPeople([]);
@@ -172,7 +172,7 @@ export function AdminParticipantManagement() {
         target_access_profile: "PARTICIPANTE",
       });
       if (error) throw error;
-      toast.success("Pessoa cadastrada e vinculada à pesquisa.");
+      toast.success("Pessoa cadastrada e vinculada à avaliação.");
       setForm({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "", workplace: "" });
       setShowCreate(false);
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
@@ -190,7 +190,7 @@ export function AdminParticipantManagement() {
         target_status: status,
       });
       if (error) throw error;
-      toast.success(status === "ELIGIBLE" ? "Participante reativado." : status === "BLOCKED" ? "Participante bloqueado." : "Participante removido da pesquisa.");
+      toast.success(status === "ELIGIBLE" ? "Participante reativado." : status === "BLOCKED" ? "Participante bloqueado." : "Participante removido da avaliação.");
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível alterar o participante.");
@@ -202,7 +202,7 @@ export function AdminParticipantManagement() {
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <label className="block">
-            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Pesquisa ou ciclo</span>
+            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Avaliação ou ciclo</span>
             <select value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100">
               {applications.map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}
             </select>
@@ -226,8 +226,8 @@ export function AdminParticipantManagement() {
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Público definido</p><h2 className="mt-1 text-xl font-black text-[#003b70]">Participantes da pesquisa</h2></div><span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-[#003b70]"><UsersRound className="h-4 w-4"/>{activeParticipants.length}</span></div>
-        {loading ? <div className="grid place-items-center p-12 text-slate-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : participants.length ? <div className="divide-y divide-slate-100">{participants.map((participant) => <div key={participant.id} className={`flex flex-col gap-4 p-5 lg:flex-row lg:items-center ${participant.status === "EXCLUDED" ? "bg-slate-50 opacity-65" : ""}`}><Avatar name={participant.fullName} url={participant.avatarUrl}/><div className="min-w-0 flex-1"><strong className="block truncate text-slate-900">{participant.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{participant.employeeNumber} · {participant.institutionalEmail || "Sem e-mail"} · {participant.jobTitle || participant.costCenter || "Sem dados funcionais"}</span></div><span className={`rounded-full px-3 py-1 text-xs font-black ${participant.status === "COMPLETED" ? "bg-emerald-50 text-emerald-800" : participant.status === "BLOCKED" ? "bg-red-50 text-red-800" : participant.status === "EXCLUDED" ? "bg-slate-200 text-slate-700" : "bg-blue-50 text-blue-800"}`}>{statusLabel(participant.status)}</span><div className="flex flex-wrap gap-2">{["BLOCKED","EXCLUDED"].includes(participant.status) && !participant.completedAt && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"ELIGIBLE")} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Reativar</button>}{!["BLOCKED","EXCLUDED","COMPLETED"].includes(participant.status) && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"BLOCKED")} className="inline-flex items-center gap-2 rounded-xl border border-amber-200 px-3 py-2 text-xs font-black text-amber-700"><Ban className="h-4 w-4"/>Bloquear</button>}{participant.status !== "EXCLUDED" && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"EXCLUDED")} className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-black text-red-700"><XCircle className="h-4 w-4"/>Remover</button>}</div></div>)}</div> : <div className="p-12 text-center text-slate-500"><UsersRound className="mx-auto h-10 w-10 text-slate-300"/><p className="mt-3 font-bold">Nenhum participante vinculado a esta pesquisa.</p></div>}
+        <div className="flex items-center justify-between border-b border-slate-200 p-5"><div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Público definido</p><h2 className="mt-1 text-xl font-black text-[#003b70]">Participantes da avaliação</h2></div><span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-[#003b70]"><UsersRound className="h-4 w-4"/>{activeParticipants.length}</span></div>
+        {loading ? <div className="grid place-items-center p-12 text-slate-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : participants.length ? <div className="divide-y divide-slate-100">{participants.map((participant) => <div key={participant.id} className={`flex flex-col gap-4 p-5 lg:flex-row lg:items-center ${participant.status === "EXCLUDED" ? "bg-slate-50 opacity-65" : ""}`}><Avatar name={participant.fullName} url={participant.avatarUrl}/><div className="min-w-0 flex-1"><strong className="block truncate text-slate-900">{participant.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{participant.employeeNumber} · {participant.institutionalEmail || "Sem e-mail"} · {participant.jobTitle || participant.costCenter || "Sem dados funcionais"}</span></div><span className={`rounded-full px-3 py-1 text-xs font-black ${participant.status === "COMPLETED" ? "bg-emerald-50 text-emerald-800" : participant.status === "BLOCKED" ? "bg-red-50 text-red-800" : participant.status === "EXCLUDED" ? "bg-slate-200 text-slate-700" : "bg-blue-50 text-blue-800"}`}>{statusLabel(participant.status)}</span><div className="flex flex-wrap gap-2">{["BLOCKED","EXCLUDED"].includes(participant.status) && !participant.completedAt && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"ELIGIBLE")} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Reativar</button>}{!["BLOCKED","EXCLUDED","COMPLETED"].includes(participant.status) && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"BLOCKED")} className="inline-flex items-center gap-2 rounded-xl border border-amber-200 px-3 py-2 text-xs font-black text-amber-700"><Ban className="h-4 w-4"/>Bloquear</button>}{participant.status !== "EXCLUDED" && <button type="button" disabled={working === participant.id} onClick={()=>void changeStatus(participant.id,"EXCLUDED")} className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-black text-red-700"><XCircle className="h-4 w-4"/>Remover</button>}</div></div>)}</div> : <div className="p-12 text-center text-slate-500"><UsersRound className="mx-auto h-10 w-10 text-slate-300"/><p className="mt-3 font-bold">Nenhum participante vinculado a esta avaliação.</p></div>}
       </section>
     </div>
   );

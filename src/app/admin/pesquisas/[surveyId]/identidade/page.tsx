@@ -158,7 +158,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   if (loading) return <PlatformSkeleton title="Carregando identidade visual" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à Equipe Técnica.</main>;
+  if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
 
   const person = context.person;
   const user = {
@@ -173,7 +173,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   return (
     <PlatformShell
       user={user}
-      eyebrow="Equipe Técnica"
+      eyebrow="Administração"
       title="Identidade visual"
       actions={
         <Link
@@ -194,7 +194,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           <PageHeader
             eyebrow={builder.application.code}
             title="Identidade visual do instrumento"
-            description="Defina a imagem de capa e os textos exibidos no início da pesquisa, edital ou ciclo."
+            description="Defina a imagem de capa e os textos exibidos no início da avaliação, edital ou ciclo."
           />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
@@ -300,7 +300,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                       {visual.heroTitle?.trim() || builder.application.name}
                     </h1>
                     <p className="mt-3 leading-7 text-slate-600">
-                      {visual.heroSubtitle?.trim() || "Texto de apresentação do instrumento configurado pela Equipe Técnica."}
+                      {visual.heroSubtitle?.trim() || "Texto de apresentação do instrumento configurado pela administração."}
                     </p>
                   </div>
                 </div>

@@ -135,7 +135,7 @@ export default function AccessPage() {
             <PlatformLogo src={branding.logoUrl} alt={branding.organizationName} organizationName={branding.organizationName} width={80} height={80} priority loading={brandingLoading} className="mx-auto h-20 w-20 object-contain text-xl" />
             <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-[#0b8f58]">Acesso institucional</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">{branding.productName}</h1>
-            <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As pesquisas exibidas dependem das autorizações do seu perfil.</p>
+            <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As avaliações exibidas dependem das autorizações do seu perfil.</p>
           </div>
 
           <button type="button" onClick={signInWithGoogle} disabled={loading || !supabaseConfigured} aria-describedby="access-help" className="mt-8 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#003b70] px-5 py-4 font-black text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-[#075ea8] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60">

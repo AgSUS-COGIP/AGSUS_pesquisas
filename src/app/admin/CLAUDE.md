@@ -2,7 +2,9 @@
 
 ## Objetivo
 
-Dar à Equipe Técnica e ao Administrador da Plataforma autonomia para criar instrumentos, operar ciclos, definir público, corrigir estrutura organizacional, administrar acessos e atualizar a base institucional — sempre com validação e auditoria no banco.
+Dar ao Admin e ao SuperAdmin autonomia para criar instrumentos, operar ciclos, definir público, corrigir estrutura organizacional, administrar acessos e atualizar a base institucional — sempre com validação e auditoria no banco.
+
+Papéis do modelo simplificado: Admin (código interno `SURVEY_MANAGER`) opera as avaliações; SuperAdmin (código interno `ADMINISTRATOR`) soma a administração global — pessoas, dados funcionais, papéis e marca. Constantes em `@/lib/platform-roles`.
 
 Convenções gerais de rota em [../CLAUDE.md](../CLAUDE.md).
 
@@ -23,7 +25,7 @@ Convenções gerais de rota em [../CLAUDE.md](../CLAUDE.md).
 | `/admin/pesquisas/[surveyId]/identidade` | `ADMIN_SURVEYS` | `get_survey_builder`, `update_application_visual_settings` |
 | `/admin/pesquisas/[surveyId]/operacao` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
 | `/admin/participantes` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
-| `/admin/equipes` | `ADMIN_TEAMS` **e** papel `ADMINISTRATOR` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
+| `/admin/equipes` | `ADMIN_TEAMS` **e** papel SuperAdmin | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `ADMIN_ACCESS` | `list_access_workspace`, `set_person_role` |
 | `/admin/configuracoes` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
 | `/admin/importacao` | — (autorizada na rota de API, não por guarda de módulo) | via `POST /api/admin/import-participants` |
@@ -104,7 +106,7 @@ navegador                       lê CSV/XLSX com `xlsx`
                                 parsePeopleImportRows() + summarizePeopleImport()
                                 lotes de CHUNK_SIZE = 200 linhas válidas
         ↓ POST /api/admin/import-participants  (sessão institucional, sem token)
-servidor                        resolveAuthorizedActor() → papel administrativo
+servidor                        resolveAuthorizedActor() → SuperAdmin ou Admin
                                 parseAdminImportRequest() → esquema zod
                                 sync_people_base_rows → sync_cddi_manager_rows
                                 registra data_import_batches / data_import_issues
@@ -117,9 +119,9 @@ servidor                        resolveAuthorizedActor() → papel administrativ
 
 ## Regras de negócio específicas
 
-- **`/admin/equipes` exige papel `ADMINISTRATOR`**, não apenas o módulo `ADMIN_TEAMS`. É a única rota com essa dupla verificação: alterar dado funcional é privilégio máximo.
+- **`/admin/equipes` exige papel SuperAdmin**, não apenas o módulo `ADMIN_TEAMS`. É a única rota com essa dupla verificação: alterar dado funcional é privilégio máximo.
 - **Matrícula é imutável.** `update_platform_admin_person` não altera `employee_number` e exige justificativa, registrada para auditoria.
-- **`SURVEY_MANAGER` nunca recebe `ADMIN_ACCESS`** — quem gerencia pesquisa não concede papéis. `/admin` esconde o cartão de Acessos para quem não tem o módulo.
+- **Admin nunca recebe `ADMIN_ACCESS` nem `ADMIN_TEAMS`** — quem gerencia avaliações não concede papéis nem altera dados funcionais. `/admin` esconde os cartões correspondentes para quem não tem os módulos.
 - **Vínculos encerrados são preservados.** Retirar alguém da equipe encerra a vigência e registra evento em `audit_events`; nada é apagado.
 - **Identidade visual:** `update_application_visual_settings` aceita apenas URL **HTTPS** para banner. `themeVariant: "INSTITUTIONAL"` ignora banner personalizado e volta ao padrão (ver `resolveSurveyVisualIdentity` em `@/lib/survey-visual-identity`).
 
@@ -141,7 +143,7 @@ servidor                        resolveAuthorizedActor() → papel administrativ
 
 ## Pontos de atenção
 
-- `/admin/importacao` **não** aplica guarda de módulo nem usa `PlatformShell`. A proteção fica inteira na rota de API, que exige sessão institucional com papel `ADMINISTRATOR`, `SURVEY_MANAGER` ou `TECHNICAL_TEAM` — a tela em si não esconde nada de quem chega até ela.
+- `/admin/importacao` **não** aplica guarda de módulo nem usa `PlatformShell`. A proteção fica inteira na rota de API, que exige sessão institucional com papel SuperAdmin ou Admin — a tela em si não esconde nada de quem chega até ela.
 - O corpo de `/api/admin/import-participants` é validado por esquema `zod` (`@/lib/admin-import-contract`). Mudança no formato enviado pela tela exige mudança no contrato.
 - `/admin` exibe "CDDI 2026 · ciclo encerrado" como texto fixo, independente do estado real da aplicação.
 - A tela de "Acesso restrito" está migrando para `FullPageState` (`tone="restricted"`): `/admin`, `/admin/pesquisas`, `/admin/pesquisas/nova`, `/admin/participantes`, `/admin/equipes` e `/admin/configuracoes` já usam; as três rotas sob `/admin/pesquisas/[surveyId]` ainda reimplementam inline. Existe também um `AdminModulePage` pronto e sem consumidores em `@/components/admin-module-page.tsx`.

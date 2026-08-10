@@ -53,7 +53,7 @@ export function AdminParticipantBulkSelector() {
         setApplications(rows);
         setApplicationId(rows[0]?.id ?? "");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Não foi possível carregar as pesquisas.");
+        toast.error(error instanceof Error ? error.message : "Não foi possível carregar as avaliações.");
       } finally {
         setLoading(false);
       }
@@ -173,7 +173,7 @@ export function AdminParticipantBulkSelector() {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="section-eyebrow">Seleção em lote</p>
-          <h2 id="bulk-participants-title" className="mt-1 text-xl font-black text-brand-primary">Vincular pessoas a uma pesquisa</h2>
+          <h2 id="bulk-participants-title" className="mt-1 text-xl font-black text-brand-primary">Vincular pessoas a uma avaliação</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Selecione pessoas pelos filtros ou vincule todo o público ativo e elegível de uma só vez. Todas as operações registram auditoria.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -190,7 +190,7 @@ export function AdminParticipantBulkSelector() {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(240px,.75fr)_minmax(0,1.25fr)]">
         <label className="block">
-          <span className="text-xs font-black uppercase tracking-[.14em] text-[var(--text-secondary)]">Pesquisa ou ciclo</span>
+          <span className="text-xs font-black uppercase tracking-[.14em] text-[var(--text-secondary)]">Avaliação ou ciclo</span>
           <select disabled={loading || working || assigningAll} value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 font-bold text-[var(--text-primary)] outline-none focus:ring-4 focus:ring-sky-200/20">
             {applications.map((application) => <option key={application.id} value={application.id}>{application.code} — {application.name}</option>)}
           </select>

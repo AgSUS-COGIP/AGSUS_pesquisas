@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BadgeCheck, ChevronRight, Home, Search, UserRound, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, Home, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { SurveyBanner } from "@/components/survey-banner";
@@ -61,15 +61,10 @@ export default function CddiFormPage() {
   const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [leaderQuery, setLeaderQuery] = useState("");
-  const [leaderResults, setLeaderResults] = useState<Leader[]>([]);
-  const [leaderSearching, setLeaderSearching] = useState(false);
-  const [leaderSaving, setLeaderSaving] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
   const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
-  const leaderTimer = useRef<number | null>(null);
   const formTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => saveQueue.subscribe(setSaveSnapshot), [saveQueue]);
@@ -118,7 +113,6 @@ export default function CddiFormPage() {
     const timersToClear = saveTimers.current;
     return () => {
       Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
-      if (leaderTimer.current) window.clearTimeout(leaderTimer.current);
     };
   }, []);
 
@@ -180,11 +174,12 @@ export default function CddiFormPage() {
     await saveQueue.flush();
   }
   function validateCurrentStep() {
-    // A chefia precisa estar confirmada antes de qualquer competência: é ela que
-    // forma o vínculo usado pela liderança para avaliar esta pessoa no ciclo.
+    // A chefia vem do vínculo institucional (cddi_leadership_links) e precisa
+    // existir antes de qualquer competência: é ela que avaliará esta pessoa no
+    // ciclo. Sem vínculo, a correção é administrativa — não há seleção manual.
     if (step === 0 && !identity?.leader) {
       setMessageType("warning");
-      setMessage("Selecione sua chefia imediata antes de avançar.");
+      setMessage("Sua chefia responsável ainda não está registrada na base institucional. Procure a administração para atualizar o vínculo antes de iniciar.");
       return false;
     }
     if (!currentSection || !canEdit) return true;
@@ -203,44 +198,16 @@ export default function CddiFormPage() {
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
-  function searchLeaders(value: string) {
-    setLeaderQuery(value);
-    if (leaderTimer.current) window.clearTimeout(leaderTimer.current);
-    if (value.trim().length < 2) { setLeaderResults([]); return; }
-    leaderTimer.current = window.setTimeout(async () => {
-      setLeaderSearching(true);
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("search_cddi_leaders", { target_application_code: "CDDI-2026", search_term: value.trim() });
-      if (!error) setLeaderResults((data ?? []) as Leader[]);
-      setLeaderSearching(false);
-    }, 350);
-  }
-  async function chooseLeader(leader: Leader) {
-    setLeaderSaving(true);
-    try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("set_my_cddi_leader", { target_application_code: "CDDI-2026", target_leader_person_id: leader.personId });
-      if (error) throw error;
-      setIdentity((current) => current ? { ...current, leader: (data as { leader: Leader }).leader } : current);
-      setLeaderResults([]);
-      setLeaderQuery("");
-      setMessageType("success");
-      setMessage("Chefia imediata confirmada para este ciclo.");
-    } catch (error) {
-      setMessageType("error");
-      setMessage(error instanceof Error ? error.message : "Não foi possível confirmar a chefia.");
-    } finally { setLeaderSaving(false); }
-  }
   /**
    * Envio definitivo da autoavaliação — irreversível.
    *
-   * As três condições (chefia confirmada, todas as obrigatórias respondidas,
-   * confirmação explícita) espelham a validação da RPC; o banco recusa de novo se
-   * qualquer uma falhar.
+   * As três condições (chefia registrada no vínculo institucional, todas as
+   * obrigatórias respondidas, confirmação explícita) espelham a validação da
+   * RPC; o banco recusa de novo se qualquer uma falhar.
    */
   async function submitEvaluation() {
     if (!submission?.submission?.id || !canEdit) return;
-    if (!identity?.leader) { setMessageType("warning"); setMessage("Confirme sua chefia antes de enviar a avaliação."); return; }
+    if (!identity?.leader) { setMessageType("warning"); setMessage("Sua chefia responsável ainda não está registrada na base institucional. Procure a administração para atualizar o vínculo antes de enviar."); return; }
     if (answeredRequired !== requiredQuestions.length) { setMessageType("warning"); setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
     if (!(await confirm({ title: "Enviar autoavaliação?", description: "Depois do envio, suas respostas serão bloqueadas para edição e encaminhadas para consolidação.", confirmLabel: "Enviar autoavaliação" }))) return;
     setSubmitting(true);
@@ -273,16 +240,16 @@ export default function CddiFormPage() {
       <div className="mx-auto max-w-[960px] space-y-4">
         <SurveyBanner key={visualIdentity.bannerUrl} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
         <section className="rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-7">
-          <h1 className="text-3xl font-black tracking-tight text-[#26368d] sm:text-4xl">{visualIdentity.heroTitle}</h1>
-          <p className="mt-3 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p>
+          <h1 className="break-words text-3xl font-black tracking-tight text-[#26368d] sm:text-4xl">{visualIdentity.heroTitle}</h1>
+          <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p>
           <p className="mt-1 leading-7 text-slate-700">Será realizada uma <strong>autoavaliação</strong> e uma <strong>avaliação pela chefia direta</strong>. As informações serão consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
           <p className="mt-2 text-sm text-slate-500">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
           <div className="mt-5 grid gap-4 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
             <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-            <div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div>
-            <div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div>
-            <div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div>
-            <div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">{identity.canChangeLeader ? "Gestor(a)/Coordenador(a)" : "Participante"}</strong></div>
+            <div><span className="text-xs text-slate-500">Participante</span><strong className="block break-words text-[#26368d]">{person.fullName}</strong></div>
+            <div><span className="text-xs text-slate-500">Matrícula</span><strong className="block break-words text-[#26368d]">{person.employeeNumber}</strong></div>
+            <div><span className="text-xs text-slate-500">Cargo</span><strong className="block break-words text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div>
+            <div><span className="text-xs text-slate-500">Unidade</span><strong className="block break-words text-[#26368d]">{person.unit || "Não informada"}</strong></div>
           </div>
         </section>
         <section className={`rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? `O período de participação foi encerrado em ${dateLabel(definition.application.closesAt)}. O modo de consulta permanece disponível.` : "O ciclo está disponível para preenchimento."}</p><p className="mt-2 text-sm text-slate-500">Abertura: {dateLabel(definition.application.opensAt)} · Encerramento: {dateLabel(definition.application.closesAt)}</p></section>
@@ -297,16 +264,16 @@ export default function CddiFormPage() {
     <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
       <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] px-4 py-4 sm:px-6">
         <SurveyBanner key={`form-${visualIdentity.bannerUrl}`} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
-        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
+        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="break-words text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 max-w-3xl whitespace-pre-line break-words leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block break-words text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block break-words text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block break-words text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
         <section className={`mt-4 rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? "O formulário está disponível em modo de consulta." : "Suas respostas são salvas automaticamente durante o preenchimento."}</p></section>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-[#087b8d] via-emerald-500 to-blue-600 transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-1 text-right text-xs text-slate-500">{progress}% preenchido</div>
         <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><strong className="text-[#26368d]">{step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title}</strong><span className="text-xs font-bold text-slate-500">Etapa {step + 1} de {totalSteps}</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{Array.from({ length: totalSteps }).map((_, index) => { const complete = index === 0 ? Boolean(identity.leader) : index <= sections.length ? sectionCompletion(sections[index - 1], answers) === 100 : answeredRequired === requiredQuestions.length; return <button key={index} onClick={() => goToStep(index, index > step)} className={`min-w-9 rounded-full px-3 py-2 text-xs font-bold ${index === step ? "bg-[#086ab6] text-white" : complete ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0")}</button>; })}</div></section>
         {message && <div className={`mt-4 rounded-xl border p-4 text-sm font-bold ${messageType === "error" ? "border-red-200 bg-red-50 text-red-800" : messageType === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : messageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>{message}</div>}
-        {step === 0 && <div className="mt-4 space-y-4"><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-[#26368d]">1. Indique sua chefia imediata</h2><p className="mt-2 text-sm text-slate-500">Pesquise pelo nome, e-mail, unidade ou coordenação. A pessoa indicada receberá você automaticamente na área Minha equipe.</p>{identity.leader ? <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div><span className="text-xs text-emerald-700">Chefia selecionada</span><strong className="block text-emerald-950">{identity.leader.fullName}</strong><span className="text-sm text-emerald-700">{identity.leader.jobTitle} · {identity.leader.unit}</span></div><BadgeCheck className="h-7 w-7 text-emerald-600"/></div> : <p className="mt-4 text-sm text-slate-500">Nenhuma chefia selecionada.</p>}{identity.canChangeLeader && <div className="relative mt-4"><Search className="absolute left-3 top-3 h-5 w-5 text-slate-400"/><input value={leaderQuery} onChange={(event) => searchLeaders(event.target.value)} placeholder="Digite pelo menos duas letras do nome da chefia" className="h-12 w-full rounded-xl border border-slate-300 pl-11 pr-4 outline-none focus:border-[#086ab6]" />{leaderSearching && <span className="absolute right-3 top-3 text-sm text-slate-400">Buscando...</span>}{leaderResults.length > 0 && <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">{leaderResults.map((leader) => <button key={leader.personId} disabled={leaderSaving} onClick={() => chooseLeader(leader)} className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-blue-50"><div><strong className="block text-[#26368d]">{leader.fullName}</strong><span className="text-xs text-slate-500">{leader.jobTitle} · {leader.unit}</span></div><ChevronRight className="h-5 w-5 text-slate-400"/></button>)}</div>}</div>}<div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Confira com atenção. Após concluir a autoavaliação, essa indicação formará o vínculo usado pela liderança para avaliar você neste ciclo.</div></section><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-[#26368d]">Dados organizacionais da pessoa avaliada</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Diretoria</span><strong className="block text-[#26368d]">{person.directorate || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Unidade</span><strong className="block text-[#26368d]">{person.unit || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Coordenação</span><strong className="block text-[#26368d]">{person.coordination || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Local de trabalho</span><strong className="block text-[#26368d]">{person.workplace || "Não informado"}</strong></div></div></section></div>}
-        {currentSection && <section className="mt-4 rounded-2xl border-t-4 border-emerald-600 bg-white p-5 shadow-sm sm:p-6"><p className="text-sm font-bold text-slate-500">Competência {step} de {sections.length}</p><h2 className="mt-1 text-2xl font-black text-[#26368d]">{currentSection.title}</h2>{currentSection.description && <p className="mt-3 rounded-xl bg-slate-50 p-4 leading-7 text-slate-700">{currentSection.description}</p>}<div className="mt-5 space-y-7">{currentSection.questions.map((question) => <fieldset key={question.id} disabled={!canEdit}><legend className="font-bold text-slate-900">{question.title}{question.required && <span className="text-red-600"> *</span>}</legend>{question.type === "SCALE" ? <div className="mt-3"><div className="grid grid-cols-5 gap-2">{question.options.map((option) => { const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value; return <label key={option.id} className={`cursor-pointer rounded-xl border py-4 text-center font-black transition ${selected ? "border-[#086ab6] bg-[#086ab6] text-white" : "border-slate-300 bg-white text-[#26368d] hover:border-blue-400"}`}><input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />{option.value}</label>; })}</div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>{scaleBoundary(question, "start")}</span><span>{scaleBoundary(question, "end")}</span></div></div> : <textarea value={answers[question.id]?.value ?? ""} onChange={(event) => updateText(question, event.target.value)} rows={6} className="mt-3 w-full rounded-xl border border-slate-300 p-4 outline-none focus:border-[#086ab6]" placeholder="Digite sua resposta..." />}</fieldset>)}</div></section>}
+        {step === 0 && <div className="mt-4 space-y-4"><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="break-words text-xl font-black text-[#26368d]">1. Chefia responsável pela avaliação</h2><p className="mt-2 text-sm leading-6 text-slate-500">O vínculo de chefia vem da base institucional e é preenchido automaticamente — não é necessário indicá-lo. Ao concluir a autoavaliação, é essa chefia que avaliará você neste ciclo.</p>{identity.leader ? <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="min-w-0"><span className="text-xs text-emerald-700">Chefia registrada</span><strong className="block break-words text-emerald-950">{identity.leader.fullName}</strong><span className="block break-words text-sm text-emerald-700">{[identity.leader.jobTitle, identity.leader.unit].filter(Boolean).join(" · ") || "Dados funcionais não informados"}</span></div><BadgeCheck className="h-7 w-7 shrink-0 text-emerald-600"/></div> : <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong className="block text-amber-950">Chefia ainda não registrada</strong><p className="mt-1 text-sm leading-6 text-amber-900">Sua chefia responsável não foi localizada na base institucional. Procure a administração para atualizar o vínculo — sem ele não é possível concluir a avaliação.</p></div>}</section><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-[#26368d]">Dados organizacionais da pessoa avaliada</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Diretoria</span><strong className="block break-words text-[#26368d]">{person.directorate || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Unidade</span><strong className="block break-words text-[#26368d]">{person.unit || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Coordenação</span><strong className="block break-words text-[#26368d]">{person.coordination || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Local de trabalho</span><strong className="block break-words text-[#26368d]">{person.workplace || "Não informado"}</strong></div></div></section></div>}
+        {currentSection && <section className="mt-4 rounded-2xl border-t-4 border-emerald-600 bg-white p-5 shadow-sm sm:p-6"><p className="text-sm font-bold text-slate-500">Competência {step} de {sections.length}</p><h2 className="mt-1 break-words text-2xl font-black leading-snug text-[#26368d]">{currentSection.title}</h2>{currentSection.description && <p className="mt-3 whitespace-pre-line break-words rounded-xl bg-slate-50 p-4 leading-7 text-slate-700">{currentSection.description}</p>}<div className="mt-5 space-y-7">{currentSection.questions.map((question) => <fieldset key={question.id} disabled={!canEdit} className="min-w-0"><legend className="block w-full whitespace-pre-line break-words font-bold leading-relaxed text-slate-900">{question.title}{question.required && <span className="text-red-600"> *</span>}</legend>{question.description && <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-slate-500">{question.description}</p>}{question.type === "SCALE" ? <div className="mt-3"><div className="grid grid-cols-5 gap-2">{question.options.map((option) => { const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value; return <label key={option.id} className={`cursor-pointer rounded-xl border py-4 text-center font-black transition ${selected ? "border-[#086ab6] bg-[#086ab6] text-white" : "border-slate-300 bg-white text-[#26368d] hover:border-blue-400"}`}><input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />{option.value}</label>; })}</div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>{scaleBoundary(question, "start")}</span><span>{scaleBoundary(question, "end")}</span></div></div> : <textarea value={answers[question.id]?.value ?? ""} onChange={(event) => updateText(question, event.target.value)} rows={6} className="mt-3 w-full rounded-xl border border-slate-300 p-4 outline-none focus:border-[#086ab6]" placeholder="Digite sua resposta..." />}</fieldset>)}</div></section>}
         {step === totalSteps - 1 && <section className="mt-4 rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-2xl font-black text-[#26368d]">Revisão da autoavaliação</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{sections.map((section, index) => { const completion = sectionCompletion(section, answers); return <button key={section.id} onClick={() => goToStep(index + 1, false)} className="rounded-xl border border-slate-200 p-4 text-left hover:bg-blue-50"><div className="flex justify-between gap-3"><strong className="text-[#26368d]">{section.title}</strong><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${completion === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{completion}%</span></div></button>; })}</div><div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><strong className="text-[#26368d]">Confirmação do envio</strong><p className="mt-2 text-sm text-slate-600">Após o envio definitivo, as respostas não poderão ser alteradas.</p>{canEdit && <button onClick={submitEvaluation} disabled={submitting || saveSnapshot.pending > 0 || answeredRequired !== requiredQuestions.length || !identity.leader} className="mt-4 w-full rounded-xl bg-[#086ab6] px-5 py-4 font-black text-white disabled:opacity-50">{submitting ? "Salvando e enviando..." : "Confirmar e enviar autoavaliação"}</button>}{isSubmitted && <p className="mt-4 font-bold text-emerald-800">Avaliação enviada em {dateLabel(submission?.submission?.submittedAt)}.</p>}</div></section>}
       </div>
-      <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur"><div className="mx-auto flex max-w-[960px] items-center justify-between gap-3"><div className="hidden text-sm text-slate-500 sm:block">{saveSnapshot.pending > 0 ? "Salvando rascunho..." : saveSnapshot.status === "ERROR" ? "Falha ao salvar" : savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</div><div className="ml-auto flex gap-2"><button onClick={() => setScreen("home")} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Tela inicial</button><button onClick={() => goToStep(step - 1, false)} disabled={step === 0} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></div></div></footer>
+      <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur"><div className="mx-auto flex max-w-[960px] items-center justify-between gap-3"><div className="hidden text-sm text-slate-500 sm:block">{saveSnapshot.pending > 0 ? "Salvando rascunho..." : saveSnapshot.status === "ERROR" ? "Falha ao salvar" : savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</div><div className="ml-auto flex gap-2">{step === 0 ? <button onClick={() => goToStep(1, true)} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-6 py-3 font-bold text-white transition hover:bg-[#05558f]">Iniciar avaliação<ArrowRight className="h-4 w-4"/></button> : <><button onClick={() => setScreen("home")} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Tela inicial</button><button onClick={() => goToStep(step - 1, false)} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></>}</div></div></footer>
     </div>
     </CddiPlatformFrame>
   );

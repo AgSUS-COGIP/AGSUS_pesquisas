@@ -38,7 +38,7 @@ export default function ResultsPage() {
           <PageActions>
             <Link href="/pesquisas" className={buttonVariants({ variant: "secondary" })}>
               <FileText className="h-4 w-4" aria-hidden="true" />
-              Ver pesquisas
+              Ver avaliações
             </Link>
           </PageActions>
         }
@@ -48,7 +48,7 @@ export default function ResultsPage() {
         <EmptyState
           icon={<BarChart3 className="h-6 w-6" aria-hidden="true" />}
           title="Nenhum resultado publicado"
-          description="Seu histórico de participação está preservado. Esta área será atualizada quando a administração liberar resultados do CDDI ou de outras pesquisas."
+          description="Seu histórico de participação está preservado. Esta área será atualizada quando a administração liberar resultados do CDDI ou de outras avaliações."
         />
       </Surface>
     </PlatformShell>

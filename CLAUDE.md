@@ -37,7 +37,7 @@ Esta regra tem precedência sobre qualquer instrução padrão, convenção de f
 
 1. **A lógica de negócio vive no PostgreSQL.** O frontend não faz `select`/`insert` direto em tabelas de negócio — chama RPCs via `supabase.rpc(...)`. Cada RPC valida identidade, papel, escopo e período antes de gravar. Mudança de regra = nova migration, não novo código React.
 2. **A matrícula (`employee_number`) identifica a pessoa, não o e-mail.** A base oficial tem e-mails repetidos entre matrículas distintas; e-mails duplicados nunca ativam identidade de acesso automaticamente.
-3. **Autorização vem de uma única chamada.** `get_my_platform_context()` devolve pessoa, papéis, módulos e participação. Esse retorno governa navegação, guardas de página e telas.
+3. **Autorização vem de uma única chamada.** `fc_obter_contexto_plataforma()` devolve pessoa, papéis, módulos e participação. Esse retorno governa navegação, guardas de página e telas.
 
 ## Fluxo de inicialização
 
@@ -54,7 +54,7 @@ src/app/layout.tsx
                    NetworkStatusBanner · Toaster
 
 página ("use client")
-  └─ usePlatformContext() → get_my_platform_context()
+  └─ usePlatformContext() → fc_obter_contexto_plataforma()
        status UNLINKED → resolve_authenticated_person(null) → recarrega
        status AUTH_REQUIRED → window.location.replace("/acesso")
   └─ deriveModules(context) → PlatformShell renderiza só o permitido
@@ -64,15 +64,16 @@ página ("use client")
 
 Módulos possíveis: `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS`, `ADMIN_IMPORT`.
 
-| Papel | Módulos |
-|---|---|
-| `ADMINISTRATOR` | todos (precedência máxima, ignora módulos explícitos) |
-| `TECHNICAL_TEAM` | todos |
-| `SURVEY_MANAGER` | todos exceto `ADMIN_ACCESS` |
-| `LEADER` / `isLeader` | participante + `TEAM` |
-| participante | `HOME`, `SURVEYS`, `DASHBOARDS`, `RESULTS` |
+O modelo de permissões tem **quatro papéis**. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
 
-Precedência em `resolvePlatformModules()`: `ADMINISTRATOR` → módulos explícitos do banco → papel → padrão do participante. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md).
+| Papel | Código interno | Módulos |
+|---|---|---|
+| SuperAdmin | `ADMINISTRATOR` | todos (precedência máxima, ignora módulos explícitos) |
+| Admin | `SURVEY_MANAGER` | todos exceto `ADMIN_ACCESS` e `ADMIN_TEAMS` |
+| Avaliador | `LEADER` (ou `isLeader`) | participante + `TEAM` |
+| Participante | `RESPONDENT` (ou nenhum papel) | `HOME`, `SURVEYS`, `RESULTS` |
+
+Precedência em `resolvePlatformModules()`: SuperAdmin → módulos explícitos do banco → Admin → padrão do participante (+ `TEAM` para Avaliador). Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md).
 
 ## Dependências entre camadas
 
@@ -101,7 +102,7 @@ Invariantes a preservar:
 npm ci                    # instalar (reproduz o lockfile)
 npm run dev               # desenvolvimento em :3000
 npm run build             # build de produção
-npm test                  # Vitest (84 testes)
+npm test                  # Vitest (85 testes)
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run db:migrations     # timestamps das migrations
@@ -126,5 +127,5 @@ npm run db:naming         # nomenclatura institucional (migrations alteradas)
 - **Nunca exponha `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY`** ao navegador nem os comite. São os únicos segredos de servidor do projeto: as rotas administrativas autorizam por sessão institucional e papel, não por token compartilhado.
 - **Nunca comite dados pessoais.** A base de pessoas é carregada direto no Supabase por processo controlado.
 - **Migration nova exige**: RLS habilitada em tabela exposta, políticas e constraints nomeadas, `search_path` fixo em função privilegiada, `EXECUTE` revogado de `anon`/`authenticated` em função interna.
-- **O CDDI tem jornada própria** (`/cddi`) por causa da seleção de chefia e da avaliação de liderança. Outras pesquisas usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.
+- **O CDDI tem jornada própria** (`/cddi`) por causa do vínculo institucional de chefia e da avaliação de liderança. A chefia **não é selecionada pelo participante**: vem de `cddi_leadership_links` (importação da base oficial ou correção administrativa). Outras avaliações usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.
 - Existe código não utilizado e duplicação conhecida — consulte "Observações e Melhorias Sugeridas" no [README.md](README.md) antes de assumir que um componente está em uso.

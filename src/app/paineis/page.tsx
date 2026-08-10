@@ -83,7 +83,7 @@ export default function DashboardsPage() {
       <PageHeader
         eyebrow="Indicadores e análises"
         title="Central de indicadores"
-        description="Acompanhe participação, conclusão e distribuição das respostas. Esta área é exclusivamente analítica; para preencher instrumentos, acesse Pesquisas."
+        description="Acompanhe participação, conclusão e distribuição das respostas. Esta área é exclusivamente analítica; para preencher instrumentos, acesse Avaliações."
       />
 
       <Surface className="mt-6 overflow-hidden">
@@ -124,7 +124,7 @@ export default function DashboardsPage() {
       <section className="mt-8" aria-labelledby="survey-dashboard-title">
         <div className="mb-4">
           <p className="section-eyebrow">Resultados por instrumento</p>
-          <h2 id="survey-dashboard-title" className="mt-1 text-xl font-black text-[var(--text-primary)]">Painéis por pesquisa</h2>
+          <h2 id="survey-dashboard-title" className="mt-1 text-xl font-black text-[var(--text-primary)]">Painéis por avaliação</h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">Cada cartão abaixo abre dados e resultados. Nenhum deles inicia ou continua o preenchimento.</p>
         </div>
 
@@ -140,7 +140,7 @@ export default function DashboardsPage() {
                 </div>
                 <p className="mt-4 text-xs font-black uppercase tracking-[.14em] text-[var(--brand-secondary)]">Painel analítico · {survey.code}</p>
                 <h3 className="mt-1 text-lg font-black text-[var(--text-primary)]">{survey.applicationName || survey.name}</h3>
-                <p className="mt-2 flex-1 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Resultados consolidados da pesquisa institucional."}</p>
+                <p className="mt-2 flex-1 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Resultados consolidados da avaliação institucional."}</p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]">
                   <span>{survey.sections} seção(ões)</span>
                   <span>·</span>
@@ -159,7 +159,7 @@ export default function DashboardsPage() {
             <EmptyState
               icon={<FileText className="h-6 w-6" aria-hidden="true" />}
               title="Nenhum painel adicional disponível"
-              description={surveysQuery.isError && surveysQuery.error instanceof Error ? surveysQuery.error.message : "Os formulários publicados continuam na área Pesquisas. Um cartão só aparecerá aqui quando houver uma visualização analítica correspondente."}
+              description={surveysQuery.isError && surveysQuery.error instanceof Error ? surveysQuery.error.message : "Os formulários publicados continuam na área Avaliações. Um cartão só aparecerá aqui quando houver uma visualização analítica correspondente."}
               action={<Link href="/pesquisas" className="secondary-button">Abrir formulários</Link>}
             />
           </Surface>

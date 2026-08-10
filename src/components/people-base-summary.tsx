@@ -63,8 +63,8 @@ export function PeopleBaseSummaryCard() {
       <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Base mestra de pessoas</p>
-          <h2 className="mt-1 text-xl font-black text-[#003b70]">Disponibilidade para pesquisas</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">A importação atualiza estes cadastros. A autorização para responder é realizada separadamente em cada pesquisa.</p>
+          <h2 className="mt-1 text-xl font-black text-[#003b70]">Disponibilidade para avaliações</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">A importação atualiza estes cadastros. A autorização para responder é realizada separadamente em cada avaliação.</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Atualizar
@@ -85,7 +85,7 @@ export function PeopleBaseSummaryCard() {
       {!loading && summary.totalPeople <= 1 && (
         <div className="mx-5 mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 sm:mx-6 sm:mb-6">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-          <span><strong>A base ainda não foi carregada.</strong> Há somente {summary.totalPeople} pessoa cadastrada. Reimporte a planilha oficial pela opção “Atualizar base” para disponibilizar os trabalhadores na vinculação de pesquisas.</span>
+          <span><strong>A base ainda não foi carregada.</strong> Há somente {summary.totalPeople} pessoa cadastrada. Reimporte a planilha oficial pela opção “Atualizar base” para disponibilizar os trabalhadores na vinculação de avaliações.</span>
         </div>
       )}
     </section>

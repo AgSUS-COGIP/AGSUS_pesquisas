@@ -4,6 +4,7 @@ import {
   parseAdminImportRequest,
   type AdminImportRequest,
 } from "@/lib/admin-import-contract";
+import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -23,7 +24,7 @@ async function resolveAuthorizedActor() {
   const { data: userData, error: userError } = await sessionClient.auth.getUser();
   if (userError || !userData.user) return null;
 
-  const { data: context, error: contextError } = await sessionClient.rpc("get_my_platform_context");
+  const { data: context, error: contextError } = await sessionClient.rpc("fc_obter_contexto_plataforma");
   if (contextError || !context || typeof context !== "object") return null;
 
   const value = context as {
@@ -33,7 +34,7 @@ async function resolveAuthorizedActor() {
     roles?: string[];
   };
 
-  const allowedRoles = new Set(["ADMINISTRATOR", "SURVEY_MANAGER", "TECHNICAL_TEAM"]);
+  const allowedRoles = new Set<string>([PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN]);
   const allowed = value.canManageSurveys === true
     && value.roles?.some((role) => allowedRoles.has(role));
 

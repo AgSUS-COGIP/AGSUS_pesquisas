@@ -106,7 +106,7 @@ export default function SurveyDashboardPage() {
 
   const modules = useMemo(() => context ? deriveModules(context) : [], [context]);
 
-  if (contextLoading || dashboardQuery.isLoading) return <PlatformSkeleton title="Carregando painel da pesquisa" />;
+  if (contextLoading || dashboardQuery.isLoading) return <PlatformSkeleton title="Carregando painel da avaliação" />;
   if (!context?.person) return <main className="p-10 text-red-700">{contextError || "Acesso não identificado."}</main>;
 
   const user = {
@@ -121,12 +121,12 @@ export default function SurveyDashboardPage() {
 
   if (!dashboard) {
     return (
-      <PlatformShell user={user} eyebrow="Painéis" title="Pesquisa indisponível">
+      <PlatformShell user={user} eyebrow="Painéis" title="Avaliação indisponível">
         <Surface className="p-6">
           <EmptyState
             icon={<BarChart3 className="h-6 w-6" aria-hidden="true" />}
             title="Não foi possível abrir este painel"
-            description={dashboardQuery.error instanceof Error ? dashboardQuery.error.message : "A pesquisa não possui dados disponíveis ou seu perfil não tem acesso."}
+            description={dashboardQuery.error instanceof Error ? dashboardQuery.error.message : "A avaliação não possui dados disponíveis ou seu perfil não tem acesso."}
             action={<Link href="/paineis" className="secondary-button">Voltar aos painéis</Link>}
           />
         </Surface>
@@ -146,7 +146,7 @@ export default function SurveyDashboardPage() {
       <PageHeader
         eyebrow="Acompanhamento em tempo real"
         title={application.surveyName}
-        description={application.surveyDescription || "Indicadores operacionais e respostas consolidadas desta pesquisa."}
+        description={application.surveyDescription || "Indicadores operacionais e respostas consolidadas desta avaliação."}
         actions={<Badge variant={application.status === "OPEN" ? "success" : "neutral"}>{application.status === "OPEN" ? "Período aberto" : application.status}</Badge>}
       />
 

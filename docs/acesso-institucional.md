@@ -18,7 +18,7 @@ As RPCs `SECURITY DEFINER` não podem ser executadas pelo papel `anon`. O fronte
 
 ## Primeiro acesso
 
-Quando `get_my_platform_context()` retorna `UNLINKED`, o frontend chama `resolve_authenticated_person(null)`. A função:
+Quando `fc_obter_contexto_plataforma()` retorna `UNLINKED`, o frontend chama `resolve_authenticated_person(null)`. A função:
 
 - valida o domínio institucional;
 - vincula a conta a um cadastro existente por e-mail, quando houver;

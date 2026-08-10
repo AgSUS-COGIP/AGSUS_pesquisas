@@ -9,7 +9,7 @@ export type PlatformBranding = {
 
 export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   organizationName: "AgSUS",
-  productName: "Pesquisas",
+  productName: "Avaliações",
   logoUrl: "/agsus-logo-oficial.jpg",
   logoPath: null,
   primaryColor: "#0b4f82",
