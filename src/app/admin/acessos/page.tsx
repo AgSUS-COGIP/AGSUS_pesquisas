@@ -98,8 +98,16 @@ export default function AdminAccessPage() {
    */
   async function setProfile(person: Person, role: Role) {
     if (person.roles.length === 1 && person.roles[0]?.code === role.code) return;
+    // Guarda de interface espelhando a do banco; o botão correspondente também
+    // fica desabilitado, então aqui é só rede de segurança.
+    if (person.personId === context?.person?.id && role.code !== PLATFORM_ROLE.SUPER_ADMIN) {
+      toast.error("Você não pode retirar seu próprio perfil de Superadmin.");
+      return;
+    }
 
-    setChanging(person.personId);
+    // Chave por pessoa **e** perfil: a linha inteira fica travada durante a
+    // troca, mas o indicador de progresso aparece no perfil que foi clicado.
+    setChanging(`${person.personId}:${role.code}`);
     try {
       const supabase = createBrowserSupabaseClient();
       const { error: rpcError } = await supabase.rpc("fc_definir_perfil_pessoa", {
@@ -246,7 +254,14 @@ export default function AdminAccessPage() {
                       </DataTableCell>
                       {roles.map((role) => {
                         const active = effectiveRoleCode(person) === role.code;
-                        const busy = changing === person.personId;
+                        // Toda a linha trava enquanto a troca dessa pessoa corre.
+                        const busy = changing.startsWith(`${person.personId}:`);
+                        // `fc_definir_perfil_pessoa` recusa rebaixar o próprio
+                        // Superadmin. Desabilitar aqui evita o clique que só
+                        // falharia no banco, e o title diz por quê.
+                        const isSelfDowngrade = person.personId === context.person?.id
+                          && role.code !== PLATFORM_ROLE.SUPER_ADMIN;
+                        const blocked = busy || isSelfDowngrade;
 
                         return (
                           <DataTableCell key={role.code} className="w-32 min-w-32 text-center">
@@ -254,14 +269,17 @@ export default function AdminAccessPage() {
                               type="button"
                               aria-pressed={active}
                               aria-label={`Definir o perfil ${role.name} para ${person.fullName}`}
+                              title={isSelfDowngrade ? "Você não pode retirar seu próprio perfil de Superadmin." : undefined}
                               onClick={() => void setProfile(person, role)}
-                              disabled={busy}
-                              className={`grid h-7 w-7 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-wait disabled:opacity-60 ${
-                                active ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white hover:border-emerald-400"
+                              disabled={blocked}
+                              className={`grid h-7 w-7 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:opacity-40 ${
+                                busy ? "disabled:cursor-wait" : "disabled:cursor-not-allowed"
+                              } ${
+                                active ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white enabled:hover:border-emerald-400"
                               }`}
                             >
-                              {busy && active ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin text-white" aria-hidden="true" />
+                              {busy && changing === `${person.personId}:${role.code}` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" aria-hidden="true" />
                               ) : active ? (
                                 <Check className="h-3.5 w-3.5 text-white" aria-hidden="true" />
                               ) : null}
