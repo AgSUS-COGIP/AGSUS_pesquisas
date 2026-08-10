@@ -20,6 +20,7 @@ Instruções operacionais (instalar, rodar, testar) ficam no [../README.md](../R
 | `modelo-dados-cddi.md` | For mexer no esquema ou entender de onde vem cada coluna das planilhas originais. |
 | `auditoria-base-cddi-2026.md` | Precisar dos números da base, da decisão sobre identidade de acesso e dos **pesos do cálculo** do CDDI. |
 | `acesso-institucional.md` | For alterar autenticação, domínios permitidos ou `access_mode` de aplicação. |
+| `operacao-permissoes.md` | For **aplicar** o modelo de perfis num banco, diagnosticar banco fora de sincronia com as migrations, ou investigar erro de "função não encontrada" após deploy. Operação, não conceito. |
 | `database-naming-standard.md` | For criar objeto de banco. Regra obrigatória, validada por `npm run db:naming`. |
 | `design-system.md` | For criar ou revisar interface. Tokens, semântica de estado, checklist de revisão. |
 | `equipe-tecnica-fluxos.md` | For alterar gestão de equipe ou de pesquisas. |
@@ -55,6 +56,7 @@ Instruções operacionais (instalar, rodar, testar) ficam no [../README.md](../R
 |---|---|
 | `modelo-dados-cddi.md`, `auditoria-base-cddi-2026.md` | [../supabase/CLAUDE.md](../supabase/CLAUDE.md) |
 | `acesso-institucional.md` | `supabase` + [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md) + `src/lib/platform-context.ts` |
+| `operacao-permissoes.md` | `supabase/migrations/20260810120000` + `20260810130000` + `src/lib/platform-modules.ts` |
 | `database-naming-standard.md` | [../scripts/CLAUDE.md](../scripts/CLAUDE.md) + `supabase` |
 | `design-system.md`, `referencias-visuais.md` | [../src/components/CLAUDE.md](../src/components/CLAUDE.md) |
 | `equipe-tecnica-fluxos.md` | [../src/app/CLAUDE.md](../src/app/CLAUDE.md) + [../src/app/admin/CLAUDE.md](../src/app/admin/CLAUDE.md) |

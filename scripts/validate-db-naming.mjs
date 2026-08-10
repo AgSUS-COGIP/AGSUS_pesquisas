@@ -15,6 +15,40 @@ const prefixes = {
   column: /^(co|sq|dt|hr|ds|no|nu|qt|vl|tx|sg|st|tp|im|cg|au)_[a-z0-9_]+$/,
 };
 
+/**
+ * Objetos legados cuja **restauração** é permitida fora do padrão institucional.
+ *
+ * Existe uma classe de migration que não cria objeto novo: recria um objeto
+ * antigo que deveria existir e não existe, porque o banco divergiu do histórico
+ * de migrations. Nesse caso o nome legado é um requisito, não um desvio —
+ * renomear tornaria o banco restaurado incompatível com o de quem aplicou a
+ * migration original.
+ *
+ * A exceção é deliberadamente estreita: vale por **arquivo**, por **tipo** e por
+ * **nome exato** — nunca por prefixo ou padrão. Assim ela dispensa reproduzir um
+ * objeto que já existe no projeto, sem abrir espaço para batizar objeto novo fora
+ * do padrão, e sem afrouxar o gate para as outras migrations.
+ *
+ * Não acrescente entrada aqui para contornar o gate num objeto novo — para esses,
+ * o padrão de docs/database-naming-standard.md continua obrigatório.
+ */
+const LEGACY_RESTORED_OBJECTS = {
+  // Catálogo de módulos, de 20260731115500_platform_navigation_permissions.sql.
+  // Restaurado em bancos onde aquela migration nunca rodou; ver
+  // docs/operacao-permissoes.md.
+  "supabase/migrations/20260810130000_restaurar_catalogo_modulos_plataforma.sql": {
+    tabela: new Set(["platform_modules", "role_module_permissions", "person_module_permissions"]),
+    coluna: new Set([
+      "code", "name", "description", "category", "position", "active", "created_at",
+      "role_id", "module_code", "allowed", "person_id", "granted_by", "updated_at",
+    ]),
+  },
+};
+
+function isLegacyRestored(file, kind, name) {
+  return LEGACY_RESTORED_OBJECTS[file]?.[kind]?.has(name) === true;
+}
+
 function changedMigrationFiles() {
   try {
     const output = execFileSync(
@@ -37,7 +71,9 @@ function normalize(identifier) {
 
 function assertName(errors, file, kind, rawName, pattern, maxLength = 30) {
   const name = normalize(rawName);
-  if (!pattern.test(name)) {
+  // A dispensa vale só para o prefixo: tamanho e caracteres permitidos continuam
+  // cobrados, porque nada em objeto legado justifica violá-los.
+  if (!pattern.test(name) && !isLegacyRestored(file, kind, name)) {
     errors.push(`${file}: ${kind} '${name}' não segue o prefixo institucional.`);
   }
   if (name.length > maxLength) {

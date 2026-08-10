@@ -7,7 +7,7 @@ Impedir que migrations fora do padrão institucional cheguem à `main`. São scr
 ## Responsabilidades
 
 - Verificar o formato e a unicidade dos identificadores de migration.
-- Verificar a nomenclatura institucional dos objetos criados por migrations **novas ou alteradas**, sem penalizar objetos legados.
+- Verificar a nomenclatura institucional dos objetos criados por migrations **novas ou alteradas**. Objeto legado só é dispensado quando consta de `LEGACY_RESTORED_OBJECTS` (ver abaixo); migration antiga que você **alterar** passa a ser cobrada por inteiro.
 - Falhar com mensagem acionável em português, apontando o arquivo, o objeto e a regra violada.
 
 ## Arquivos importantes
@@ -42,8 +42,32 @@ Em falha, define `process.exitCode = 1` (não usa `process.exit`, para permitir 
    extrai por regex: schema · tabela · view · função · índice · constraint · trigger
    extrai colunas de cada `create table` via splitTopLevelDefinitions()
 4. assertName(): prefixo permitido · limite de tamanho · só [a-z0-9_]
+   prefixo dispensado se LEGACY_RESTORED_OBJECTS cobrir (arquivo, tipo, nome)
 5. erros → lista + "Consulte docs/database-naming-standard.md" + exit 1
 ```
+
+#### `LEGACY_RESTORED_OBJECTS` — a única exceção ao prefixo
+
+Existe uma classe de migration que **não cria objeto novo**: recria um objeto antigo que deveria existir e não existe, porque o banco divergiu do histórico de migrations (ver [../docs/operacao-permissoes.md](../docs/operacao-permissoes.md)). Aí o nome legado é requisito, não desvio — renomear deixaria o banco restaurado incompatível com o de quem aplicou a migration original.
+
+A allowlist é deliberadamente estreita, indexada por **arquivo → tipo → nome exato**:
+
+```js
+const LEGACY_RESTORED_OBJECTS = {
+  "supabase/migrations/20260810130000_restaurar_catalogo_modulos_plataforma.sql": {
+    tabela: new Set(["platform_modules", …]),
+    coluna: new Set(["code", "created_at", …]),
+  },
+};
+```
+
+Consequências de projeto, todas intencionais:
+
+- Dispensa **só o prefixo**. Limite de tamanho e conjunto de caracteres continuam cobrados.
+- Vale só naquele arquivo. Objeto novo fora do padrão **no mesmo arquivo** continua sendo rejeitado — há teste manual disso: acrescente um `create table public.x_qualquer` ao arquivo e o gate falha.
+- Não aceita prefixo nem padrão, só nome exato. Não serve para afrouxar o gate em lote.
+
+**Não acrescente entrada para contornar o gate num objeto novo.** Para objeto novo, o padrão de [../docs/database-naming-standard.md](../docs/database-naming-standard.md) é obrigatório — o caminho correto é escolher um nome conforme, não abrir exceção.
 
 `splitTopLevelDefinitions()` é um parser manual, não regex: percorre caractere por caractere rastreando profundidade de parênteses e estado de string simples/dupla (incluindo `''` e `""` escapados) para dividir a lista de colunas apenas nas vírgulas de nível superior. Sem isso, `numeric(6,4)`, `check (status in ('A','B'))` e defaults com vírgula quebrariam a extração.
 
@@ -104,6 +128,6 @@ Os gates de banco vêm primeiro porque são os mais baratos e detectam a classe 
 
 - **`db:naming` passa silenciosamente quando não há diff.** Em execução local sem `origin/main` buscado, o `git diff` falha e o script trata como "nada a validar". Isso é intencional (não travar o desenvolvimento), mas significa que **o gate real é o CI**.
 - **A validação é sintática, por regex.** Não substitui revisão: não verifica RLS habilitada, políticas nomeadas, `search_path` fixo nem grants revogados. Esses requisitos são responsabilidade do revisor e do teste pgTAP em [../supabase/CLAUDE.md](../supabase/CLAUDE.md).
-- Objeto legado numa migration **alterada** passa a ser cobrado. Evite tocar migrations antigas; crie uma nova.
+- Objeto legado numa migration **alterada** passa a ser cobrado. Evite tocar migrations antigas; crie uma nova. Se a migration nova precisar **restaurar** objeto legado, use `LEGACY_RESTORED_OBJECTS` em vez de ofuscar o DDL para escapar do regex.
 - A extração de `create table` exige que a definição termine em `)` seguido de `;`. Formatação muito fora do padrão pode escapar da checagem de colunas — reforço para a revisão humana.
 - Ao mudar um prefixo aceito, atualize os três lugares: o mapa `prefixes` do script, [../docs/database-naming-standard.md](../docs/database-naming-standard.md) e a tabela acima.

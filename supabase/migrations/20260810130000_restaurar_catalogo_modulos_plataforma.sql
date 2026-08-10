@@ -19,6 +19,12 @@ begin;
 -- Toda a migration é idempotente (`if not exists`, `on conflict`), então rodar
 -- de novo num banco que já as tenha não causa efeito algum.
 
+-- Os nomes de tabela e de coluna reproduzem **exatamente** a definição original
+-- de 20260731115500. Não seguem o padrão institucional de propósito: renomeá-los
+-- deixaria o banco restaurado incompatível com o de quem aplicou aquela migration
+-- na época. São objetos legados, e por isso constam da allowlist
+-- LEGACY_RESTORED_OBJECTS de scripts/validate-db-naming.mjs. Objeto **novo**
+-- continua obrigado ao padrão — ver ../../docs/database-naming-standard.md.
 create table if not exists public.platform_modules (
   code text primary key,
   name text not null,
