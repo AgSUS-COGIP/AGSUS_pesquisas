@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const BASE_REF = process.env.DB_NAMING_BASE || "origin/main";
 const migrationPattern = /^supabase\/migrations\/.*\.sql$/;
@@ -46,7 +46,7 @@ const LEGACY_RESTORED_OBJECTS = {
   // RPCs de avatar legadas mantidas como pontes para bundles já publicados.
   // A migration apenas redefine funções existentes; não cria uma nova API fora
   // do padrão institucional.
-  "supabase/migrations/20260810140000_usar_foto_google_automaticamente.sql": {
+  "supabase/migrations/20260810141000_usar_foto_google_automaticamente.sql": {
     função: new Set([
       "set_my_avatar_choice",
       "set_my_avatar_url",
@@ -69,7 +69,7 @@ function changedMigrationFiles() {
     const files = commands.flatMap((arguments_) => execFileSync("git", arguments_, { encoding: "utf8" }).split("\n"));
     return [...new Set(files)]
       .map((value) => value.trim())
-      .filter((value) => migrationPattern.test(value));
+      .filter((value) => migrationPattern.test(value) && existsSync(value));
   } catch {
     return [];
   }
