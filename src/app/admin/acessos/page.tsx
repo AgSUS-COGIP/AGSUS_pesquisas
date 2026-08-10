@@ -22,6 +22,7 @@ import {
 import { EmptyState } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { deriveModules, invalidatePlatformContext, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
 import { PLATFORM_ROLE } from "@/lib/platform-roles";
@@ -68,7 +69,7 @@ export default function AdminAccessPage() {
       if (rpcError) throw rpcError;
       setWorkspace(data as Workspace);
     } catch (loadError) {
-      toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar os acessos.");
+      toast.error(errorMessageFromUnknown(loadError) || "Não foi possível carregar os acessos.");
     } finally {
       setFetching(false);
     }
@@ -113,7 +114,10 @@ export default function AdminAccessPage() {
       invalidatePlatformContext();
       await load(query);
     } catch (changeError) {
-      toast.error(changeError instanceof Error ? changeError.message : "Não foi possível alterar o perfil.");
+      // O erro de RPC do Supabase é objeto simples, não instância de Error:
+      // testar `instanceof Error` descartaria a mensagem do banco — que é
+      // justamente o texto que explica por que a troca foi recusada.
+      toast.error(errorMessageFromUnknown(changeError) || "Não foi possível alterar o perfil.");
       await load(query);
     } finally {
       setChanging("");
