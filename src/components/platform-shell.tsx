@@ -16,7 +16,7 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
-import { DEFAULT_PARTICIPANT_MODULES } from "@/lib/platform-modules";
+import { PARTICIPANT_ROLE_MODULES } from "@/lib/platform-modules";
 import {
   isPlatformSidebarCompact,
   PLATFORM_SIDEBAR_ATTRIBUTE,
@@ -158,7 +158,9 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const modules = user.modules ?? [...DEFAULT_PARTICIPANT_MODULES];
+  // Sem módulos informados, a casca assume o piso do modelo (Participante) —
+  // nunca um conjunto mais amplo do que o perfil da pessoa permite.
+  const modules = user.modules ?? [...PARTICIPANT_ROLE_MODULES];
 
   // O estado recolhido já foi aplicado ao <html> pelo script beforeInteractive do
   // layout raiz; aqui apenas sincronizamos o React com o DOM para não sobrescrever

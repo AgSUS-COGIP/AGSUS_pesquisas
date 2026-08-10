@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -204,7 +205,7 @@ export default function PlatformSettingsPage() {
   if (loading) return <PlatformSkeleton title="Carregando configurações" />;
   if (!context?.person) return <FullPageState title="Não foi possível abrir as configurações" description={error || "Seu acesso institucional não foi identificado."} />;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_ACCESS")) return <FullPageState tone="restricted" title="Configurações restritas" description="Seu perfil não possui permissão para alterar a identidade da plataforma." />;
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_ACCESS)) return <FullPageState tone="restricted" title="Configurações restritas" description="Seu perfil não possui permissão para alterar a identidade da plataforma." />;
 
   const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: context.person.avatarUrl, roles: context.roles, modules };
   const displayedLogo = removeLogo ? DEFAULT_PLATFORM_BRANDING.logoUrl : previewUrl ?? branding.logoUrl;

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type BuilderData = {
@@ -158,7 +159,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   if (loading) return <PlatformSkeleton title="Carregando identidade visual" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
 
   const person = context.person;
   const user = {

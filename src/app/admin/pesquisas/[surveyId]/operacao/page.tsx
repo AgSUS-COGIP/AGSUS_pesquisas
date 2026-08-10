@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { useConfirm } from "@/components/confirmation-provider";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Issue = {
@@ -134,7 +135,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   if (loading) return <PlatformSkeleton title="Carregando operação do ciclo" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
 
   const user = { fullName: context.person.fullName, institutionalEmail: context.person.institutionalEmail, employeeNumber: context.person.employeeNumber, profileLabel: profileLabel(context), roles: context.roles, modules };
   const cycleStatus = operations?.application?.status;

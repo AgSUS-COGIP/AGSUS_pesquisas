@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ManagedSurvey = {
@@ -59,7 +60,7 @@ export default function AdminSurveysPage() {
   if (loading) return <PlatformSkeleton title="Carregando avaliações" />;
   if (!context?.person) return <FullPageState title="Não foi possível abrir as avaliações" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <FullPageState tone="restricted" title="Gestão de avaliações restrita" description="Seu perfil não possui permissão para construir ou operar avaliações." />;
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) return <FullPageState tone="restricted" title="Gestão de pesquisas restrita" description="Seu perfil não possui permissão para construir ou operar pesquisas." />;
 
   const user = {
     fullName: context.person.fullName,

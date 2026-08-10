@@ -20,7 +20,9 @@ import {
   Users2,
 } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Participant = {
@@ -315,6 +317,9 @@ export default function CddiMonitoringPage() {
 
   if (loading) return <PlatformSkeleton title="Carregando monitoramento CDDI" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (!modules.includes(PLATFORM_MODULE.DASHBOARDS)) {
+    return <FullPageState tone="restricted" title="Painéis restritos" description="O módulo Painéis está disponível para a administração da plataforma." />;
+  }
   if (dashboard.isLoading) return <PlatformSkeleton title="Montando painel analítico" />;
   if (dashboard.error || !dashboard.data) {
     return (

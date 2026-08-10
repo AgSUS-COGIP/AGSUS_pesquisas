@@ -14,6 +14,7 @@ import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 const schema = z.object({
   code: z.string().min(3, "Informe um código com pelo menos 3 caracteres.").max(30),
@@ -52,7 +53,7 @@ export default function NewSurveyPage() {
   if (!context?.person) return <FullPageState title="Não foi possível criar a avaliação" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) {
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) {
     return <FullPageState tone="restricted" title="Criação de avaliações restrita" description="Somente a administração pode criar e configurar novas avaliações." />;
   }
 

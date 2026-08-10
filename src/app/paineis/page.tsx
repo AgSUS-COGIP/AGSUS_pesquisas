@@ -5,10 +5,12 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ArrowRight, FileText, Gauge, Radio } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ManagedSurvey = {
@@ -59,6 +61,9 @@ export default function DashboardsPage() {
 
   if (contextLoading || surveysQuery.isLoading) return <PlatformSkeleton title="Carregando painéis" />;
   if (!context?.person) return <main className="p-10 text-red-700">{contextError || "Acesso não identificado."}</main>;
+  if (!modules.includes(PLATFORM_MODULE.DASHBOARDS)) {
+    return <FullPageState tone="restricted" title="Painéis restritos" description="O módulo Painéis está disponível para a administração da plataforma." />;
+  }
 
   const user = {
     fullName: context.person.fullName,

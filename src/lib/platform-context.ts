@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { resolvePlatformModules } from "@/lib/platform-modules";
-import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
+import { resolvePlatformModules, resolvePlatformRole } from "@/lib/platform-modules";
+import { PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export type PlatformContext = {
@@ -21,9 +21,11 @@ export type PlatformContext = {
   };
   participant?: { status: string; accessProfile: string | null; completedAt: string | null } | null;
   application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null } | null;
-  isLeader?: boolean;
+  /**
+   * Papéis vigentes da pessoa. **Única** fonte de autorização de interface:
+   * `deriveModules()` e `profileLabel()` derivam tudo daqui.
+   */
   roles?: string[];
-  modules?: string[];
   canManageSurveys?: boolean;
 };
 
@@ -42,28 +44,23 @@ let cachedAt = 0;
 // (por exemplo cada PersonAvatar da página) aguardam a mesma promessa.
 let pendingContext: Promise<PlatformContext> | null = null;
 
-/** Traduz o contexto institucional nos módulos que a interface deve exibir. */
+/**
+ * Traduz o contexto institucional nos módulos que a interface deve exibir.
+ *
+ * Depende só de `roles`: o acesso vem exclusivamente do perfil da pessoa.
+ */
 export function deriveModules(context: PlatformContext) {
-  return resolvePlatformModules({
-    roles: context.roles,
-    explicitModules: context.modules,
-    isLeader: context.isLeader,
-  });
+  return resolvePlatformModules({ roles: context.roles });
 }
 
-/**
- * Rótulo do perfil principal exibido na casca e no perfil.
- *
- * A ordem é de maior para menor privilégio e é independente de
- * `resolvePlatformModules`: uma pessoa pode acumular papéis, mas só um rótulo
- * aparece na interface.
- */
+/** Papel efetivo da pessoa — o de maior privilégio entre os que ela acumula. */
+export function derivePlatformRole(context: PlatformContext) {
+  return resolvePlatformRole(context.roles);
+}
+
+/** Rótulo do perfil exibido na casca e na tela de perfil. */
 export function profileLabel(context: PlatformContext) {
-  const roles = context.roles ?? [];
-  if (roles.includes(PLATFORM_ROLE.SUPER_ADMIN)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.SUPER_ADMIN];
-  if (roles.includes(PLATFORM_ROLE.ADMIN)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.ADMIN];
-  if (context.isLeader || roles.includes(PLATFORM_ROLE.EVALUATOR)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.EVALUATOR];
-  return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.PARTICIPANT];
+  return PLATFORM_ROLE_LABELS[derivePlatformRole(context)];
 }
 
 async function loadContextFromDatabase() {

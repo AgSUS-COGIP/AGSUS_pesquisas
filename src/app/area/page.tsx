@@ -2,11 +2,13 @@
 
 import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, ShieldCheck, Users2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 
 function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
@@ -39,12 +41,20 @@ function dateLabel(value: string | null) {
 
 export default function ParticipantAreaPage() {
   const { context, loading, error } = usePlatformContext();
+  const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
   const catalogQuery = useSurveyCatalog(Boolean(context?.person));
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
 
   useEffect(() => setSalutation(greeting()), []);
+
+  // O Participante não tem Visão Geral: sua jornada começa em Pesquisas. Como
+  // /area é o destino padrão pós-login, redirecionar é melhor que barrar.
+  const hasHomeModule = context ? deriveModules(context).includes(PLATFORM_MODULE.HOME) : true;
+  useEffect(() => {
+    if (!loading && context?.person && !hasHomeModule) router.replace("/pesquisas");
+  }, [loading, context?.person, hasHomeModule, router]);
 
   const metrics = useMemo(() => summarizeSurveyCatalog(catalog), [catalog]);
   const priorityItem = useMemo(() => selectPrioritySurvey(catalog), [catalog]);
@@ -56,7 +66,10 @@ export default function ParticipantAreaPage() {
 
   const person = context.person;
   const modules = deriveModules(context);
-  const isLeader = modules.includes("TEAM");
+  if (!modules.includes(PLATFORM_MODULE.HOME)) {
+    return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
+  }
+  const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
   const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
   const firstName = person.fullName.split(/\s+/)[0];
   const unit = metadataText(person.metadata, "unit", "unidade", "organizational_unit") ?? person.costCenter ?? "Unidade não informada";
@@ -65,10 +78,10 @@ export default function ParticipantAreaPage() {
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profile, avatarUrl: person.avatarUrl, roles: context.roles, modules };
 
   const actions = [
-    { href: "/pesquisas", title: "Avaliações", text: "Iniciar, continuar ou consultar avaliações", icon: FileText, accent: "text-blue-700 bg-blue-50" },
+    { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar pesquisas", icon: FileText, accent: "text-blue-700 bg-blue-50" },
     ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliações", icon: Users2, accent: "text-emerald-700 bg-emerald-50" }] : []),
-    { href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3, accent: "text-violet-700 bg-violet-50" },
-    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar avaliações, pessoas e acessos", icon: ShieldCheck, accent: "text-amber-700 bg-amber-50" }] : []),
+    ...(modules.includes(PLATFORM_MODULE.RESULTS) ? [{ href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3, accent: "text-violet-700 bg-violet-50" }] : []),
+    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar pesquisas, pessoas e acessos", icon: ShieldCheck, accent: "text-amber-700 bg-amber-50" }] : []),
   ];
 
   return (

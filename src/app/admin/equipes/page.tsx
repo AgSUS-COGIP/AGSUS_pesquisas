@@ -6,7 +6,6 @@ import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { PLATFORM_ROLE } from "@/lib/platform-roles";
 
 export default function AdminTeamsPage() {
   const { context, loading, error } = usePlatformContext();
@@ -15,8 +14,8 @@ export default function AdminTeamsPage() {
   if (!context?.person) return <FullPageState title="Não foi possível abrir equipes" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
-  if (!modules.includes(PLATFORM_MODULE.ADMIN_TEAMS) || !context.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) {
-    return <FullPageState tone="restricted" title="Gestão institucional restrita" description="A edição de dados funcionais e vínculos é exclusiva do SuperAdmin." />;
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_TEAMS)) {
+    return <FullPageState tone="restricted" title="Gestão institucional restrita" description="A edição de dados funcionais e vínculos é exclusiva do Superadmin." />;
   }
 
   const user = {

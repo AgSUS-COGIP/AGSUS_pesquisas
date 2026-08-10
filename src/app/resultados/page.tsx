@@ -7,13 +7,18 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Breadcrumbs, PageActions } from "@/components/ui/page-navigation";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 export default function ResultsPage() {
   const { context, loading, error } = usePlatformContext();
   if (loading) return <PlatformSkeleton title="Carregando resultados" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
   const modules = deriveModules(context);
+  if (!modules.includes(PLATFORM_MODULE.RESULTS)) {
+    return <FullPageState tone="restricted" title="Resultados restritos" description="O módulo Resultados está disponível para a administração da plataforma." />;
+  }
 
   return (
     <PlatformShell
