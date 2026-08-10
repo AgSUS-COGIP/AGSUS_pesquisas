@@ -16,7 +16,7 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 |---|---|---|---|---|
 | `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica se as variáveis públicas e administrativas do Supabase existem. `200 ok` ou `503 degraded` com `missingConfiguration`. |
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. |
-| `/api/admin/import-participants` | `POST` | Node | sessão institucional + papel administrativo | Sincroniza a base institucional de pessoas em lotes. |
+| `/api/admin/import-participants` | `POST` | Node | sessão institucional + perfil Superadmin | Sincroniza a base institucional de pessoas em lotes. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
@@ -40,8 +40,8 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 
 ```text
 1. resolveAuthorizedActor(): cliente por cookie → auth.getUser()
-   → fc_obter_contexto_plataforma(); exige canManageSurveys, status OK,
-     person.id e papel SuperAdmin ou Admin (PLATFORM_ROLE)
+   → fc_obter_contexto_plataforma(); exige status OK, person.id e perfil
+     Superadmin (PLATFORM_ROLE.SUPER_ADMIN) — ADMIN_IMPORT não é do Admin
    sem ator autorizado → 403
 2. parseAdminImportRequest(): esquema zod de @/lib/admin-import-contract
    valida cada linha; erro → 400 com details de

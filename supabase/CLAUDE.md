@@ -52,7 +52,18 @@ Hierarquia conceitual: **pesquisa** (produto permanente, ex. CDDI) → **versão
 
 `platform_modules`, `role_module_permissions`, `person_module_permissions`, `institutional_domains`.
 
-**Modelo de papéis** (`20260807150000_simplificar_modelo_papeis.sql`): quatro papéis em `system_roles` — SuperAdmin (`ADMINISTRATOR`), Admin (`SURVEY_MANAGER`), Avaliador (`LEADER`) e Participante (`RESPONDENT`). Os códigos internos são legados e foram preservados porque `has_active_role()`, `can_manage_surveys()`, `is_platform_administrator()` e dezenas de políticas os referenciam — e o gate de nomenclatura impede recriar funções legadas em migrations novas. `TECHNICAL_TEAM` foi absorvido pelo SuperAdmin e `AUDITOR` foi descontinuado (as três políticas que o citavam foram recriadas sem ele). Efeito prático dos helpers: `can_manage_surveys()` = SuperAdmin ou Admin; `is_platform_administrator()` = SuperAdmin. A checagem residual de `TECHNICAL_TEAM` dentro de `can_manage_surveys()` é inerte (o papel não existe mais) e será removida quando a função for redefinida por outro motivo.
+**Modelo de perfis** (`20260807150000_simplificar_modelo_papeis.sql`, consolidado por `20260810120000_perfis_exclusivos_quatro_papeis.sql`): quatro perfis em `system_roles` — Superadmin (`ADMINISTRATOR`), Admin (`SURVEY_MANAGER`), Avaliador (`LEADER`) e Participante (`RESPONDENT`). Os códigos internos são legados e foram preservados porque `has_active_role()`, `can_manage_surveys()`, `is_platform_administrator()` e dezenas de políticas os referenciam — e o gate de nomenclatura impede recriar funções legadas em migrations novas. `TECHNICAL_TEAM` foi absorvido pelo Superadmin e `AUDITOR` foi descontinuado. Efeito prático dos helpers: `can_manage_surveys()` = Superadmin ou Admin; `is_platform_administrator()` = Superadmin.
+
+Os perfis são **mutuamente exclusivos**: `20260810120000` encerrou as atribuições acumuladas (mantendo a de maior privilégio), esvaziou `person_module_permissions` — não há mais exceção de módulo por pessoa — e substituiu `set_person_role` por `fc_definir_perfil_pessoa(p_pessoa, p_perfil)`, que concede um perfil e encerra os demais na mesma transação. A mesma migration removeu a checagem inerte de `TECHNICAL_TEAM` de `can_manage_surveys()`.
+
+Mapa perfil → módulo em `role_module_permissions` e em `fc_obter_contexto_plataforma()`:
+
+| Perfil | Módulos |
+|---|---|
+| `ADMINISTRATOR` | todos os 10 |
+| `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
+| `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
+| `RESPONDENT` | `SURVEYS` |
 
 ### Governança e observabilidade
 
@@ -76,7 +87,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 | RPC | Uso |
 |---|---|
-| `fc_obter_contexto_plataforma()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. Substituiu `get_my_platform_context()`, removida em `20260807150000`. |
+| `fc_obter_contexto_plataforma()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. `roles` traz **um** perfil (o efetivo) e `modules` deriva só dele. Substituiu `get_my_platform_context()`, removida em `20260807150000`; redefinida em `20260810120000`. |
 | `resolve_authenticated_person(target_employee_number)` | Vincula ou cria o cadastro institucional no primeiro acesso. |
 | `sync_my_google_avatar()` | Copia a foto da conta Google para os metadados da pessoa. |
 | `set_my_avatar_choice(p_source, p_avatar_url)` | Define origem do avatar (`GOOGLE`, `INITIALS`, `GENERATED`). |
@@ -111,7 +122,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 ### Administração
 
-`list_access_workspace()` · `set_person_role(...)` · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
+`list_access_workspace()` · `fc_definir_perfil_pessoa(p_pessoa, p_perfil)` (substituiu `set_person_role`, removida em `20260810120000`) · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
 
 ### Service role apenas
 

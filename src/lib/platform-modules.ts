@@ -1,4 +1,4 @@
-import { PLATFORM_ROLE } from "./platform-roles";
+import { PLATFORM_ROLE, type PlatformRoleCode } from "./platform-roles";
 
 export const PLATFORM_MODULE = {
   HOME: "HOME",
@@ -19,19 +19,44 @@ export const PLATFORM_MODULES = Object.freeze(
   Object.values(PLATFORM_MODULE),
 ) as readonly PlatformModule[];
 
-export const DEFAULT_PARTICIPANT_MODULES = Object.freeze([
-  PLATFORM_MODULE.HOME,
+/** Participante: somente o módulo Pesquisas. */
+export const PARTICIPANT_ROLE_MODULES = Object.freeze([
   PLATFORM_MODULE.SURVEYS,
-  PLATFORM_MODULE.RESULTS,
 ]) as readonly PlatformModule[];
 
+/** Avaliador: Visão Geral, Pesquisas e Minha Equipe. */
+export const EVALUATOR_ROLE_MODULES = Object.freeze([
+  PLATFORM_MODULE.HOME,
+  PLATFORM_MODULE.SURVEYS,
+  PLATFORM_MODULE.TEAM,
+]) as readonly PlatformModule[];
+
+/**
+ * Admin: operação completa das avaliações.
+ *
+ * Fora da lista de propósito: `ADMIN_TEAMS` (dados funcionais e vínculos de
+ * liderança), `ADMIN_ACCESS` (papéis e marca) e `ADMIN_IMPORT` (carga da base
+ * institucional) — administração global, exclusiva do Superadmin.
+ */
+export const ADMIN_ROLE_MODULES = Object.freeze([
+  PLATFORM_MODULE.HOME,
+  PLATFORM_MODULE.SURVEYS,
+  PLATFORM_MODULE.DASHBOARDS,
+  PLATFORM_MODULE.TEAM,
+  PLATFORM_MODULE.RESULTS,
+  PLATFORM_MODULE.ADMIN_SURVEYS,
+  PLATFORM_MODULE.ADMIN_PARTICIPANTS,
+]) as readonly PlatformModule[];
+
+/** Superadmin: acesso irrestrito. */
 export const SUPER_ADMIN_MODULES = PLATFORM_MODULES;
 
-export const ADMIN_ROLE_MODULES = Object.freeze(
-  PLATFORM_MODULES.filter(
-    (moduleName) => moduleName !== PLATFORM_MODULE.ADMIN_ACCESS && moduleName !== PLATFORM_MODULE.ADMIN_TEAMS,
-  ),
-) as readonly PlatformModule[];
+export const ROLE_MODULES: Record<PlatformRoleCode, readonly PlatformModule[]> = {
+  [PLATFORM_ROLE.SUPER_ADMIN]: SUPER_ADMIN_MODULES,
+  [PLATFORM_ROLE.ADMIN]: ADMIN_ROLE_MODULES,
+  [PLATFORM_ROLE.EVALUATOR]: EVALUATOR_ROLE_MODULES,
+  [PLATFORM_ROLE.PARTICIPANT]: PARTICIPANT_ROLE_MODULES,
+};
 
 export function isPlatformModule(value: unknown): value is PlatformModule {
   return typeof value === "string" && PLATFORM_MODULES.includes(value as PlatformModule);
@@ -57,36 +82,26 @@ export function normalizePlatformModules(modules: readonly string[] | null | und
 }
 
 /**
- * Resolve os módulos visíveis para uma pessoa, em ordem estrita de precedência:
+ * Papel efetivo de uma pessoa: o de maior privilégio entre os que ela acumula.
  *
- * 1. SuperAdmin recebe tudo e ignora qualquer outra fonte;
- * 2. módulos explícitos do banco (retorno de `fc_obter_contexto_plataforma`)
- *    vencem a derivação local, permitindo exceção individual sem papel novo;
- * 3. Admin recebe tudo menos `ADMIN_ACCESS` e `ADMIN_TEAMS` (gestão de pessoas,
- *    dados funcionais e permissões é administração global);
- * 4. caso restante: módulos de participante, mais `TEAM` para Avaliador.
- *
- * O resultado governa apenas a interface. A autorização efetiva é a RLS do banco.
+ * Sem papel reconhecido, o efetivo é Participante — o piso do modelo, nunca a
+ * ausência de acesso.
  */
-export function resolvePlatformModules({
-  roles,
-  explicitModules,
-  isLeader,
-}: {
-  roles?: readonly string[] | null;
-  explicitModules?: readonly string[] | null;
-  isLeader?: boolean;
-}): PlatformModule[] {
+export function resolvePlatformRole(roles?: readonly string[] | null): PlatformRoleCode {
   const roleSet = new Set(roles ?? []);
+  if (roleSet.has(PLATFORM_ROLE.SUPER_ADMIN)) return PLATFORM_ROLE.SUPER_ADMIN;
+  if (roleSet.has(PLATFORM_ROLE.ADMIN)) return PLATFORM_ROLE.ADMIN;
+  if (roleSet.has(PLATFORM_ROLE.EVALUATOR)) return PLATFORM_ROLE.EVALUATOR;
+  return PLATFORM_ROLE.PARTICIPANT;
+}
 
-  if (roleSet.has(PLATFORM_ROLE.SUPER_ADMIN)) return [...SUPER_ADMIN_MODULES];
-
-  const normalizedExplicitModules = normalizePlatformModules(explicitModules);
-  if (normalizedExplicitModules.length) return normalizedExplicitModules;
-
-  if (roleSet.has(PLATFORM_ROLE.ADMIN)) return [...ADMIN_ROLE_MODULES];
-
-  const resolvedModules = [...DEFAULT_PARTICIPANT_MODULES];
-  if (isLeader || roleSet.has(PLATFORM_ROLE.EVALUATOR)) resolvedModules.push(PLATFORM_MODULE.TEAM);
-  return resolvedModules;
+/**
+ * Resolve os módulos visíveis a partir do papel efetivo da pessoa.
+ *
+ * O acesso é determinado **exclusivamente** pelos quatro perfis: não existe
+ * exceção por pessoa nem módulo concedido fora do papel. O resultado governa
+ * apenas a interface — a autorização efetiva é a RLS do banco.
+ */
+export function resolvePlatformModules({ roles }: { roles?: readonly string[] | null }): PlatformModule[] {
+  return [...ROLE_MODULES[resolvePlatformRole(roles)]];
 }

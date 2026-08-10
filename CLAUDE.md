@@ -60,20 +60,22 @@ página ("use client")
   └─ deriveModules(context) → PlatformShell renderiza só o permitido
 ```
 
-## Mapa de módulos e papéis
+## Mapa de módulos e perfis
 
 Módulos possíveis: `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS`, `ADMIN_IMPORT`.
 
-O modelo de permissões tem **quatro papéis**. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
+O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado **exclusivamente** por eles: não existe exceção de módulo por pessoa. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
 
-| Papel | Código interno | Módulos |
+| Perfil | Código interno | Módulos |
 |---|---|---|
-| SuperAdmin | `ADMINISTRATOR` | todos (precedência máxima, ignora módulos explícitos) |
-| Admin | `SURVEY_MANAGER` | todos exceto `ADMIN_ACCESS` e `ADMIN_TEAMS` |
-| Avaliador | `LEADER` (ou `isLeader`) | participante + `TEAM` |
-| Participante | `RESPONDENT` (ou nenhum papel) | `HOME`, `SURVEYS`, `RESULTS` |
+| Superadmin | `ADMINISTRATOR` | todos os 10 |
+| Admin | `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
+| Avaliador | `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
+| Participante | `RESPONDENT` (ou nenhum papel) | `SURVEYS` |
 
-Precedência em `resolvePlatformModules()`: SuperAdmin → módulos explícitos do banco → Admin → padrão do participante (+ `TEAM` para Avaliador). Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md).
+`ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` são exclusivos do Superadmin: gestão de dados funcionais, de perfis e a carga da base institucional são administração global.
+
+`resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto correspondente. Detalhes em [src/lib/CLAUDE.md](src/lib/CLAUDE.md).
 
 ## Dependências entre camadas
 

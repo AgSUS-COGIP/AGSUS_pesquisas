@@ -7,6 +7,7 @@ import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
 export default function AdminParticipantsPage() {
   const { context, loading, error } = usePlatformContext();
@@ -15,7 +16,7 @@ export default function AdminParticipantsPage() {
   if (!context?.person) return <FullPageState title="Não foi possível abrir participantes" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
 
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_PARTICIPANTS")) {
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_PARTICIPANTS)) {
     return <FullPageState tone="restricted" title="Gestão de participantes restrita" description="Seu perfil não possui permissão para gerenciar participantes e elegibilidade." />;
   }
 

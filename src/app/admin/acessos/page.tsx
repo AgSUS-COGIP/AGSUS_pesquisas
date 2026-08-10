@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { deriveModules, invalidatePlatformContext, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
 import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -41,6 +42,16 @@ type Person = {
 type Workspace = { status: string; roles: Role[]; people: Person[] };
 
 const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
+
+/**
+ * Perfil exibido como selecionado para uma pessoa.
+ *
+ * Base histórica pode ter mais de um papel vigente; a interface mostra o de
+ * maior privilégio, o mesmo que `resolvePlatformRole()` usa para liberar módulos.
+ */
+function effectiveRoleCode(person: Person) {
+  return resolvePlatformRole(person.roles.map((role) => role.code));
+}
 
 export default function AdminAccessPage() {
   const { context, loading, error } = usePlatformContext();
@@ -64,7 +75,7 @@ export default function AdminAccessPage() {
   }
 
   useEffect(() => {
-    if (context?.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) void load();
+    if (context && deriveModules(context).includes(PLATFORM_MODULE.ADMIN_ACCESS)) void load();
   }, [context]);
 
   const roles = useMemo(
@@ -77,24 +88,33 @@ export default function AdminAccessPage() {
     [workspace],
   );
 
-  async function toggleRole(person: Person, role: Role, enabled: boolean) {
-    const key = `${person.personId}:${role.code}`;
-    setChanging(key);
+  /**
+   * Define o perfil de uma pessoa.
+   *
+   * Os quatro perfis são mutuamente exclusivos: `fc_definir_perfil_pessoa`
+   * concede o escolhido e encerra os demais na mesma transação, então a pessoa
+   * nunca fica sem acesso nem com dois perfis por falha parcial.
+   */
+  async function setProfile(person: Person, role: Role) {
+    if (person.roles.length === 1 && person.roles[0]?.code === role.code) return;
+
+    setChanging(person.personId);
     try {
       const supabase = createBrowserSupabaseClient();
-      const { error: rpcError } = await supabase.rpc("set_person_role", {
-        target_person_id: person.personId,
-        target_role_code: role.code,
-        enabled,
+      const { error: rpcError } = await supabase.rpc("fc_definir_perfil_pessoa", {
+        p_pessoa: person.personId,
+        p_perfil: role.code,
       });
       if (rpcError) throw rpcError;
-      toast.success(`${role.name} ${enabled ? "concedido" : "retirado"} para ${person.fullName}.`);
-      // Papéis alimentam o contexto cacheado da casca: sem invalidar, quem teve
-      // o próprio papel alterado veria a navegação antiga por até 2 minutos.
+
+      toast.success(`${person.fullName} agora tem o perfil ${role.name}.`);
+      // O perfil alimenta o contexto cacheado da casca: sem invalidar, quem teve
+      // o próprio perfil alterado veria a navegação antiga por até 2 minutos.
       invalidatePlatformContext();
       await load(query);
     } catch (changeError) {
-      toast.error(changeError instanceof Error ? changeError.message : "Não foi possível alterar o papel.");
+      toast.error(changeError instanceof Error ? changeError.message : "Não foi possível alterar o perfil.");
+      await load(query);
     } finally {
       setChanging("");
     }
@@ -114,26 +134,26 @@ export default function AdminAccessPage() {
     modules,
   };
 
-  if (!context.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) {
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_ACCESS)) {
     return (
       <PlatformShell user={user} eyebrow="Segurança" title="Acessos e permissões">
         <EmptyState
           className="mx-auto max-w-xl"
           icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
           title="Acesso exclusivo"
-          description="Somente o SuperAdmin pode conceder ou retirar papéis."
+          description="Somente o Superadmin pode alterar o perfil de acesso de uma pessoa."
         />
       </PlatformShell>
     );
   }
 
   return (
-    <PlatformShell user={user} eyebrow="SuperAdmin" title="Pessoas e permissões">
+    <PlatformShell user={user} eyebrow="Superadmin" title="Pessoas e permissões">
       <div className="min-w-0 space-y-5">
         <PageHeader
           eyebrow="Segurança e governança"
-          title="Controle de acesso baseado em papéis"
-          description="Pesquise uma pessoa e altere apenas os papéis necessários. Toda mudança permanece registrada para auditoria."
+          title="Controle de acesso por perfil"
+          description="Pesquise uma pessoa e defina seu perfil: Participante, Avaliador, Admin ou Superadmin. Toda mudança permanece registrada para auditoria."
           actions={
             <form
               onSubmit={(event) => {
@@ -164,17 +184,17 @@ export default function AdminAccessPage() {
               <UserCog className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">Papéis disponíveis</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Perfis disponíveis</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 {roles.length
-                  ? `${roles.length} papel(is) configurado(s) para atribuição individual.`
-                  : "Os papéis serão exibidos assim que a configuração for carregada."}
+                  ? `Cada pessoa tem exatamente um dos ${roles.length} perfis. Selecionar um substitui o anterior.`
+                  : "Os perfis serão exibidos assim que a configuração for carregada."}
               </p>
             </div>
           </div>
         </Surface>
 
-        <DataTableContainer className="min-w-0" aria-label="Pessoas e permissões da plataforma">
+        <DataTableContainer className="min-w-0" aria-label="Pessoas e perfis da plataforma">
           {fetching && !workspace ? (
             <DataTableState aria-live="polite">
               <Loader2 className="mx-auto h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden="true" />
@@ -221,32 +241,26 @@ export default function AdminAccessPage() {
                         </div>
                       </DataTableCell>
                       {roles.map((role) => {
-                        const active = person.roles.some((item) => item.code === role.code);
-                        const key = `${person.personId}:${role.code}`;
-                        const busy = changing === key;
+                        const active = effectiveRoleCode(person) === role.code;
+                        const busy = changing === person.personId;
 
                         return (
                           <DataTableCell key={role.code} className="w-32 min-w-32 text-center">
                             <button
                               type="button"
-                              role="switch"
-                              aria-checked={active}
-                              aria-label={`${active ? "Retirar" : "Conceder"} ${role.name} para ${person.fullName}`}
-                              onClick={() => void toggleRole(person, role, !active)}
+                              aria-pressed={active}
+                              aria-label={`Definir o perfil ${role.name} para ${person.fullName}`}
+                              onClick={() => void setProfile(person, role)}
                               disabled={busy}
-                              className={`relative h-7 w-12 rounded-full transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-wait disabled:opacity-60 ${
-                                active ? "bg-emerald-500" : "bg-slate-200"
+                              className={`grid h-7 w-7 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-wait disabled:opacity-60 ${
+                                active ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white hover:border-emerald-400"
                               }`}
                             >
-                              {busy ? (
-                                <Loader2 className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 animate-spin text-white" aria-hidden="true" />
-                              ) : (
-                                <span
-                                  className={`absolute top-1 grid h-5 w-5 place-items-center rounded-full bg-white shadow-sm transition ${active ? "left-6" : "left-1"}`}
-                                >
-                                  {active && <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />}
-                                </span>
-                              )}
+                              {busy && active ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-white" aria-hidden="true" />
+                              ) : active ? (
+                                <Check className="h-3.5 w-3.5 text-white" aria-hidden="true" />
+                              ) : null}
                             </button>
                           </DataTableCell>
                         );

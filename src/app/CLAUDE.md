@@ -28,8 +28,8 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 |---|---|---|
 | `/acesso` | pública | `auth.signInWithOAuth` (Google, `hd=agenciasus.org.br`) |
 | `/auth/confirm` | pública | `auth.exchangeCodeForSession` — Route Handler, não página |
-| `/area` | `HOME` | `list_my_survey_catalog` |
-| `/pesquisas` (tela "Avaliações") | `SURVEYS` | `list_my_survey_catalog` |
+| `/area` | `HOME` — sem o módulo, redireciona para `/pesquisas` | `list_my_survey_catalog` |
+| `/pesquisas` (tela "Pesquisas") | `SURVEYS` | `list_my_survey_catalog` |
 | `/pesquisas/[applicationCode]` | `SURVEYS` | `get_public_survey_form`, `start_or_resume_my_survey_submission`, `save_my_survey_answer`, `submit_my_survey_submission` |
 | `/cddi` | participação no ciclo | `get_public_survey_form`, `start_or_resume_my_cddi_submission`, `get_my_cddi_identity`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
 | `/cddi/chefia/[personId]` (aceita `?ciclo=`) | vínculo de liderança ativo | `get_public_survey_form`, `start_or_resume_my_cddi_submission` (tipo `CHEFIA`), `fc_obter_minha_equipe`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
@@ -38,7 +38,7 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 | `/paineis/[applicationCode]` | `DASHBOARDS` | `get_survey_dashboard` |
 | `/paineis/cddi` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
 | `/perfil` | autenticado | `set_my_avatar_choice` (via `AvatarIdentityPicker`) |
-| `/resultados` | `RESULTS` | nenhuma — placeholder com `EmptyState` |
+| `/resultados` | `RESULTS` (Admin e Superadmin) | nenhuma — placeholder com `EmptyState` |
 | `/admin/**` | `ADMIN_*` | ver [admin/CLAUDE.md](admin/CLAUDE.md) |
 | `/api/**` | ver módulo | ver [api/CLAUDE.md](api/CLAUDE.md) |
 

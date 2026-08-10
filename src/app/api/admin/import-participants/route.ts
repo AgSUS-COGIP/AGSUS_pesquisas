@@ -34,9 +34,9 @@ async function resolveAuthorizedActor() {
     roles?: string[];
   };
 
-  const allowedRoles = new Set<string>([PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN]);
-  const allowed = value.canManageSurveys === true
-    && value.roles?.some((role) => allowedRoles.has(role));
+  // A carga da base institucional é do Superadmin: o módulo ADMIN_IMPORT não
+  // pertence ao Admin, então a rota não pode aceitá-lo.
+  const allowed = value.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN) === true;
 
   if (!allowed || value.status !== "OK" || !value.person?.id) return null;
   return { personId: value.person.id, authUserId: userData.user.id, roles: value.roles ?? [] };

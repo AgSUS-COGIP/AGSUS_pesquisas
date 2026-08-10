@@ -37,6 +37,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/form-controls";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import {
   buildQuestionOptions,
   hasUnsavedChanges,
@@ -549,7 +550,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
 
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) {
+  if (!modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS)) {
     return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
   }
 
