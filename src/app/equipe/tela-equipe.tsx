@@ -15,8 +15,8 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
-type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null };
+type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
+type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null };
 type TeamWorkspace = { status: string; application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null }; members: TeamMember[]; total: number };
 type TeamCycle = { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null };
 type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
@@ -118,7 +118,7 @@ export default function TeamPage() {
     const priority = { NOT_STARTED: 0, DRAFT: 1, SUBMITTED: 2 } as const;
     return [...(workspace?.members ?? [])]
       .filter((member) => {
-        const haystack = normalizeSearchText(`${member.fullName} ${member.employeeNumber} ${member.jobTitle ?? ""} ${member.unit ?? ""} ${member.workplace ?? ""} ${member.institutionalEmail ?? ""}`);
+        const haystack = normalizeSearchText(`${member.fullName} ${member.employeeNumber} ${member.jobTitle ?? ""} ${member.unit ?? ""} ${member.institutionalEmail ?? ""}`);
         const matchesText = !term || haystack.includes(term);
         const state = normalizedStatus(member.submissionStatus);
         return matchesText && (statusFilter === "ALL" || state === statusFilter);
@@ -217,7 +217,7 @@ export default function TeamPage() {
           const state = normalizedStatus(member.submissionStatus);
           return <article key={member.linkId} className={`grid gap-4 rounded-xl border p-4 transition lg:grid-cols-[auto_1fr_auto_auto] lg:items-center ${state === "NOT_STARTED" ? "border-amber-200 bg-amber-50/40" : state === "DRAFT" ? "border-blue-200 bg-blue-50/30" : "border-slate-200 hover:border-emerald-200"}`}>
             <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-12 w-12 rounded-xl shadow-sm" fallbackClassName="text-sm" />
-            <div className="min-w-0"><strong className="block truncate text-[#003b70]">{member.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{member.unit ?? member.workplace ?? "Unidade não informada"}</p></div>
+            <div className="min-w-0"><strong className="block truncate text-[#003b70]">{member.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{member.unit ?? "Unidade não informada"}</p></div>
             <div className="min-w-[150px]"><span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-black ${state === "SUBMITTED" ? "bg-emerald-100 text-emerald-800" : state === "DRAFT" ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"}`}>{submissionLabel(member.submissionStatus)}</span><p className="mt-2 text-xs text-slate-500">{dateTime(member.submissionUpdatedAt)}</p></div>
             <div className="flex flex-wrap gap-2"><Link href={memberEvaluationHref(member)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-4 py-2.5 text-sm font-black text-white"><ClipboardCheck className="h-4 w-4"/>{actionLabel(member.submissionStatus)}</Link><button type="button" disabled={workingId === member.linkId} onClick={() => removeMember(member)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-black text-red-700 disabled:opacity-50">{workingId === member.linkId ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserMinus className="h-4 w-4"/>}Retirar</button></div>
           </article>;

@@ -17,8 +17,6 @@
     "db:migrations": "node scripts/validate-migrations.mjs"
   },
   "dependencies": {
-    "@dicebear/core": "10.3.0",
-    "@dicebear/styles": "10.2.0",
     "@hookform/resolvers": "^5.5.7",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.0",

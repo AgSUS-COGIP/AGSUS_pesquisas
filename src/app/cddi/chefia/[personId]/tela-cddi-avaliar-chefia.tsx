@@ -18,7 +18,7 @@ type Section = { id: string; code: string; title: string; description: string | 
 type FormDefinition = { application: { status: string; opensAt: string | null; closesAt: string | null }; sections: Section[] };
 type StoredAnswer = { answerText?: string | null; answerNumber?: number | null; optionId?: string | null; optionValue?: string | null };
 type SubmissionContext = { canEdit: boolean; submission: { id: string; status: string; submittedAt: string | null; updatedAt: string; result: number | null } | null; answers: Record<string, StoredAnswer> };
-type Member = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null };
+type Member = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null };
 type AnswerValue = { value: string; optionId?: string };
 type Answers = Record<string, AnswerValue>;
 
@@ -182,7 +182,7 @@ export default function LeaderEvaluationPage() {
       <header className="rounded-2xl border-t-4 border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-          <div className="flex-1"><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Avaliação pela chefia</p><h1 className="mt-1 text-3xl font-black text-[#26368d]">{member.fullName}</h1><p className="mt-2 text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || member.workplace || "Unidade não informada"}</p></div>
+          <div className="flex-1"><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Avaliação pela chefia</p><h1 className="mt-1 text-3xl font-black text-[#26368d]">{member.fullName}</h1><p className="mt-2 text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p></div>
           <Link href="/equipe" className="rounded-xl bg-slate-600 px-4 py-3 text-sm font-bold text-white">Voltar à equipe</Link>
         </div>
       </header>

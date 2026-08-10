@@ -16,7 +16,6 @@ Origem principal dos dados cadastrais e de elegibilidade.
 | Cargo atual | `people.job_title` |
 | Centro de custo | `people.cost_center` |
 | Diretoria / Unidade / Coordenação | `organizational_units` em hierarquia |
-| Local de trabalho | `people.workplace` |
 | Status / Situação detalhada | `people.employment_status` e `people.metadata` |
 | Perfil de acesso | `person_role_assignments` |
 | Participa do ciclo | `application_participants.status` |

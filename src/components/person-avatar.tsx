@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { UserRound } from "lucide-react";
 import { ExternalImage } from "@/components/external-image";
 import { cn } from "@/lib/utils";
 
@@ -17,19 +18,10 @@ function validAvatarUrl(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-/** Iniciais do primeiro e do último nome; `--` quando o nome está vazio. */
-export function personInitials(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase() || "--";
-}
-
 /**
- * Avatar institucional com degradação para iniciais.
- *
- * Quando a pessoa exibida é a da sessão, prefere o avatar canônico do contexto em
- * vez da prop recebida: assim, trocar a imagem em `/perfil` atualiza todas as
- * ocorrências do próprio usuário na mesma navegação, sem esperar o recarregamento
- * de cada tela que passou a URL antiga.
+ * Foto institucional proveniente da conta Google.
+ * Quando a conta não fornece uma imagem ou o carregamento falha, exibe somente
+ * um ícone neutro: a plataforma não gera avatares nem usa iniciais.
  */
 export function PersonAvatar({
   fullName,
@@ -43,8 +35,7 @@ export function PersonAvatar({
   const normalizedUrl = validAvatarUrl(avatarUrl);
   const imageFailed = Boolean(normalizedUrl && failedUrl === normalizedUrl);
 
-  // Uma URL diferente da que falhou merece nova tentativa; sem isso, trocar de
-  // avatar depois de um erro manteria as iniciais para sempre.
+  // Uma URL diferente da que falhou merece nova tentativa.
   useEffect(() => {
     if (failedUrl && failedUrl !== normalizedUrl) setFailedUrl(null);
   }, [failedUrl, normalizedUrl]);
@@ -54,7 +45,7 @@ export function PersonAvatar({
       <span className={cn("grid shrink-0 place-items-center overflow-hidden bg-white ring-1 ring-slate-200", className)}>
         <ExternalImage
           src={normalizedUrl}
-          alt={alt ?? `Avatar de ${fullName}`}
+          alt={alt ?? `Foto de ${fullName}`}
           width={128}
           height={128}
           onError={() => setFailedUrl(normalizedUrl)}
@@ -69,14 +60,13 @@ export function PersonAvatar({
   return (
     <span
       role="img"
-      aria-label={alt ?? `Avatar de ${fullName}`}
+      aria-label={alt ?? `Foto do Google indisponível para ${fullName}`}
       className={cn(
-        "grid shrink-0 place-items-center bg-sky-50 font-black text-[#003b70] ring-1 ring-sky-100",
+        "grid shrink-0 place-items-center bg-slate-100 text-slate-400 ring-1 ring-slate-200",
         className,
-        fallbackClassName,
       )}
     >
-      {personInitials(fullName)}
+      <UserRound aria-hidden="true" className={cn("h-1/2 w-1/2", fallbackClassName)} />
     </span>
   );
 }

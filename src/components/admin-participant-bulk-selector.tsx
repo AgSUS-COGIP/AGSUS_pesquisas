@@ -20,7 +20,6 @@ type PersonSearchResult = {
   institutionalEmail: string | null;
   jobTitle: string | null;
   costCenter: string | null;
-  workplace: string | null;
   participantId: string | null;
   participantStatus: string | null;
 };
