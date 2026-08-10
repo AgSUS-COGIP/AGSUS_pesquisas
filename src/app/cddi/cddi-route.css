@@ -1,8 +1,8 @@
 html.cddi-route-active,
 body.cddi-route-active {
-  height: 100% !important;
+  height: auto !important;
   min-height: 100% !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .cddi-route-shell {
@@ -10,18 +10,12 @@ body.cddi-route-active {
 }
 
 .cddi-route-shell > main:not(.cddi-form-mode) {
-  height: 100dvh;
-  min-height: 0 !important;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  min-height: 100dvh !important;
   scrollbar-gutter: stable;
 }
 
 .cddi-form-mode {
-  height: 100dvh;
-  min-height: 0 !important;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  min-height: 100dvh !important;
   padding-bottom: 6.25rem !important;
   scrollbar-gutter: stable;
 }
