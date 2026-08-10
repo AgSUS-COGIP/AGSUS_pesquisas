@@ -61,7 +61,7 @@ export default function GenericSurveyPage() {
         ]);
         if (formResponse.error) throw formResponse.error;
         if (submissionResponse.error) throw submissionResponse.error;
-        if (!formResponse.data) throw new Error("A pesquisa ainda não está publicada.");
+        if (!formResponse.data) throw new Error("A avaliação ainda não está publicada.");
 
         const restored: Answers = {};
         const resolvedSubmission = submissionResponse.data as SubmissionContext;
@@ -75,7 +75,7 @@ export default function GenericSurveyPage() {
         setSubmission(resolvedSubmission);
         setAnswers(restored);
       } catch (loadError) {
-        if (active) toast.error(loadError instanceof Error ? loadError.message : "Não foi possível abrir a pesquisa.");
+        if (active) toast.error(loadError instanceof Error ? loadError.message : "Não foi possível abrir a avaliação.");
       } finally {
         if (active) setLoading(false);
       }
@@ -187,7 +187,7 @@ export default function GenericSurveyPage() {
       toast.warning("Ainda existem perguntas obrigatórias sem resposta.");
       return;
     }
-    if (!(await confirm({ title: "Enviar pesquisa definitivamente?", description: "Depois do envio, as respostas não poderão mais ser alteradas.", confirmLabel: "Enviar pesquisa" }))) return;
+    if (!(await confirm({ title: "Enviar avaliação definitivamente?", description: "Depois do envio, as respostas não poderão mais ser alteradas.", confirmLabel: "Enviar avaliação" }))) return;
 
     setSubmitting(true);
     try {
@@ -203,20 +203,20 @@ export default function GenericSurveyPage() {
         canEdit: false,
         submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt } : null,
       } : current);
-      toast.success("Pesquisa enviada com sucesso.");
+      toast.success("Avaliação enviada com sucesso.");
     } catch (submitError) {
-      toast.error(submitError instanceof Error ? submitError.message : "Não foi possível enviar a pesquisa.");
+      toast.error(submitError instanceof Error ? submitError.message : "Não foi possível enviar a avaliação.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (contextLoading || loading) return <PlatformSkeleton title="Abrindo pesquisa" />;
+  if (contextLoading || loading) return <PlatformSkeleton title="Abrindo avaliação" />;
   if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
   if (!definition) return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
       <section className="max-w-lg rounded-3xl bg-white p-8 shadow-xl">
-        <h1 className="text-2xl font-black text-[#003b70]">Pesquisa indisponível</h1>
+        <h1 className="text-2xl font-black text-[#003b70]">Avaliação indisponível</h1>
         <p className="mt-3 text-slate-600">O instrumento não está publicado ou você não possui acesso.</p>
         <Link href="/pesquisas" className="mt-6 inline-flex rounded-xl bg-[#003b70] px-5 py-3 font-black text-white">Voltar ao catálogo</Link>
       </section>
@@ -236,12 +236,13 @@ export default function GenericSurveyPage() {
 
   return (
     <PlatformShell user={user} eyebrow={definition.survey.code} title={definition.application.name}>
+      <div className="mx-auto w-full max-w-5xl">
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-5 p-6 lg:grid-cols-[1fr_auto] lg:items-start lg:p-8">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{definition.survey.name}</p>
-            <h2 className="mt-2 text-3xl font-black text-[#003b70]">{definition.application.name}</h2>
-            <p className="mt-3 max-w-3xl leading-7 text-slate-600">{definition.survey.description || "Instrumento institucional de pesquisa."}</p>
+          <div className="min-w-0">
+            <p className="break-words text-xs font-black uppercase tracking-[.16em] text-emerald-700">{definition.survey.name}</p>
+            <h2 className="mt-2 break-words text-3xl font-black leading-tight text-[#003b70]">{definition.application.name}</h2>
+            <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-slate-600">{definition.survey.description || "Instrumento institucional de avaliação."}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className={`rounded-full px-3 py-1.5 text-xs font-black ${definition.application.status === "OPEN" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{definition.application.status === "OPEN" ? "Período aberto" : "Período encerrado"}</span>
@@ -258,24 +259,24 @@ export default function GenericSurveyPage() {
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-[#003b70] via-emerald-500 to-cyan-500" style={{ width: `${progress}%` }} /></div>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => goToStep(index)} className={`min-w-fit rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
+          {sections.map((section, index) => <button key={section.id} type="button" onClick={() => goToStep(index)} title={section.title} className={`max-w-60 shrink-0 truncate rounded-xl px-4 py-2 text-sm font-black ${index === step ? "bg-[#003b70] text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}. {section.title}</button>)}
         </div>
       </section>
 
       {currentSection && (
         <section className="mt-5 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Etapa {step + 1} de {sections.length}</p>
-          <h3 className="mt-2 text-2xl font-black text-[#003b70]">{currentSection.title}</h3>
-          {currentSection.description && <p className="mt-3 leading-7 text-slate-600">{currentSection.description}</p>}
+          <h3 className="mt-2 break-words text-2xl font-black leading-snug text-[#003b70]">{currentSection.title}</h3>
+          {currentSection.description && <p className="mt-3 whitespace-pre-line break-words leading-7 text-slate-600">{currentSection.description}</p>}
           <div className="mt-8 space-y-8">
             {currentSection.questions.map((question) => {
               const value = answers[question.id] ?? {};
               return (
-                <fieldset key={question.id} disabled={!canEdit}>
-                  <legend className="font-black text-slate-900">{question.title}{question.required && <span className="text-red-600"> *</span>}</legend>
-                  {question.description && <p className="mt-1 text-sm text-slate-500">{question.description}</p>}
-                  {["SCALE", "SINGLE_CHOICE"].includes(question.type) && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{question.options.map((option) => <label key={option.id} className={`cursor-pointer rounded-2xl border p-4 font-bold ${value.optionIds?.includes(option.id) ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="radio" className="sr-only" name={question.id} checked={value.optionIds?.includes(option.id) ?? false} onChange={() => update(question, { optionIds: [option.id] })} />{option.label}</label>)}</div>}
-                  {question.type === "MULTIPLE_CHOICE" && <div className="mt-4 grid gap-2 sm:grid-cols-2">{question.options.map((option) => { const selected = value.optionIds?.includes(option.id) ?? false; return <label key={option.id} className={`cursor-pointer rounded-2xl border p-4 font-bold ${selected ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="checkbox" className="mr-3" checked={selected} onChange={() => { const current = value.optionIds ?? []; update(question, { optionIds: selected ? current.filter((id) => id !== option.id) : [...current, option.id] }); }} />{option.label}</label>; })}</div>}
+                <fieldset key={question.id} disabled={!canEdit} className="min-w-0">
+                  <legend className="block w-full whitespace-pre-line break-words font-black leading-relaxed text-slate-900">{question.title}{question.required && <span className="text-red-600"> *</span>}</legend>
+                  {question.description && <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-slate-500">{question.description}</p>}
+                  {["SCALE", "SINGLE_CHOICE"].includes(question.type) && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{question.options.map((option) => <label key={option.id} className={`cursor-pointer break-words rounded-2xl border p-4 font-bold ${value.optionIds?.includes(option.id) ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="radio" className="sr-only" name={question.id} checked={value.optionIds?.includes(option.id) ?? false} onChange={() => update(question, { optionIds: [option.id] })} />{option.label}</label>)}</div>}
+                  {question.type === "MULTIPLE_CHOICE" && <div className="mt-4 grid gap-2 sm:grid-cols-2">{question.options.map((option) => { const selected = value.optionIds?.includes(option.id) ?? false; return <label key={option.id} className={`cursor-pointer break-words rounded-2xl border p-4 font-bold ${selected ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}><input type="checkbox" className="mr-3" checked={selected} onChange={() => { const current = value.optionIds ?? []; update(question, { optionIds: selected ? current.filter((id) => id !== option.id) : [...current, option.id] }); }} />{option.label}</label>; })}</div>}
                   {question.type === "BOOLEAN" && <div className="mt-4 grid grid-cols-2 gap-3">{([{ value: true, label: "Sim" }, { value: false, label: "Não" }] as const).map((item) => <button key={item.label} type="button" onClick={() => update(question, { boolean: item.value })} className={`rounded-2xl border p-4 font-black ${value.boolean === item.value ? "border-blue-500 bg-blue-50 text-[#003b70]" : "border-slate-200"}`}>{item.label}</button>)}</div>}
                   {["INTEGER", "DECIMAL"].includes(question.type) && <input type="number" inputMode={question.type === "INTEGER" ? "numeric" : "decimal"} step={question.type === "INTEGER" ? 1 : "any"} value={value.number ?? ""} onChange={(event) => { const rawValue = event.target.value; update(question, { number: rawValue === "" ? undefined : Number(rawValue) }, 500); }} className="mt-4 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3.5 text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)]" />}
                   {question.type === "DATE" && <input type="date" value={value.date ?? ""} onChange={(event) => update(question, { date: event.target.value || undefined })} className="mt-4 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3.5 text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)]" />}
@@ -297,13 +298,14 @@ export default function GenericSurveyPage() {
             {step < sections.length - 1 ? (
               <button type="button" onClick={() => { if (validateCurrentSection()) goToStep(step + 1); }} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 font-black text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" /></button>
             ) : canEdit ? (
-              <button type="button" onClick={submitSurvey} disabled={submitting || answeredRequired !== requiredQuestions.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Salvando e enviando..." : "Enviar pesquisa"}</button>
+              <button type="button" onClick={submitSurvey} disabled={submitting || answeredRequired !== requiredQuestions.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-50">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Salvando e enviando..." : "Enviar avaliação"}</button>
             ) : isSubmitted ? (
               <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 font-black text-emerald-800"><CheckCircle2 className="h-4 w-4" />Envio concluído</span>
             ) : null}
           </div>
         </div>
       </footer>
+      </div>
     </PlatformShell>
   );
 }

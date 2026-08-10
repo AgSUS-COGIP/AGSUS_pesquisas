@@ -550,7 +550,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
 
   const modules = deriveModules(context);
   if (!modules.includes("ADMIN_SURVEYS")) {
-    return <main className="p-10 text-red-700">Acesso restrito à Equipe Técnica.</main>;
+    return <main className="p-10 text-red-700">Acesso restrito à administração.</main>;
   }
 
   const person = context.person;
@@ -567,8 +567,8 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   return (
     <PlatformShell
       user={user}
-      eyebrow="Equipe Técnica"
-      title={builder?.survey.name ?? "Studio de pesquisa"}
+      eyebrow="Administração"
+      title={builder?.survey.name ?? "Studio de avaliação"}
       actions={(
         <div className="flex flex-wrap gap-2">
           {builder?.application.id && (
@@ -595,7 +595,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         </div>
       ) : !builder ? (
         <div className="mx-auto max-w-2xl py-16">
-          <ErrorSummary title="Não foi possível abrir o Studio" errors={[loadError || "Pesquisa não encontrada."]} />
+          <ErrorSummary title="Não foi possível abrir o Studio" errors={[loadError || "Avaliação não encontrada."]} />
           <Button className="mt-5" onClick={() => void loadBuilder()}>Tentar novamente</Button>
         </div>
       ) : (
@@ -618,7 +618,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                     <Sparkles className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <div>
-                    <h2 className="text-2xl font-black text-[#003b70] sm:text-3xl">Studio de pesquisa</h2>
+                    <h2 className="text-2xl font-black text-[#003b70] sm:text-3xl">Studio de avaliação</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
                       Organize seções, edite perguntas e revise alternativas em um fluxo seguro antes da publicação.
                     </p>

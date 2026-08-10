@@ -44,7 +44,7 @@ export default function AdminSurveysPage() {
         if (listError) throw listError;
         setSurveys(Array.isArray(data) ? data as ManagedSurvey[] : []);
       } catch (loadError) {
-        toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar as pesquisas.");
+        toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar as avaliações.");
       } finally { setDataLoading(false); }
     };
     void load();
@@ -56,10 +56,10 @@ export default function AdminSurveysPage() {
     return surveys.filter((item) => `${item.code} ${item.name} ${item.applicationName ?? ""}`.toLowerCase().includes(term));
   }, [search, surveys]);
 
-  if (loading) return <PlatformSkeleton title="Carregando pesquisas" />;
-  if (!context?.person) return <FullPageState title="Não foi possível abrir as pesquisas" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
+  if (loading) return <PlatformSkeleton title="Carregando avaliações" />;
+  if (!context?.person) return <FullPageState title="Não foi possível abrir as avaliações" description={error || "Seu acesso institucional não foi identificado."} actionHref="/acesso" actionLabel="Voltar ao acesso" />;
   const modules = deriveModules(context);
-  if (!modules.includes("ADMIN_SURVEYS")) return <FullPageState tone="restricted" title="Gestão de pesquisas restrita" description="Seu perfil não possui permissão para construir ou operar pesquisas." />;
+  if (!modules.includes("ADMIN_SURVEYS")) return <FullPageState tone="restricted" title="Gestão de avaliações restrita" description="Seu perfil não possui permissão para construir ou operar avaliações." />;
 
   const user = {
     fullName: context.person.fullName,
@@ -74,17 +74,17 @@ export default function AdminSurveysPage() {
   const activeCycles = surveys.filter((item) => ["OPEN", "SCHEDULED"].includes(item.applicationStatus ?? "")).length;
   const totalQuestions = surveys.reduce((sum, item) => sum + Number(item.questions || 0), 0);
 
-  return <PlatformShell user={user} eyebrow="Administração" title="Pesquisas e ciclos" actions={<Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white"><FilePlus2 className="h-4 w-4" />Nova pesquisa</Link>}>
+  return <PlatformShell user={user} eyebrow="Administração" title="Avaliações e ciclos" actions={<Link href="/admin/pesquisas/nova" className="inline-flex items-center gap-2 rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white"><FilePlus2 className="h-4 w-4" />Nova avaliação</Link>}>
     <section className="overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_80%_0%,rgba(45,212,191,.25),transparent_28%),linear-gradient(125deg,#062f54,#007f8f)] p-7 text-white shadow-xl sm:p-9">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><Sparkles className="h-4 w-4" />Estúdio e operação</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">Da construção à abertura do ciclo</h2><p className="mt-3 leading-7 text-cyan-50/85">Edite o instrumento, valide a prontidão, configure o período e controle a publicação em um fluxo auditável.</p></div><Link href="/admin/pesquisas/nova" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 font-black text-[#003b70] shadow-lg"><FilePlus2 className="h-5 w-5" />Criar pesquisa</Link></div>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-cyan-100"><Sparkles className="h-4 w-4" />Estúdio e operação</span><h2 className="mt-5 text-3xl font-black sm:text-4xl">Da construção à abertura do ciclo</h2><p className="mt-3 leading-7 text-cyan-50/85">Edite o instrumento, valide a prontidão, configure o período e controle a publicação em um fluxo auditável.</p></div><Link href="/admin/pesquisas/nova" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 font-black text-[#003b70] shadow-lg"><FilePlus2 className="h-5 w-5" />Criar avaliação</Link></div>
     </section>
 
     <section className="mt-6 grid gap-4 sm:grid-cols-3">
-      {[["Pesquisas", surveys.length], ["Perguntas cadastradas", totalQuestions], ["Ciclos ativos", activeCycles]].map(([label, value]) => <article key={String(label)} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-slate-400">{label}</p><strong className="mt-2 block text-3xl font-black text-[#003b70]">{value}</strong></article>)}
+      {[["Avaliações", surveys.length], ["Perguntas cadastradas", totalQuestions], ["Ciclos ativos", activeCycles]].map(([label, value]) => <article key={String(label)} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-slate-400">{label}</p><strong className="mt-2 block text-3xl font-black text-[#003b70]">{value}</strong></article>)}
     </section>
 
     <section className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-xl font-black text-[#003b70]">Catálogo administrativo</h3><p className="mt-1 text-sm text-slate-500">Construa o formulário ou gerencie o ciclo de cada pesquisa.</p></div><label className="relative block w-full max-w-sm"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por código, nome ou ciclo" className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 font-semibold outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label></div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-xl font-black text-[#003b70]">Catálogo administrativo</h3><p className="mt-1 text-sm text-slate-500">Construa o formulário ou gerencie o ciclo de cada avaliação.</p></div><label className="relative block w-full max-w-sm"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por código, nome ou ciclo" className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 font-semibold outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label></div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         {dataLoading ? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-3xl bg-slate-100" />) : filtered.length ? filtered.map((survey) => <article key={survey.surveyId} className="rounded-3xl border border-slate-200 p-5 transition hover:border-blue-200 hover:shadow-lg">
@@ -92,7 +92,7 @@ export default function AdminSurveysPage() {
           <div className="mt-5 grid grid-cols-3 gap-3">{[["Versão", survey.versionNumber], ["Seções", survey.sections], ["Perguntas", survey.questions]].map(([label, value]) => <div key={String(label)} className="rounded-2xl bg-slate-50 p-3 text-center"><span className="block text-[10px] font-black uppercase tracking-[.12em] text-slate-400">{label}</span><strong className="mt-1 block text-lg text-[#003b70]">{value}</strong></div>)}</div>
           <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/60 p-4 text-sm"><div className="flex items-center gap-2 text-slate-500"><CalendarDays className="h-4 w-4" /><span>{survey.applicationName ?? "Ciclo não configurado"}</span></div><p className="mt-2 text-xs text-slate-400">{dateLabel(survey.opensAt)} → {dateLabel(survey.closesAt)}</p></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2"><Link href={`/admin/pesquisas/${survey.surveyId}`} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-[#003b70] hover:bg-slate-50"><Settings2 className="h-4 w-4" />Construir formulário</Link><Link href={`/admin/pesquisas/${survey.surveyId}/operacao`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#003b70] px-4 py-3 text-sm font-black text-white hover:bg-[#075ea8]"><SlidersHorizontal className="h-4 w-4" />Operar ciclo</Link></div>
-        </article>) : <div className="col-span-full rounded-3xl border border-dashed border-slate-300 p-12 text-center"><FileQuestion className="mx-auto h-10 w-10 text-slate-300" /><strong className="mt-4 block text-[#003b70]">Nenhuma pesquisa encontrada</strong><p className="mt-2 text-sm text-slate-500">Crie o primeiro instrumento da plataforma.</p></div>}
+        </article>) : <div className="col-span-full rounded-3xl border border-dashed border-slate-300 p-12 text-center"><FileQuestion className="mx-auto h-10 w-10 text-slate-300" /><strong className="mt-4 block text-[#003b70]">Nenhuma avaliação encontrada</strong><p className="mt-2 text-sm text-slate-500">Crie o primeiro instrumento da plataforma.</p></div>}
       </div>
       {dataLoading && <p className="mt-4 flex items-center justify-center text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando catálogo...</p>}
     </section>

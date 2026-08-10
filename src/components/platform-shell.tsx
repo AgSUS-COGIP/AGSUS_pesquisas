@@ -16,6 +16,7 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
+import { DEFAULT_PARTICIPANT_MODULES } from "@/lib/platform-modules";
 import {
   isPlatformSidebarCompact,
   PLATFORM_SIDEBAR_ATTRIBUTE,
@@ -51,7 +52,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
   return (
     <Link
       href="/area"
-      aria-label="AgSUS Pesquisas — ir para a visão geral"
+      aria-label="AgSUS Avaliações — ir para a visão geral"
       className={`flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${compact && !mobile ? "justify-center" : ""}`}
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200/80 bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
@@ -157,7 +158,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const modules = user.modules ?? ["HOME", "SURVEYS", "DASHBOARDS", "RESULTS"];
+  const modules = user.modules ?? [...DEFAULT_PARTICIPANT_MODULES];
 
   // O estado recolhido já foi aplicado ao <html> pelo script beforeInteractive do
   // layout raiz; aqui apenas sincronizamos o React com o DOM para não sobrescrever

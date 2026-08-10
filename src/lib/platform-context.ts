@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { resolvePlatformModules } from "@/lib/platform-modules";
+import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export type PlatformContext = {
@@ -59,16 +60,15 @@ export function deriveModules(context: PlatformContext) {
  */
 export function profileLabel(context: PlatformContext) {
   const roles = context.roles ?? [];
-  if (roles.includes("ADMINISTRATOR")) return "Administrador da Plataforma";
-  if (roles.includes("TECHNICAL_TEAM")) return "Equipe Técnica";
-  if (roles.includes("SURVEY_MANAGER")) return "Gestor de pesquisa";
-  if (context.isLeader || roles.includes("LEADER")) return "Liderança";
-  return "Participante";
+  if (roles.includes(PLATFORM_ROLE.SUPER_ADMIN)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.SUPER_ADMIN];
+  if (roles.includes(PLATFORM_ROLE.ADMIN)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.ADMIN];
+  if (context.isLeader || roles.includes(PLATFORM_ROLE.EVALUATOR)) return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.EVALUATOR];
+  return PLATFORM_ROLE_LABELS[PLATFORM_ROLE.PARTICIPANT];
 }
 
 async function loadContextFromDatabase() {
   const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("get_my_platform_context");
+  const { data, error } = await supabase.rpc("fc_obter_contexto_plataforma");
   if (error) throw new Error(`Falha ao carregar permissões da plataforma: ${error.message}`);
   return data as PlatformContext | null;
 }

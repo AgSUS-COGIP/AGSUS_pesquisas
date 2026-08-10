@@ -65,10 +65,10 @@ export default function ParticipantAreaPage() {
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profile, avatarUrl: person.avatarUrl, roles: context.roles, modules };
 
   const actions = [
-    { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar instrumentos", icon: FileText, accent: "text-blue-700 bg-blue-50" },
+    { href: "/pesquisas", title: "Avaliações", text: "Iniciar, continuar ou consultar avaliações", icon: FileText, accent: "text-blue-700 bg-blue-50" },
     ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliações", icon: Users2, accent: "text-emerald-700 bg-emerald-50" }] : []),
     { href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3, accent: "text-violet-700 bg-violet-50" },
-    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar pesquisas, pessoas e acessos", icon: ShieldCheck, accent: "text-amber-700 bg-amber-50" }] : []),
+    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar avaliações, pessoas e acessos", icon: ShieldCheck, accent: "text-amber-700 bg-amber-50" }] : []),
   ];
 
   return (
@@ -118,7 +118,7 @@ export default function ParticipantAreaPage() {
                 <div className="mt-auto flex flex-wrap items-end justify-between gap-4 pt-5">
                   <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-cyan-200">Prazo</p><p className="mt-1 text-sm font-bold text-white">{dateLabel(priorityItem.closesAt)}</p></div>
                   <Link href={applicationHref(priorityItem)} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-[#073b62] shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5 hover:bg-cyan-50">
-                    {itemState(priorityItem) === "IN_PROGRESS" ? "Continuar" : "Abrir pesquisa"}<ArrowRight className="h-4 w-4" />
+                    {itemState(priorityItem) === "IN_PROGRESS" ? "Continuar" : "Abrir avaliação"}<ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export default function ParticipantAreaPage() {
                 })}
               </div>
             ) : (
-              <div className="p-10 text-center text-slate-500"><CircleAlert className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-bold">Nenhuma pesquisa disponível no momento.</p></div>
+              <div className="p-10 text-center text-slate-500"><CircleAlert className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-bold">Nenhuma avaliação disponível no momento.</p></div>
             )}
           </article>
         </section>

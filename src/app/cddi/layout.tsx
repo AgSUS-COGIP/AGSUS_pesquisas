@@ -3,7 +3,7 @@ import { CddiScrollBoundary } from "@/components/cddi-scroll-boundary";
 import "./cddi-route.css";
 
 export const metadata: Metadata = {
-  title: "CDDI 2026 | AgSUS Pesquisas",
+  title: "CDDI 2026 | AgSUS Avaliações",
   description: "Ciclo de Devolutivas e Desenvolvimento Individual da AgSUS.",
 };
 

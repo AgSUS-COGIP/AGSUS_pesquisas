@@ -33,7 +33,7 @@ A plataforma entrega cinco capacidades integradas:
 
 1. **Identidade e acesso institucional** — login Google restrito ao domínio corporativo, vinculação automática da conta a um cadastro em `people`.
 2. **Gestão de pesquisas, versões e ciclos** — construtor de formulários, versionamento e máquina de estados do ciclo de aplicação.
-3. **Definição de público, papéis e hierarquias** — participantes por aplicação, papéis globais, vínculos de liderança.
+3. **Definição de público, papéis e hierarquias** — participantes por aplicação, vínculos de liderança e quatro papéis globais: **Participante** (responde e acompanha as próprias avaliações), **Avaliador** (participante + módulo Minha equipe), **Admin** (gestão completa das avaliações: instrumentos, ciclos, perguntas, participantes, respostas, painéis e importações) e **SuperAdmin** (acesso irrestrito, incluindo gestão de usuários, permissões e administração global). Os códigos internos no banco (`ADMINISTRATOR`, `SURVEY_MANAGER`, `LEADER`, `RESPONDENT`) são legados preservados por compatibilidade com RLS e RPCs — o frontend usa as constantes de [src/lib/platform-roles.ts](src/lib/platform-roles.ts).
 4. **Experiência segura de resposta** — formulários com autossalvamento, rascunho, validação por etapa e envio definitivo.
 5. **Resultados, painéis e auditoria** — indicadores por instrumento, painel específico do CDDI, trilha de eventos.
 
@@ -43,7 +43,7 @@ Três decisões estruturantes explicam quase todo o código:
 |---|---|
 | **Toda lógica de negócio vive no PostgreSQL** | O frontend não faz `select`/`insert` direto em tabelas de negócio. Chama RPCs (`supabase.rpc(...)`) que validam identidade, papel, escopo e período antes de gravar. |
 | **A matrícula é o identificador da pessoa, não o e-mail** | A base oficial contém e-mails repetidos entre matrículas distintas. Ver [docs/auditoria-base-cddi-2026.md](docs/auditoria-base-cddi-2026.md). |
-| **Autorização é resolvida em uma única chamada** | `get_my_platform_context()` devolve pessoa, papéis, módulos e participação. O resultado governa navegação, permissões e telas. |
+| **Autorização é resolvida em uma única chamada** | `fc_obter_contexto_plataforma()` devolve pessoa, papéis, módulos e participação. O resultado governa navegação, permissões e telas. |
 
 ## Arquitetura do sistema
 
@@ -119,7 +119,7 @@ agsus-pesquisas/
     │   ├── acesso/               # Login Google institucional
     │   ├── auth/confirm/         # Callback OAuth (troca de código por sessão)
     │   ├── area/                 # Visão geral do participante
-    │   ├── pesquisas/            # Catálogo e runtime genérico de formulários
+    │   ├── pesquisas/            # Catálogo de avaliações e runtime genérico de formulários
     │   ├── cddi/                 # Jornada especializada do CDDI (auto e chefia)
     │   ├── equipe/               # Área da liderança
     │   ├── paineis/              # Painéis analíticos
@@ -279,7 +279,7 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 - **Erros de aplicação** são capturados por `ClientErrorReporter` (erros globais e promises rejeitadas), `error.tsx` (rota) e `global-error.tsx` (layout raiz). Cada falha ganha uma **referência técnica** exibida na tela e persistida em `tl_erro_aplicacao` via `POST /api/observability/errors`. Busque pela referência no banco para achar o registro.
 - **Sanitização.** `sanitizeObservabilityText()` remove e-mails, sequências de 5+ dígitos e tokens `Bearer` antes de enviar. Relatórios idênticos são deduplicados por 30 s.
 - **Configuração.** `GET /api/health` retorna `200 ok` ou `503 degraded` com a lista de variáveis ausentes.
-- **Permissões.** Se uma tela aparece vazia ou nega acesso, inspecione o retorno de `get_my_platform_context` no console — `status`, `roles` e `modules` explicam o comportamento. O cache de 2 minutos pode ser descartado com `invalidatePlatformContext()`.
+- **Permissões.** Se uma tela aparece vazia ou nega acesso, inspecione o retorno de `fc_obter_contexto_plataforma` no console — `status`, `roles` e `modules` explicam o comportamento. O cache de 2 minutos pode ser descartado com `invalidatePlatformContext()`.
 - **Erros de RPC** chegam como `PostgrestError`; a mensagem vem do `raise exception` da função SQL. Para reproduzir, execute a função no SQL Editor do Supabase com uma sessão autenticada.
 - **Estado do formulário.** No CDDI e no runtime genérico, o rodapé indica `Salvando rascunho…`, `Falha ao salvar` ou o horário do último salvamento.
 
@@ -290,7 +290,7 @@ npx vitest run src/lib/people-import.test.ts   # arquivo específico
 1. `proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
 2. `src/app/layout.tsx` injeta dois scripts `beforeInteractive` que leem `localStorage` e aplicam tema e estado da sidebar **antes** da primeira pintura, evitando flash.
 3. `AppProviders` monta `QueryClientProvider`, `PlatformBrandingProvider` (marca institucional, com cache em `localStorage` para não piscar o padrão), `ConfirmationProvider` (diálogo de confirmação disponível a qualquer tela), `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
-4. A página chama `usePlatformContext()`, que executa `get_my_platform_context()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
+4. A página chama `usePlatformContext()`, que executa `fc_obter_contexto_plataforma()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
 5. `deriveModules(context)` resolve os módulos visíveis e `PlatformShell` renderiza apenas a navegação permitida.
 
 ### Autenticação
@@ -319,7 +319,7 @@ runtime:
   submit_my_survey_submission(id)           envio definitivo (irreversível)
 ```
 
-O CDDI adiciona duas etapas exclusivas: seleção da chefia imediata (`get_my_cddi_identity`, `search_cddi_leaders`, `set_my_cddi_leader`) e a avaliação de chefia em `/cddi/chefia/[personId]`.
+O CDDI adiciona duas particularidades: a chefia responsável é resolvida automaticamente do vínculo institucional (`get_my_cddi_identity` lê `cddi_leadership_links`, alimentado pela importação da base e por correções administrativas — não há seleção manual pelo participante) e a avaliação de chefia acontece em `/cddi/chefia/[personId]`.
 
 ### Administração de um ciclo
 
@@ -360,7 +360,7 @@ A importação **nunca** vincula pessoas a pesquisas automaticamente (`survey_as
 | `PlatformShell` ([src/components/platform-shell.tsx](src/components/platform-shell.tsx)) | Casca visual: sidebar, cabeçalho, drawer móvel, logout, skip link. | Todas as telas internas |
 | `createBrowserSupabaseClient` ([src/lib/supabase/client.ts](src/lib/supabase/client.ts)) | Cliente singleton autenticado por cookie. | Toda chamada RPC do navegador |
 | `resolvePlatformModules` ([src/lib/platform-modules.ts](src/lib/platform-modules.ts)) | Traduz papéis em módulos visíveis. | `platform-context`, navegação, guardas de página |
-| `get_my_platform_context` (SQL) | Contrato de autorização servidor→cliente. | `platform-context` |
+| `fc_obter_contexto_plataforma` (SQL) | Contrato de autorização servidor→cliente. | `platform-context` |
 | `usePlatformBranding` ([src/components/platform-branding-provider.tsx](src/components/platform-branding-provider.tsx)) | Marca institucional (nome, cor, logotipo) resolvida uma vez e cacheada. | `PlatformShell`, `PlatformLogo`, `/admin/configuracoes` |
 | `useConfirm` ([src/components/confirmation-provider.tsx](src/components/confirmation-provider.tsx)) | Confirmação acessível de ação irreversível, em promise. | Envio de formulário, operação de ciclo, gestão de equipe |
 

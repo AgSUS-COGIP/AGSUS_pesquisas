@@ -11,19 +11,28 @@ import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
 type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; workplace: string | null; avatarUrl: string | null };
 type TeamWorkspace = { status: string; application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null }; members: TeamMember[]; total: number };
+type TeamCycle = { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null };
 type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
 type SortMode = "PRIORITY" | "NAME" | "UPDATED";
 
-const teamWorkspaceKey = ["team", "workspace"] as const;
+const teamCyclesKey = ["team", "cycles"] as const;
 
-async function fetchTeamWorkspace() {
+async function fetchTeamCycles() {
   const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_minha_equipe", { target_application_code: null });
+  const { data, error } = await supabase.rpc("fc_listar_ciclos_lideranca");
+  if (error) throw error;
+  return Array.isArray(data) ? data as TeamCycle[] : [];
+}
+
+async function fetchTeamWorkspace(applicationCode: string | null) {
+  const supabase = createBrowserSupabaseClient();
+  const { data, error } = await supabase.rpc("fc_obter_minha_equipe", { target_application_code: applicationCode });
   if (error) throw error;
   return data as TeamWorkspace;
 }
@@ -57,6 +66,11 @@ function dateTime(value: string | null) {
   if (!value) return "Sem atividade";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
+// Equivalente do LIKE '%termo%' do banco: minúsculas e sem acentos nos dois
+// lados, para "joao" encontrar "João" sem depender de nova consulta.
+function normalizeSearchText(value: string) {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
 
 export default function TeamPage() {
   const confirm = useConfirm();
@@ -68,11 +82,24 @@ export default function TeamPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [selectedCycleCode, setSelectedCycleCode] = useState<string | null>(null);
   const deferredCandidateSearch = useDeferredValue(candidateSearch);
-  const teamQuery = useQuery({
-    queryKey: teamWorkspaceKey,
-    queryFn: fetchTeamWorkspace,
+  const cyclesQuery = useQuery({
+    queryKey: teamCyclesKey,
+    queryFn: fetchTeamCycles,
     enabled: Boolean(context?.person),
+    staleTime: 60_000,
+  });
+  const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
+  // A lista vem ordenada da mais recente para a mais antiga; sem escolha
+  // explícita, a mais recente é carregada. Lista vazia (ex.: administração sem
+  // equipe própria) mantém a resolução automática do banco.
+  const activeCycleCode = selectedCycleCode ?? cycles[0]?.code ?? null;
+  const cyclesReady = cyclesQuery.isSuccess || cyclesQuery.isError;
+  const teamQuery = useQuery({
+    queryKey: ["team", "workspace", activeCycleCode],
+    queryFn: () => fetchTeamWorkspace(activeCycleCode),
+    enabled: Boolean(context?.person) && cyclesReady,
   });
   const workspace = teamQuery.data ?? null;
   const applicationId = workspace?.application.id ?? "";
@@ -85,11 +112,12 @@ export default function TeamPage() {
   const candidates = candidateQuery.data ?? [];
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = normalizeSearchText(search.trim());
     const priority = { NOT_STARTED: 0, DRAFT: 1, SUBMITTED: 2 } as const;
     return [...(workspace?.members ?? [])]
       .filter((member) => {
-        const matchesText = !term || `${member.fullName} ${member.employeeNumber} ${member.jobTitle ?? ""} ${member.unit ?? ""}`.toLowerCase().includes(term);
+        const haystack = normalizeSearchText(`${member.fullName} ${member.employeeNumber} ${member.jobTitle ?? ""} ${member.unit ?? ""} ${member.workplace ?? ""} ${member.institutionalEmail ?? ""}`);
+        const matchesText = !term || haystack.includes(term);
         const state = normalizedStatus(member.submissionStatus);
         return matchesText && (statusFilter === "ALL" || state === statusFilter);
       })
@@ -110,7 +138,7 @@ export default function TeamPage() {
       if (addError) throw addError;
       toast.success(`${candidate.fullName} foi incluído(a) na equipe.`);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: teamWorkspaceKey }),
+        queryClient.invalidateQueries({ queryKey: ["team", "workspace"] }),
         queryClient.invalidateQueries({ queryKey: ["team", "candidates"] }),
       ]);
     } catch (addError) { toast.error(addError instanceof Error ? addError.message : "Não foi possível incluir a pessoa."); }
@@ -125,26 +153,38 @@ export default function TeamPage() {
       const { error: removeError } = await supabase.rpc("remove_person_from_my_team", { target_link_id: member.linkId });
       if (removeError) throw removeError;
       toast.success(`${member.fullName} foi retirado(a) da equipe.`);
-      await queryClient.invalidateQueries({ queryKey: teamWorkspaceKey });
+      await queryClient.invalidateQueries({ queryKey: ["team", "workspace"] });
     } catch (removeError) { toast.error(removeError instanceof Error ? removeError.message : "Não foi possível retirar a pessoa."); }
     finally { setWorkingId(null); }
   }
 
   if (loading) return <PlatformSkeleton title="Carregando equipe" />;
   if (!context?.person) return <FullPageState title="Acesso não identificado" description={error || "Não foi possível associar sua sessão a um cadastro ativo."} />;
-  if (teamQuery.isError) return <FullPageState title="Não foi possível carregar sua equipe" description={teamQuery.error instanceof Error ? teamQuery.error.message : "Tente novamente em alguns instantes."} />;
   const modules = deriveModules(context);
+  if (!modules.includes(PLATFORM_MODULE.TEAM)) return <FullPageState tone="restricted" title="Acesso restrito à liderança" description="O módulo Minha equipe está disponível para avaliadores e para a administração das avaliações." />;
+  if (teamQuery.isError) return <FullPageState title="Não foi possível carregar sua equipe" description={teamQuery.error instanceof Error ? teamQuery.error.message : "Tente novamente em alguns instantes."} />;
   const person = context.person;
   const user = { fullName: person.fullName, institutionalEmail: person.institutionalEmail, employeeNumber: person.employeeNumber, profileLabel: profileLabel(context), avatarUrl: person.avatarUrl, roles: context.roles, modules };
   const sent = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "SUBMITTED").length ?? 0;
   const drafts = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "DRAFT").length ?? 0;
   const notStarted = workspace?.members.filter((member) => normalizedStatus(member.submissionStatus) === "NOT_STARTED").length ?? 0;
+  const memberEvaluationHref = (member: TeamMember) => workspace?.application ? `/cddi/chefia/${member.personId}?ciclo=${encodeURIComponent(workspace.application.code)}` : `/cddi/chefia/${member.personId}`;
 
   return <PlatformShell user={user} eyebrow="Gestão da liderança" title="Minha equipe">
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">CDDI 2026</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Avaliações da minha equipe</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Pendências aparecem primeiro. Inicie avaliações, continue rascunhos e consulte envios concluídos.</p></div>
-        <button type="button" onClick={() => setDialogOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-5 py-3 font-black text-white"><Plus className="h-5 w-5" /> Inserir pessoa</button>
+        <div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">{workspace?.application ? workspace.application.name : "Ciclo de avaliação"}</p><h2 className="mt-1 text-3xl font-black text-[#003b70]">Avaliações da minha equipe</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Pendências aparecem primeiro. Inicie avaliações, continue rascunhos e consulte envios concluídos.</p></div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          {cycles.length >= 2 && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-black uppercase tracking-[.08em] text-slate-400">Avaliação</span>
+              <select value={activeCycleCode ?? ""} onChange={(event) => setSelectedCycleCode(event.target.value)} className="w-full min-w-56 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 sm:w-auto">
+                {cycles.map((cycle) => <option key={cycle.id} value={cycle.code}>{cycle.name}</option>)}
+              </select>
+            </label>
+          )}
+          <button type="button" onClick={() => setDialogOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-5 py-3 font-black text-white"><Plus className="h-5 w-5" /> Inserir pessoa</button>
+        </div>
       </div>
       {workspace?.application && <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">{workspace.application.name}</span><span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">{workspace.application.code}</span><span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-800">{workspace.application.status}</span></div>}
     </section>
@@ -159,20 +199,22 @@ export default function TeamPage() {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div><h3 className="text-xl font-black text-[#003b70]">Integrantes vinculados</h3><p className="mt-1 text-sm text-slate-500">Lista ordenada por prioridade operacional.</p></div>
         <div className="grid gap-2 sm:grid-cols-[minmax(240px,1fr)_auto_auto]">
-          <label className="relative block"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome, matrícula ou unidade" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold outline-none focus:border-blue-400 focus:bg-white"/></label>
+          <form role="search" onSubmit={(event) => event.preventDefault()} className="contents">
+            <label className="relative block"><span className="sr-only">Buscar integrante</span><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><input type="search" enterKeyHint="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome, matrícula ou unidade" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold outline-none focus:border-blue-400 focus:bg-white"/></label>
+          </form>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700"><option value="ALL">Todas as situações</option><option value="NOT_STARTED">Não iniciadas</option><option value="DRAFT">Rascunhos</option><option value="SUBMITTED">Enviadas</option></select>
           <label className="relative"><ArrowDownUp className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className="rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-3 text-sm font-bold text-slate-700"><option value="PRIORITY">Prioridade</option><option value="NAME">Nome A-Z</option><option value="UPDATED">Última atividade</option></select></label>
         </div>
       </div>
 
       <div className="mt-5 grid gap-3">
-        {teamQuery.isLoading ? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : filtered.length ? filtered.map((member) => {
+        {teamQuery.isLoading || !cyclesReady ? Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : filtered.length ? filtered.map((member) => {
           const state = normalizedStatus(member.submissionStatus);
           return <article key={member.linkId} className={`grid gap-4 rounded-xl border p-4 transition lg:grid-cols-[auto_1fr_auto_auto] lg:items-center ${state === "NOT_STARTED" ? "border-amber-200 bg-amber-50/40" : state === "DRAFT" ? "border-blue-200 bg-blue-50/30" : "border-slate-200 hover:border-emerald-200"}`}>
             <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-12 w-12 rounded-xl shadow-sm" fallbackClassName="text-sm" />
             <div className="min-w-0"><strong className="block truncate text-[#003b70]">{member.fullName}</strong><p className="mt-1 truncate text-sm text-slate-500">Matrícula {member.employeeNumber} · {member.jobTitle ?? "Cargo não informado"}</p><p className="mt-1 truncate text-xs text-slate-400">{member.unit ?? member.workplace ?? "Unidade não informada"}</p></div>
             <div className="min-w-[150px]"><span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-black ${state === "SUBMITTED" ? "bg-emerald-100 text-emerald-800" : state === "DRAFT" ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"}`}>{submissionLabel(member.submissionStatus)}</span><p className="mt-2 text-xs text-slate-500">{dateTime(member.submissionUpdatedAt)}</p></div>
-            <div className="flex flex-wrap gap-2"><Link href={`/cddi/chefia/${member.personId}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-4 py-2.5 text-sm font-black text-white"><ClipboardCheck className="h-4 w-4"/>{actionLabel(member.submissionStatus)}</Link><button type="button" disabled={workingId === member.linkId} onClick={() => removeMember(member)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-black text-red-700 disabled:opacity-50">{workingId === member.linkId ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserMinus className="h-4 w-4"/>}Retirar</button></div>
+            <div className="flex flex-wrap gap-2"><Link href={memberEvaluationHref(member)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#086ab6] px-4 py-2.5 text-sm font-black text-white"><ClipboardCheck className="h-4 w-4"/>{actionLabel(member.submissionStatus)}</Link><button type="button" disabled={workingId === member.linkId} onClick={() => removeMember(member)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-black text-red-700 disabled:opacity-50">{workingId === member.linkId ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserMinus className="h-4 w-4"/>}Retirar</button></div>
           </article>;
         }) : <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center"><UsersRound className="mx-auto h-9 w-9 text-slate-300"/><strong className="mt-4 block text-[#003b70]">Nenhuma pessoa encontrada</strong><p className="mt-2 text-sm text-slate-500">Ajuste os filtros ou use “Inserir pessoa”.</p></div>}
       </div>

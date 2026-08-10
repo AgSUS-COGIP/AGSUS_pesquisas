@@ -219,7 +219,7 @@ export default function PlatformSettingsPage() {
             <div className="flex items-start gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--status-info-bg)] text-[var(--status-info-text)]"><SwatchBook className="h-5 w-5" /></span><div><h2 className="text-lg font-black text-[var(--text-primary)]">Nomes institucionais</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">Textos curtos funcionam melhor no menu lateral e em telas menores.</p></div></div>
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               <Input label="Organização" placeholder="AgSUS" error={form.formState.errors.organizationName?.message} {...form.register("organizationName")} />
-              <Input label="Nome do sistema" placeholder="Pesquisas" error={form.formState.errors.productName?.message} {...form.register("productName")} />
+              <Input label="Nome do sistema" placeholder="Avaliações" error={form.formState.errors.productName?.message} {...form.register("productName")} />
             </div>
           </Surface>
 
@@ -257,7 +257,7 @@ export default function PlatformSettingsPage() {
                 <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white p-2"><PlatformLogo src={displayedLogo} alt="" organizationName={watchedOrganization} width={40} height={40} loading={brandingLoading && !previewUrl} className="h-10 w-10 object-contain text-xs" /></span><span><small className="block uppercase tracking-[.18em] text-[var(--sidebar-muted)]">{watchedOrganization}</small><strong className="mt-1 block">{watchedName}</strong></span></div>
                 <div className="mt-5 rounded-xl px-3 py-3 text-sm font-bold" style={{ background: watchedColor }}>Visão geral</div>
               </div>
-              <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">A prévia representa a identidade global. Banners específicos continuam configuráveis dentro de cada pesquisa.</p>
+              <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">A prévia representa a identidade global. Banners específicos continuam configuráveis dentro de cada avaliação.</p>
             </div>
           </Surface>
           <Button type="submit" size="lg" fullWidth disabled={mutation.isPending}>{mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{mutation.isPending ? "Salvando..." : "Salvar identidade"}</Button>

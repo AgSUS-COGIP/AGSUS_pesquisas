@@ -40,8 +40,8 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 
 ```text
 1. resolveAuthorizedActor(): cliente por cookie → auth.getUser()
-   → get_my_platform_context(); exige canManageSurveys, status OK,
-     person.id e papel em ADMINISTRATOR|SURVEY_MANAGER|TECHNICAL_TEAM
+   → fc_obter_contexto_plataforma(); exige canManageSurveys, status OK,
+     person.id e papel SuperAdmin ou Admin (PLATFORM_ROLE)
    sem ator autorizado → 403
 2. parseAdminImportRequest(): esquema zod de @/lib/admin-import-contract
    valida cada linha; erro → 400 com details de

@@ -1,3 +1,5 @@
+import { PLATFORM_ROLE } from "./platform-roles";
+
 export const PLATFORM_MODULE = {
   HOME: "HOME",
   SURVEYS: "SURVEYS",
@@ -20,14 +22,15 @@ export const PLATFORM_MODULES = Object.freeze(
 export const DEFAULT_PARTICIPANT_MODULES = Object.freeze([
   PLATFORM_MODULE.HOME,
   PLATFORM_MODULE.SURVEYS,
-  PLATFORM_MODULE.DASHBOARDS,
   PLATFORM_MODULE.RESULTS,
 ]) as readonly PlatformModule[];
 
-export const FULL_ADMIN_MODULES = PLATFORM_MODULES;
+export const SUPER_ADMIN_MODULES = PLATFORM_MODULES;
 
-export const SURVEY_MANAGER_MODULES = Object.freeze(
-  PLATFORM_MODULES.filter((moduleName) => moduleName !== PLATFORM_MODULE.ADMIN_ACCESS),
+export const ADMIN_ROLE_MODULES = Object.freeze(
+  PLATFORM_MODULES.filter(
+    (moduleName) => moduleName !== PLATFORM_MODULE.ADMIN_ACCESS && moduleName !== PLATFORM_MODULE.ADMIN_TEAMS,
+  ),
 ) as readonly PlatformModule[];
 
 export function isPlatformModule(value: unknown): value is PlatformModule {
@@ -56,12 +59,12 @@ export function normalizePlatformModules(modules: readonly string[] | null | und
 /**
  * Resolve os módulos visíveis para uma pessoa, em ordem estrita de precedência:
  *
- * 1. `ADMINISTRATOR` recebe tudo e ignora qualquer outra fonte;
- * 2. módulos explícitos do banco (`person_module_permissions`) vencem os papéis,
- *    permitindo exceção individual sem criar papel novo;
- * 3. `TECHNICAL_TEAM` recebe tudo; `SURVEY_MANAGER` recebe tudo menos `ADMIN_ACCESS`
- *    (quem gerencia pesquisa não concede papéis);
- * 4. caso restante: módulos de participante, mais `TEAM` para liderança.
+ * 1. SuperAdmin recebe tudo e ignora qualquer outra fonte;
+ * 2. módulos explícitos do banco (retorno de `fc_obter_contexto_plataforma`)
+ *    vencem a derivação local, permitindo exceção individual sem papel novo;
+ * 3. Admin recebe tudo menos `ADMIN_ACCESS` e `ADMIN_TEAMS` (gestão de pessoas,
+ *    dados funcionais e permissões é administração global);
+ * 4. caso restante: módulos de participante, mais `TEAM` para Avaliador.
  *
  * O resultado governa apenas a interface. A autorização efetiva é a RLS do banco.
  */
@@ -76,15 +79,14 @@ export function resolvePlatformModules({
 }): PlatformModule[] {
   const roleSet = new Set(roles ?? []);
 
-  if (roleSet.has("ADMINISTRATOR")) return [...FULL_ADMIN_MODULES];
+  if (roleSet.has(PLATFORM_ROLE.SUPER_ADMIN)) return [...SUPER_ADMIN_MODULES];
 
   const normalizedExplicitModules = normalizePlatformModules(explicitModules);
   if (normalizedExplicitModules.length) return normalizedExplicitModules;
 
-  if (roleSet.has("TECHNICAL_TEAM")) return [...FULL_ADMIN_MODULES];
-  if (roleSet.has("SURVEY_MANAGER")) return [...SURVEY_MANAGER_MODULES];
+  if (roleSet.has(PLATFORM_ROLE.ADMIN)) return [...ADMIN_ROLE_MODULES];
 
   const resolvedModules = [...DEFAULT_PARTICIPANT_MODULES];
-  if (isLeader || roleSet.has("LEADER")) resolvedModules.push(PLATFORM_MODULE.TEAM);
+  if (isLeader || roleSet.has(PLATFORM_ROLE.EVALUATOR)) resolvedModules.push(PLATFORM_MODULE.TEAM);
   return resolvedModules;
 }

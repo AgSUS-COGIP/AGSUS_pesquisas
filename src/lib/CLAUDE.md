@@ -4,7 +4,7 @@
 
 Concentrar tudo que não é apresentação: identidade e permissões, fábricas de cliente Supabase e **funções puras** que carregam a parte testável do domínio.
 
-É a camada mais testada do projeto — 18 arquivos de teste, 84 casos.
+É a camada mais testada do projeto — 18 arquivos de teste, 85 casos.
 
 ## Responsabilidades
 
@@ -20,6 +20,7 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | Arquivo | Interface pública |
 |---|---|
 | `platform-context.ts` | `usePlatformContext()`, `deriveModules()`, `profileLabel()`, `invalidatePlatformContext()`, tipo `PlatformContext` |
+| `platform-roles.ts` | `PLATFORM_ROLE`, `PLATFORM_ROLE_LABELS`, `platformRoleLabel()` — códigos internos e rótulos dos quatro papéis |
 | `platform-modules.ts` | `PLATFORM_MODULE`, `PLATFORM_MODULES`, `resolvePlatformModules()`, `normalizePlatformModules()`, `isPlatformModule()` |
 | `platform-navigation.ts` | `platformNavigationGroups`, `navigationGroupsForModules()`, `isPlatformNavItemActive()` |
 | `platform-theme.ts` | `normalizePlatformTheme()`, `resolvePlatformTheme()`, `getPlatformThemeState()`, `platformThemeBootstrapScript()` |
@@ -62,11 +63,11 @@ requisição em voo?       → devolve a mesma promise (deduplicação)
 senão:
   1. auth.getUser()  sem usuário → throw "AUTH_REQUIRED"
   2. sync_my_google_avatar()     falha não-AUTH → apenas console.warn
-  3. get_my_platform_context()
+  3. fc_obter_contexto_plataforma()
   4. status UNLINKED →
        resolve_authenticated_person(null)   cria/vincula cadastro institucional
        sync_my_google_avatar()
-       get_my_platform_context()            recarrega
+       fc_obter_contexto_plataforma()       recarrega
   5. AUTH_REQUIRED → throw ; status ≠ OK → throw com a mensagem do banco
   6. grava no cache de módulo
 ```
@@ -75,16 +76,17 @@ O hook trata `AUTH_REQUIRED` com `window.location.replace("/acesso")`; qualquer 
 
 ### `resolvePlatformModules()` — precedência
 
+Os códigos de papel vêm de `PLATFORM_ROLE` (`platform-roles.ts`): SuperAdmin = `ADMINISTRATOR`, Admin = `SURVEY_MANAGER`, Avaliador = `LEADER`, Participante = `RESPONDENT`.
+
 ```text
-1. roles contém ADMINISTRATOR      → todos os módulos (curto-circuito)
+1. SuperAdmin                       → todos os módulos (curto-circuito)
 2. explicitModules válidos e não vazios → usa exatamente esses
-3. roles contém TECHNICAL_TEAM     → todos os módulos
-4. roles contém SURVEY_MANAGER     → todos exceto ADMIN_ACCESS
-5. padrão do participante (HOME, SURVEYS, DASHBOARDS, RESULTS)
-   + TEAM se isLeader ou role LEADER
+3. Admin                            → todos exceto ADMIN_ACCESS e ADMIN_TEAMS
+4. padrão do participante (HOME, SURVEYS, RESULTS)
+   + TEAM se isLeader ou papel de Avaliador
 ```
 
-`profileLabel()` segue ordem própria: `ADMINISTRATOR` → `TECHNICAL_TEAM` → `SURVEY_MANAGER` → liderança → participante.
+`profileLabel()` segue ordem própria: SuperAdmin → Admin → Avaliador → Participante, com rótulos de `PLATFORM_ROLE_LABELS`.
 
 ### `parsePeopleImportRows()` — duas passagens
 

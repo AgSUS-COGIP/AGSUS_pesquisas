@@ -10,10 +10,10 @@ import "./sidebar-monitora.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "AgSUS Pesquisas",
+    default: "AgSUS Avaliações",
     template: "%s | AgSUS",
   },
-  description: "Plataforma institucional de pesquisas, avaliações e formulários da AgSUS.",
+  description: "Plataforma institucional de avaliações e formulários da AgSUS.",
   icons: {
     icon: "/agsus-logo-oficial.jpg",
     shortcut: "/agsus-logo-oficial.jpg",

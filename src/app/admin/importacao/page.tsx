@@ -41,7 +41,7 @@ export default function ImportPeopleBasePage() {
       setRows(parsedRows);
       setFileName(file.name);
       setStatus("ready");
-      setMessage(`${parsedRows.length} registros analisados. A atualização da base não vinculará ninguém automaticamente a pesquisas.`);
+      setMessage(`${parsedRows.length} registros analisados. A atualização da base não vinculará ninguém automaticamente a avaliações.`);
     } catch (error) {
       setRows([]);
       setFileName("");

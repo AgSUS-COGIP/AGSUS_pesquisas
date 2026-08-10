@@ -5,6 +5,7 @@ import { BadgeCheck, Building2, KeyRound, Mail, MapPin, UserRound } from "lucide
 import { AvatarIdentityPicker } from "@/components/avatar-identity-picker";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { platformRoleLabel } from "@/lib/platform-roles";
 
 function metadataText(metadata: Record<string, unknown>, ...keys: string[]) {
   for (const key of keys) {
@@ -85,7 +86,7 @@ export default function ProfilePage() {
             <p className="section-eyebrow">Acesso</p>
             <h3 className="mt-1 text-lg font-semibold text-slate-950">Perfil e permissões</h3>
             <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{profileLabel(context)}</p></div>
-            <div className="mt-4 flex flex-wrap gap-2">{(context.roles ?? []).map((role) => <span key={role} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{role}</span>)}</div>
+            <div className="mt-4 flex flex-wrap gap-2">{(context.roles ?? []).map((role) => <span key={role} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{platformRoleLabel(role)}</span>)}</div>
             <div className="mt-6 space-y-2">
               <Link href="/area" className="primary-button w-full justify-center">Voltar à visão geral</Link>
               {modules.some((module) => module.startsWith("ADMIN_")) && <Link href="/admin" className="secondary-button w-full justify-center">Abrir administração</Link>}

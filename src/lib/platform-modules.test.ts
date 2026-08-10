@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  FULL_ADMIN_MODULES,
+  DEFAULT_PARTICIPANT_MODULES,
   PLATFORM_MODULE,
+  SUPER_ADMIN_MODULES,
   normalizePlatformModules,
   resolvePlatformModules,
 } from "./platform-modules";
+import { PLATFORM_ROLE } from "./platform-roles";
 
 describe("platform modules", () => {
   it("filters unknown modules and removes duplicates", () => {
@@ -19,25 +21,34 @@ describe("platform modules", () => {
     ]);
   });
 
-  it("gives administrators the complete module catalog", () => {
-    expect(resolvePlatformModules({ roles: ["ADMINISTRATOR"] })).toEqual([...FULL_ADMIN_MODULES]);
+  it("gives the super admin the complete module catalog", () => {
+    expect(resolvePlatformModules({ roles: [PLATFORM_ROLE.SUPER_ADMIN] })).toEqual([...SUPER_ADMIN_MODULES]);
   });
 
   it("uses explicit valid modules before role fallbacks", () => {
     expect(resolvePlatformModules({
-      roles: ["LEADER"],
+      roles: [PLATFORM_ROLE.EVALUATOR],
       explicitModules: [PLATFORM_MODULE.HOME, "UNKNOWN"],
       isLeader: true,
     })).toEqual([PLATFORM_MODULE.HOME]);
   });
 
-  it("adds team access to leaders when no explicit modules are returned", () => {
-    expect(resolvePlatformModules({ roles: ["LEADER"] })).toContain(PLATFORM_MODULE.TEAM);
+  it("adds team access to evaluators when no explicit modules are returned", () => {
+    expect(resolvePlatformModules({ roles: [PLATFORM_ROLE.EVALUATOR] })).toContain(PLATFORM_MODULE.TEAM);
   });
 
-  it("does not grant access management to survey managers", () => {
-    const modules = resolvePlatformModules({ roles: ["SURVEY_MANAGER"] });
+  it("does not grant global administration to admins", () => {
+    const modules = resolvePlatformModules({ roles: [PLATFORM_ROLE.ADMIN] });
     expect(modules).toContain(PLATFORM_MODULE.ADMIN_SURVEYS);
+    expect(modules).toContain(PLATFORM_MODULE.TEAM);
     expect(modules).not.toContain(PLATFORM_MODULE.ADMIN_ACCESS);
+    expect(modules).not.toContain(PLATFORM_MODULE.ADMIN_TEAMS);
+  });
+
+  it("keeps participants limited to their own journey", () => {
+    const modules = resolvePlatformModules({ roles: [PLATFORM_ROLE.PARTICIPANT] });
+    expect(modules).toEqual([...DEFAULT_PARTICIPANT_MODULES]);
+    expect(modules).not.toContain(PLATFORM_MODULE.TEAM);
+    expect(modules).not.toContain(PLATFORM_MODULE.DASHBOARDS);
   });
 });

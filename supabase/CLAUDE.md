@@ -17,7 +17,7 @@ Toda alteração de comportamento começa aqui, não em React.
 
 ```text
 supabase/
-├── migrations/      51 arquivos .sql versionados (fonte da verdade)
+├── migrations/      55 arquivos .sql versionados (fonte da verdade)
 │   └── README.md
 └── tests/
     └── rls_exposed_tables.sql   pgTAP: nenhuma tabela de `public` sem RLS
@@ -52,6 +52,8 @@ Hierarquia conceitual: **pesquisa** (produto permanente, ex. CDDI) → **versão
 
 `platform_modules`, `role_module_permissions`, `person_module_permissions`, `institutional_domains`.
 
+**Modelo de papéis** (`20260807150000_simplificar_modelo_papeis.sql`): quatro papéis em `system_roles` — SuperAdmin (`ADMINISTRATOR`), Admin (`SURVEY_MANAGER`), Avaliador (`LEADER`) e Participante (`RESPONDENT`). Os códigos internos são legados e foram preservados porque `has_active_role()`, `can_manage_surveys()`, `is_platform_administrator()` e dezenas de políticas os referenciam — e o gate de nomenclatura impede recriar funções legadas em migrations novas. `TECHNICAL_TEAM` foi absorvido pelo SuperAdmin e `AUDITOR` foi descontinuado (as três políticas que o citavam foram recriadas sem ele). Efeito prático dos helpers: `can_manage_surveys()` = SuperAdmin ou Admin; `is_platform_administrator()` = SuperAdmin. A checagem residual de `TECHNICAL_TEAM` dentro de `can_manage_surveys()` é inerte (o papel não existe mais) e será removida quando a função for redefinida por outro motivo.
+
 ### Governança e observabilidade
 
 `db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
@@ -74,7 +76,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 | RPC | Uso |
 |---|---|
-| `get_my_platform_context()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. |
+| `fc_obter_contexto_plataforma()` | Contrato de autorização. Devolve `status`, `person`, `participant`, `application`, `isLeader`, `roles`, `modules`, `canManageSurveys`. Substituiu `get_my_platform_context()`, removida em `20260807150000`. |
 | `resolve_authenticated_person(target_employee_number)` | Vincula ou cria o cadastro institucional no primeiro acesso. |
 | `sync_my_google_avatar()` | Copia a foto da conta Google para os metadados da pessoa. |
 | `set_my_avatar_choice(p_source, p_avatar_url)` | Define origem do avatar (`GOOGLE`, `INITIALS`, `GENERATED`). |
@@ -86,13 +88,15 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 ### Runtime CDDI
 
-`start_or_resume_my_cddi_submission(target_application_code, target_submission_type, target_subject_person_id)` · `save_my_cddi_answer(...)` · `submit_my_cddi_submission(target_submission_id)` · `get_my_cddi_identity(...)` · `search_cddi_leaders(...)` · `set_my_cddi_leader(...)` · `get_cddi_monitoring_dashboard(...)`
+`start_or_resume_my_cddi_submission(target_application_code, target_submission_type, target_subject_person_id)` · `save_my_cddi_answer(...)` · `submit_my_cddi_submission(target_submission_id)` · `get_my_cddi_identity(...)` · `get_cddi_monitoring_dashboard(...)`
+
+**A seleção manual de chefia foi removida** (`20260807151000_remover_selecao_manual_chefia.sql`): `search_cddi_leaders` e `set_my_cddi_leader` não existem mais. O vínculo vem só da importação da base (`sync_cddi_manager_rows`) e das correções administrativas (`set_platform_admin_leadership_link`); `get_my_cddi_identity` continua devolvendo a chefia vigente.
 
 ### Equipe e liderança
 
-`get_my_team_workspace(target_application_code)` · `search_team_candidates(target_application_id, search_term)` · `add_person_to_my_team(...)` · `remove_person_from_my_team(target_link_id)`
+`fc_listar_ciclos_lideranca()` · `get_my_team_workspace(target_application_code)` · `search_team_candidates(target_application_id, search_term)` · `add_person_to_my_team(...)` · `remove_person_from_my_team(target_link_id)`
 
-`20260807101500_team_avatar_contracts.sql` redefiniu `fc_obter_minha_equipe(...)` e `fc_pesquisar_equipe(...)` para devolver também o avatar canônico de cada integrante — a tela de equipe deixou de resolver imagem por conta própria.
+`20260807101500_team_avatar_contracts.sql` redefiniu `fc_obter_minha_equipe(...)` e `fc_pesquisar_equipe(...)` para devolver também o avatar canônico de cada integrante — a tela de equipe deixou de resolver imagem por conta própria. `fc_listar_ciclos_lideranca()` (`20260807151500`) lista, do mais recente ao mais antigo, os ciclos em que a pessoa autenticada tem vínculo ativo de liderança — alimenta o seletor de avaliação de `/equipe`.
 
 ### Marca da plataforma
 
@@ -243,11 +247,12 @@ supabase stop --no-backup
 - **Nunca renomeie objeto legado diretamente.** Exige inventário de dependências, compatibilidade temporária, atualização de RPCs e frontend, testes de RLS/autossalvamento/envio/painéis, rollback documentado e aprovação do Data Owner.
 - **Nunca aplique DDL manualmente em produção.** Toda mudança é migration revisada.
 - **Nunca comite credencial, token ou dado pessoal.** A base de pessoas é carregada por processo controlado.
-- **Várias funções foram redefinidas múltiplas vezes** (`get_my_platform_context`, `manage_survey_cycle`, `set_my_avatar_url`, `search_team_candidates`, `get_survey_dashboard`, `duplicate_survey_builder_item`, `resolve_authenticated_person`, `can_access_application`, `list_my_survey_catalog`, `start_or_resume_my_survey_submission`, `get_public_survey_form`). Antes de editar, encontre a definição vigente:
+- **Várias funções foram redefinidas múltiplas vezes** (`manage_survey_cycle`, `set_my_avatar_url`, `search_team_candidates`, `get_survey_dashboard`, `duplicate_survey_builder_item`, `resolve_authenticated_person`, `can_access_application`, `list_my_survey_catalog`, `start_or_resume_my_survey_submission`, `get_public_survey_form`). Antes de editar, encontre a definição vigente:
   ```bash
   grep -rn "function public.nome_da_funcao" supabase/migrations | sort
   ```
   A migration com timestamp mais alto é a que vale.
-- Mudar mensagem de `raise exception` altera texto que chega ao usuário final — as telas exibem `error.message` diretamente.
+- **Função nova em migration precisa do prefixo `fc_`/`sp_`** (`npm run db:naming`). Para mudar o comportamento de uma função legada, o padrão do repositório é criar a substituta `fc_*`, migrar os consumidores e dar `drop` na antiga — foi o que `20260807150000` fez com `get_my_platform_context` → `fc_obter_contexto_plataforma`.
+- Mudar mensagem de `raise exception` altera texto que chega ao usuário final — as telas exibem `error.message` diretamente. Algumas mensagens legadas ainda citam "pesquisa"/"Equipe Técnica" (ex.: `list_managed_surveys`); atualizá-las exige redefinir as funções, o que ficou para uma manutenção futura.
 - `supabase/config.toml` não está versionado; o CI executa `supabase init` quando ausente.
 - `supabase/migrations/README.md` está desatualizado (afirma que a primeira migration ainda será criada).

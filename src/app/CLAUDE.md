@@ -29,11 +29,11 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 | `/acesso` | pública | `auth.signInWithOAuth` (Google, `hd=agenciasus.org.br`) |
 | `/auth/confirm` | pública | `auth.exchangeCodeForSession` — Route Handler, não página |
 | `/area` | `HOME` | `list_my_survey_catalog` |
-| `/pesquisas` | `SURVEYS` | `list_my_survey_catalog` |
+| `/pesquisas` (tela "Avaliações") | `SURVEYS` | `list_my_survey_catalog` |
 | `/pesquisas/[applicationCode]` | `SURVEYS` | `get_public_survey_form`, `start_or_resume_my_survey_submission`, `save_my_survey_answer`, `submit_my_survey_submission` |
-| `/cddi` | participação no ciclo | `get_public_survey_form`, `start_or_resume_my_cddi_submission`, `get_my_cddi_identity`, `save_my_cddi_answer`, `search_cddi_leaders`, `set_my_cddi_leader`, `submit_my_cddi_submission` |
-| `/cddi/chefia/[personId]` | vínculo de liderança ativo | `get_public_survey_form`, `start_or_resume_my_cddi_submission` (tipo `CHEFIA`), `get_my_team_workspace`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
-| `/equipe` | `TEAM` | `get_my_team_workspace`, `search_team_candidates`, `add_person_to_my_team`, `remove_person_from_my_team` |
+| `/cddi` | participação no ciclo | `get_public_survey_form`, `start_or_resume_my_cddi_submission`, `get_my_cddi_identity`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
+| `/cddi/chefia/[personId]` (aceita `?ciclo=`) | vínculo de liderança ativo | `get_public_survey_form`, `start_or_resume_my_cddi_submission` (tipo `CHEFIA`), `fc_obter_minha_equipe`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
+| `/equipe` | `TEAM` | `fc_listar_ciclos_lideranca`, `fc_obter_minha_equipe`, `fc_pesquisar_equipe`, `add_person_to_my_team`, `remove_person_from_my_team` |
 | `/paineis` | `DASHBOARDS` | `list_managed_surveys` |
 | `/paineis/[applicationCode]` | `DASHBOARDS` | `get_survey_dashboard` |
 | `/paineis/cddi` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
@@ -95,16 +95,20 @@ A "próxima ação" de `/area` ordena por esse estado (`IN_PROGRESS` → `PENDIN
 
 **Painéis não respondem formulários.** `/paineis` filtra o CDDI da lista de cartões (`isCddiSurvey`) e exibe um cartão dedicado ao painel de monitoramento. Nenhum link de painel inicia ou continua preenchimento.
 
+### Específico de `/equipe`
+
+- **Seleção da avaliação.** `fc_listar_ciclos_lideranca()` lista os ciclos em que a pessoa lidera equipe, do mais recente para o mais antigo. Com **um** ciclo (ou nenhum), não há seletor — o mais recente é carregado automaticamente (código `null` mantém a resolução do banco). Com **dois ou mais**, um `<select>` aparece no cabeçalho já com o mais recente selecionado; trocar o ciclo troca a `queryKey` do workspace e recarrega a tela inteira. Os links "Avaliar pessoa" levam o ciclo escolhido em `?ciclo=`.
+- **Busca de integrantes.** Filtro client-side sobre a lista carregada, equivalente a `LIKE '%termo%'`: `normalizeSearchText()` remove acentos e força minúsculas nos dois lados (nome, matrícula, cargo, unidade, local e e-mail). Enter aplica a busca sem recarregar (form com `preventDefault`); não há botão Buscar.
+
 ### Específico do CDDI (`/cddi`)
 
 - Etapas: `0` identificação e chefia → `1..N` uma competência por etapa → `N+1` revisão. Total = `sections.length + 2`.
-- **A etapa 0 exige chefia selecionada** para avançar (`validateCurrentStep`) e para enviar.
-- Só quem tem `identity.canChangeLeader` vê o campo de busca de chefia.
+- **A chefia não é selecionada pelo participante.** Vem do vínculo institucional (`cddi_leadership_links`, exibida por `get_my_cddi_identity`) e aparece somente leitura na etapa 0. Sem vínculo, a etapa 0 orienta a procurar a administração e bloqueia o avanço (`validateCurrentStep`) e o envio — a correção é administrativa (`/admin/equipes`) ou por reimportação da base.
+- **Na etapa 0 o rodapé exibe um único botão "Iniciar avaliação"** (avança para a primeira competência). A partir da etapa 1 valem os botões Tela inicial / Anterior / Próxima.
 - Avançar valida as obrigatórias da etapa atual; voltar e navegar para etapa anterior não valida (`goToStep(target, false)`).
 - **A definição é filtrada por tipo de submissão** antes de renderizar: `visibleCddiSections(sections, "AUTO" | "CHEFIA")` remove perguntas `PERSON` (a chefia é vínculo institucional, não campo do formulário) e as que declaram `validation.allowed_submission_types` sem o tipo atual. Seção que fica sem pergunta desaparece — logo `sections.length` **não** é o número de competências do instrumento, e sim o das aplicáveis àquela jornada.
 - Perguntas `SCALE` salvam imediatamente por `optionId`; texto salva com debounce de 700 ms por pergunta. As gravações passam por `ReliableSaveQueue`, e `flushPendingSaves()` descarrega os debounces pendentes antes de validar ou enviar.
-- Busca de chefia: mínimo 2 caracteres, debounce de 350 ms.
-- A tela `home` do CDDI oferece autoavaliação e atalho para `/equipe`; a avaliação de chefia vive em `/cddi/chefia/[personId]`.
+- A tela `home` do CDDI oferece autoavaliação e atalho para `/equipe`; a avaliação de chefia vive em `/cddi/chefia/[personId]`, que lê o ciclo do parâmetro `?ciclo=` (padrão `CDDI-2026`).
 
 ## Interfaces públicas
 
@@ -121,7 +125,7 @@ Cada `page.tsx` exporta apenas o componente padrão. `layout.tsx` exporta `metad
 
 - Toda página que usa hooks precisa de `"use client"` na primeira linha.
 - Guarde a rota **e** confie na RLS: a guarda de módulo é usabilidade, não segurança. A autorização real está no banco.
-- `/cddi` fixa `"CDDI-2026"` como código de aplicação em todas as chamadas. Um novo ciclo exige revisar essas constantes.
+- `/cddi` fixa `"CDDI-2026"` como código de aplicação em todas as chamadas; `/cddi/chefia/[personId]` usa o mesmo padrão, mas aceita outro ciclo por `?ciclo=` (é assim que `/equipe` propaga o ciclo selecionado). Um novo ciclo exige revisar essas constantes.
 - `/cddi` e `/admin/importacao` **não** usam `PlatformShell` — têm layout próprio de página inteira.
 - Não pré-busque dados antes de `context.person` existir: sem sessão resolvida a RPC falha por `AUTH_REQUIRED`.
 - Arquivos grandes (`admin/pesquisas/[surveyId]/page.tsx`, `paineis/cddi/page.tsx`) concentram muito JSX em poucas linhas; ao editar, mantenha a formatação existente para não gerar diff desnecessário.

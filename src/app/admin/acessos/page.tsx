@@ -22,7 +22,8 @@ import {
 import { EmptyState } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/form-controls";
 import { PageHeader, Surface } from "@/components/ui/surface";
-import { deriveModules, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { deriveModules, invalidatePlatformContext, profileLabel, usePlatformContext } from "@/lib/platform-context";
+import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Role = { id: string; code: string; name: string; description: string | null };
@@ -39,7 +40,7 @@ type Person = {
 };
 type Workspace = { status: string; roles: Role[]; people: Person[] };
 
-const roleOrder = ["ADMINISTRATOR", "TECHNICAL_TEAM", "SURVEY_MANAGER", "AUDITOR", "LEADER", "PARTICIPANT"];
+const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
 
 export default function AdminAccessPage() {
   const { context, loading, error } = usePlatformContext();
@@ -63,7 +64,7 @@ export default function AdminAccessPage() {
   }
 
   useEffect(() => {
-    if (context?.roles?.includes("ADMINISTRATOR")) void load();
+    if (context?.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) void load();
   }, [context]);
 
   const roles = useMemo(
@@ -88,6 +89,9 @@ export default function AdminAccessPage() {
       });
       if (rpcError) throw rpcError;
       toast.success(`${role.name} ${enabled ? "concedido" : "retirado"} para ${person.fullName}.`);
+      // Papéis alimentam o contexto cacheado da casca: sem invalidar, quem teve
+      // o próprio papel alterado veria a navegação antiga por até 2 minutos.
+      invalidatePlatformContext();
       await load(query);
     } catch (changeError) {
       toast.error(changeError instanceof Error ? changeError.message : "Não foi possível alterar o papel.");
@@ -110,21 +114,21 @@ export default function AdminAccessPage() {
     modules,
   };
 
-  if (!context.roles?.includes("ADMINISTRATOR")) {
+  if (!context.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) {
     return (
       <PlatformShell user={user} eyebrow="Segurança" title="Acessos e permissões">
         <EmptyState
           className="mx-auto max-w-xl"
           icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
           title="Acesso exclusivo"
-          description="Somente o Administrador da Plataforma pode conceder ou retirar papéis."
+          description="Somente o SuperAdmin pode conceder ou retirar papéis."
         />
       </PlatformShell>
     );
   }
 
   return (
-    <PlatformShell user={user} eyebrow="Administrador da Plataforma" title="Pessoas e permissões">
+    <PlatformShell user={user} eyebrow="SuperAdmin" title="Pessoas e permissões">
       <div className="min-w-0 space-y-5">
         <PageHeader
           eyebrow="Segurança e governança"

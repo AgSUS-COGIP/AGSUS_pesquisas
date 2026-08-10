@@ -90,7 +90,7 @@ const { branding, loading } = usePlatformBranding();   // platform-branding-prov
 ### `PlatformShell`
 
 ```text
-1. modules = user.modules ?? ["HOME","SURVEYS","DASHBOARDS","RESULTS"]
+1. modules = user.modules ?? DEFAULT_PARTICIPANT_MODULES (HOME, SURVEYS, RESULTS)
 2. navigationGroupsForModules(modules) → grupos Principal / Atuação / Administração
 3. usePlatformBranding() → nome, cor e logotipo; PlatformLogo cobre o intervalo
    de carregamento sem trocar o tamanho da caixa
