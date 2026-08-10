@@ -72,26 +72,46 @@ where pra.starts_at <= timezone('utc', now())
           )
   );
 
--- 3) Mapa perfil → módulo refeito conforme a especificação.
-delete from public.role_module_permissions;
+-- 3) Mapa perfil → módulo, quando as tabelas de catálogo existirem.
+--
+--    `platform_modules`, `role_module_permissions` e `person_module_permissions`
+--    vêm de 20260731115500 e **não têm consumidor em runtime desde
+--    20260803104000**: o mapa de módulos passou a ser derivado do papel dentro
+--    do corpo de get_my_platform_context() e, hoje, de
+--    fc_obter_contexto_plataforma() (item 5 desta migration). O único leitor
+--    que existiu foi get_my_platform_context(), removida em 20260807150000.
+--
+--    Por isso a atualização é condicional: ambientes onde 20260731115500 nunca
+--    foi aplicada não têm essas tabelas, e exigi-las quebraria a migration sem
+--    nenhum ganho de comportamento. Onde existem, ficam coerentes com o novo
+--    modelo — valem como documentação do banco, não como fonte de autorização.
+do $$
+begin
+  if to_regclass('public.role_module_permissions') is not null
+     and to_regclass('public.platform_modules') is not null then
+    delete from public.role_module_permissions;
 
-insert into public.role_module_permissions (role_id, module_code, allowed)
-select r.id, m.code, true
-from public.system_roles r
-join public.platform_modules m on (
-  r.code = 'ADMINISTRATOR'
-  or (r.code = 'SURVEY_MANAGER' and m.code in (
-        'HOME', 'SURVEYS', 'DASHBOARDS', 'TEAM', 'RESULTS',
-        'ADMIN_SURVEYS', 'ADMIN_PARTICIPANTS'
-      ))
-  or (r.code = 'LEADER' and m.code in ('HOME', 'SURVEYS', 'TEAM'))
-  or (r.code = 'RESPONDENT' and m.code = 'SURVEYS')
-);
+    insert into public.role_module_permissions (role_id, module_code, allowed)
+    select r.id, m.code, true
+    from public.system_roles r
+    join public.platform_modules m on (
+      r.code = 'ADMINISTRATOR'
+      or (r.code = 'SURVEY_MANAGER' and m.code in (
+            'HOME', 'SURVEYS', 'DASHBOARDS', 'TEAM', 'RESULTS',
+            'ADMIN_SURVEYS', 'ADMIN_PARTICIPANTS'
+          ))
+      or (r.code = 'LEADER' and m.code in ('HOME', 'SURVEYS', 'TEAM'))
+      or (r.code = 'RESPONDENT' and m.code = 'SURVEYS')
+    );
+  end if;
 
--- 4) Exceções individuais de módulo deixam de existir: o acesso é determinado
---    exclusivamente pelo perfil. A tabela permanece (outras migrations a
---    referenciam), mas fica vazia e sem consumidor.
-delete from public.person_module_permissions;
+  -- 4) Exceções individuais de módulo deixam de existir: o acesso é determinado
+  --    exclusivamente pelo perfil.
+  if to_regclass('public.person_module_permissions') is not null then
+    delete from public.person_module_permissions;
+  end if;
+end;
+$$;
 
 -- 5) O contexto passa a derivar os módulos do perfil efetivo, com a mesma
 --    precedência aplicada no item 2. `isLeader` continua no retorno por
@@ -214,21 +234,12 @@ $$;
 revoke all on function public.fc_obter_contexto_plataforma() from public, anon;
 grant execute on function public.fc_obter_contexto_plataforma() to authenticated;
 
--- 6) `can_manage_surveys()` perde a checagem de TECHNICAL_TEAM, papel removido em
---    20260807150000. Sem isso a função continua citando um papel inexistente.
-create or replace function public.can_manage_surveys()
-returns boolean
-language sql
-stable
-security definer
-set search_path = pg_catalog, public, auth
-as $$
-  select public.has_active_role('ADMINISTRATOR')
-      or public.has_active_role('SURVEY_MANAGER');
-$$;
-
-revoke all on function public.can_manage_surveys() from public, anon;
-grant execute on function public.can_manage_surveys() to authenticated;
+-- 6) `can_manage_surveys()` fica como está: a checagem residual de
+--    TECHNICAL_TEAM é inerte (o papel saiu do catálogo em 20260807150000, então
+--    has_active_role('TECHNICAL_TEAM') é sempre falso) e redefinir a função aqui
+--    esbarraria no gate de nomenclatura, que exige prefixo institucional em
+--    função declarada em migration nova. O efeito prático já é o desejado:
+--    can_manage_surveys() = Superadmin ou Admin.
 
 -- 7) Atribuição de perfil em uma única operação atômica.
 --
