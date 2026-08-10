@@ -106,7 +106,7 @@ Cada domínio deve expor operações explícitas e auditáveis, evitando acesso 
 - página inicial dinâmica;
 - design system e componentes compartilhados;
 - gestão de participantes por pesquisa;
-- consistência de identidade e avatares;
+- consistência de identidade e fotos de perfil do Google;
 - tratamento de erro, vazio, carregamento e offline.
 
 ### Operação institucional

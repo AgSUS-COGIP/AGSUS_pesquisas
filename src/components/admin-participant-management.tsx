@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Loader2, Plus, RefreshCw, Search, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { ExternalImage } from "@/components/external-image";
+import { PersonAvatar } from "@/components/person-avatar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ApplicationItem = {
@@ -45,11 +45,6 @@ type PersonSearchResult = {
   participantStatus: string | null;
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase() || "--";
-}
-
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     ELIGIBLE: "Elegível",
@@ -63,14 +58,7 @@ function statusLabel(status: string) {
 }
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
-  const [failed, setFailed] = useState(false);
-  return url && !failed ? (
-    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-      <ExternalImage src={url} alt={`Avatar de ${name}`} width={40} height={40} onError={() => setFailed(true)} className="h-full w-full object-cover" />
-    </span>
-  ) : (
-    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-xs font-black text-[#003b70] ring-1 ring-sky-100">{initials(name)}</span>
-  );
+  return <PersonAvatar fullName={name} avatarUrl={url} className="h-10 w-10 rounded-xl" />;
 }
 
 export function AdminParticipantManagement() {
