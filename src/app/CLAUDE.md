@@ -2,7 +2,21 @@
 
 ## Objetivo
 
-Expor as jornadas da plataforma como rotas do App Router. Cada pasta é uma jornada; o arquivo `page.tsx` orquestra as RPCs necessárias e delega apresentação a [../components](../components/CLAUDE.md).
+Expor as jornadas da plataforma como rotas do App Router. Cada pasta é uma jornada; o arquivo `tela-*.tsx` da pasta orquestra as RPCs necessárias e delega apresentação a [../components](../components/CLAUDE.md).
+
+## Convenção de nomes de rota
+
+`page.tsx` é nome reservado do App Router — a pasta define a URL e o arquivo marca "isto é uma página". Renomeá-lo apaga a rota. Para que o nome do arquivo diga qual tela ele contém, cada rota é dividida em dois arquivos:
+
+```text
+src/app/pesquisas/
+├─ page.tsx                     # uma linha: export { default } from "./tela-catalogo-pesquisas";
+└─ tela-catalogo-pesquisas.tsx  # a tela de verdade
+```
+
+O `page.tsx` só re-exporta; **toda edição de tela acontece no `tela-*.tsx`**. O prefixo `tela-` marca o componente de rota e o distingue de um componente comum de `components/`. Arquivos que não são `page.tsx` são ignorados pelo roteador, então o nome é livre — mantido em `kebab-case` como o resto do projeto.
+
+Os demais arquivos reservados (`layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `global-error.tsx`, `route.ts`) **não** seguem esse desdobramento: o nome reservado já descreve o papel, e há no máximo um de cada por pasta.
 
 Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE.md).
 
@@ -17,30 +31,32 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 | Arquivo | Papel |
 |---|---|
 | `layout.tsx` | Layout raiz. Metadados, viewport claro/escuro e dois scripts `beforeInteractive` que aplicam tema e sidebar antes da primeira pintura. Importa os cinco CSS globais. |
-| `page.tsx` | Rota `/` — `redirect("/acesso")`. |
+| `page.tsx` | Rota `/` — `redirect("/acesso")`. Única rota sem `tela-*.tsx`: são cinco linhas de redirecionamento, não uma tela. |
 | `globals.css`, `theme-foundation.css`, `theme-enhancements.css`, `dark-theme.css`, `sidebar-monitora.css` | Tokens e temas. A ordem de import em `layout.tsx` importa: cascata posterior sobrescreve a anterior. |
 | `error.tsx` / `global-error.tsx` | Boundaries de rota e de layout raiz. Ambos geram referência técnica e reportam via `reportApplicationError`. |
 | `not-found.tsx`, `loading.tsx` | 404 institucional e skeleton global. |
 
 ## Rotas
 
-| Rota | Módulo exigido | RPCs principais |
-|---|---|---|
-| `/acesso` | pública | `auth.signInWithOAuth` (Google, `hd=agenciasus.org.br`) |
-| `/auth/confirm` | pública | `auth.exchangeCodeForSession` — Route Handler, não página |
-| `/area` | `HOME` — sem o módulo, redireciona para `/pesquisas` | `list_my_survey_catalog` |
-| `/pesquisas` (tela "Pesquisas") | `SURVEYS` | `list_my_survey_catalog` |
-| `/pesquisas/[applicationCode]` | `SURVEYS` | `get_public_survey_form`, `start_or_resume_my_survey_submission`, `save_my_survey_answer`, `submit_my_survey_submission` |
-| `/cddi` | participação no ciclo | `get_public_survey_form`, `start_or_resume_my_cddi_submission`, `get_my_cddi_identity`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
-| `/cddi/chefia/[personId]` (aceita `?ciclo=`) | vínculo de liderança ativo | `get_public_survey_form`, `start_or_resume_my_cddi_submission` (tipo `CHEFIA`), `fc_obter_minha_equipe`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
-| `/equipe` | `TEAM` | `fc_listar_ciclos_lideranca`, `fc_obter_minha_equipe`, `fc_pesquisar_equipe`, `add_person_to_my_team`, `remove_person_from_my_team` |
-| `/paineis` | `DASHBOARDS` | `list_managed_surveys` |
-| `/paineis/[applicationCode]` | `DASHBOARDS` | `get_survey_dashboard` |
-| `/paineis/cddi` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
-| `/perfil` | autenticado | foto do Google sincronizada por `usePlatformContext()`; dados institucionais somente leitura |
-| `/resultados` | `RESULTS` (Admin e Superadmin) | nenhuma — placeholder com `EmptyState` |
-| `/admin/**` | `ADMIN_*` | ver [admin/CLAUDE.md](admin/CLAUDE.md) |
-| `/api/**` | ver módulo | ver [api/CLAUDE.md](api/CLAUDE.md) |
+A coluna **Tela** é o arquivo a abrir para editar a rota — o `page.tsx` ao lado dele só re-exporta.
+
+| Rota | Tela | Módulo exigido | RPCs principais |
+|---|---|---|---|
+| `/acesso` | `acesso/tela-acesso.tsx` | pública | `auth.signInWithOAuth` (Google, `hd=agenciasus.org.br`) |
+| `/auth/confirm` | `auth/confirm/route.ts` | pública | `auth.exchangeCodeForSession` — Route Handler, não página |
+| `/area` | `area/tela-area-participante.tsx` | `HOME` — sem o módulo, redireciona para `/pesquisas` | `list_my_survey_catalog` |
+| `/pesquisas` (tela "Pesquisas") | `pesquisas/tela-catalogo-pesquisas.tsx` | `SURVEYS` | `list_my_survey_catalog` |
+| `/pesquisas/[applicationCode]` | `pesquisas/[applicationCode]/tela-responder-pesquisa.tsx` | `SURVEYS` | `get_public_survey_form`, `start_or_resume_my_survey_submission`, `save_my_survey_answer`, `submit_my_survey_submission` |
+| `/cddi` | `cddi/tela-cddi-autoavaliacao.tsx` | participação no ciclo | `get_public_survey_form`, `start_or_resume_my_cddi_submission`, `get_my_cddi_identity`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
+| `/cddi/chefia/[personId]` (aceita `?ciclo=`) | `cddi/chefia/[personId]/tela-cddi-avaliar-chefia.tsx` | vínculo de liderança ativo | `get_public_survey_form`, `start_or_resume_my_cddi_submission` (tipo `CHEFIA`), `fc_obter_minha_equipe`, `save_my_cddi_answer`, `submit_my_cddi_submission` |
+| `/equipe` | `equipe/tela-equipe.tsx` | `TEAM` | `fc_listar_ciclos_lideranca`, `fc_obter_minha_equipe`, `fc_pesquisar_equipe`, `add_person_to_my_team`, `remove_person_from_my_team` |
+| `/paineis` | `paineis/tela-lista-paineis.tsx` | `DASHBOARDS` | `list_managed_surveys` |
+| `/paineis/[applicationCode]` | `paineis/[applicationCode]/tela-painel-pesquisa.tsx` | `DASHBOARDS` | `get_survey_dashboard` |
+| `/paineis/cddi` | `paineis/cddi/tela-painel-cddi.tsx` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
+| `/perfil` | `perfil/tela-perfil.tsx` | autenticado | foto do Google sincronizada por `usePlatformContext()`; dados institucionais somente leitura |
+| `/resultados` | `resultados/tela-resultados.tsx` | `RESULTS` (Admin e Superadmin) | nenhuma — placeholder com `EmptyState` |
+| `/admin/**` | ver [admin/CLAUDE.md](admin/CLAUDE.md) | `ADMIN_*` | ver [admin/CLAUDE.md](admin/CLAUDE.md) |
+| `/api/**` | `route.ts` por pasta | ver módulo | ver [api/CLAUDE.md](api/CLAUDE.md) |
 
 ## Fluxo interno de uma página autenticada
 
@@ -48,32 +64,41 @@ Submódulos com contexto próprio: [admin/](admin/CLAUDE.md) e [api/](api/CLAUDE
 "use client";
 
 export default function AlgumaPagina() {
-  const { context, loading, error } = usePlatformContext();
+  // A guarda resolve os quatro desfechos de acesso de uma vez.
+  const guard = usePlatformGuard(PLATFORM_MODULE.MODULO);
 
-  // 1. carregando
-  if (loading) return <PlatformSkeleton title="Carregando …" />;
-  // 2. sem identidade
-  if (!context?.person) return <main className="p-10 text-red-700">{error || "Acesso não identificado."}</main>;
+  if (guard.state !== "granted") {
+    return <PlatformGuardState
+      guard={guard}
+      title="…"                       // "Carregando {title}" no skeleton
+      restrictedTitle="…"
+      restrictedDescription="…"
+    />;
+  }
 
-  // 3. guarda de módulo
-  const modules = deriveModules(context);
-  if (!modules.includes("MODULO")) return <FullPageState tone="restricted" title="…" description="…" />;
-
-  // 4. montar o usuário da casca e renderizar
-  const user = { fullName: …, profileLabel: profileLabel(context), roles: context.roles, modules };
-  return <PlatformShell user={user} eyebrow="…" title="…">{/* conteúdo */}</PlatformShell>;
+  // `guard.user`, `guard.person` e `guard.modules` são não-nulos por tipo.
+  return <PlatformShell user={guard.user} eyebrow="…" title="…">{/* conteúdo */}</PlatformShell>;
 }
 ```
 
-Carregamento de dados usa flag `active` + cleanup, para descartar resposta de componente desmontado:
+Detalhes de `usePlatformGuard()` e dos quatro estados em [../lib/CLAUDE.md](../lib/CLAUDE.md). Omitir o módulo deixa a página aberta a qualquer pessoa identificada.
+
+**Consulta só depois da guarda.** Condicione a `guard.state === "granted"` — não a "existe pessoa". Disparar antes faz uma RPC restrita falhar na RLS e mostrar erro numa tela que seria negada de qualquer modo:
+
+```tsx
+const granted = guard.state === "granted";
+const query = useQuery({ queryKey: [...], queryFn: …, enabled: granted });
+```
+
+Carregamento manual usa flag `active` + cleanup, para descartar resposta de componente desmontado:
 
 ```tsx
 useEffect(() => {
-  if (!context?.person) return;   // espera o contexto antes de consultar
+  if (!granted) return;           // espera a guarda liberar antes de consultar
   let active = true;
   void (async () => { /* … */ if (!active) return; setDados(data); })();
   return () => { active = false; };
-}, [context?.person]);
+}, [granted]);
 ```
 
 ## Regras de negócio visíveis nesta camada
@@ -112,12 +137,12 @@ A "próxima ação" de `/area` ordena por esse estado (`IN_PROGRESS` → `PENDIN
 
 ## Interfaces públicas
 
-Cada `page.tsx` exporta apenas o componente padrão. `layout.tsx` exporta `metadata`, `viewport` e o layout. `cddi/layout.tsx` exporta `metadata`, importa `cddi-route.css` e envolve a rota em `CddiScrollBoundary` — hoje um invólucro estático que só aplica a classe `cddi-route-shell`; o comportamento de scroll ficou por conta do CSS da rota.
+Cada `tela-*.tsx` exporta apenas o componente padrão, e o `page.tsx` da mesma pasta o re-exporta. `layout.tsx` exporta `metadata`, `viewport` e o layout. `cddi/layout.tsx` exporta `metadata`, importa `cddi-route.css` e envolve a rota em `CddiScrollBoundary` — hoje um invólucro estático que só aplica a classe `cddi-route-shell`; o comportamento de scroll ficou por conta do CSS da rota.
 
 ## Dependências
 
-- [@/lib](../lib/CLAUDE.md) — `usePlatformContext`, `deriveModules`, `profileLabel`, `createBrowserSupabaseClient`, helpers de domínio.
-- [@/components](../components/CLAUDE.md) — `PlatformShell`, `PlatformSkeleton`, `PersonAvatar`, `FullPageState` (telas de acesso restrito e erro de página inteira), `useConfirm`, primitivos `ui/`.
+- [@/lib](../lib/CLAUDE.md) — `usePlatformGuard` (guarda de página), `usePlatformContext`, `metadataText`, `createBrowserSupabaseClient`, helpers de domínio.
+- [@/components](../components/CLAUDE.md) — `PlatformShell`, `PlatformGuardState` (os estados negados da guarda), `PlatformSkeleton`, `PersonAvatar`, `FullPageState`, `useConfirm`, primitivos `ui/`.
 - [@/hooks/use-survey-catalog](../hooks/use-survey-catalog.ts) — consulta cacheada de `list_my_survey_catalog`, compartilhada por `/area` e `/pesquisas`.
 - `sonner` (`toast`) para retorno de ação; `lucide-react` para ícones.
 
@@ -128,4 +153,5 @@ Cada `page.tsx` exporta apenas o componente padrão. `layout.tsx` exporta `metad
 - `/cddi` fixa `"CDDI-2026"` como código de aplicação em todas as chamadas; `/cddi/chefia/[personId]` usa o mesmo padrão, mas aceita outro ciclo por `?ciclo=` (é assim que `/equipe` propaga o ciclo selecionado). Um novo ciclo exige revisar essas constantes.
 - `/cddi` e `/admin/importacao` **não** usam `PlatformShell` — têm layout próprio de página inteira.
 - Não pré-busque dados antes de `context.person` existir: sem sessão resolvida a RPC falha por `AUTH_REQUIRED`.
-- Arquivos grandes (`admin/pesquisas/[surveyId]/page.tsx`, `paineis/cddi/page.tsx`) concentram muito JSX em poucas linhas; ao editar, mantenha a formatação existente para não gerar diff desnecessário.
+- Arquivos grandes (`admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx`, `paineis/cddi/tela-painel-cddi.tsx`) concentram muito JSX em poucas linhas; ao editar, mantenha a formatação existente para não gerar diff desnecessário.
+- Ao criar uma rota nova, crie os **dois** arquivos: a `tela-*.tsx` com o componente e o `page.tsx` de uma linha que a re-exporta. Só `page.tsx` não basta para o nome ser descritivo; só `tela-*.tsx` não cria rota alguma.
