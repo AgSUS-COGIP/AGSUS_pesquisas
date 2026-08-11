@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BadgeCheck, Home, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
-import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useConfirm } from "@/components/confirmation-provider";
+import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
+import { resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
 type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; validation?: Record<string, unknown>; settings: Record<string, unknown>; options: Option[] };
@@ -26,6 +26,14 @@ type IdentityContext = { person: PersonIdentity; leader: Leader | null; canChang
 type AnswerValue = { value: string; optionId?: string };
 type Answers = Record<string, AnswerValue>;
 type Screen = "home" | "auto";
+
+/**
+ * O CDDI tem identidade visual própria (azul institucional do instrumento),
+ * independente do tema da plataforma. Só estas duas cores são fixas; todo o
+ * resto usa tokens, para a jornada acompanhar o tema claro/escuro.
+ */
+const CDDI_INK = "#26368d";
+const CDDI_RULE = "#2d3f97";
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Não informado";
@@ -46,6 +54,16 @@ function scaleBoundary(question: Question, side: "start" | "end") {
 function institutionalAvatarUrl(person: PersonIdentity) {
   const candidate = person.metadata?.avatar_url;
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+}
+
+/** Bloco de dado funcional somente leitura, repetido no cabeçalho e na etapa 0. */
+function IdentityField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
+      <dd className="break-words font-semibold" style={{ color: CDDI_INK }}>{value}</dd>
+    </div>
+  );
 }
 
 export default function CddiFormPage() {
@@ -186,7 +204,7 @@ export default function CddiFormPage() {
     const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
     if (missing.length) {
       setMessageType("warning");
-      setMessage(`Preencha ${missing.length} pergunta(s) obrigatória(s) desta etapa antes de continuar.`);
+      setMessage(`Preencha ${missing.length} ${missing.length === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} desta etapa antes de continuar.`);
       return false;
     }
     return true;
@@ -227,54 +245,393 @@ export default function CddiFormPage() {
   }
 
   if (loading) return <CddiPlatformFrame title="CDDI 2026"><CddiLoadingState /></CddiPlatformFrame>;
-  if (!definition || !identity) return <CddiPlatformFrame title="CDDI 2026"><div className="grid min-h-[60vh] place-items-center px-6"><section className="max-w-xl rounded-2xl border border-red-200 bg-[var(--surface-card)] p-8"><h1 className="text-2xl font-black text-[var(--text-primary)]">Não foi possível abrir o CDDI</h1><p className="mt-3 text-[var(--text-secondary)]">{message}</p><Link href="/area" className="mt-6 inline-flex rounded-xl bg-[var(--brand-solid)] px-5 py-3 font-bold text-white">Voltar à área</Link></section></div></CddiPlatformFrame>;
+  if (!definition || !identity) return (
+    <CddiPlatformFrame title="CDDI 2026">
+      <div className="grid min-h-[60vh] place-items-center px-6">
+        <section className="max-w-xl rounded-2xl border border-[var(--status-danger-border)] bg-[var(--surface-card)] p-8 shadow-[var(--shadow-card)]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h1>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{message}</p>
+          <Link href="/area" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]">Voltar à área</Link>
+        </section>
+      </div>
+    </CddiPlatformFrame>
+  );
 
   const periodClosed = definition.application.status !== "OPEN";
   const person = identity.person;
   const avatarUrl = institutionalAvatarUrl(person);
   const visualIdentity = resolveSurveyVisualIdentity(definition.application.settings);
 
+  const identityFields = (
+    <>
+      <IdentityField label="Participante" value={person.fullName} />
+      <IdentityField label="Matrícula" value={person.employeeNumber} />
+      <IdentityField label="Cargo" value={person.jobTitle || "Não informado"} />
+    </>
+  );
+
   if (screen === "home") return (
     <CddiPlatformFrame title="CDDI 2026">
-    <div className="min-h-[60vh] text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[960px] space-y-4">
-        <SurveyBanner key={visualIdentity.bannerUrl} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
-        <section className="rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-7">
-          <h1 className="break-words text-3xl font-black tracking-tight text-[#26368d] sm:text-4xl">{visualIdentity.heroTitle}</h1>
-          <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p>
-          <p className="mt-1 leading-7 text-slate-700">Será realizada uma <strong>autoavaliação</strong> e uma <strong>avaliação pela chefia direta</strong>. As informações serão consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
-          <p className="mt-2 text-sm text-slate-500">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
-          <div className="mt-5 grid gap-4 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
-            <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-            <div><span className="text-xs text-slate-500">Participante</span><strong className="block break-words text-[#26368d]">{person.fullName}</strong></div>
-            <div><span className="text-xs text-slate-500">Matrícula</span><strong className="block break-words text-[#26368d]">{person.employeeNumber}</strong></div>
-            <div><span className="text-xs text-slate-500">Cargo</span><strong className="block break-words text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div>
-            <div><span className="text-xs text-slate-500">Unidade</span><strong className="block break-words text-[#26368d]">{person.unit || "Não informada"}</strong></div>
-          </div>
-        </section>
-        <section className={`rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? `O período de participação foi encerrado em ${dateLabel(definition.application.closesAt)}. O modo de consulta permanece disponível.` : "O ciclo está disponível para preenchimento."}</p><p className="mt-2 text-sm text-slate-500">Abertura: {dateLabel(definition.application.opensAt)} · Encerramento: {dateLabel(definition.application.closesAt)}</p></section>
-        <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-black text-[#26368d]">Selecione o tipo de avaliação</h2><p className="mt-1 text-sm text-slate-500">Gestores e coordenadores podem realizar a própria autoavaliação e avaliar os subordinados vinculados.</p></div><Link href="/area" className="rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-bold text-white">Tela inicial</Link></div><div className="mt-4 grid gap-3 md:grid-cols-2"><button onClick={() => { setScreen("auto"); setStep(0); }} className="rounded-xl bg-[#086ab6] p-5 text-left text-white transition hover:bg-[#05558f]"><UserRound className="h-6 w-6"/><strong className="mt-3 block text-lg">Responder minha autoavaliação</strong><span className="mt-1 block text-sm text-blue-100">Preencher minha autoavaliação.</span></button><Link href="/equipe" className="rounded-xl bg-[#086ab6] p-5 text-left text-white transition hover:bg-[#05558f]"><UsersRound className="h-6 w-6"/><strong className="mt-3 block text-lg">Minha equipe</strong><span className="mt-1 block text-sm text-blue-100">Consultar avaliações pendentes, rascunhos e concluídas.</span></Link></div></section>
+      <div className="min-h-[60vh] text-[var(--text-primary)]">
+        <div className="mx-auto max-w-[960px] space-y-4">
+          <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-7" style={{ borderTopColor: CDDI_RULE }}>
+            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
+            <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
+
+            <dl className="mt-5 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
+              <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
+              {identityFields}
+              <IdentityField label="Unidade" value={person.unit || "Não informada"} />
+            </dl>
+          </section>
+
+          <section className={`rounded-2xl border border-l-4 p-5 shadow-[var(--shadow-card)] ${periodClosed
+            ? "border-[var(--status-danger-border)] border-l-[var(--status-danger-text)] bg-[var(--status-danger-bg)]"
+            : "border-[var(--status-success-border)] border-l-[var(--status-success-text)] bg-[var(--status-success-bg)]"}`}>
+            <h2 className={`flex items-center gap-2 text-lg font-semibold ${periodClosed ? "text-[var(--status-danger-text)]" : "text-[var(--status-success-text)]"}`}>
+              {periodClosed ? <Lock className="h-5 w-5" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+              {periodClosed ? "Período encerrado" : "Período aberto"}
+            </h2>
+            <p className={`mt-2 text-sm leading-6 ${periodClosed ? "text-[var(--status-danger-text)]" : "text-[var(--status-success-text)]"}`}>
+              {periodClosed
+                ? `O período de participação foi encerrado em ${dateLabel(definition.application.closesAt)}. O modo de consulta permanece disponível.`
+                : "O ciclo está disponível para preenchimento. Suas respostas são salvas automaticamente."}
+            </p>
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">Abertura: {dateLabel(definition.application.opensAt)} · Encerramento: {dateLabel(definition.application.closesAt)}</p>
+          </section>
+
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>Escolha o que fazer agora</h2>
+                <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Quem tem equipe pode responder a própria autoavaliação e avaliar as pessoas vinculadas.</p>
+              </div>
+              <Link href="/area" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+                <Home className="h-4 w-4" aria-hidden="true" />
+                Tela inicial
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => { setScreen("auto"); setStep(0); }}
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+              >
+                <UserRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+                <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Responder minha autoavaliação</strong>
+                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Avalie suas próprias competências neste ciclo.</span>
+              </button>
+              <Link
+                href="/equipe"
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+              >
+                <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+                <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
+                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
-    </div>
     </CddiPlatformFrame>
   );
 
+  const stepTitle = step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title;
+  const missingToSubmit = requiredQuestions.length - answeredRequired;
+
   return (
     <CddiPlatformFrame title="Autoavaliação CDDI">
-    <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
-      <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] px-4 py-4 sm:px-6">
-        <SurveyBanner key={`form-${visualIdentity.bannerUrl}`} src={visualIdentity.bannerUrl} fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl} alt={visualIdentity.bannerAlt} className="w-full rounded-t-2xl border border-slate-200 bg-white object-cover shadow-sm" />
-        <section className="mt-4 rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-6"><h1 className="break-words text-3xl font-black text-[#26368d]">{visualIdentity.heroTitle}</h1><p className="mt-2 max-w-3xl whitespace-pre-line break-words leading-7 text-slate-700">{visualIdentity.heroSubtitle}</p><div className="mt-4 grid gap-3 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center"><PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" /><div><span className="text-xs text-slate-500">Participante</span><strong className="block break-words text-[#26368d]">{person.fullName}</strong></div><div><span className="text-xs text-slate-500">Matrícula</span><strong className="block break-words text-[#26368d]">{person.employeeNumber}</strong></div><div><span className="text-xs text-slate-500">Cargo</span><strong className="block break-words text-[#26368d]">{person.jobTitle || "Não informado"}</strong></div><div><span className="text-xs text-slate-500">Perfil</span><strong className="block text-[#26368d]">Autoavaliação</strong></div></div></section>
-        <section className={`mt-4 rounded-2xl border-l-4 p-5 shadow-sm ${periodClosed ? "border-red-600 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}><h2 className="text-xl font-black text-[#26368d]">{periodClosed ? "Período encerrado" : "Período aberto"}</h2><p className="mt-2 text-slate-700">{periodClosed ? "O formulário está disponível em modo de consulta." : "Suas respostas são salvas automaticamente durante o preenchimento."}</p></section>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-[#087b8d] via-emerald-500 to-blue-600 transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-1 text-right text-xs text-slate-500">{progress}% preenchido</div>
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><strong className="text-[#26368d]">{step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title}</strong><span className="text-xs font-bold text-slate-500">Etapa {step + 1} de {totalSteps}</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{Array.from({ length: totalSteps }).map((_, index) => { const complete = index === 0 ? Boolean(identity.leader) : index <= sections.length ? sectionCompletion(sections[index - 1], answers) === 100 : answeredRequired === requiredQuestions.length; return <button key={index} onClick={() => goToStep(index, index > step)} className={`min-w-9 rounded-full px-3 py-2 text-xs font-bold ${index === step ? "bg-[#086ab6] text-white" : complete ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0")}</button>; })}</div></section>
-        {message && <div className={`mt-4 rounded-xl border p-4 text-sm font-bold ${messageType === "error" ? "border-red-200 bg-red-50 text-red-800" : messageType === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : messageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>{message}</div>}
-        {step === 0 && <div className="mt-4 space-y-4"><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="break-words text-xl font-black text-[#26368d]">1. Chefia responsável pela avaliação</h2><p className="mt-2 text-sm leading-6 text-slate-500">O vínculo de chefia vem da base institucional e é preenchido automaticamente — não é necessário indicá-lo. Ao concluir a autoavaliação, é essa chefia que avaliará você neste ciclo.</p>{identity.leader ? <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="min-w-0"><span className="text-xs text-emerald-700">Chefia registrada</span><strong className="block break-words text-emerald-950">{identity.leader.fullName}</strong><span className="block break-words text-sm text-emerald-700">{[identity.leader.jobTitle, identity.leader.unit].filter(Boolean).join(" · ") || "Dados funcionais não informados"}</span></div><BadgeCheck className="h-7 w-7 shrink-0 text-emerald-600"/></div> : <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong className="block text-amber-950">Chefia ainda não registrada</strong><p className="mt-1 text-sm leading-6 text-amber-900">Sua chefia responsável não foi localizada na base institucional. Procure a administração para atualizar o vínculo — sem ele não é possível concluir a avaliação.</p></div>}</section><section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-[#26368d]">Dados organizacionais da pessoa avaliada</h2><div className="mt-4 grid gap-4 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Diretoria</span><strong className="block break-words text-[#26368d]">{person.directorate || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Unidade</span><strong className="block break-words text-[#26368d]">{person.unit || "Não informada"}</strong></div><div className="rounded-xl bg-slate-50 p-4"><span className="text-xs text-slate-500">Coordenação</span><strong className="block break-words text-[#26368d]">{person.coordination || "Não informada"}</strong></div></div></section></div>}
-        {currentSection && <section className="mt-4 rounded-2xl border-t-4 border-emerald-600 bg-white p-5 shadow-sm sm:p-6"><p className="text-sm font-bold text-slate-500">Competência {step} de {sections.length}</p><h2 className="mt-1 break-words text-2xl font-black leading-snug text-[#26368d]">{currentSection.title}</h2>{currentSection.description && <p className="mt-3 whitespace-pre-line break-words rounded-xl bg-slate-50 p-4 leading-7 text-slate-700">{currentSection.description}</p>}<div className="mt-5 space-y-7">{currentSection.questions.map((question) => <fieldset key={question.id} disabled={!canEdit} className="min-w-0"><legend className="block w-full whitespace-pre-line break-words font-bold leading-relaxed text-slate-900">{question.title}{question.required && <span className="text-red-600"> *</span>}</legend>{question.description && <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-slate-500">{question.description}</p>}{question.type === "SCALE" ? <div className="mt-3"><div className="grid grid-cols-5 gap-2">{question.options.map((option) => { const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value; return <label key={option.id} className={`cursor-pointer rounded-xl border py-4 text-center font-black transition ${selected ? "border-[#086ab6] bg-[#086ab6] text-white" : "border-slate-300 bg-white text-[#26368d] hover:border-blue-400"}`}><input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />{option.value}</label>; })}</div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>{scaleBoundary(question, "start")}</span><span>{scaleBoundary(question, "end")}</span></div></div> : <textarea value={answers[question.id]?.value ?? ""} onChange={(event) => updateText(question, event.target.value)} rows={6} className="mt-3 w-full rounded-xl border border-slate-300 p-4 outline-none focus:border-[#086ab6]" placeholder="Digite sua resposta..." />}</fieldset>)}</div></section>}
-        {step === totalSteps - 1 && <section className="mt-4 rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-2xl font-black text-[#26368d]">Revisão da autoavaliação</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{sections.map((section, index) => { const completion = sectionCompletion(section, answers); return <button key={section.id} onClick={() => goToStep(index + 1, false)} className="rounded-xl border border-slate-200 p-4 text-left hover:bg-blue-50"><div className="flex justify-between gap-3"><strong className="text-[#26368d]">{section.title}</strong><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${completion === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{completion}%</span></div></button>; })}</div><div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-5"><strong className="text-[#26368d]">Confirmação do envio</strong><p className="mt-2 text-sm text-slate-600">Após o envio definitivo, as respostas não poderão ser alteradas.</p>{canEdit && <button onClick={submitEvaluation} disabled={submitting || saveSnapshot.pending > 0 || answeredRequired !== requiredQuestions.length || !identity.leader} className="mt-4 w-full rounded-xl bg-[#086ab6] px-5 py-4 font-black text-white disabled:opacity-50">{submitting ? "Salvando e enviando..." : "Confirmar e enviar autoavaliação"}</button>}{isSubmitted && <p className="mt-4 font-bold text-emerald-800">Avaliação enviada em {dateLabel(submission?.submission?.submittedAt)}.</p>}</div></section>}
+      <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
+        <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] space-y-4 px-4 py-4 sm:px-6">
+          <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6" style={{ borderTopColor: CDDI_RULE }}>
+            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <p className="mt-2 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
+            <dl className="mt-4 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
+              <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" />
+              {identityFields}
+              <IdentityField label="Tipo" value="Autoavaliação" />
+            </dl>
+          </section>
+
+          {(periodClosed || !canEdit) && (
+            <p role="status" className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                {isSubmitted
+                  ? <><strong className="font-semibold text-[var(--text-primary)]">Autoavaliação enviada.</strong> As respostas ficaram registradas e não podem mais ser alteradas.</>
+                  : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> O período de preenchimento não está aberto.</>}
+              </span>
+            </p>
+          )}
+
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <strong className="text-sm font-semibold" style={{ color: CDDI_INK }}>{stepTitle}</strong>
+              <span className="text-xs font-semibold text-[var(--text-secondary)]">Etapa {step + 1} de {totalSteps} · {progress}% preenchido</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Progresso das perguntas obrigatórias"
+              className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+            >
+              <div className="h-full rounded-full bg-[var(--brand-secondary)] transition-all" style={{ width: `${progress}%` }} />
+            </div>
+            <nav aria-label="Etapas da autoavaliação" className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {Array.from({ length: totalSteps }).map((_, index) => {
+                const complete = index === 0
+                  ? Boolean(identity.leader)
+                  : index <= sections.length
+                    ? sectionCompletion(sections[index - 1], answers) === 100
+                    : answeredRequired === requiredQuestions.length;
+                const current = index === step;
+                const label = index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0");
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => goToStep(index, index > step)}
+                    aria-current={current ? "step" : undefined}
+                    title={index === 0 ? "Identificação e chefia" : index === totalSteps - 1 ? "Revisão final" : sections[index - 1]?.title}
+                    className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+                      current
+                        ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
+                        : complete
+                          ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                          : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                    }`}
+                  >
+                    {complete && !current && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {label}
+                  </button>
+                );
+              })}
+            </nav>
+          </section>
+
+          {message && (
+            <p role="status" className={`flex items-start gap-3 rounded-xl border p-4 text-sm leading-6 ${
+              messageType === "error" ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+                : messageType === "warning" ? "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
+                : messageType === "success" ? "border-[var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                : "border-[var(--status-info-border)] bg-[var(--status-info-bg)] text-[var(--status-info-text)]"
+            }`}>
+              {messageType === "error" || messageType === "warning"
+                ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                : messageType === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                : <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+              {message}
+            </p>
+          )}
+
+          {step === 0 && (
+            <div className="space-y-4">
+              <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+                <h2 className="break-words text-lg font-semibold" style={{ color: CDDI_INK }}>1. Chefia responsável pela avaliação</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">O vínculo vem da base institucional e é preenchido automaticamente — você não precisa indicá-lo. É essa chefia que avaliará você neste ciclo.</p>
+                {identity.leader ? (
+                  <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4">
+                    <div className="min-w-0">
+                      <span className="text-xs text-[var(--status-success-text)]">Chefia registrada</span>
+                      <strong className="block break-words font-semibold text-[var(--status-success-text)]">{identity.leader.fullName}</strong>
+                      <span className="block break-words text-sm text-[var(--status-success-text)]">{[identity.leader.jobTitle, identity.leader.unit].filter(Boolean).join(" · ") || "Dados funcionais não informados"}</span>
+                    </div>
+                    <BadgeCheck className="h-7 w-7 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" />
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--status-warning-text)]" aria-hidden="true" />
+                    <div>
+                      <strong className="block font-semibold text-[var(--status-warning-text)]">Chefia ainda não registrada</strong>
+                      <p className="mt-1 text-sm leading-6 text-[var(--status-warning-text)]">Sua chefia não foi localizada na base institucional. Procure a administração para atualizar o vínculo — sem ele não é possível concluir a avaliação.</p>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+                <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>2. Seus dados organizacionais</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Somente leitura. Divergências são corrigidas pela administração, na base institucional.</p>
+                <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+                  {[["Diretoria", person.directorate], ["Unidade", person.unit], ["Coordenação", person.coordination]].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                      <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
+                      <dd className="mt-0.5 break-words font-semibold" style={{ color: CDDI_INK }}>{value || "Não informada"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            </div>
+          )}
+
+          {currentSection && (
+            <section className="rounded-2xl border border-[var(--border-subtle)] border-t-4 border-t-[var(--brand-secondary)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Competência {step} de {sections.length}</p>
+              <h2 className="mt-1 break-words text-xl font-semibold leading-snug tracking-tight sm:text-2xl" style={{ color: CDDI_INK }}>{currentSection.title}</h2>
+              {currentSection.description && <p className="mt-3 whitespace-pre-line break-words rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-7 text-[var(--text-secondary)]">{currentSection.description}</p>}
+
+              <div className="mt-5 space-y-7">
+                {currentSection.questions.map((question) => (
+                  <fieldset key={question.id} disabled={!canEdit} className="min-w-0">
+                    <legend className="block w-full whitespace-pre-line break-words text-sm font-semibold leading-relaxed text-[var(--text-primary)]">
+                      {question.title}
+                      {question.required && <span className="text-red-700" title="Resposta obrigatória"> *</span>}
+                    </legend>
+                    {question.description && <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-[var(--text-secondary)]">{question.description}</p>}
+
+                    {question.type === "SCALE" ? (
+                      <div className="mt-3">
+                        <div className="grid grid-cols-5 gap-2">
+                          {question.options.map((option) => {
+                            const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value;
+                            return (
+                              <label
+                                key={option.id}
+                                title={option.label}
+                                className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border py-3 text-center transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${
+                                  selected
+                                    ? "border-[var(--brand-solid)] bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
+                                    : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                                }`}
+                              >
+                                <input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />
+                                <span className="text-lg font-semibold">{option.value}</span>
+                                <span className={`px-1 text-[10px] leading-3 ${selected ? "text-[var(--text-on-brand)]/80" : "text-[var(--text-muted)]"}`}>{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 flex justify-between text-xs text-[var(--text-secondary)]">
+                          <span>{scaleBoundary(question, "start")}</span>
+                          <span>{scaleBoundary(question, "end")}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <textarea
+                        value={answers[question.id]?.value ?? ""}
+                        onChange={(event) => updateText(question, event.target.value)}
+                        rows={6}
+                        placeholder="Digite sua resposta..."
+                        className="mt-3 w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] p-4 text-sm leading-6 text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)]"
+                      />
+                    )}
+                  </fieldset>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {step === totalSteps - 1 && (
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+              <h2 className="text-xl font-semibold tracking-tight" style={{ color: CDDI_INK }}>Revisão da autoavaliação</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Toque em uma competência para revisar as respostas antes de enviar.</p>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {sections.map((section, index) => {
+                  const completion = sectionCompletion(section, answers);
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => goToStep(index + 1, false)}
+                      className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <strong className="text-sm font-semibold" style={{ color: CDDI_INK }}>{section.title}</strong>
+                        <Badge variant={completion === 100 ? "success" : "warning"}>{completion}%</Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5">
+                <strong className="text-sm font-semibold text-[var(--status-info-text)]">Confirmação do envio</strong>
+                <p className="mt-2 text-sm leading-6 text-[var(--status-info-text)]">Depois do envio definitivo, as respostas não poderão mais ser alteradas.</p>
+                {canEdit && <>
+                  <button
+                    type="button"
+                    onClick={submitEvaluation}
+                    disabled={submitting || saveSnapshot.pending > 0 || answeredRequired !== requiredQuestions.length || !identity.leader}
+                    title={!identity.leader ? "É preciso ter uma chefia registrada" : missingToSubmit > 0 ? `Faltam ${missingToSubmit} perguntas obrigatórias` : "Enviar definitivamente"}
+                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+                    {submitting ? "Enviando..." : "Confirmar e enviar autoavaliação"}
+                  </button>
+                  {(missingToSubmit > 0 || !identity.leader) && (
+                    <p className="mt-2 text-xs leading-5 text-[var(--status-info-text)]">
+                      {!identity.leader
+                        ? "O envio fica bloqueado até a administração registrar sua chefia."
+                        : `Faltam ${missingToSubmit} ${missingToSubmit === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio.`}
+                    </p>
+                  )}
+                </>}
+                {isSubmitted && (
+                  <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--status-success-text)]">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    Avaliação enviada em {dateLabel(submission?.submission?.submittedAt)}.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur">
+          <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3">
+            <p role="status" className="hidden items-center gap-2 text-sm text-[var(--text-secondary)] sm:flex">
+              {saveSnapshot.pending > 0
+                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando rascunho...</>
+                : saveSnapshot.status === "ERROR"
+                  ? <><AlertTriangle className="h-4 w-4 text-[var(--status-danger-text)]" aria-hidden="true" />Falha ao salvar</>
+                  : <><Save className="h-4 w-4" aria-hidden="true" />{savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Somente leitura"}</>}
+            </p>
+            <div className="ml-auto flex gap-2">
+              {step === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => goToStep(1, true)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-solid)] px-6 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]"
+                >
+                  Iniciar avaliação
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : <>
+                <button
+                  type="button"
+                  onClick={() => setScreen("home")}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  <Home className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Tela inicial</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToStep(step - 1, false)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToStep(step + 1, true)}
+                  disabled={step === totalSteps - 1}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-solid)] px-4 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Próxima
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </>}
+            </div>
+          </div>
+        </footer>
       </div>
-      <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur"><div className="mx-auto flex max-w-[960px] items-center justify-between gap-3"><div className="hidden text-sm text-slate-500 sm:block">{saveSnapshot.pending > 0 ? "Salvando rascunho..." : saveSnapshot.status === "ERROR" ? "Falha ao salvar" : savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</div><div className="ml-auto flex gap-2">{step === 0 ? <button onClick={() => goToStep(1, true)} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-6 py-3 font-bold text-white transition hover:bg-[#05558f]">Iniciar avaliação<ArrowRight className="h-4 w-4"/></button> : <><button onClick={() => setScreen("home")} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Tela inicial</button><button onClick={() => goToStep(step - 1, false)} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></>}</div></div></footer>
-    </div>
     </CddiPlatformFrame>
   );
 }
