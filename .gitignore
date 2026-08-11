@@ -148,3 +148,7 @@ vite.config.ts.timestamp-*
 supabase/.temp/
 supabase/.branches/
 supabase/config.toml
+
+# Claude Code — configuração local da ferramenta (ex.: launch.json usado para
+# subir o dev server nos testes). Não faz parte do projeto.
+.claude/
