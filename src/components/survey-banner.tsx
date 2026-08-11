@@ -5,28 +5,32 @@ import { ExternalImage } from "@/components/external-image";
 
 type SurveyBannerProps = {
   src: string;
+  fallbackSrc?: string;
   alt: string;
   className?: string;
 };
 
 /**
- * Capa institucional de uma pesquisa, com degradação para um bloco de gradiente
- * e `role="img"` caso a arte não carregue — a capa nunca deixa buraco no layout.
+ * Banner de capa de uma pesquisa, com degradação em cadeia.
  *
- * Não há mais capa personalizada por ciclo: `src` é sempre o padrão institucional
- * resolvido por `resolveSurveyVisualIdentity()`. O `fallbackSrc` da versão
- * anterior deixou de existir porque apontava para essa mesma arte.
+ * `src` (configurado pela administração) → `fallbackSrc` (capa institucional) →
+ * bloco com gradiente e `role="img"`. A capa nunca deixa um buraco no layout,
+ * mesmo quando a URL externa configurada sai do ar.
  */
 export function SurveyBanner({
   src,
+  fallbackSrc,
   alt,
   className,
 }: SurveyBannerProps) {
-  const [failed, setFailed] = useState(false);
-  const activeSrc = failed ? null : src || null;
+  const [activeSrc, setActiveSrc] = useState<string | null>(src || fallbackSrc || null);
 
   function handleError() {
-    setFailed(true);
+    if (fallbackSrc && activeSrc !== fallbackSrc) {
+      setActiveSrc(fallbackSrc);
+      return;
+    }
+    setActiveSrc(null);
   }
 
   if (!activeSrc) {
