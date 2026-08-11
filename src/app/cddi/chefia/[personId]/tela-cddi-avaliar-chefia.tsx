@@ -18,8 +18,8 @@ import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-q
  * Mesmas duas cores institucionais da autoavaliação (`../../tela-cddi-autoavaliacao.tsx`).
  * O restante da tela usa tokens, para acompanhar o tema claro/escuro.
  */
-const CDDI_INK = "#26368d";
-const CDDI_RULE = "#2d3f97";
+const CDDI_INK = "var(--cddi-ink)";
+const CDDI_RULE = "var(--cddi-rule)";
 
 type Option = { id: string; label: string; value: string; position: number };
 type Question = { id: string; title: string; description: string | null; type: string; required: boolean; validation?: Record<string, unknown>; options: Option[] };
