@@ -53,6 +53,17 @@ const LEGACY_RESTORED_OBJECTS = {
       "sync_my_google_avatar",
     ]),
   },
+  // Regra de período no futuro aplicada às duas RPCs legadas que gravam
+  // abertura e encerramento. A migration apenas redefine funções existentes,
+  // consumidas pelo nome por bundles já publicados — renomeá-las derrubaria a
+  // criação de avaliações e a operação de ciclos. A função nova do arquivo
+  // (fc_excluir_pesquisa_rascunho) segue o padrão e não consta aqui.
+  "supabase/migrations/20260811120000_periodo_futuro_e_exclusao_rascunho.sql": {
+    função: new Set([
+      "create_survey_draft",
+      "manage_survey_cycle",
+    ]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {

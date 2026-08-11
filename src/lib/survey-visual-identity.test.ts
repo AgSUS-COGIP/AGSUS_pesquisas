@@ -9,63 +9,49 @@ describe("resolveSurveyVisualIdentity", () => {
     expect(resolveSurveyVisualIdentity(null)).toEqual(DEFAULT_CDDI_VISUAL_IDENTITY);
   });
 
-  it("aplica a identidade personalizada sem perder os fallbacks", () => {
+  it("aplica os textos configurados sem perder os fallbacks", () => {
     expect(resolveSurveyVisualIdentity({
       visualIdentity: {
-        bannerUrl: "https://example.org/banner.webp",
-        bannerAlt: "Capa do edital",
         heroTitle: "Edital institucional",
-        themeVariant: "custom",
       },
     })).toEqual({
       ...DEFAULT_CDDI_VISUAL_IDENTITY,
-      bannerUrl: "https://example.org/banner.webp",
-      bannerAlt: "Capa do edital",
       heroTitle: "Edital institucional",
-      themeVariant: "CUSTOM",
     });
   });
 
-  it("normaliza espaços nos textos e na URL configurada", () => {
+  it("normaliza espaços nos textos", () => {
     expect(resolveSurveyVisualIdentity({
       visualIdentity: {
-        bannerUrl: "  https://example.org/banner.png  ",
-        bannerAlt: "  Banner do ciclo  ",
         heroTitle: "  Ciclo personalizado  ",
         heroSubtitle: "  Apresentação personalizada.  ",
-        themeVariant: " CUSTOM ",
       },
     })).toEqual({
-      bannerUrl: "https://example.org/banner.png",
-      bannerAlt: "Banner do ciclo",
+      ...DEFAULT_CDDI_VISUAL_IDENTITY,
       heroTitle: "Ciclo personalizado",
       heroSubtitle: "Apresentação personalizada.",
-      themeVariant: "CUSTOM",
     });
   });
 
-  it("mantém a capa padrão quando o modo institucional está ativo", () => {
+  // A capa é sempre a institucional. Ciclos configurados antes da mudança podem
+  // ter `bannerUrl` e `themeVariant: CUSTOM` gravados; a resolução os descarta,
+  // senão a capa antiga sobreviveria sem nenhum caminho de edição na interface.
+  it("ignora banner personalizado gravado em ciclos antigos", () => {
     expect(resolveSurveyVisualIdentity({
       visualIdentity: {
-        bannerUrl: "https://example.org/banner.png",
+        bannerUrl: "https://example.org/banner.webp",
         bannerAlt: "Capa antiga",
-        themeVariant: "INSTITUTIONAL",
+        themeVariant: "CUSTOM",
       },
     })).toEqual(DEFAULT_CDDI_VISUAL_IDENTITY);
   });
 
-  it("ignora valores vazios, tipos inválidos e URLs inseguras", () => {
+  it("ignora valores vazios e tipos inválidos nos textos", () => {
     expect(resolveSurveyVisualIdentity({
       visualIdentity: {
-        bannerUrl: "javascript:alert(1)",
-        bannerAlt: 123,
         heroTitle: [],
         heroSubtitle: null,
-        themeVariant: "CUSTOM",
       },
-    })).toEqual({
-      ...DEFAULT_CDDI_VISUAL_IDENTITY,
-      themeVariant: "CUSTOM",
-    });
+    })).toEqual(DEFAULT_CDDI_VISUAL_IDENTITY);
   });
 });

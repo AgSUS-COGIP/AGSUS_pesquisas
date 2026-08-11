@@ -108,7 +108,7 @@ Invariantes a preservar:
 npm ci                    # instalar (reproduz o lockfile)
 npm run dev               # desenvolvimento em :3000
 npm run build             # build de produção
-npm test                  # Vitest (85 testes)
+npm test                  # Vitest (115 testes)
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run db:migrations     # timestamps das migrations
@@ -116,6 +116,25 @@ npm run db:naming         # nomenclatura institucional (migrations alteradas)
 ```
 
 `build` e `dev` exigem `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+
+### Limpar o cache do Turbopack — **pare o servidor antes**
+
+O Next 16 usa Turbopack, que mantém em `.next/dev/cache/turbopack/` um banco de arquivos `.sst` **abertos enquanto o servidor roda**. Cache corrompido aparece como `Jest worker encountered N child process exceptions` ou Runtime error no navegador, sem que nenhum arquivo do projeto conste da pilha — sinal de que o defeito é do compilador, não do código.
+
+A ordem importa:
+
+```bash
+# 1. pare o servidor (Ctrl+C) e confirme que nenhum node sobrou
+#    PowerShell: Get-Process node
+# 2. só então apague
+rm -rf .next
+# 3. suba de novo
+npm run dev
+```
+
+**Apagar `.next` com o servidor rodando piora o quadro**: o Turbopack perde arquivos que sua metadata ainda referencia e passa a devolver Internal Server Error em toda rota, com `TurbopackInternalError: Failed to open SST file … (os error 3)` em `.next/dev/logs/next-development.log`. A recuperação é a mesma sequência acima, agora na ordem certa.
+
+Ao diagnosticar erro de servidor em desenvolvimento, o log útil é `.next/dev/logs/next-development.log` — o console do navegador só mostra o invólucro genérico. Se `typecheck` e `build` passam, o código está íntegro e a suspeita é de cache.
 
 ## Convenções globais
 

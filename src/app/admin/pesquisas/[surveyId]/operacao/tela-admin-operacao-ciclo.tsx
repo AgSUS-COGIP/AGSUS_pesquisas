@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleStop, Clock3, FileCheck2, Loader2, Play, RefreshCw, RotateCcw, Send, ShieldCheck, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/feedback";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 
 type Issue = {
   id?: string;
@@ -21,7 +27,6 @@ type Issue = {
   message: string;
   action?: string;
 };
-type MetricCard = { label: string; value: number; icon: typeof FileCheck2 };
 type Operations = {
   status: string;
   survey: { id: string; code: string; name: string; status: string; description: string | null };
@@ -34,6 +39,22 @@ type Operations = {
 };
 
 type SupabaseLikeError = { message?: string; details?: string; hint?: string };
+
+/**
+ * Cada ação carrega, além do rótulo, a frase que explica **o que ela faz** e a
+ * que explica **por que está indisponível**. O módulo exige que o operador
+ * nunca encontre só um botão apagado — ver `src/app/admin/CLAUDE.md`.
+ */
+type CycleAction = {
+  action: string;
+  label: string;
+  icon: typeof Send;
+  description: string;
+  tone: "primary" | "secondary" | "danger";
+  available: boolean;
+  /** Motivo exibido quando `available` é falso. */
+  blockedReason: string;
+};
 
 function toLocalInput(value: string | null | undefined) {
   if (!value) return "";
@@ -54,6 +75,41 @@ function errorMessage(error: unknown, fallback: string) {
     return candidate.message || candidate.details || candidate.hint || fallback;
   }
   return fallback;
+}
+
+/**
+ * Os códigos do banco (`DRAFT`, `OPEN`, …) são vocabulário interno. A tela
+ * mostra o rótulo em português e guarda o código só como legenda técnica.
+ */
+const CYCLE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Rascunho",
+  SCHEDULED: "Agendado",
+  OPEN: "Aberto",
+  CLOSED: "Encerrado",
+  CANCELLED: "Cancelado",
+};
+
+const VERSION_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Rascunho",
+  PUBLISHED: "Publicada",
+  ARCHIVED: "Arquivada",
+  RETIRED: "Descontinuada",
+};
+
+function cycleStatusLabel(status: string | undefined) {
+  if (!status) return "Não configurado";
+  return CYCLE_STATUS_LABELS[status] ?? status;
+}
+
+function cycleStatusVariant(status: string | undefined) {
+  switch (status) {
+    case "OPEN": return "success" as const;
+    case "SCHEDULED": return "info" as const;
+    case "CLOSED": return "neutral" as const;
+    case "CANCELLED": return "danger" as const;
+    case "DRAFT": return "warning" as const;
+    default: return "outline" as const;
+  }
 }
 
 function cycleExplanation(status: string | undefined) {
@@ -101,6 +157,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
+
+    // Um rascunho salvo semanas atrás pode chegar à publicação com o período já
+    // vencido. O banco recusaria só depois, ao agendar ou abrir; aqui o operador
+    // é avisado no momento em que ainda pode corrigir, com o campo já editável.
+    if (action === "PUBLISH") {
+      const blocked = publishBlockedMessage(opensAt, closesAt);
+      if (blocked) return toast.error(blocked);
+    }
+
+    // Período gravado passa pela mesma regra do banco antes de sair da tela.
+    if (action === "UPDATE_PERIOD" || action === "REOPEN") {
+      const issues = periodIssues(opensAt, closesAt);
+      if (issues.length) return toast.error(issues[0].message);
+    }
+
     const confirmations: Partial<Record<string, string>> = {
       PUBLISH: "Publicar esta versão? Depois de publicada, a estrutura não poderá ser alterada.",
       OPEN: "Abrir este ciclo agora para receber respostas?",
@@ -137,51 +208,350 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   if (guard.state !== "granted") {
     return <PlatformGuardState
       guard={guard}
-      title="operação do ciclo"
+      title="propriedades do ciclo"
       restrictedTitle="Operação de ciclos restrita"
       restrictedDescription="Seu perfil não possui permissão para operar ciclos de avaliação."
     />;
   }
 
   const cycleStatus = operations?.application?.status;
+  const versionStatus = operations?.version.status;
   const canEditPeriod = cycleStatus === "DRAFT" || cycleStatus === "SCHEDULED";
   const canReopen = cycleStatus === "CLOSED";
   const fieldsEnabled = canEditPeriod || canReopen;
+  const minDateTime = nowLocalInputValue();
+  const currentPeriodIssues = periodIssues(opensAt, closesAt);
+  const opensAtIssue = currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message;
+  const closesAtIssue = currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message;
   const blockingIssues = operations?.issues.filter((issue) => issue.severity === "BLOCKING") ?? [];
-  const metricCards: MetricCard[] = operations ? [
-    { label: "Seções", value: operations.metrics.sections, icon: FileCheck2 },
-    { label: "Perguntas", value: operations.metrics.questions, icon: FileCheck2 },
-    { label: "Participantes", value: operations.metrics.participants, icon: Users2 },
-    { label: "Rascunhos", value: operations.metrics.draftSubmissions, icon: Clock3 },
-    { label: "Enviadas", value: operations.metrics.submittedSubmissions, icon: CheckCircle2 },
-    { label: "Pendências", value: operations.issues.length, icon: AlertTriangle },
+  const periodDirty = Boolean(operations) && (opensAt !== toLocalInput(operations?.application?.opensAt) || closesAt !== toLocalInput(operations?.application?.closesAt));
+
+  // O motivo de indisponibilidade é calculado uma vez por ação: a mesma frase
+  // alimenta o `title`, o `aria-describedby` e a nota abaixo do botão.
+  const cycleActions: CycleAction[] = operations ? [
+    {
+      action: "PUBLISH",
+      label: "Publicar versão",
+      icon: Send,
+      description: "Congela a estrutura da versão e a torna a definitiva deste ciclo.",
+      tone: "primary",
+      available: operations.readyToPublish && versionStatus !== "PUBLISHED",
+      blockedReason: versionStatus === "PUBLISHED"
+        ? `A versão ${operations.version.number} já está publicada.`
+        : `Resolva ${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} do checklist antes de publicar.`,
+    },
+    {
+      action: "SCHEDULE",
+      label: "Agendar abertura",
+      icon: CalendarCheck2,
+      description: "Deixa o ciclo pronto para abrir sozinho na data de abertura informada.",
+      tone: "secondary",
+      available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
+      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+        ? "O checklist ainda aponta pendências que impedem a abertura."
+        : `Só é possível agendar um ciclo em rascunho ou já agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
+    },
+    {
+      action: "OPEN",
+      label: "Abrir para respostas",
+      icon: PlayCircle,
+      description: "Libera o formulário imediatamente para as pessoas vinculadas ao ciclo.",
+      tone: "primary",
+      available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
+      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+        ? "O checklist ainda aponta pendências que impedem a abertura."
+        : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
+    },
+    {
+      action: "CLOSE",
+      label: "Encerrar recebimento",
+      icon: CircleSlash,
+      description: "Interrompe novos envios. O ciclo pode ser reaberto depois com um novo período.",
+      tone: "danger",
+      available: cycleStatus === "OPEN",
+      blockedReason: "Só um ciclo aberto pode ser encerrado.",
+    },
+    {
+      action: "CANCEL",
+      label: "Cancelar ciclo",
+      icon: Ban,
+      description: "Encerra o ciclo em definitivo. Não há retomada — seria preciso criar outro ciclo.",
+      tone: "danger",
+      available: ["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? ""),
+      blockedReason: cycleStatus === "CANCELLED"
+        ? "Este ciclo já foi cancelado."
+        : "Um ciclo encerrado não precisa ser cancelado.",
+    },
   ] : [];
 
-  return <PlatformShell user={guard.user} eyebrow="Centro de operações" title={operations?.survey.name ?? "Operação do ciclo"} actions={<div className="flex gap-2"><button onClick={() => void loadOperations()} className="secondary-button"><RefreshCw className="h-4 w-4" />Atualizar</button><Link href={`/admin/pesquisas/${surveyId}`} className="primary-button">Abrir construtor</Link></div>}>
-    {dataLoading || !operations ? <div className="grid min-h-[55vh] place-items-center"><Loader2 className="h-9 w-9 animate-spin text-[var(--brand-primary)]" /></div> : <>
-      <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6"><div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"><div className="max-w-2xl"><span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 py-1 text-[11px] font-black uppercase tracking-[.12em] text-[var(--brand-secondary)]"><ShieldCheck className="h-3.5 w-3.5" />Governança do ciclo</span><h2 className="mt-3 break-words text-2xl font-black tracking-tight text-[var(--text-primary)]">{operations.survey.name}</h2><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Publique a versão, defina o período, abra o ciclo e acompanhe a execução sem ajustes manuais no banco.</p></div><div className="flex flex-wrap gap-2"><span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">Versão {operations.version.number} · {operations.version.status}</span><span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 py-1.5 text-xs font-black text-[var(--text-secondary)]">Ciclo · {cycleStatus ?? "Não configurado"}</span></div></div></section>
+  return <PlatformShell
+    user={guard.user}
+    eyebrow="Administração · Propriedades"
+    title={operations?.survey.name ?? "Propriedades do ciclo"}
+  >
+    <div className="mx-auto max-w-6xl space-y-6">
+      {/* Navegação da rota no topo do conteúdo: as ações que levam para outra
+          página ficam junto do que elas afetam, e não na barra da casca, que é
+          da aplicação. Fica fora do bloco de carregamento para que a saída da
+          tela exista antes dos dados. */}
+      <nav aria-label="Ações da avaliação" className="flex flex-wrap items-center gap-2">
+        <Link
+          href="/admin/pesquisas"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+          title="Voltar ao catálogo de avaliações"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Voltar ao catálogo
+        </Link>
+        {operations?.application?.id && (
+          <Link
+            href={`/admin/pesquisas/${surveyId}/identidade`}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-4 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)]"
+            title="Editar título e subtítulo da capa da avaliação"
+          >
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
+            Editar identidade visual
+          </Link>
+        )}
+      </nav>
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">{metricCards.map(({ label, value, icon: Icon }) => <article key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><Icon className="h-5 w-5 text-[var(--brand-secondary)]" /><p className="mt-4 text-xs font-black uppercase tracking-[.12em] text-slate-400">{label}</p><strong className="mt-1 block text-3xl font-black text-[var(--brand-primary)]">{value}</strong></article>)}</section>
+      {dataLoading || !operations ? <OperationsSkeleton /> : <>
+        <PageHeader
+          eyebrow={`${operations.survey.code} · Ciclo ${operations.application?.code ?? "não configurado"}`}
+          title="Propriedades do ciclo"
+          description="Publique a versão, defina o período de resposta e controle a abertura e o encerramento. Toda operação é validada no banco e registrada em auditoria."
+          actions={<>
+            <Badge variant={cycleStatusVariant(cycleStatus)} title={`Código interno do ciclo: ${cycleStatus ?? "—"}`}>
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Ciclo {cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}
+            </Badge>
+            <Badge variant={versionStatus === "PUBLISHED" ? "success" : "warning"} title={`Código interno da versão: ${versionStatus ?? "—"}`}>
+              <FileStack className="h-3.5 w-3.5" aria-hidden="true" />
+              Versão {operations.version.number} · {(VERSION_STATUS_LABELS[versionStatus ?? ""] ?? versionStatus ?? "—").toLocaleLowerCase("pt-BR")}
+            </Badge>
+          </>}
+        />
 
-      <section className="mt-6 grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
-        <ReadinessChecklist issues={operations.issues} surveyId={surveyId} />
+        <section aria-label="Números do ciclo" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={ListChecks} label="Estrutura" value={`${operations.metrics.sections} / ${operations.metrics.questions}`} description={`${operations.metrics.sections === 1 ? "seção" : "seções"} e ${operations.metrics.questions === 1 ? "pergunta" : "perguntas"} · ${operations.metrics.requiredQuestions} ${operations.metrics.requiredQuestions === 1 ? "obrigatória" : "obrigatórias"}`} />
+          <MetricCard icon={Users2} label="Participantes" value={operations.metrics.participants} description={operations.metrics.participants ? "pessoas vinculadas a este ciclo" : "nenhuma pessoa vinculada ainda"} href="/admin/participantes" hrefLabel="Gerenciar público" />
+          <MetricCard icon={Clock3} label="Em preenchimento" value={operations.metrics.draftSubmissions} description="respostas iniciadas e ainda não enviadas" />
+          <MetricCard icon={CheckCircle2} label="Respostas enviadas" value={operations.metrics.submittedSubmissions} description="submissões concluídas e registradas" tone="success" />
+        </section>
 
-        <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[var(--brand-secondary)]">Configuração temporal</p><h3 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Período do ciclo</h3><p className="mt-2 text-sm leading-6 text-slate-500">{cycleExplanation(cycleStatus)}</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black text-slate-700">Abertura<input type="datetime-local" value={opensAt} disabled={!fieldsEnabled} onChange={(event) => setOpensAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label><label className="text-sm font-black text-slate-700">Encerramento<input type="datetime-local" value={closesAt} disabled={!fieldsEnabled} onChange={(event) => setClosesAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label></div><p className="mt-3 text-xs text-slate-500">Atual: {dateLabel(operations.application?.opensAt)} → {dateLabel(operations.application?.closesAt)}</p>{fieldsEnabled ? <button onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")} disabled={working !== null || !opensAt || !closesAt} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-black text-white disabled:opacity-40 ${canReopen ? "bg-[#0b8f58] hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"}`}>{working === (canReopen ? "REOPEN" : "UPDATE_PERIOD") ? <Loader2 className="h-4 w-4 animate-spin" /> : canReopen ? <RotateCcw className="h-4 w-4" /> : <CalendarClock className="h-4 w-4" />}{canReopen ? "Reabrir ciclo com este período" : "Salvar período"}</button> : <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">O período está bloqueado no estado atual do ciclo.</div>}</article>
-      </section>
+        <div className="grid gap-6 xl:grid-cols-[1fr_1.05fr]">
+          <ReadinessChecklist issues={operations.issues} surveyId={surveyId} />
 
-      <section className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[var(--brand-secondary)]">Ações controladas</p><h3 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Ciclo de vida da avaliação</h3><p className="mt-2 text-sm text-slate-500">As ações são habilitadas conforme o estado do ciclo, validadas no banco e registradas na auditoria.</p>{operations.version.status === "DRAFT" && !operations.readyToPublish && <div className="mt-4 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"><AlertTriangle className="h-5 w-5 shrink-0 text-red-600" /><p><strong>Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} indicado{blockingIssues.length === 1 ? "" : "s"} no checklist.</p></div>}<div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <ActionButton label="Publicar versão" icon={Send} working={working === "PUBLISH"} disabled={working !== null || !operations.readyToPublish || operations.version.status === "PUBLISHED"} onClick={() => void runAction("PUBLISH")} />
-        <ActionButton label="Agendar ciclo" icon={CalendarClock} working={working === "SCHEDULE"} disabled={working !== null || !operations.readyToOpen || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")} onClick={() => void runAction("SCHEDULE")} />
-        <ActionButton label="Abrir agora" icon={Play} working={working === "OPEN"} disabled={working !== null || !operations.readyToOpen || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")} onClick={() => void runAction("OPEN")} />
-        <ActionButton label="Encerrar ciclo" icon={CircleStop} working={working === "CLOSE"} disabled={working !== null || cycleStatus !== "OPEN"} onClick={() => void runAction("CLOSE")} danger />
-        <ActionButton label="Cancelar ciclo" icon={AlertTriangle} working={working === "CANCEL"} disabled={working !== null || !["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? "")} onClick={() => void runAction("CANCEL")} danger />
-      </div></section>
-    </>}
+          <Surface className="p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Período de resposta</p>
+                <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Quando o formulário fica disponível</h3>
+              </div>
+              {fieldsEnabled
+                ? <Badge variant="info"><SquarePen className="h-3.5 w-3.5" aria-hidden="true" />Editável</Badge>
+                : <Badge variant="neutral"><Lock className="h-3.5 w-3.5" aria-hidden="true" />Bloqueado</Badge>}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{cycleExplanation(cycleStatus)}</p>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <PeriodField
+                id="periodo-abertura"
+                label="Abertura"
+                hint="A partir deste momento o formulário aceita respostas."
+                value={opensAt}
+                min={minDateTime}
+                disabled={!fieldsEnabled}
+                error={opensAtIssue}
+                onChange={setOpensAt}
+              />
+              <PeriodField
+                id="periodo-encerramento"
+                label="Encerramento"
+                hint="Depois deste momento nenhuma resposta nova é aceita."
+                value={closesAt}
+                min={opensAt || minDateTime}
+                disabled={!fieldsEnabled}
+                error={closesAtIssue}
+                onChange={setClosesAt}
+              />
+            </div>
+
+            <dl className="mt-5 grid gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">Abertura registrada</dt>
+                <dd className="mt-1 font-semibold text-[var(--text-primary)]">{dateLabel(operations.application?.opensAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">Encerramento registrado</dt>
+                <dd className="mt-1 font-semibold text-[var(--text-primary)]">{dateLabel(operations.application?.closesAt)}</dd>
+              </div>
+            </dl>
+
+            {fieldsEnabled ? <>
+              {periodDirty && <p role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-3 text-xs font-semibold leading-5 text-[var(--status-warning-text)]">
+                <Info className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+                Alterações ainda não salvas. {canReopen ? "Use Reabrir ciclo para aplicá-las." : "Salve o período para aplicá-las."}
+              </p>}
+              <Button
+                fullWidth
+                size="lg"
+                className="mt-4"
+                variant={canReopen ? "primary" : "secondary"}
+                onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")}
+                disabled={working !== null || !opensAt || !closesAt || currentPeriodIssues.length > 0}
+                title={canReopen ? "Reabre o ciclo encerrado com o novo período" : "Grava o período sem alterar o estado do ciclo"}
+              >
+                {working === (canReopen ? "REOPEN" : "UPDATE_PERIOD")
+                  ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" />
+                  : canReopen ? <RotateCcw className="h-5 w-5" aria-hidden="true" /> : <Save className="h-5 w-5" aria-hidden="true" />}
+                {canReopen ? "Reabrir ciclo com este período" : "Salvar período"}
+              </Button>
+              {(!opensAt || !closesAt) && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Informe as duas datas para habilitar a gravação.</p>}
+            </> : <p className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {cycleStatus === "OPEN"
+                ? "Com o ciclo aberto o período não pode mudar. Encerre o recebimento para editá-lo e reabrir com novas datas."
+                : "O período não pode ser alterado enquanto o ciclo estiver neste estado."}
+            </p>}
+          </Surface>
+        </div>
+
+        <Surface className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Ciclo de vida</p>
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Operações disponíveis</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Cada operação depende do estado atual. Quando estiver indisponível, o motivo aparece logo abaixo do botão.</p>
+            </div>
+          </div>
+
+          {versionStatus === "DRAFT" && !operations.readyToPublish && <p role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-sm leading-6 text-[var(--status-danger-text)]">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <span><strong className="font-semibold">Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio indicado" : "bloqueios indicados"} no checklist antes de publicar esta versão.</span>
+          </p>}
+
+          <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {cycleActions.map((item) => <li key={item.action}>
+              <ActionCard item={item} working={working === item.action} busy={working !== null} onRun={() => void runAction(item.action)} />
+            </li>)}
+          </ul>
+        </Surface>
+      </>}
+    </div>
   </PlatformShell>;
 }
 
-function ActionButton({ label, icon: Icon, working, disabled, onClick, danger = false }: { label: string; icon: typeof Play; working: boolean; disabled: boolean; onClick: () => void; danger?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-black text-white transition disabled:cursor-not-allowed disabled:opacity-35 ${danger ? "bg-red-700 hover:bg-red-800" : "bg-[#003b70] hover:bg-[#075ea8]"}`}>{working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}{label}</button>;
+function OperationsSkeleton() {
+  return (
+    <div className="space-y-6" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Carregando as propriedades do ciclo.</span>
+      <Skeleton className="h-24 w-full rounded-2xl" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-2xl" />)}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Skeleton className="h-80 rounded-2xl" />
+        <Skeleton className="h-80 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, description, tone = "neutral", href, hrefLabel }: {
+  icon: typeof Users2;
+  label: string;
+  value: number | string;
+  description: string;
+  tone?: "neutral" | "success";
+  href?: string;
+  hrefLabel?: string;
+}) {
+  return (
+    <article className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-center gap-2">
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone === "success" ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--brand-primary)]"}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">{label}</p>
+      </div>
+      <strong className="mt-3 block text-3xl font-semibold tracking-tight text-[var(--brand-primary)]">{value}</strong>
+      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
+      {href && hrefLabel && (
+        <Link href={href} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">
+          {hrefLabel}
+          <ArrowLeft className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+        </Link>
+      )}
+    </article>
+  );
+}
+
+function PeriodField({ id, label, hint, value, min, disabled, error, onChange }: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  min: string;
+  disabled: boolean;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-erro`;
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">{label}</label>
+      <p id={hintId} className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{hint}</p>
+      <input
+        id={id}
+        type="datetime-local"
+        value={value}
+        min={min}
+        disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+        onChange={(event) => onChange(event.target.value)}
+        className={`mt-2 w-full rounded-xl border bg-[var(--control-bg)] px-3.5 py-3 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-secondary)] ${error ? "border-red-500" : "border-[var(--border-subtle)]"}`}
+      />
+      {error && <p id={errorId} className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-5 text-red-700">
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {error}
+      </p>}
+    </div>
+  );
+}
+
+/**
+ * Botão de operação com a explicação sempre visível — o que a ação faz quando
+ * está disponível, por que não está quando indisponível.
+ */
+function ActionCard({ item, working, busy, onRun }: { item: CycleAction; working: boolean; busy: boolean; onRun: () => void }) {
+  const Icon = item.icon;
+  const noteId = `acao-${item.action}-nota`;
+  const disabled = busy || !item.available;
+
+  return (
+    <div className={`flex h-full flex-col rounded-2xl border p-4 transition ${item.available ? "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]" : "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}>
+      <Button
+        fullWidth
+        variant={item.tone}
+        onClick={onRun}
+        disabled={disabled}
+        aria-describedby={noteId}
+        title={item.available ? item.description : item.blockedReason}
+      >
+        {working ? <Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
+        {working ? "Processando..." : item.label}
+      </Button>
+      <p id={noteId} className={`mt-3 flex items-start gap-1.5 text-xs leading-5 ${item.available ? "text-[var(--text-secondary)]" : "font-semibold text-[var(--text-secondary)]"}`}>
+        {item.available
+          ? <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+          : <Lock className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />}
+        {item.available ? item.description : item.blockedReason}
+      </p>
+    </div>
+  );
 }
 
 function issueCategoryLabel(category: Issue["category"]) {
@@ -194,46 +564,83 @@ function issueCategoryLabel(category: Issue["category"]) {
   }
 }
 
+/** Rota que resolve cada categoria de pendência, para o atalho "Corrigir". */
+function issueFixHref(category: Issue["category"], surveyId: string) {
+  switch (category) {
+    case "STRUCTURE": return { href: `/admin/pesquisas/${surveyId}`, label: "Abrir construtor" };
+    case "AUDIENCE": return { href: "/admin/participantes", label: "Gerenciar público" };
+    default: return null;
+  }
+}
+
 function ReadinessChecklist({ issues, surveyId }: { issues: Issue[]; surveyId: string }) {
   const blockingCount = issues.filter((issue) => issue.severity === "BLOCKING").length;
   const warningCount = issues.length - blockingCount;
-  const hasStructuralIssue = issues.some((issue) => issue.category === "STRUCTURE");
 
   return (
-    <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <Surface className="flex flex-col p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[.14em] text-[var(--brand-secondary)]">Prontidão</p>
-          <h3 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Checklist do ciclo</h3>
-          {issues.length > 0 && <p className="mt-2 text-sm text-slate-500">{blockingCount} {blockingCount === 1 ? "bloqueio" : "bloqueios"} · {warningCount} {warningCount === 1 ? "aviso" : "avisos"}</p>}
+          <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Prontidão</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Checklist antes de publicar</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {issues.length === 0
+              ? "Nenhuma pendência: a estrutura e o período estão consistentes."
+              : `${blockingCount} ${blockingCount === 1 ? "bloqueio" : "bloqueios"} · ${warningCount} ${warningCount === 1 ? "aviso" : "avisos"}. Bloqueios impedem a publicação; avisos apenas alertam.`}
+          </p>
         </div>
         {issues.length === 0
-          ? <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800">Tudo pronto</span>
-          : <span className={`rounded-full px-3 py-1.5 text-xs font-black ${blockingCount > 0 ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>{blockingCount > 0 ? "Publicação protegida" : "Requer atenção"}</span>}
+          ? <Badge variant="success"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Tudo pronto</Badge>
+          : <Badge variant={blockingCount > 0 ? "danger" : "warning"}>
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              {blockingCount > 0 ? "Publicação protegida" : "Requer atenção"}
+            </Badge>}
       </div>
 
-      <div className="mt-5 space-y-3">
-        {issues.length ? issues.map((issue, index) => (
-          <div key={issue.id ?? `${issue.code}-${index}`} className={`flex gap-3 rounded-2xl border p-4 ${issue.severity === "BLOCKING" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
-            <AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${issue.severity === "BLOCKING" ? "text-red-600" : "text-amber-600"}`} />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-slate-900">{issue.severity === "BLOCKING" ? "Bloqueio" : "Atenção"}</strong>
-                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-[.1em] text-slate-500">{issueCategoryLabel(issue.category)}</span>
+      <div className="mt-5 flex-1 space-y-3">
+        {issues.length ? issues.map((issue, index) => {
+          const blocking = issue.severity === "BLOCKING";
+          const fix = issueFixHref(issue.category, surveyId);
+          return (
+            <article
+              key={issue.id ?? `${issue.code}-${index}`}
+              className={`rounded-xl border p-4 ${blocking
+                ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)]"
+                : "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]"}`}
+            >
+              <div className="flex gap-3">
+                <AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${blocking ? "text-[var(--status-danger-text)]" : "text-[var(--status-warning-text)]"}`} aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className={`text-sm font-semibold ${blocking ? "text-[var(--status-danger-text)]" : "text-[var(--status-warning-text)]"}`}>
+                      {blocking ? "Bloqueio" : "Atenção"}
+                    </strong>
+                    <Badge variant="outline">{issueCategoryLabel(issue.category)}</Badge>
+                  </div>
+                  <p className={`mt-2 text-sm leading-6 ${blocking ? "text-[var(--status-danger-text)]" : "text-[var(--status-warning-text)]"}`}>{issue.message}</p>
+                  {issue.action && <p className="mt-1 text-xs font-semibold leading-5 text-[var(--text-secondary)]">Próximo passo: {issue.action}</p>}
+                  {fix && (
+                    <Link
+                      href={fix.href}
+                      className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+                    >
+                      <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+                      {fix.label}
+                    </Link>
+                  )}
+                </div>
               </div>
-              <p className="mt-1 text-sm text-slate-700">{issue.message}</p>
-              {issue.action && <p className="mt-1 text-xs font-bold text-slate-500">Próximo passo: {issue.action}</p>}
-            </div>
-          </div>
-        )) : (
-          <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-            <p className="text-sm font-bold text-emerald-900">A estrutura e o período estão consistentes para operação.</p>
-          </div>
+            </article>
+          );
+        }) : (
+          <EmptyState
+            className="border-[var(--status-success-border)] bg-[var(--status-success-bg)]"
+            icon={<CheckCircle2 className="h-6 w-6 text-[var(--status-success-text)]" aria-hidden="true" />}
+            title="Pronto para operar"
+            description="A validação do banco não encontrou pendências de estrutura, período ou público neste ciclo."
+          />
         )}
       </div>
-
-      {hasStructuralIssue && <Link href={`/admin/pesquisas/${surveyId}`} className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-[#003b70] px-4 py-3 text-sm font-black text-white hover:bg-[#075ea8]">Corrigir no construtor</Link>}
-    </article>
+    </Surface>
   );
 }
