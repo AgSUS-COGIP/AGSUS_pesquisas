@@ -63,7 +63,7 @@ components/
 <PlatformSkeleton title="Carregando …" />
 <PersonAvatar fullName avatarUrl? className? imageClassName? fallbackClassName? alt? />
 <PlatformIcon name={PlatformIconName} className? />
-<SurveyBanner src alt className? />
+<SurveyBanner src fallbackSrc? alt className? />
 
 <Drawer  open onOpenChange title description? side="left|right" … />
 <Dialog  open onOpenChange title description? … />   // de overlay-panel.tsx
@@ -122,9 +122,9 @@ Ciclo `system → light → dark → system`. Grava em `localStorage` e escreve 
 
 ### `SurveyBanner`
 
-Capa institucional com degradação para um bloco de gradiente e `role="img"` quando a arte não carrega — nunca deixa buraco no layout.
+Capa de uma pesquisa, com degradação **em cadeia de três níveis**: `src` (a capa configurada pela administração) → `fallbackSrc` (a arte institucional) → bloco com gradiente e `role="img"`. A capa nunca deixa buraco no layout, mesmo quando a URL configurada sai do ar.
 
-**Não existe capa personalizada por ciclo.** `src` é sempre o padrão institucional resolvido por `resolveSurveyVisualIdentity()`; o `fallbackSrc` da versão anterior foi removido porque apontava para essa mesma arte. A administração configura apenas título e subtítulo (ver [../app/admin/CLAUDE.md](../app/admin/CLAUDE.md)).
+`src` vem de `resolveSurveyVisualIdentity()`, que devolve a capa personalizada do ciclo quando existe uma e o modo é `CUSTOM`. A administração configura imagem, texto alternativo, título e subtítulo (ver [../app/admin/CLAUDE.md](../app/admin/CLAUDE.md)).
 
 ### `CddiScrollBoundary`
 
