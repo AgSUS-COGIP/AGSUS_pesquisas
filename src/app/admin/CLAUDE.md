@@ -23,7 +23,7 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin` | `tela-central-admin.tsx` | qualquer `ADMIN_*` | — (cartões de navegação) |
 | `/admin/pesquisas` | `pesquisas/tela-admin-lista-pesquisas.tsx` | `ADMIN_SURVEYS` | `list_managed_surveys` |
 | `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `create_survey_draft` |
-| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section` |
+| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section`, `fc_excluir_pesquisa_rascunho` |
 | `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `update_application_visual_settings` |
 | `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
 | `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
@@ -54,8 +54,13 @@ OPEN ──CLOSE──▶ CLOSED ──REOPEN(novo período)──▶ OPEN
 qualquer ──CANCEL──▶ CANCELLED   (irreversível)
 ```
 
+**Criação em três etapas** (`/admin/pesquisas/nova`): Identificação → Ciclo e período → Revisão. As etapas 1 e 2 oferecem só **Cancelar** (vermelho claro) e **Prosseguir** (azul); as ações que gravam — **Criar rascunho** e **Publicar** — existem apenas na etapa de revisão, para que nenhuma etapa intermediária pareça capaz de concluir a criação. `goToNextStep()` valida só os campos da etapa atual (`STEPS[step].fields`): exigir o formulário inteiro impediria sair da primeira etapa por causa de campos ainda não exibidos.
+
+**"Publicar" na criação não publica.** Uma avaliação nasce só com a seção `Introdução`, sem perguntas, e `PUBLISH` exige estrutura — o banco recusaria. O botão cria o rascunho e leva ao construtor com o aviso de que faltam perguntas; a publicação efetiva continua em `/operacao`.
+
 Regras aplicadas pelo banco e refletidas na interface:
 
+- **Abertura não pode ser anterior ao momento atual; encerramento tem de ser posterior à abertura.** Vale em `create_survey_draft` e em `UPDATE_PERIOD` (`20260811120000_periodo_futuro_e_exclusao_rascunho.sql`), com tolerância de um minuto para absorver o intervalo entre preencher "agora" e gravar. A checagem **não** entra em `PUBLISH`: bloquear ali deixaria o operador sem saída dentro da tela, já que o período vencido é justamente o que ele precisa abrir para corrigir. Quem avisa antes de publicar é a tela, por toast (`publishBlockedMessage()` em `@/lib/survey-cycle-period`), pedindo a correção do período. `SCHEDULE` e `OPEN` seguem barrando período vencido no banco.
 - Período editável só em `DRAFT` ou `SCHEDULED`. Em `OPEN`, é preciso encerrar antes de alterar.
 - `REOPEN` só a partir de `CLOSED` e exige novo `opensAt`/`closesAt`.
 - `CANCELLED` não retoma — exige criar novo ciclo.
@@ -72,6 +77,8 @@ Validação no cliente por `@/lib/survey-builder` **antes** de chamar a RPC (o b
 - `hasUnsavedChanges()` compara assinaturas para avisar antes de descartar edição.
 
 **Só estrutura em rascunho é editável.** `enforce_draft_survey_structure` (trigger) impede alteração após a publicação.
+
+**Excluir formulário** (`fc_excluir_pesquisa_rascunho`) aparece no cabeçalho do construtor apenas enquanto a versão é `DRAFT`. A RPC recusa avaliação já publicada (a estrutura é referência histórica de quem respondeu) ou com qualquer submissão gravada, e a razão vem na própria mensagem de erro. Aceita, apaga ciclo → versão → pesquisa nessa ordem (`survey_applications` referencia a versão com `on delete restrict`; seções, perguntas e alternativas caem por cascade) e registra `SURVEY_DELETED` em `audit_events` **antes** do delete, com `application_id` nulo — a coluna referencia `survey_applications` com `on delete set null`, então o identificador do ciclo fica preservado em `metadata`.
 
 ### Gestão de participantes
 

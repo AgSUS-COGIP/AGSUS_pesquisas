@@ -10,6 +10,7 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 
 type Issue = {
   id?: string;
@@ -101,6 +102,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
+
+    // Um rascunho salvo semanas atrás pode chegar à publicação com o período já
+    // vencido. O banco recusaria só depois, ao agendar ou abrir; aqui o operador
+    // é avisado no momento em que ainda pode corrigir, com o campo já editável.
+    if (action === "PUBLISH") {
+      const blocked = publishBlockedMessage(opensAt, closesAt);
+      if (blocked) return toast.error(blocked);
+    }
+
+    // Período gravado passa pela mesma regra do banco antes de sair da tela.
+    if (action === "UPDATE_PERIOD" || action === "REOPEN") {
+      const issues = periodIssues(opensAt, closesAt);
+      if (issues.length) return toast.error(issues[0].message);
+    }
+
     const confirmations: Partial<Record<string, string>> = {
       PUBLISH: "Publicar esta versão? Depois de publicada, a estrutura não poderá ser alterada.",
       OPEN: "Abrir este ciclo agora para receber respostas?",
@@ -147,6 +163,10 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const canEditPeriod = cycleStatus === "DRAFT" || cycleStatus === "SCHEDULED";
   const canReopen = cycleStatus === "CLOSED";
   const fieldsEnabled = canEditPeriod || canReopen;
+  const minDateTime = nowLocalInputValue();
+  const currentPeriodIssues = periodIssues(opensAt, closesAt);
+  const opensAtIssue = currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message;
+  const closesAtIssue = currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message;
   const blockingIssues = operations?.issues.filter((issue) => issue.severity === "BLOCKING") ?? [];
   const metricCards: MetricCard[] = operations ? [
     { label: "Seções", value: operations.metrics.sections, icon: FileCheck2 },
@@ -166,7 +186,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       <section className="mt-6 grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
         <ReadinessChecklist issues={operations.issues} surveyId={surveyId} />
 
-        <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Configuração temporal</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Período do ciclo</h3><p className="mt-2 text-sm leading-6 text-slate-500">{cycleExplanation(cycleStatus)}</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black text-slate-700">Abertura<input type="datetime-local" value={opensAt} disabled={!fieldsEnabled} onChange={(event) => setOpensAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label><label className="text-sm font-black text-slate-700">Encerramento<input type="datetime-local" value={closesAt} disabled={!fieldsEnabled} onChange={(event) => setClosesAt(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55" /></label></div><p className="mt-3 text-xs text-slate-500">Atual: {dateLabel(operations.application?.opensAt)} → {dateLabel(operations.application?.closesAt)}</p>{fieldsEnabled ? <button onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")} disabled={working !== null || !opensAt || !closesAt} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-black text-white disabled:opacity-40 ${canReopen ? "bg-[#0b8f58] hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"}`}>{working === (canReopen ? "REOPEN" : "UPDATE_PERIOD") ? <Loader2 className="h-4 w-4 animate-spin" /> : canReopen ? <RotateCcw className="h-4 w-4" /> : <CalendarClock className="h-4 w-4" />}{canReopen ? "Reabrir ciclo com este período" : "Salvar período"}</button> : <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">O período está bloqueado no estado atual do ciclo.</div>}</article>
+        <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Configuração temporal</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Período do ciclo</h3><p className="mt-2 text-sm leading-6 text-slate-500">{cycleExplanation(cycleStatus)}</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black text-slate-700">Abertura<input type="datetime-local" value={opensAt} min={minDateTime} disabled={!fieldsEnabled} aria-invalid={Boolean(opensAtIssue)} aria-describedby={opensAtIssue ? "periodo-abertura-erro" : undefined} onChange={(event) => setOpensAt(event.target.value)} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55 ${opensAtIssue ? "border-red-400" : "border-slate-200"}`} />{opensAtIssue && <span id="periodo-abertura-erro" className="mt-2 block text-xs font-semibold text-red-700">{opensAtIssue}</span>}</label><label className="text-sm font-black text-slate-700">Encerramento<input type="datetime-local" value={closesAt} min={opensAt || minDateTime} disabled={!fieldsEnabled} aria-invalid={Boolean(closesAtIssue)} aria-describedby={closesAtIssue ? "periodo-encerramento-erro" : undefined} onChange={(event) => setClosesAt(event.target.value)} className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-55 ${closesAtIssue ? "border-red-400" : "border-slate-200"}`} />{closesAtIssue && <span id="periodo-encerramento-erro" className="mt-2 block text-xs font-semibold text-red-700">{closesAtIssue}</span>}</label></div><p className="mt-3 text-xs text-slate-500">Atual: {dateLabel(operations.application?.opensAt)} → {dateLabel(operations.application?.closesAt)}</p>{fieldsEnabled ? <button onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")} disabled={working !== null || !opensAt || !closesAt || currentPeriodIssues.length > 0} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-black text-white disabled:opacity-40 ${canReopen ? "bg-[#0b8f58] hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"}`}>{working === (canReopen ? "REOPEN" : "UPDATE_PERIOD") ? <Loader2 className="h-4 w-4 animate-spin" /> : canReopen ? <RotateCcw className="h-4 w-4" /> : <CalendarClock className="h-4 w-4" />}{canReopen ? "Reabrir ciclo com este período" : "Salvar período"}</button> : <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">O período está bloqueado no estado atual do ciclo.</div>}</article>
       </section>
 
       <section className="mt-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-[.14em] text-[#0b8f58]">Ações controladas</p><h3 className="mt-1 text-2xl font-black text-[#003b70]">Ciclo de vida da avaliação</h3><p className="mt-2 text-sm text-slate-500">As ações são habilitadas conforme o estado do ciclo, validadas no banco e registradas na auditoria.</p>{operations.version.status === "DRAFT" && !operations.readyToPublish && <div className="mt-4 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"><AlertTriangle className="h-5 w-5 shrink-0 text-red-600" /><p><strong>Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} indicado{blockingIssues.length === 1 ? "" : "s"} no checklist.</p></div>}<div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
