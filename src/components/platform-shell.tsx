@@ -106,24 +106,22 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
       <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
-      {!mobile ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute -right-3 top-[76px] z-10 grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:text-[var(--brand-primary)]"
-          aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
-          aria-expanded={!compact}
-        >
-          <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" />
-        </button>
-      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-4">
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
-        <div className={`mb-1 ${compact && !mobile ? "flex justify-center" : ""}`}>
-          <PlatformThemeToggle compact={compact && !mobile} sidebar />
-        </div>
+        {!mobile && onToggle ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 ${compact ? "justify-center px-2" : ""}`}
+            aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
+            aria-expanded={!compact}
+          >
+            <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" aria-hidden="true" />
+            {!compact ? <span>Recolher menu</span> : null}
+          </button>
+        ) : null}
         <Link href="/perfil" onClick={onNavigate} className={`flex min-h-11 items-center gap-2 rounded-xl p-2 transition hover:bg-[var(--surface-hover)] ${compact && !mobile ? "justify-center" : ""}`} aria-label={`Abrir perfil de ${user.fullName}`}>
           <Avatar user={user} compact />
           {(!compact || mobile) ? <span className="min-w-0"><strong className={`block truncate text-xs ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{user.fullName}</strong><span className={`block truncate text-[11px] ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{user.profileLabel}</span></span> : null}
@@ -223,6 +221,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <PlatformCommandMenu modules={modules} />
+              <PlatformThemeToggle compact />
               {actions}
               <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
                 <Avatar user={user} compact />
