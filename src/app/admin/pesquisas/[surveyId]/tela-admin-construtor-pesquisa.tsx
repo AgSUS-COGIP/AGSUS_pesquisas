@@ -18,7 +18,6 @@ import {
   FileText,
   FolderInput,
   Hash,
-  ImageIcon,
   Loader2,
   Pencil,
   Plus,
@@ -613,15 +612,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Voltar ao catálogo
             </Link>
-            {builder.application.id && (
-              <Link
-                href={`/admin/pesquisas/${surveyId}/identidade`}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#003b70] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-              >
-                <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                Editar identidade visual
-              </Link>
-            )}
           </nav>
 
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
