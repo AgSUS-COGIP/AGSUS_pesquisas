@@ -20,7 +20,7 @@ export default function AdminTeamsPage() {
     />;
   }
 
-  return <PlatformShell user={guard.user} eyebrow="Estrutura organizacional" title="Pessoas, equipes e lideranças" actions={<Link href="/admin/importacao" className="hidden rounded-xl bg-[#003b70] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#075ea8] md:inline-flex">Revisar importações</Link>}>
+  return <PlatformShell user={guard.user} eyebrow="Estrutura organizacional" title="Pessoas, equipes e lideranças">
     <section className="mb-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
       <p className="text-xs font-black uppercase tracking-[.16em] text-[#0b8f58]">Administração da plataforma</p>
       <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
