@@ -1,39 +1,28 @@
 export const PLATFORM_THEME_STORAGE_KEY = "agsus-theme";
 export const PLATFORM_THEME_ATTRIBUTE = "data-agsus-theme";
-export const PLATFORM_THEME_PREFERENCE_ATTRIBUTE = "data-agsus-theme-preference";
 
-export type PlatformTheme = "light" | "dark" | "system";
-export type PlatformResolvedTheme = Exclude<PlatformTheme, "system">;
+export type PlatformTheme = "light" | "dark";
 
+/**
+ * Tema salvo pela pessoa. Sem escolha salva — ou valor inválido — o padrão
+ * institucional é **claro**. Só "dark" liga o tema escuro; qualquer outra coisa
+ * resolve para claro.
+ */
 export function normalizePlatformTheme(value: string | null | undefined): PlatformTheme {
-  return value === "light" || value === "dark" ? value : "system";
-}
-
-export function resolvePlatformTheme(
-  theme: PlatformTheme,
-  prefersDark: boolean,
-): PlatformResolvedTheme {
-  return theme === "system" ? (prefersDark ? "dark" : "light") : theme;
-}
-
-export function getPlatformThemeState(theme: PlatformTheme, prefersDark: boolean) {
-  return {
-    preference: theme,
-    resolved: resolvePlatformTheme(theme, prefersDark),
-  } as const;
+  return value === "dark" ? "dark" : "light";
 }
 
 /**
  * Script executado antes da primeira pintura (`beforeInteractive` no layout raiz).
  *
- * Aplica o tema salvo direto no `<html>` para evitar o flash de tema claro numa
- * sessão configurada como escura. Precisa ser string síncrona e independente do
- * bundle React, que só carrega depois. Falha de `localStorage` degrada para claro.
+ * Aplica o tema salvo direto no `<html>` para não piscar durante o carregamento.
+ * Precisa ser string síncrona e independente do bundle React, que só carrega
+ * depois. Sem preferência salva, o padrão é claro; falha de `localStorage`
+ * também degrada para claro.
  */
 export function platformThemeBootstrapScript() {
   const storageKey = JSON.stringify(PLATFORM_THEME_STORAGE_KEY);
   const attribute = JSON.stringify(PLATFORM_THEME_ATTRIBUTE);
-  const preferenceAttribute = JSON.stringify(PLATFORM_THEME_PREFERENCE_ATTRIBUTE);
 
-  return `(function(){try{var saved=window.localStorage.getItem(${storageKey});var preference=saved==="light"||saved==="dark"?saved:"system";var resolved=preference==="system"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):preference;document.documentElement.setAttribute(${attribute},resolved);document.documentElement.setAttribute(${preferenceAttribute},preference);document.documentElement.style.colorScheme=resolved;}catch(error){document.documentElement.setAttribute(${attribute},"light");document.documentElement.setAttribute(${preferenceAttribute},"system");document.documentElement.style.colorScheme="light";}})();`;
+  return `(function(){try{var saved=window.localStorage.getItem(${storageKey});var theme=saved==="dark"?"dark":"light";document.documentElement.setAttribute(${attribute},theme);document.documentElement.style.colorScheme=theme;}catch(error){document.documentElement.setAttribute(${attribute},"light");document.documentElement.style.colorScheme="light";}})();`;
 }

@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --brand-solid: #0b4f82;
+  --brand-solid: #003b70;
   --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
   --surface-elevated: #ffffff;
   --surface-interactive: #f7fafc;
@@ -27,13 +27,13 @@
 
 html[data-agsus-theme="dark"] {
   color-scheme: dark;
-  --brand-solid: #126b98;
+  --brand-solid: #075e8e;
   --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
-  --surface-elevated: #152337;
-  --surface-interactive: #19283d;
-  --surface-overlay: rgba(12, 24, 39, .92);
-  --border-strong: #465b75;
-  --text-muted: #94a7bd;
+  --surface-elevated: #17263a;
+  --surface-interactive: #1a2a3f;
+  --surface-overlay: rgba(18, 30, 46, .94);
+  --border-strong: #536b85;
+  --text-muted: #9fb1c4;
   --text-on-brand: #ffffff;
   --control-bg: #101c2d;
   --control-hover: #1b2d44;
@@ -178,7 +178,11 @@ textarea {
   font-size: .78rem;
 }
 
-html[data-agsus-theme="dark"] [class*="bg-white/"] {
+html[data-agsus-theme="dark"] [class*="bg-white/70"],
+html[data-agsus-theme="dark"] [class*="bg-white/80"],
+html[data-agsus-theme="dark"] [class*="bg-white/85"],
+html[data-agsus-theme="dark"] [class*="bg-white/90"],
+html[data-agsus-theme="dark"] [class*="bg-white/95"] {
   background-color: var(--surface-overlay) !important;
   border-color: var(--border-subtle) !important;
 }

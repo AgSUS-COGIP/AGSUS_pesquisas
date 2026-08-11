@@ -1,7 +1,7 @@
 @media (min-width: 1024px) {
   :root {
-    --platform-sidebar-expanded-width: 13.5rem;
-    --platform-sidebar-compact-width: 3.75rem;
+    --platform-sidebar-expanded-width: 16rem;
+    --platform-sidebar-compact-width: 4.25rem;
   }
 
   html,
@@ -48,7 +48,7 @@
   }
 
   aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:first-child {
-    color: #6ee7b7 !important;
+    color: #67e8f9 !important;
   }
 
   aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:last-child {

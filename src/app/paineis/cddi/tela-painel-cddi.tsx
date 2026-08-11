@@ -1,23 +1,22 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  BarChart3,
-  CheckCircle2,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Download,
   Filter,
-  LayoutDashboard,
-  ListChecks,
+  Eye,
+  EyeOff,
   RefreshCw,
   Search,
-  ShieldCheck,
+  Sparkles,
+  TrendingUp,
   TriangleAlert,
   UserRoundX,
-  Users2,
 } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
@@ -25,6 +24,8 @@ import { PlatformGuardState } from "@/components/platform-guard-state";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { BarSeries, ProgressMeter, RadarChart } from "@/components/platform-charts";
+import { average as avg, groupEventsByDay } from "@/lib/chart-data";
 
 type Participant = {
   personId: string;
@@ -71,18 +72,12 @@ type DashboardPayload = {
   events: EventRow[];
 };
 
-type DashboardView = "OVERVIEW" | "COMPETENCIES" | "PARTICIPANTS";
 type ParticipantState = "COMPLETE" | "AWAITING_LEADER" | "AWAITING_AUTO" | "PENDING";
 
 const PAGE_SIZES = [25, 50, 100];
 
 function pct(value: number) {
   return `${value.toFixed(1).replace(".", ",")}%`;
-}
-
-function avg(values: Array<number | null | undefined>) {
-  const valid = values.filter((value): value is number => typeof value === "number");
-  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
 }
 
 function fmt(value: number | null | undefined) {
@@ -124,176 +119,23 @@ function scopeLabel(scope: string) {
   return "Individual";
 }
 
-function Metric({ icon, label, value, hint, accent }: { icon: ReactNode; label: string; value: string | number; hint: string; accent: string }) {
-  return (
-    <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className={`grid h-10 w-10 place-items-center rounded-xl ${accent}`}>{icon}</div>
-        <span className="text-[10px] font-black uppercase tracking-[.12em] text-[var(--text-muted)]">CDDI</span>
-      </div>
-      <p className="mt-4 text-xs font-bold text-[var(--text-secondary)]">{label}</p>
-      <strong className="mt-1 block text-3xl font-black tracking-tight text-[var(--text-primary)]">{value}</strong>
-      <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">{hint}</span>
-    </article>
-  );
-}
-
-function ProgressRow({ label, value, total, description }: { label: string; value: number; total: number; description: string }) {
-  const percentage = total ? (value / total) * 100 : 0;
-  return (
-    <div>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-black text-[var(--text-primary)]">{label}</p>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">{description}</p>
-        </div>
-        <div className="text-right">
-          <strong className="block text-sm text-[var(--text-primary)]">{value} de {total}</strong>
-          <span className="text-xs font-bold text-[var(--brand-primary)]">{pct(percentage)}</span>
-        </div>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--surface-interactive)]">
-        <div className="h-full rounded-full bg-[var(--brand-solid)] transition-[width] duration-300" style={{ width: `${Math.min(100, percentage)}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function TabButton({ active, icon, label, count, onClick }: { active: boolean; icon: ReactNode; label: string; count?: number; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition ${
-        active
-          ? "border-[var(--brand-solid)] bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-          : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-interactive)]"
-      }`}
-    >
-      {icon}
-      {label}
-      {typeof count === "number" ? (
-        <span className={`rounded-full px-2 py-0.5 text-[10px] ${active ? "bg-white/15 text-white" : "bg-[var(--surface-interactive)] text-[var(--text-muted)]"}`}>{count}</span>
-      ) : null}
-    </button>
-  );
-}
-
-function ActivityChart({ events }: { events: EventRow[] }) {
-  const points = useMemo(() => {
-    const grouped = new Map<string, { label: string; value: number }>();
-    events.forEach((event) => {
-      const date = new Date(event.submittedAt);
-      const key = date.toISOString().slice(0, 10);
-      const label = date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-      const previous = grouped.get(key)?.value ?? 0;
-      grouped.set(key, { label, value: previous + 1 });
-    });
-    return Array.from(grouped.entries())
-      .sort(([first], [second]) => first.localeCompare(second))
-      .slice(-14)
-      .map(([, value]) => value);
-  }, [events]);
-
-  if (!points.length) {
-    return (
-      <div className="grid min-h-64 place-items-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-interactive)] px-6 text-center">
-        <div>
-          <BarChart3 className="mx-auto h-8 w-8 text-[var(--text-muted)]" aria-hidden="true" />
-          <p className="mt-3 font-black text-[var(--text-primary)]">Nenhuma resposta enviada neste recorte</p>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">O histórico aparecerá conforme as avaliações forem concluídas.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const maximum = Math.max(...points.map((point) => point.value), 1);
-
-  return (
-    <div className="mt-6 flex min-h-64 items-end gap-2 overflow-x-auto pb-2" role="img" aria-label="Respostas enviadas nos últimos dias com atividade">
-      {points.map((point) => {
-        const height = Math.max(16, Math.round((point.value / maximum) * 176));
-        return (
-          <div key={point.label} className="flex min-w-11 flex-1 flex-col items-center justify-end gap-2">
-            <span className="text-xs font-black text-[var(--text-primary)]">{point.value}</span>
-            <div className="w-full max-w-12 rounded-t-lg bg-[var(--brand-solid)]" style={{ height }} title={`${point.value} resposta(s) em ${point.label}`} />
-            <span className="text-[10px] font-bold text-[var(--text-muted)]">{point.label}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function RadarChart({ competencies, scores }: { competencies: Competency[]; scores: CompetencyScore[] }) {
-  const validScores = scores.filter((score) => typeof score.finalScore === "number");
-  if (!competencies.length || !validScores.length) {
-    return (
-      <div className="grid min-h-[360px] place-items-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-interactive)] px-8 text-center">
-        <div>
-          <BarChart3 className="mx-auto h-9 w-9 text-[var(--text-muted)]" aria-hidden="true" />
-          <p className="mt-3 font-black text-[var(--text-primary)]">Resultados consolidados ainda indisponíveis</p>
-          <p className="mt-1 max-w-md text-sm leading-6 text-[var(--text-muted)]">O radar será exibido quando existirem pares com autoavaliação e avaliação da chefia concluídas.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const center = 160;
-  const radius = 110;
-  const count = Math.max(1, competencies.length);
-  const values = competencies.map(
-    (competency) => avg(validScores.filter((score) => score.competencyCode === competency.code).map((score) => score.finalScore)) || 0,
-  );
-  const polygon = values
-    .map((value, index) => {
-      const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
-      const currentRadius = radius * Math.min(1, value / 5);
-      return `${center + Math.cos(angle) * currentRadius},${center + Math.sin(angle) * currentRadius}`;
-    })
-    .join(" ");
-
-  return (
-    <div className="h-[380px] w-full">
-      <svg viewBox="0 0 320 320" className="h-full w-full" role="img" aria-label="Radar das médias finais por competência">
-        {[1, 2, 3, 4, 5].map((level) => (
-          <polygon
-            key={level}
-            points={competencies
-              .map((_, index) => {
-                const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
-                const currentRadius = (radius * level) / 5;
-                return `${center + Math.cos(angle) * currentRadius},${center + Math.sin(angle) * currentRadius}`;
-              })
-              .join(" ")}
-            fill="none"
-            stroke="var(--border-subtle)"
-          />
-        ))}
-        {competencies.map((competency, index) => {
-          const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
-          const x = center + Math.cos(angle) * (radius + 24);
-          const y = center + Math.sin(angle) * (radius + 24);
-          return (
-            <g key={competency.code}>
-              <line x1={center} y1={center} x2={center + Math.cos(angle) * radius} y2={center + Math.sin(angle) * radius} stroke="var(--border-subtle)" />
-              <text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fontWeight="700" fill="var(--text-secondary)">{competency.code}</text>
-            </g>
-          );
-        })}
-        <polygon points={polygon} fill="color-mix(in srgb, var(--brand-solid) 22%, transparent)" stroke="var(--brand-solid)" strokeWidth="3" />
-      </svg>
-    </div>
-  );
+function statusFilterLabel(value: string) {
+  if (value === "COMPLETE") return "ciclo concluído";
+  if (value === "AWAITING_LEADER") return "aguardando chefia";
+  if (value === "AWAITING_AUTO") return "aguardando autoavaliação";
+  if (value === "PENDING") return "nenhuma avaliação concluída";
+  if (value === "NO_MANAGER") return "sem chefia informada";
+  return "";
 }
 
 export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
-  const [view, setView] = useState<DashboardView>("OVERVIEW");
+  const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [directorate, setDirectorate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [directorateDraft, setDirectorateDraft] = useState("");
+  const [statusDraft, setStatusDraft] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const granted = guard.state === "granted";
@@ -361,13 +203,38 @@ export default function CddiMonitoringPage() {
   const pendingLeader = filtered.length - leaderDone;
   const withoutManager = filtered.filter((participant) => !participant.managerName).length;
   const completion = filtered.length ? (pairs / filtered.length) * 100 : 0;
+  const stateCounts = filtered.reduce<Record<ParticipantState, number>>(
+    (acc, participant) => {
+      const state = participantState(participant);
+      acc[state] += 1;
+      return acc;
+    },
+    { COMPLETE: 0, AWAITING_LEADER: 0, AWAITING_AUTO: 0, PENDING: 0 },
+  );
   const finalAverage = avg(filtered.map((item) => item.finalScore));
   const filteredIds = new Set(filtered.map((participant) => participant.personId));
   const scopedScores = data.competencyScores.filter((score) => filteredIds.has(score.personId));
   const scopedEvents = data.events.filter((event) => filteredIds.has(event.personId));
+  const activityPoints = groupEventsByDay(scopedEvents);
+  const peakActivity = activityPoints.reduce<(typeof activityPoints)[number] | null>(
+    (peak, point) => (!peak || point.value > peak.value ? point : peak),
+    null,
+  );
+  const latestActivity = activityPoints.at(-1) ?? null;
+  const dailyAverage = activityPoints.length ? scopedEvents.length / activityPoints.length : 0;
+  const hasConsolidated = scopedScores.some((score) => typeof score.finalScore === "number");
+  const radarAxes = hasConsolidated
+    ? data.competencies.map((competency) => ({
+        code: competency.code,
+        label: competency.name,
+        value: avg(scopedScores.filter((score) => score.competencyCode === competency.code).map((score) => score.finalScore)) ?? 0,
+      }))
+    : [];
   const finalScoreCount = filtered.filter((participant) => typeof participant.finalScore === "number").length;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
+  const firstVisiblePage = Math.max(1, Math.min(safePage - 2, pageCount - 4));
+  const visiblePages = Array.from({ length: Math.min(5, pageCount) }, (_, index) => firstVisiblePage + index);
   const firstRow = filtered.length ? (safePage - 1) * pageSize + 1 : 0;
   const lastRow = Math.min(safePage * pageSize, filtered.length);
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -414,13 +281,44 @@ export default function CddiMonitoringPage() {
     setQuery("");
     setDirectorate("");
     setStatusFilter("");
+    setDirectorateDraft("");
+    setStatusDraft("");
   }
+
+  function applyFilters() {
+    setDirectorate(directorateDraft);
+    setStatusFilter(statusDraft);
+  }
+
+  // Clicar num KPI aplica (ou remove, se já ativo) o recorte por situação —
+  // como no AgSUS Monitora. O rascunho do filtro acompanha para o painel refletir.
+  function selectKpi(key: string) {
+    const next = statusFilter === key ? "" : key;
+    setStatusFilter(next);
+    setStatusDraft(next);
+  }
+
+  const kpis: Array<{ key: string; label: string; value: number | string; tone: "brand" | "success" | "warning" | "danger" | "review"; interactive: boolean }> = [
+    { key: "", label: "Participantes", value: filtered.length, tone: "brand", interactive: true },
+    { key: "COMPLETE", label: "Ciclo concluído", value: stateCounts.COMPLETE, tone: "success", interactive: true },
+    { key: "AWAITING_LEADER", label: "Aguardando chefia", value: stateCounts.AWAITING_LEADER, tone: "warning", interactive: true },
+    { key: "AWAITING_AUTO", label: "Aguardando autoavaliação", value: stateCounts.AWAITING_AUTO, tone: "warning", interactive: true },
+    { key: "PENDING", label: "Nenhuma concluída", value: stateCounts.PENDING, tone: "danger", interactive: true },
+    { key: "NO_MANAGER", label: "Sem chefia informada", value: withoutManager, tone: "review", interactive: true },
+    { key: "__taxa", label: "Taxa de conclusão", value: pct(completion), tone: "brand", interactive: false },
+  ];
+
+  const contextLine = query || directorate || statusFilter
+    ? `Recorte ativo: ${filtered.length} de ${all.length} participantes${directorate ? ` · ${directorate}` : ""}${statusFilter ? ` · ${statusFilterLabel(statusFilter)}` : ""}${query ? ` · busca "${query.trim()}"` : ""}.`
+    : `Sem filtros aplicados. Recorte base: ${all.length} participantes do ciclo.`;
 
   return (
     <PlatformShell user={user} eyebrow="Monitoramento institucional" title="AgSUS Monitora CDDI">
-      <header className="flex flex-col gap-5 border-b border-[var(--border-subtle)] pb-5 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="monitor-dashboard">
+      <header className="monitor-topbar rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] px-5 py-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-3 py-1 text-[11px] font-black uppercase tracking-[.1em] text-[var(--status-success-text)]">
               {data.application.status === "OPEN" ? "Ciclo aberto" : data.application.status}
             </span>
@@ -428,13 +326,16 @@ export default function CddiMonitoringPage() {
               Escopo {scopeLabel(data.scope)}
             </span>
           </div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--text-primary)]">Painel CDDI 2026</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+          <h1 className="mt-3 text-xl font-black tracking-tight text-[var(--text-primary)]">AgSUS Monitora CDDI</h1>
+          <p className="mt-1 max-w-3xl text-sm leading-5 text-[var(--text-secondary)]">
             Acompanhe adesão, pendências e resultados consolidados do Ciclo de Devolutivas e Desenvolvimento Individual.
           </p>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 text-xs font-bold text-[var(--text-secondary)]">
+            <span className="monitor-status-dot mr-2 h-2 w-2 rounded-full bg-[var(--status-success-text)]" />
+            Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")}
+          </span>
           <button
             type="button"
             onClick={() => void dashboard.refetch()}
@@ -444,49 +345,46 @@ export default function CddiMonitoringPage() {
             <RefreshCw className={`h-4 w-4 ${dashboard.isFetching ? "animate-spin" : ""}`} />
             {dashboard.isFetching ? "Atualizando" : "Atualizar"}
           </button>
-          <button type="button" onClick={exportCsv} className="primary-button inline-flex items-center gap-2">
-            <Download className="h-4 w-4" /> Exportar recorte
+          <button type="button" onClick={exportCsv} className="primary-button inline-flex h-10 items-center gap-2">
+            <Download className="h-4 w-4" /> Exportar
           </button>
+          </div>
         </div>
       </header>
 
-      <nav className="mt-5 flex flex-wrap gap-2" aria-label="Áreas do painel CDDI">
-        <TabButton active={view === "OVERVIEW"} icon={<LayoutDashboard className="h-4 w-4" />} label="Resumo" onClick={() => setView("OVERVIEW")} />
-        <TabButton active={view === "COMPETENCIES"} icon={<BarChart3 className="h-4 w-4" />} label="Competências" count={finalScoreCount} onClick={() => setView("COMPETENCIES")} />
-        <TabButton active={view === "PARTICIPANTS"} icon={<ListChecks className="h-4 w-4" />} label="Participantes" count={filtered.length} onClick={() => setView("PARTICIPANTS")} />
-      </nav>
-
-      <section className="mt-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2 text-sm font-black text-[var(--text-primary)]">
-            <Filter className="h-4 w-4 text-[var(--brand-primary)]" /> Recorte do painel
-            <span className="font-normal text-[var(--text-muted)]">{filtered.length} de {all.length} participantes</span>
+      <section className="monitor-panel monitor-panel--neutral monitor-filter mt-4 rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--border-strong)] bg-[var(--surface-card)] p-5 shadow-sm" aria-labelledby="dashboard-filter-title">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="section-eyebrow">Filtros base</p>
+            <h2 id="dashboard-filter-title" className="mt-1 text-base font-black text-[var(--text-primary)]">Refinar visualização</h2>
           </div>
-          {(query || directorate || statusFilter) ? (
-            <button type="button" onClick={clearFilters} className="text-xs font-black text-[var(--brand-primary)] hover:underline">Limpar filtros</button>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {(query || directorate || statusFilter || directorateDraft || statusDraft) ? (
+              <button type="button" onClick={clearFilters} className="text-xs font-black text-[var(--brand-primary)] hover:underline">Limpar filtros</button>
+            ) : null}
+            <button type="button" onClick={() => setShowFilters((visible) => !visible)} className="secondary-button inline-flex h-9 items-center gap-2 px-3 text-xs" aria-expanded={showFilters} aria-controls="dashboard-filters">
+              {showFilters ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
+            </button>
+          </div>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <label className="relative">
-            <span className="sr-only">Pesquisar participante</span>
-            <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-muted)]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nome, matrícula, e-mail ou chefia"
-              className="h-10 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-solid)]"
-            />
+        {showFilters ? <form id="dashboard-filters" className="mt-5 grid gap-4 border-t border-[var(--border-subtle)] pt-5 lg:grid-cols-12 lg:items-end" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+          <label className="lg:col-span-3">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Nível</span>
+            <select className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]" value="DIRECTORATE" disabled>
+              <option value="DIRECTORATE">Diretoria</option>
+            </select>
           </label>
-          <label>
-            <span className="sr-only">Filtrar por diretoria</span>
-            <select value={directorate} onChange={(event) => setDirectorate(event.target.value)} className="h-10 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
+          <label className="lg:col-span-3">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Opção</span>
+            <select value={directorateDraft} onChange={(event) => setDirectorateDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
               <option value="">Todas as diretorias</option>
               {directorates.map((item) => <option key={item}>{item}</option>)}
             </select>
           </label>
-          <label>
-            <span className="sr-only">Filtrar por situação</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
+          <label className="lg:col-span-3">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Status</span>
+            <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
               <option value="">Todas as situações</option>
               <option value="COMPLETE">Ciclo concluído</option>
               <option value="AWAITING_LEADER">Aguardando avaliação da chefia</option>
@@ -495,26 +393,48 @@ export default function CddiMonitoringPage() {
               <option value="NO_MANAGER">Sem chefia informada</option>
             </select>
           </label>
-        </div>
+          <label className="lg:col-span-2">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
+            <select className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]" value={data.application.code} disabled>
+              <option value={data.application.code}>{data.application.name}</option>
+            </select>
+          </label>
+          <button type="submit" className="primary-button h-11 justify-center lg:col-span-1" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
+        </form> : null}
       </section>
 
-      {view === "OVERVIEW" ? (
-        <>
-          <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric icon={<Users2 className="h-5 w-5" />} label="Participantes" value={filtered.length} hint="Pessoas no recorte atual" accent="bg-blue-50 text-blue-700" />
-            <Metric icon={<CheckCircle2 className="h-5 w-5" />} label="Autoavaliações concluídas" value={autoDone} hint={`${pct(filtered.length ? (autoDone / filtered.length) * 100 : 0)} do recorte`} accent="bg-cyan-50 text-cyan-700" />
-            <Metric icon={<ShieldCheck className="h-5 w-5" />} label="Avaliações da chefia" value={leaderDone} hint={`${pct(filtered.length ? (leaderDone / filtered.length) * 100 : 0)} do recorte`} accent="bg-violet-50 text-violet-700" />
-            <Metric icon={<ListChecks className="h-5 w-5" />} label="Ciclos completos" value={pairs} hint={`${pct(completion)} com auto + chefia`} accent="bg-emerald-50 text-emerald-700" />
-          </section>
+      <section className="mt-4 space-y-3" aria-label="Indicadores do recorte">
+        <div className="monitor-kpi-grid">
+          {kpis.map((kpi) => kpi.interactive ? (
+            <button
+              key={kpi.label}
+              type="button"
+              data-tone={kpi.tone}
+              aria-pressed={statusFilter === kpi.key}
+              onClick={() => selectKpi(kpi.key)}
+              className={`monitor-kpi ${statusFilter === kpi.key ? "is-active" : ""}`}
+            >
+              <span className="monitor-kpi-label">{kpi.label}</span>
+              <strong className="monitor-kpi-value">{kpi.value}</strong>
+            </button>
+          ) : (
+            <div key={kpi.label} data-tone={kpi.tone} className="monitor-kpi">
+              <span className="monitor-kpi-label">{kpi.label}</span>
+              <strong className="monitor-kpi-value">{kpi.value}</strong>
+            </div>
+          ))}
+        </div>
+        <p className="monitor-context-line">{contextLine}</p>
+      </section>
 
-          <section className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
-            <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm">
+          <section className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
+            <article className="monitor-panel rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-5 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Andamento do ciclo</p>
               <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Progresso por etapa</h2>
               <div className="mt-6 space-y-6">
-                <ProgressRow label="Autoavaliação" value={autoDone} total={filtered.length} description="Participantes que enviaram a própria avaliação" />
-                <ProgressRow label="Avaliação da chefia" value={leaderDone} total={filtered.length} description="Avaliações de liderança concluídas" />
-                <ProgressRow label="Ciclo completo" value={pairs} total={filtered.length} description="Pares com as duas avaliações finalizadas" />
+                <ProgressMeter label="Autoavaliação" value={autoDone} total={filtered.length} description="Participantes que enviaram a própria avaliação" />
+                <ProgressMeter label="Avaliação da chefia" value={leaderDone} total={filtered.length} description="Avaliações de liderança concluídas" />
+                <ProgressMeter label="Ciclo completo" value={pairs} total={filtered.length} description="Pares com as duas avaliações finalizadas" />
               </div>
               <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--border-subtle)] pt-4 text-sm">
                 <span className="text-[var(--text-secondary)]"><strong className="text-[var(--text-primary)]">{fmt(finalAverage)}</strong> média final</span>
@@ -522,7 +442,7 @@ export default function CddiMonitoringPage() {
               </div>
             </article>
 
-            <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm">
+            <article className="monitor-panel monitor-panel--red rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--status-danger-text)] bg-[var(--surface-card)] p-5 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--status-warning-text)]">Atenção necessária</p>
               <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Prioridades operacionais</h2>
               <div className="mt-4 space-y-3">
@@ -534,15 +454,15 @@ export default function CddiMonitoringPage() {
                   <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
                   <div><strong className="block text-sm">{pendingLeader} avaliações da chefia pendentes</strong><span className="text-xs opacity-80">Inclui participantes que ainda não concluíram a autoavaliação.</span></div>
                 </div>
-                <div className="flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-interactive)] p-3 text-[var(--text-secondary)]">
-                  <UserRoundX className="mt-0.5 h-5 w-5 shrink-0" />
-                  <div><strong className="block text-sm text-[var(--text-primary)]">{withoutManager} sem chefia informada</strong><span className="text-xs text-[var(--text-muted)]">Revisar o vínculo antes da etapa da liderança.</span></div>
-                </div>
+                <button type="button" onClick={() => selectKpi("NO_MANAGER")} aria-pressed={statusFilter === "NO_MANAGER"} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] ${statusFilter === "NO_MANAGER" ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
+                  <UserRoundX className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-secondary)]" />
+                  <span><strong className="block text-sm text-[var(--text-primary)]">{withoutManager} sem vínculo de chefia</strong><span className="text-xs text-[var(--text-muted)]">A chefia é automática; revise a associação cadastrada em Equipes.</span></span>
+                </button>
               </div>
             </article>
           </section>
 
-          <section className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm">
+          <section className="monitor-panel monitor-chart-panel mt-4 rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-5 shadow-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Atividade recente</p>
@@ -550,21 +470,51 @@ export default function CddiMonitoringPage() {
               </div>
               <span className="w-fit rounded-full bg-[var(--status-info-bg)] px-3 py-1 text-xs font-black text-[var(--status-info-text)]">{scopedEvents.length} envios</span>
             </div>
-            <ActivityChart events={scopedEvents} />
+            <div className="monitor-chart-layout mt-4">
+              <div className="min-w-0">
+                <BarSeries
+                  points={activityPoints}
+                  ariaLabel="Respostas enviadas por dia com atividade"
+                  emptyState={{ title: "Nenhuma resposta enviada neste recorte", description: "O histórico aparecerá conforme as avaliações forem concluídas." }}
+                />
+              </div>
+              <aside className="monitor-chart-insight" aria-label="Leitura rápida da atividade">
+                <div className="relative z-[1] flex items-center gap-2 text-xs font-black uppercase tracking-[.12em] text-cyan-200">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" /> Inteligência do período
+                </div>
+                <div className="monitor-chart-stat">
+                  <span><TrendingUp className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" /> Pico de envios</span>
+                  <strong>{peakActivity?.value ?? 0}</strong>
+                  <small>{peakActivity ? `registrados em ${peakActivity.label}` : "Sem atividade no recorte"}</small>
+                </div>
+                <div className="monitor-chart-stat">
+                  <span><CalendarDays className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" /> Média por dia ativo</span>
+                  <strong>{dailyAverage.toFixed(1).replace(".", ",")}</strong>
+                  <small>{activityPoints.length} dia(s) com envio</small>
+                </div>
+                <div className="monitor-chart-stat">
+                  <span>Última movimentação</span>
+                  <strong>{latestActivity?.value ?? 0}</strong>
+                  <small>{latestActivity?.label ?? "Ainda sem registro"}</small>
+                </div>
+              </aside>
+            </div>
           </section>
-        </>
-      ) : null}
 
-      {view === "COMPETENCIES" ? (
-        <section className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.15fr]">
-          <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm">
+        <section className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.15fr]">
+          <article className="monitor-panel monitor-panel--cyan rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Competências</p>
             <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Radar das médias finais</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">Exibe somente resultados consolidados com autoavaliação e avaliação da chefia concluídas.</p>
-            <RadarChart competencies={data.competencies} scores={scopedScores} />
+            <RadarChart
+              axes={radarAxes}
+              max={5}
+              ariaLabel="Radar das médias finais por competência"
+              emptyState={{ title: "Resultados consolidados ainda indisponíveis", description: "O radar será exibido quando existirem pares com autoavaliação e avaliação da chefia concluídas." }}
+            />
           </article>
 
-          <article className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm">
+          <article className="monitor-panel monitor-panel--green overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--status-success-text)] bg-[var(--surface-card)] shadow-sm">
             <div className="border-b border-[var(--border-subtle)] p-5">
               <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Comparativo</p>
               <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Médias por competência</h2>
@@ -598,26 +548,31 @@ export default function CddiMonitoringPage() {
             </div>
           </article>
         </section>
-      ) : null}
 
-      {view === "PARTICIPANTS" ? (
-        <section className="mt-5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] p-5 md:flex-row md:items-end md:justify-between">
+        <section className="monitor-panel mt-4 overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Acompanhamento individual</p>
               <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Participantes do recorte</h2>
               <p className="mt-1 text-sm text-[var(--text-muted)]">A situação diferencia quem aguarda autoavaliação, avaliação da chefia ou conclusão das duas etapas.</p>
             </div>
-            <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)]">
-              Exibir
-              <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] px-2 text-sm text-[var(--text-primary)]">
-                {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-              </select>
-              por página
-            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="relative min-w-64 flex-1">
+                <span className="sr-only">Pesquisar no relatório</span>
+                <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar participante..." className="h-10 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-solid)]" />
+              </label>
+              <button type="button" onClick={exportCsv} className="secondary-button inline-flex h-10 items-center justify-center gap-2 px-3 text-xs"><Download className="h-4 w-4" />Exportar CSV</button>
+              <label className="flex h-10 items-center gap-2 whitespace-nowrap text-xs font-bold text-[var(--text-secondary)]">
+                Linhas
+                <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="h-10 rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] px-2 text-sm text-[var(--text-primary)]">
+                  {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
           <div className="max-h-[640px] overflow-auto">
-            <table className="w-full min-w-[1020px] text-left text-sm">
+            <table className="monitor-table-zebra w-full min-w-[1020px] text-left text-sm">
               <thead className="sticky top-0 z-10 bg-[var(--surface-interactive)] text-[11px] uppercase tracking-wide text-[var(--text-muted)] shadow-sm">
                 <tr>
                   <th className="px-4 py-3">Participante</th>
@@ -643,7 +598,7 @@ export default function CddiMonitoringPage() {
                         <span className="block text-xs text-[var(--text-muted)]">{participant.unit || "Sem unidade"}</span>
                         <span className="block text-xs text-[var(--text-muted)]">{participant.coordination || "Sem coordenação"}</span>
                       </td>
-                      <td className="px-4 py-3 text-[var(--text-secondary)]">{participant.managerName || <span className="font-bold text-[var(--status-danger-text)]">Não informada</span>}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{participant.managerName || <span className="font-bold text-[var(--status-danger-text)]">Vínculo não localizado</span>}</td>
                       <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${participantStateClass(state)}`}>{participantStateLabel(state)}</span></td>
                       <td className="px-4 py-3 text-right font-bold text-[var(--text-secondary)]">{fmt(participant.autoScore)}</td>
                       <td className="px-4 py-3 text-right font-bold text-[var(--text-secondary)]">{fmt(participant.leaderScore)}</td>
@@ -657,20 +612,39 @@ export default function CddiMonitoringPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex flex-col gap-3 border-t border-[var(--border-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-[var(--border-subtle)] p-4 sm:items-center">
             <p className="text-xs text-[var(--text-muted)]">Exibindo {firstRow}–{lastRow} de {filtered.length} participantes</p>
-            <div className="flex items-center gap-2">
+            <nav className="flex flex-wrap items-center justify-center gap-1.5" aria-label="Paginação dos participantes">
+              <button type="button" onClick={() => setPage(1)} disabled={safePage <= 1} className="secondary-button inline-flex min-h-9 items-center px-3 py-1.5 text-xs">Primeira</button>
               <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={safePage <= 1} className="secondary-button inline-flex min-h-9 items-center gap-1 px-3 py-1.5 text-xs">
                 <ChevronLeft className="h-4 w-4" /> Anterior
               </button>
-              <span className="min-w-20 text-center text-xs font-black text-[var(--text-secondary)]">Página {safePage} de {pageCount}</span>
+              {firstVisiblePage > 1 ? <span className="px-1 text-xs text-[var(--text-muted)]">…</span> : null}
+              {visiblePages.map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  onClick={() => setPage(pageNumber)}
+                  aria-current={pageNumber === safePage ? "page" : undefined}
+                  className={pageNumber === safePage ? "primary-button grid min-h-9 min-w-9 place-items-center px-2 py-1.5 text-xs" : "secondary-button grid min-h-9 min-w-9 place-items-center px-2 py-1.5 text-xs"}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              {firstVisiblePage + visiblePages.length - 1 < pageCount ? <span className="px-1 text-xs text-[var(--text-muted)]">…</span> : null}
               <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={safePage >= pageCount} className="secondary-button inline-flex min-h-9 items-center gap-1 px-3 py-1.5 text-xs">
                 Próxima <ChevronRight className="h-4 w-4" />
               </button>
-            </div>
+              <button type="button" onClick={() => setPage(pageCount)} disabled={safePage >= pageCount} className="secondary-button inline-flex min-h-9 items-center px-3 py-1.5 text-xs">Última</button>
+            </nav>
+            <p className="text-xs text-[var(--text-muted)]">Página {safePage} de {pageCount}</p>
           </div>
         </section>
-      ) : null}
+        <footer className="monitor-footer">
+          <span>Agência Brasileira de Apoio à Gestão do SUS · CDDI 2026</span>
+          <span>Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} · <span className="monitor-footer-secure">SEGURO</span></span>
+        </footer>
+      </div>
     </PlatformShell>
   );
 }

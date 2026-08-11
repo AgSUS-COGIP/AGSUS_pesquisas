@@ -9,7 +9,6 @@ import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformLogo } from "@/components/platform-logo";
 import { PlatformIcon } from "@/components/platform-icons";
 import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
-import { PlatformCommandMenu } from "@/components/platform-command-menu";
 import { Drawer } from "@/components/ui/overlay-panel";
 import {
   isPlatformNavItemActive,
@@ -60,7 +59,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
       </span>
       {showName ? (
         <span className="min-w-0 leading-none">
-          <span className="block truncate text-[9px] font-black uppercase tracking-[.2em] text-[var(--brand-secondary)]">{branding.organizationName}</span>
+          <span className="block truncate text-[9px] font-black uppercase tracking-[.2em] text-[var(--brand-accent)]">{branding.organizationName}</span>
           <span className={`mt-1 block truncate text-sm font-black tracking-tight ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</span>
         </span>
       ) : null}
@@ -106,27 +105,27 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
       <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
-      {!mobile ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute -right-3 top-[76px] z-10 grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:text-[var(--brand-primary)]"
-          aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
-          aria-expanded={!compact}
-        >
-          <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" />
-        </button>
-      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-4">
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
-        <div className={`mb-1 ${compact && !mobile ? "flex justify-center" : ""}`}>
-          <PlatformThemeToggle compact={compact && !mobile} sidebar />
-        </div>
+        {!mobile && onToggle ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 ${compact ? "justify-center px-2" : ""}`}
+            aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
+            aria-expanded={!compact}
+          >
+            <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" aria-hidden="true" />
+            {!compact ? <span>Recolher menu</span> : null}
+          </button>
+        ) : null}
         <Link href="/perfil" onClick={onNavigate} className={`flex min-h-11 items-center gap-2 rounded-xl p-2 transition hover:bg-[var(--surface-hover)] ${compact && !mobile ? "justify-center" : ""}`} aria-label={`Abrir perfil de ${user.fullName}`}>
-          <Avatar user={user} compact />
-          {(!compact || mobile) ? <span className="min-w-0"><strong className={`block truncate text-xs ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{user.fullName}</strong><span className={`block truncate text-[11px] ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{user.profileLabel}</span></span> : null}
+          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${mobile ? "bg-[var(--surface-muted)] text-[var(--brand-primary)]" : "bg-white/10 text-[var(--sidebar-foreground)]"}`} aria-hidden="true">
+            <PlatformIcon name="profile" className="h-[18px] w-[18px]" />
+          </span>
+          {(!compact || mobile) ? <span className="min-w-0"><strong className={`block truncate text-xs ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>Meu perfil</strong><span className={`block truncate text-[11px] ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{user.profileLabel}</span></span> : null}
         </Link>
         <button type="button" onClick={onSignOut} aria-label="Sair da sessão atual" className={`mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${compact && !mobile ? "px-2" : ""}`}>
           <PlatformIcon name="logout" className="h-4 w-4" />
@@ -211,18 +210,19 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
       </Drawer>
       <div className="platform-shell-content min-w-0 transition-[padding] duration-300">
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
-          <div className="mx-auto flex min-h-16 max-w-[1560px] items-center justify-between gap-3 py-2">
+          <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
               <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
                 <PlatformIcon name="menu" />
               </button>
-              <div className="min-w-0">
-                {eyebrow ? <p className="truncate text-[10px] font-black uppercase tracking-[.18em] text-[var(--brand-secondary)]">{eyebrow}</p> : null}
-                <h1 className="truncate text-lg font-black tracking-tight text-[var(--brand-primary)] sm:text-xl">{title}</h1>
+              <div className="flex min-w-0 items-center gap-2 text-sm">
+                {eyebrow ? <p className="truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:text-xs">{eyebrow}</p> : null}
+                {eyebrow ? <span className="text-[var(--border-strong)]" aria-hidden="true">/</span> : null}
+                <h1 className="truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <PlatformCommandMenu modules={modules} />
+              <PlatformThemeToggle compact />
               {actions}
               <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
                 <Avatar user={user} compact />
@@ -231,7 +231,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
             </div>
           </div>
         </header>
-        <main id="conteudo-principal" tabIndex={-1} className="mx-auto min-w-0 max-w-[1560px] px-4 py-5 outline-none sm:px-5 lg:px-6 lg:py-6">{children}</main>
+        <main id="conteudo-principal" tabIndex={-1} className="mx-auto min-w-0 max-w-[1760px] px-4 py-4 outline-none sm:px-5 lg:px-6 lg:py-5">{children}</main>
       </div>
     </div>
   );
