@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, FileEdit, FilePlus2, FileQuestion, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarDays, Copy, FileEdit, FilePlus2, FileQuestion, Search, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -18,9 +18,33 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type ManagedSurvey = {
   surveyId: string; code: string; name: string; description: string | null; status: string;
   versionNumber: number; versionStatus: string; applicationName: string | null;
+  applicationCode: string | null;
   applicationStatus: string | null; opensAt: string | null; closesAt: string | null;
   sections: number; questions: number;
 };
+
+/**
+ * Copia o link direto de resposta da avaliação.
+ *
+ * Quem abre o link entra pelo login institucional e o banco decide se pode
+ * responder — o link não dá acesso por si só, apenas encurta o caminho.
+ */
+function copyResponseLink(survey: ManagedSurvey) {
+  if (!survey.applicationCode) {
+    toast.error("Este instrumento ainda não tem ciclo configurado.");
+    return;
+  }
+  const path = survey.code === "CDDI" ? "/cddi" : `/pesquisas/${encodeURIComponent(survey.applicationCode)}`;
+  const url = `${window.location.origin}${path}`;
+  if (!navigator.clipboard) {
+    toast.error(`Copie o link manualmente: ${url}`);
+    return;
+  }
+  void navigator.clipboard.writeText(url).then(
+    () => toast.success("Link de resposta copiado. Quem abrir entra pelo login institucional."),
+    () => toast.error(`Não foi possível copiar. Link: ${url}`),
+  );
+}
 
 /** Códigos do banco traduzidos: a interface fala português, o código fica no `title`. */
 const STATUS_LABELS: Record<string, string> = {
@@ -242,7 +266,7 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <Link
           href={`/admin/pesquisas/${survey.surveyId}`}
           title="Editar seções, perguntas e alternativas"
@@ -251,6 +275,15 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
           <FileEdit className="h-4 w-4" aria-hidden="true" />
           Editar formulário
         </Link>
+        <button
+          type="button"
+          onClick={() => copyResponseLink(survey)}
+          title="Copiar o link direto para responder esta avaliação"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+        >
+          <Copy className="h-4 w-4" aria-hidden="true" />
+          Copiar link
+        </button>
         <Link
           href={`/admin/pesquisas/${survey.surveyId}/operacao`}
           title="Publicar a versão, definir o período e abrir ou encerrar o ciclo"
