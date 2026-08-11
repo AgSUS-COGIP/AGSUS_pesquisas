@@ -1,9 +1,9 @@
 :root {
   --brand-blue-50: #eff8ff;
   --brand-blue-100: #dbeeff;
-  --brand-blue-600: #0869a8;
-  --brand-blue-700: #075784;
-  --brand-blue-800: #06476c;
+  --brand-blue-600: #005b96;
+  --brand-blue-700: #003b70;
+  --brand-blue-800: #002b54;
   --brand-green-50: #ecfdf5;
   --brand-green-100: #d1fae5;
   --brand-green-600: #07855d;
@@ -29,8 +29,8 @@
   --interactive-selected-bg: var(--brand-blue-50);
   --interactive-selected-border: #4ca9dc;
   --progress-start: var(--brand-blue-700);
-  --progress-middle: var(--brand-green-600);
-  --progress-end: #1598b8;
+  --progress-middle: #007fa8;
+  --progress-end: #00a8d6;
 }
 
 html[data-agsus-theme="dark"] {
