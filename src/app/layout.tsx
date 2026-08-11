@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   },
   description: "Plataforma institucional de avaliações e formulários da AgSUS.",
   icons: {
-    icon: "/agsus-logo-oficial.jpg",
-    shortcut: "/agsus-logo-oficial.jpg",
-    apple: "/agsus-logo-oficial.jpg",
+    icon: "/agsus-logo.png",
+    shortcut: "/agsus-logo.png",
+    apple: "/agsus-logo.png",
   },
 };
 
