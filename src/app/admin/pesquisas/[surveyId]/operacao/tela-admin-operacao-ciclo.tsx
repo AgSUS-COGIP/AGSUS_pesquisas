@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -284,6 +284,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     },
   ] : [];
 
+  // Link direto para responder: CDDI tem jornada própria; o restante usa o
+  // runtime genérico por código de aplicação. Quem abrir o link entra pelo
+  // login institucional e o banco (RLS) decide se pode responder.
+  const responseLink = operations?.application
+    ? operations.survey.code === "CDDI"
+      ? "/cddi"
+      : `/pesquisas/${encodeURIComponent(operations.application.code)}`
+    : null;
+
   return <PlatformShell
     user={guard.user}
     eyebrow="Administração · Propriedades"
@@ -303,6 +312,24 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Voltar ao catálogo
         </Link>
+        {responseLink && (
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}${responseLink}`;
+              if (!navigator.clipboard) { toast.error(`Copie o link manualmente: ${url}`); return; }
+              void navigator.clipboard.writeText(url).then(
+                () => toast.success("Link de resposta copiado. Quem abrir entra pelo login institucional."),
+                () => toast.error(`Não foi possível copiar. Link: ${url}`),
+              );
+            }}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+            title="Copiar o link direto para responder esta avaliação"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+            Copiar link
+          </button>
+        )}
         {operations?.application?.id && (
           <Link
             href={`/admin/pesquisas/${surveyId}/identidade`}

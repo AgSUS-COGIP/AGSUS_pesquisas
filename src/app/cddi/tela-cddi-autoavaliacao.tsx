@@ -32,8 +32,8 @@ type Screen = "home" | "auto";
  * independente do tema da plataforma. Só estas duas cores são fixas; todo o
  * resto usa tokens, para a jornada acompanhar o tema claro/escuro.
  */
-const CDDI_INK = "#26368d";
-const CDDI_RULE = "#2d3f97";
+const CDDI_INK = "var(--cddi-ink)";
+const CDDI_RULE = "var(--cddi-rule)";
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Não informado";
@@ -303,15 +303,9 @@ export default function CddiFormPage() {
           </section>
 
           <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>Escolha o que fazer agora</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Quem tem equipe pode responder a própria autoavaliação e avaliar as pessoas vinculadas.</p>
-              </div>
-              <Link href="/area" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
-                <Home className="h-4 w-4" aria-hidden="true" />
-                Tela inicial
-              </Link>
+            <div>
+              <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>Escolha o que fazer agora</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Quem tem equipe pode responder a própria autoavaliação e avaliar as pessoas vinculadas.</p>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <button

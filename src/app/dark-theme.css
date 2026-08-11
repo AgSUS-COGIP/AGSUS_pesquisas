@@ -1,5 +1,8 @@
 html[data-agsus-theme="dark"] {
   color-scheme: dark;
+  /* Azul do CDDI legível sobre superfícies escuras. */
+  --cddi-ink: #aebdf7;
+  --cddi-rule: #5f70d6;
 }
 
 html[data-agsus-theme="dark"] body {
