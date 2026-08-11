@@ -40,13 +40,10 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
   {
     title: "Administração",
     items: [
-      { href: "/admin", label: "Administração", description: "Abrir a gestão da plataforma", icon: "admin", module: PLATFORM_MODULE.ADMIN_SURVEYS, exact: true },
       { href: "/admin/pesquisas", label: "Pesquisas e ciclos", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
       { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS },
       { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: PLATFORM_MODULE.ADMIN_TEAMS },
-      { href: "/admin/acessos", label: "Acessos", description: "Administrar papéis e módulos", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
-      { href: "/admin/configuracoes", label: "Configurações", description: "Personalizar marca e aparência", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
-      { href: "/admin/importacao", label: "Importações", description: "Validar e processar planilhas", icon: "import", module: PLATFORM_MODULE.ADMIN_IMPORT },
+      { href: "/admin/configuracoes", label: "Configurações", description: "Marca, aparência e perfis de acesso", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
     ],
   },
 ];

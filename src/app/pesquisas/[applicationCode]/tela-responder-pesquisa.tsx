@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { FullPageState } from "@/components/full-page-state";
@@ -55,6 +56,7 @@ export default function GenericSurveyPage() {
   const [loading, setLoading] = useState(true);
   const [pendingSaves, setPendingSaves] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const [step, setStep] = useState(0);
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
@@ -222,6 +224,7 @@ export default function GenericSurveyPage() {
         submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt } : null,
       } : current);
       toast.success("Avaliação enviada com sucesso.");
+      setCelebrate(true);
     } catch (submitError) {
       toast.error(submitError instanceof Error ? submitError.message : "Não foi possível enviar a avaliação.");
     } finally {
@@ -484,6 +487,7 @@ export default function GenericSurveyPage() {
           )}
         </footer>
       </div>
+      <CompletionCelebration open={celebrate} onClose={() => setCelebrate(false)} message="Sua resposta foi enviada. Obrigado por participar da avaliação institucional." />
     </PlatformShell>
   );
 }

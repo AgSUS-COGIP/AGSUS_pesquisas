@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, FileCog, LockKeyhole, Network, Settings2, ShieldCheck, UploadCloud, Users2 } from "lucide-react";
+import { ArrowRight, BarChart3, FileCog, Network, Settings2, ShieldCheck, Users2 } from "lucide-react";
 import Link from "next/link";
 import { PlatformShell } from "@/components/platform-shell";
 import { FullPageState } from "@/components/full-page-state";
@@ -18,9 +18,7 @@ const cards = [
   { href: "/admin/pesquisas", module: PLATFORM_MODULE.ADMIN_SURVEYS, tag: "Configuração", title: "Avaliações e ciclos", description: "Crie instrumentos, organize seções e perguntas, defina períodos e publique versões controladas.", hint: "Construir formulário · abrir e encerrar ciclo", icon: FileCog },
   { href: "/admin/participantes", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS, tag: "Público", title: "Participantes", description: "Escolha quem responde cada avaliação e trate bloqueios, reativações e exclusões.", hint: "Vincular pessoas · individual ou em lote", icon: Users2 },
   { href: "/admin/equipes", module: PLATFORM_MODULE.ADMIN_TEAMS, tag: "Estrutura", title: "Equipes e lideranças", description: "Corrija dados funcionais e defina quem avalia quem em cada ciclo.", hint: "Exige justificativa · fica em auditoria", icon: Network },
-  { href: "/admin/acessos", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Segurança", title: "Acessos e permissões", description: "Defina o perfil de acesso de cada pessoa na plataforma.", hint: "Um perfil por pessoa, sem acúmulo", icon: LockKeyhole },
-  { href: "/admin/importacao", module: PLATFORM_MODULE.ADMIN_IMPORT, tag: "Dados", title: "Importação da base", description: "Valide a planilha oficial, trate pendências e atualize a base mestra de pessoas.", hint: "Atualiza a base · não vincula a avaliações", icon: UploadCloud },
-  { href: "/admin/configuracoes", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Sistema", title: "Marca e aparência", description: "Altere logotipo, nomes institucionais e a cor principal da plataforma.", hint: "Vale para toda a aplicação", icon: Settings2 },
+  { href: "/admin/configuracoes", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Sistema", title: "Configurações do sistema", description: "Marca, aparência e perfis de acesso das pessoas — em um só lugar.", hint: "Marca, aparência e acessos", icon: Settings2 },
   { href: "/paineis", module: PLATFORM_MODULE.DASHBOARDS, tag: "Governança", title: "Painéis e indicadores", description: "Acompanhe adesão, conclusão e inconsistências dos ciclos em andamento.", hint: "Somente leitura", icon: BarChart3 },
 ];
 

@@ -6,7 +6,9 @@ import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
 import "./theme-foundation.css";
 import "./theme-enhancements.css";
+import "./dark-theme.css";
 import "./sidebar-monitora.css";
+import "./monitor-dashboard.css";
 
 export const metadata: Metadata = {
   title: {
@@ -15,9 +17,9 @@ export const metadata: Metadata = {
   },
   description: "Plataforma institucional de avaliações e formulários da AgSUS.",
   icons: {
-    icon: "/agsus-logo-oficial.jpg",
-    shortcut: "/agsus-logo-oficial.jpg",
-    apple: "/agsus-logo-oficial.jpg",
+    icon: "/agsus-logo.png",
+    shortcut: "/agsus-logo.png",
+    apple: "/agsus-logo.png",
   },
 };
 

@@ -56,7 +56,6 @@ describe("platform navigation", () => {
       "/paineis",
       "/equipe",
       "/resultados",
-      "/admin",
       "/admin/pesquisas",
       "/admin/participantes",
     ]);
