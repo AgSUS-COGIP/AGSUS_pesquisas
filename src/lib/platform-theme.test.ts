@@ -1,40 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  getPlatformThemeState,
   normalizePlatformTheme,
   PLATFORM_THEME_ATTRIBUTE,
-  PLATFORM_THEME_PREFERENCE_ATTRIBUTE,
   PLATFORM_THEME_STORAGE_KEY,
   platformThemeBootstrapScript,
-  resolvePlatformTheme,
 } from "./platform-theme";
 
 describe("platform theme", () => {
-  it("normalizes persisted values", () => {
-    expect(normalizePlatformTheme("light")).toBe("light");
+  it("mantém apenas 'dark' como escolha; qualquer outra coisa é claro (padrão)", () => {
     expect(normalizePlatformTheme("dark")).toBe("dark");
-    expect(normalizePlatformTheme("invalid")).toBe("system");
-    expect(normalizePlatformTheme(null)).toBe("system");
+    expect(normalizePlatformTheme("light")).toBe("light");
   });
 
-  it("resolves system preference", () => {
-    expect(resolvePlatformTheme("system", true)).toBe("dark");
-    expect(resolvePlatformTheme("system", false)).toBe("light");
-    expect(resolvePlatformTheme("light", true)).toBe("light");
+  it("usa tema claro como padrão para valor ausente ou inválido", () => {
+    expect(normalizePlatformTheme(null)).toBe("light");
+    expect(normalizePlatformTheme(undefined)).toBe("light");
+    expect(normalizePlatformTheme("system")).toBe("light");
+    expect(normalizePlatformTheme("invalid")).toBe("light");
   });
 
-  it("returns persisted and resolved theme independently", () => {
-    expect(getPlatformThemeState("system", true)).toEqual({
-      preference: "system",
-      resolved: "dark",
-    });
-  });
-
-  it("bootstraps the shared storage key and attributes", () => {
+  it("faz bootstrap com a chave e o atributo compartilhados, com claro como padrão", () => {
     const script = platformThemeBootstrapScript();
     expect(script).toContain(PLATFORM_THEME_STORAGE_KEY);
     expect(script).toContain(PLATFORM_THEME_ATTRIBUTE);
-    expect(script).toContain(PLATFORM_THEME_PREFERENCE_ATTRIBUTE);
-    expect(script).toContain("prefers-color-scheme: dark");
+    // Só "dark" liga o escuro; a ausência de preferência resolve para claro.
+    expect(script).toContain('saved==="dark"?"dark":"light"');
+    // Sem dependência de preferência do sistema — dois estados apenas.
+    expect(script).not.toContain("prefers-color-scheme");
   });
 });

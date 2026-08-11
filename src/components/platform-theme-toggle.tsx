@@ -1,115 +1,82 @@
 "use client";
 
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
-  getPlatformThemeState,
   normalizePlatformTheme,
   PLATFORM_THEME_ATTRIBUTE,
-  PLATFORM_THEME_PREFERENCE_ATTRIBUTE,
   PLATFORM_THEME_STORAGE_KEY,
   type PlatformTheme,
 } from "@/lib/platform-theme";
 
-const THEME_LABELS: Record<PlatformTheme, string> = {
-  system: "Automático",
-  light: "Claro",
-  dark: "Escuro",
-};
-
-const THEME_ICONS: Record<PlatformTheme, LucideIcon> = {
-  system: Monitor,
-  light: Sun,
-  dark: Moon,
-};
-
-const NEXT_THEME: Record<PlatformTheme, PlatformTheme> = {
-  system: "light",
-  light: "dark",
-  dark: "system",
-};
-
-function readStoredTheme() {
+function readStoredTheme(): PlatformTheme {
   try {
-    return normalizePlatformTheme(
-      window.localStorage.getItem(PLATFORM_THEME_STORAGE_KEY),
-    );
+    return normalizePlatformTheme(window.localStorage.getItem(PLATFORM_THEME_STORAGE_KEY));
   } catch {
-    return "system" as const;
+    return "light";
   }
 }
 
-function updateDocumentTheme(theme: PlatformTheme, prefersDark: boolean) {
-  const state = getPlatformThemeState(theme, prefersDark);
-  document.documentElement.setAttribute(PLATFORM_THEME_ATTRIBUTE, state.resolved);
-  document.documentElement.setAttribute(
-    PLATFORM_THEME_PREFERENCE_ATTRIBUTE,
-    state.preference,
-  );
-  document.documentElement.style.colorScheme = state.resolved;
+function applyDocumentTheme(theme: PlatformTheme) {
+  document.documentElement.setAttribute(PLATFORM_THEME_ATTRIBUTE, theme);
+  document.documentElement.style.colorScheme = theme;
 }
 
-export function PlatformThemeToggle({ compact = false, sidebar = false }: { compact?: boolean; sidebar?: boolean }) {
-  const [theme, setTheme] = useState<PlatformTheme>("system");
+/**
+ * Alterna entre tema claro (Sol) e escuro (Lua) — dois estados, padrão claro.
+ *
+ * Grava a escolha em `localStorage` e sincroniza entre abas pelo evento `storage`.
+ * `localStorage` indisponível degrada silenciosamente: o tema ainda vale para a
+ * aba atual. O padrão é aplicado antes da primeira pintura pelo script do layout.
+ */
+export function PlatformThemeToggle({ compact = false }: { compact?: boolean }) {
+  const [theme, setTheme] = useState<PlatformTheme>("light");
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
     function syncFromStorage() {
-      const storedTheme = readStoredTheme();
-      setTheme(storedTheme);
-      updateDocumentTheme(storedTheme, mediaQuery.matches);
-    }
-
-    function handleSystemPreferenceChange() {
-      const storedTheme = readStoredTheme();
-      if (storedTheme === "system") {
-        updateDocumentTheme(storedTheme, mediaQuery.matches);
-      }
+      const stored = readStoredTheme();
+      setTheme(stored);
+      applyDocumentTheme(stored);
     }
 
     function handleStorage(event: StorageEvent) {
-      if (!event.key || event.key === PLATFORM_THEME_STORAGE_KEY) {
-        syncFromStorage();
-      }
+      if (!event.key || event.key === PLATFORM_THEME_STORAGE_KEY) syncFromStorage();
     }
 
     syncFromStorage();
-    mediaQuery.addEventListener("change", handleSystemPreferenceChange);
     window.addEventListener("storage", handleStorage);
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleSystemPreferenceChange);
-      window.removeEventListener("storage", handleStorage);
-    };
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  function applyTheme(nextTheme: PlatformTheme) {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  function toggleTheme() {
+    const nextTheme: PlatformTheme = theme === "dark" ? "light" : "dark";
     try {
       window.localStorage.setItem(PLATFORM_THEME_STORAGE_KEY, nextTheme);
     } catch {
-      // The visual preference still applies for the current tab.
+      // A preferência visual ainda vale para a aba atual.
     }
-    updateDocumentTheme(nextTheme, prefersDark);
+    applyDocumentTheme(nextTheme);
     setTheme(nextTheme);
   }
 
-  const nextTheme = NEXT_THEME[theme];
-  const ThemeIcon = THEME_ICONS[theme];
+  const isDark = theme === "dark";
+  const Icon = isDark ? Moon : Sun;
+  const stateLabel = isDark ? "escuro" : "claro";
+  const nextLabel = isDark ? "claro" : "escuro";
 
   return (
     <button
       type="button"
-      onClick={() => applyTheme(nextTheme)}
-      className={`theme-toggle text-xs font-black ${sidebar ? "w-full" : ""}`}
+      onClick={toggleTheme}
+      className="theme-toggle text-xs font-black"
       data-theme={theme}
-      aria-label={`Tema atual: ${THEME_LABELS[theme]}. Alterar para ${THEME_LABELS[nextTheme]}.`}
-      title={`Tema: ${THEME_LABELS[theme]}`}
+      aria-label={`Tema ${stateLabel} ativo. Alternar para tema ${nextLabel}.`}
+      title={`Tema ${stateLabel}`}
+      aria-pressed={isDark}
     >
-      <ThemeIcon className="h-4 w-4" aria-hidden="true" />
-      <span className={compact ? "sr-only" : sidebar ? "inline" : "hidden xl:inline"}>
-        {THEME_LABELS[theme]}
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span className={compact ? "sr-only" : "hidden xl:inline"}>
+        {isDark ? "Escuro" : "Claro"}
       </span>
     </button>
   );
