@@ -59,7 +59,7 @@ export default function AdminDashboardPage() {
     eyebrow="Administração"
     title="Central administrativa"
   >
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <PageHeader
         eyebrow="Governança da plataforma"
         title="O que você administra aqui"
