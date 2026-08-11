@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalImage } from "@/components/external-image";
 import { cn } from "@/lib/utils";
 
@@ -35,18 +35,39 @@ export function PlatformLogo({
   className,
 }: PlatformLogoProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
-  const canRenderImage = Boolean(src) && failedSource !== src && !loading;
+  // Renderiza o logotipo assim que houver uma URL — mesmo durante o carregamento
+  // da marca. `src` já vem com o padrão institucional (logo local) antes de a
+  // busca terminar, então a marca do banco apenas o substitui quando chega. Sem
+  // isso, a tela pública exibia um quadrado cinza pulsante até a marca resolver.
+  //
+  // `readySrc` mantém a imagem visível até a próxima terminar de carregar. Quando
+  // `src` muda (logo local → marca do banco, a mesma arte), trocar direto causava
+  // um "piscar"; aqui a nova URL é pré-carregada e só entra quando está pronta.
+  const [readySrc, setReadySrc] = useState<string | null>(src ?? null);
 
-  if (canRenderImage && src) {
+  useEffect(() => {
+    if (!src || src === readySrc) return;
+    let active = true;
+    const image = new window.Image();
+    image.onload = () => { if (active) setReadySrc(src); };
+    image.onerror = () => { if (active) setFailedSource(src); };
+    image.src = src;
+    return () => { active = false; };
+  }, [src, readySrc]);
+
+  const displaySrc = readySrc ?? src;
+  const canRenderImage = Boolean(displaySrc) && failedSource !== displaySrc;
+
+  if (canRenderImage && displaySrc) {
     return (
       <ExternalImage
-        src={src}
+        src={displaySrc}
         alt={alt}
         width={width}
         height={height}
         sizes={sizes}
         priority={priority}
-        onError={() => setFailedSource(src)}
+        onError={() => setFailedSource(displaySrc)}
         className={className}
       />
     );

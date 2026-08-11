@@ -35,7 +35,11 @@ export function PlatformBrandingProvider({ children }: { children: ReactNode }) 
     retry: false,
   });
   const branding = query.data ?? cachedBranding ?? DEFAULT_PLATFORM_BRANDING;
-  const brandingResolved = !isBrowserSupabaseConfigured() || Boolean(query.data ?? cachedBranding);
+  // A marca também está "resolvida" quando a busca termina sem dados — caso da
+  // página pública de acesso, onde a RPC falha por falta de sessão. Sem o
+  // `query.isFetched`, o provider ficava preso em carregando e o logotipo
+  // aparecia como um quadrado cinza vazio para quem ainda não entrou.
+  const brandingResolved = !isBrowserSupabaseConfigured() || Boolean(query.data ?? cachedBranding) || query.isFetched;
 
   useEffect(() => {
     try {
