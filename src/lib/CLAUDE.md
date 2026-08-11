@@ -141,7 +141,7 @@ Deduplicação por impressão digital (`type|route|message|httpStatus`) com jane
 ## Regras de negócio nesta camada
 
 - **`safeAuthNext()`** só aceita caminho interno: precisa começar com `/`, não pode começar com `//`, não pode conter `\`, e o `URL` resolvido contra uma origem sentinela precisa manter essa origem. Qualquer desvio devolve `/area`. Preserva `search` e `hash`.
-- **`resolveSurveyVisualIdentity()` devolve sempre a capa institucional.** Só título e subtítulo são configuráveis. `bannerUrl`, `bannerAlt` e `themeVariant` gravados em `settings` de ciclos anteriores são **ignorados de propósito**: a capa personalizada foi removida da plataforma e, sem esse descarte, a arte antiga continuaria aparecendo sem nenhuma tela capaz de trocá-la.
+- **`resolveSurveyVisualIdentity()` exige `themeVariant: "CUSTOM"` para a capa personalizada valer.** Voltar a `INSTITUTIONAL` restaura a arte padrão sem apagar a `bannerUrl` gravada, então a administração alterna entre as duas sem perder o ajuste anterior. `httpsUrl()` descarta qualquer origem que não seja `https:` — a capa é renderizada em página autenticada, e `http:` causaria conteúdo misto além de permitir substituição da imagem em trânsito. Título e subtítulo são configuráveis nas duas variantes.
 - **`normalizeAvatarConfig()`** valida cada campo contra o catálogo permitido e degrada para o padrão derivado do nome da pessoa. Metadado corrompido nunca quebra a renderização; `seed` limitado a 120 caracteres.
 - **`buildQuestionOptions()`** preserva `id` e `value` das alternativas existentes por posição ao renomear rótulos — evita invalidar respostas já gravadas.
 - **`surveyItemState()`** — precedência: concluída > rascunho > encerrada > agendada > pendente.
