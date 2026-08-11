@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, ClipboardList, FilePlus2, FileText, Filter, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
+import { CalendarClock, CheckCircle2, ClipboardList, FileText, Filter, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell } from "@/components/platform-shell";
 import { Badge } from "@/components/ui/badge";
@@ -94,15 +94,11 @@ export default function SurveysPage() {
     />;
   }
 
-  const { modules } = guard;
-  const isAdmin = modules.includes(PLATFORM_MODULE.ADMIN_SURVEYS);
-
   return (
     <PlatformShell
       user={guard.user}
       eyebrow="Catálogo institucional"
       title="Avaliações"
-      actions={isAdmin ? <Link href="/admin/pesquisas/nova" className={cn(buttonVariants({ variant: "primary" }), "hidden sm:inline-flex")}><FilePlus2 className="h-4 w-4" aria-hidden="true" />Nova avaliação</Link> : undefined}
     >
       <div className="space-y-5">
         <Surface className="p-5 sm:p-6">

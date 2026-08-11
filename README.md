@@ -338,6 +338,16 @@ O CDDI adiciona duas particularidades: a chefia responsável é resolvida automa
 
 A estrutura só é editável enquanto a versão está em rascunho; `validate_survey_version_integrity` bloqueia a publicação de instrumentos inconsistentes.
 
+A árvore acima é de **rotas**, não de navegação. Os caminhos que a interface realmente oferece são:
+
+```text
+/admin/pesquisas  ──[Editar formulário]──▶  /admin/pesquisas/[surveyId]
+                  ──[Propriedades]──────▶  …/operacao
+                                               └──[Editar identidade visual]──▶ …/identidade
+```
+
+Ou seja, `/identidade` só é alcançável a partir de `/operacao` — por isso a tela de identidade volta para "Propriedades", e não para o construtor. A tela de propriedades traz as ações de navegação no topo do próprio conteúdo, não na barra da casca. Detalhes e o que foi deliberadamente removido dela em [src/app/admin/CLAUDE.md](src/app/admin/CLAUDE.md).
+
 ### Importação da base institucional
 
 ```text
@@ -424,8 +434,11 @@ Regras respeitadas em todo o código:
 **Estilo**
 
 - Tailwind utilitário + variáveis CSS (`var(--brand-primary)`, `var(--surface-card)`) definidas em [src/app/globals.css](src/app/globals.css) e arquivos de tema. Não repetir hexadecimais quando existir token.
-- Classes compostas via `cn()` ([src/lib/utils.ts](src/lib/utils.ts)); variantes via `class-variance-authority`.
+- **Cor por token, nunca hexadecimal literal** — é o que faz a aplicação inteira acompanhar o tema escuro. Telas montam a partir dos primitivos de [src/components/ui](src/components/ui) (`Surface`, `PageHeader`, `StatCard`, `Button`, `Badge`, `EmptyState`, `Skeleton`) em vez de recriar caixa e cabeçalho.
+- Três exceções deliberadas, todas por identidade institucional fixa: as constantes `CDDI_INK`/`CDDI_RULE` das telas do CDDI, a paleta literal da tela pública `/acesso` (sempre clara, fora da casca temática) e a barra de cinco cores da marca. Exceção nova exige a mesma justificativa — não espalhe literais.
+- Classes compostas via `cn()` ([src/lib/utils.ts](src/lib/utils.ts)); variantes via `class-variance-authority`. `<Link>` que deve parecer botão usa `buttonVariants({ variant })`, não a cadeia de classes copiada.
 - Alvo interativo mínimo de 44 px, foco visível, `aria-label` em botões só com ícone, respeito a `prefers-reduced-motion`.
+- **Estado nunca depende só de cor** (todo selo leva rótulo ou ícone), **código do banco não é rótulo de interface** (`DRAFT` → "Rascunho", com o código no `title`) e **botão indisponível explica o motivo** (`title` + `aria-describedby` + nota visível).
 
 **Banco de dados**
 
@@ -463,7 +476,6 @@ Nenhum destes arquivos é importado por código de produção:
 | Arquivo | Situação |
 |---|---|
 | [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
-| [src/components/cddi-visual-banner.tsx](src/components/cddi-visual-banner.tsx) | Substituído por `survey-banner.tsx`. |
 | [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
 
 **Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
@@ -492,12 +504,9 @@ Nenhum destes arquivos é importado por código de produção:
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
-7. **Ciclo CDDI descrito como encerrado** em texto fixo do painel administrativo ([src/app/admin/tela-central-admin.tsx](src/app/admin/tela-central-admin.tsx#L32)), independente do estado real da aplicação.
+7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
 
-8. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
-
-
-10. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
+8. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
 
 ### Segurança e robustez
 
