@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart3, CircleCheckBig, Clock3, UsersRound } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
+import { DistributionBars } from "@/components/platform-charts";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
@@ -66,31 +67,6 @@ function formatDate(value: string | null) {
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
-}
-
-function OptionDistribution({ options }: { options: DashboardOption[] }) {
-  const total = options.reduce((sum, option) => sum + Number(option.count || 0), 0);
-  if (!options.length) return null;
-
-  return (
-    <div className="mt-5 space-y-3">
-      {options.map((option) => {
-        const count = Number(option.count || 0);
-        const percentage = total ? Math.round((count / total) * 100) : 0;
-        return (
-          <div key={option.id}>
-            <div className="flex items-center justify-between gap-4 text-sm">
-              <span className="font-bold text-[var(--text-primary)]">{option.label}</span>
-              <span className="shrink-0 text-[var(--text-secondary)]">{count} · {percentage}%</span>
-            </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-              <div className="h-full rounded-full bg-[var(--brand-primary)] transition-[width]" style={{ width: `${percentage}%` }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 export default function SurveyDashboardPage() {
@@ -189,7 +165,7 @@ export default function SurveyDashboardPage() {
               <Badge variant="neutral">{question.responseCount} resposta(s)</Badge>
             </div>
 
-            <OptionDistribution options={question.options ?? []} />
+            {question.options?.length ? <DistributionBars items={question.options} /> : null}
 
             {question.textResponses?.length ? (
               <div className="mt-5">
