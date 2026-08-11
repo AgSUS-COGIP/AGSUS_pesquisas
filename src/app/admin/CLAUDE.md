@@ -24,7 +24,7 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin/pesquisas` | `pesquisas/tela-admin-lista-pesquisas.tsx` | `ADMIN_SURVEYS` | `list_managed_surveys` |
 | `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `create_survey_draft` |
 | `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section`, `fc_excluir_pesquisa_rascunho` |
-| `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `update_application_visual_settings` |
+| `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `get_application_visual_settings`, `update_application_visual_settings` |
 | `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
 | `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
@@ -40,9 +40,11 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 /admin/pesquisas/nova       create_survey_draft
         ↓                   cria survey + versão 1 + aplicação, todos em rascunho
 /admin/pesquisas/[surveyId]              estrutura: seções, perguntas, alternativas
-        ├── /identidade                  banner, título e subtítulo da capa
+        ├── /identidade                  título e subtítulo da capa (a arte é fixa)
         └── /operacao                    período e máquina de estados do ciclo
 ```
+
+**A árvore acima é de rotas, não de navegação.** As duas telas filhas não são alcançáveis pelo construtor: o catálogo (`/admin/pesquisas`) leva ao construtor por "Editar formulário" e a `/operacao` por "Propriedades", e **`/identidade` só é alcançável a partir de `/operacao`**, pelo botão "Editar identidade visual". Por isso a tela de identidade volta para `/operacao` ("Voltar às propriedades"), e não para o construtor — o botão de ida saiu de lá. Mover essa entrada de novo exige mexer no botão de volta da tela de identidade, senão o operador cai numa tela de onde não veio.
 
 **Máquina de estados do ciclo** (`manage_survey_cycle`, ação em `target_action`):
 
@@ -66,6 +68,21 @@ Regras aplicadas pelo banco e refletidas na interface:
 - `CANCELLED` não retoma — exige criar novo ciclo.
 - `PUBLISH` roda `validate_survey_version_integrity`, que devolve pendências classificadas por `severity` (`BLOCKING` bloqueia; `WARNING` apenas alerta) e `category` (`STRUCTURE`, `CYCLE`, `PERIOD`, `AUDIENCE`). `readyToPublish` / `readyToOpen` no retorno de `get_survey_operations` derivam dessa validação.
 
+**A tela de `/operacao` é a "Propriedades" do ciclo** — é assim que o catálogo a chama, pelo botão **"Propriedades"**. Ela usa os primitivos do design system (`Surface`, `PageHeader`, `Button`, `Badge`, `Skeleton`) e tokens CSS, não hexadecimal literal, então acompanha o tema escuro como o restante da administração.
+
+Três decisões estruturam a tela:
+
+- **Nenhum botão fica apagado sem explicação.** Cada operação do ciclo de vida é um objeto `CycleAction` com `description` (o que a ação faz) e `blockedReason` (por que está indisponível), derivado do estado atual. A mesma frase alimenta o `title`, o `aria-describedby` e a nota sob o botão — é a aplicação concreta da responsabilidade declarada no topo deste arquivo. Adicionar operação nova exige preencher os dois textos.
+- **Código do banco não é rótulo de interface.** `CYCLE_STATUS_LABELS` e `VERSION_STATUS_LABELS` traduzem `DRAFT`/`OPEN`/`PUBLISHED` para português; o código interno sobrevive apenas no `title` do selo, para quem precisa correlacionar com o banco.
+- **A navegação da rota fica no topo do conteúdo, não na casca.** Uma `<nav aria-label="Ações da avaliação">` abre a `main`, antes do `PageHeader`, com "Voltar ao catálogo" e "Editar identidade visual" (azul, `--brand-solid`). Ela fica **fora** do bloco de carregamento de propósito: a saída da tela precisa existir antes dos dados e sobreviver a uma falha da RPC. Por isso o teste do botão de identidade é `operations?.application?.id` — com encadeamento opcional, já que ali `operations` ainda pode ser nulo. `PlatformShell` é chamado **sem** `actions`: a tela não tem ação própria de cabeçalho.
+
+O que **não** existe nesta tela, e foi removido por decisão de interface — não reintroduza sem pedido:
+
+- **Trilha de etapas.** O `CycleProgress` (`Rascunho → Agendado → Aberto → Encerrado`) e a constante `CYCLE_STEPS` foram removidos. O aviso enfático de ciclo cancelado morava no ramo `CANCELLED` dessa trilha; a informação continua na tela por `cycleExplanation()`, no cartão de período.
+- **Breadcrumbs.** A tela não tem caminho estrutural; o retorno é o botão "Voltar ao catálogo". O primitivo `Breadcrumbs` segue em uso em outras rotas administrativas — o que saiu foi só a chamada daqui.
+- **Botão "Editar formulário".** O acesso ao construtor é pelo catálogo. Dentro desta tela, o único link para lá é o atalho "Abrir construtor" do checklist, que `issueFixHref()` só devolve para pendência de `category: "STRUCTURE"` — logo, num ciclo sem pendências não há caminho para o construtor daqui.
+- **Botão "Atualizar dados".** A tela busca o agregado ao abrir (`useEffect`) e depois de cada mutação (`runAction` → `loadOperations()`), e não revalida sozinha — não há React Query nem polling aqui. Consequência aceita: contador de resposta num ciclo aberto e virada automática de `SCHEDULED` para `OPEN` só aparecem ao recarregar a página.
+
 ### Construtor de formulários
 
 Validação no cliente por `@/lib/survey-builder` **antes** de chamar a RPC (o banco revalida):
@@ -81,6 +98,10 @@ Validação no cliente por `@/lib/survey-builder` **antes** de chamar a RPC (o b
 **Excluir formulário** (`fc_excluir_pesquisa_rascunho`) fica numa seção destrutiva ao **fim** da página do construtor, apenas enquanto a versão é `DRAFT`, e confirma em diálogo que nomeia o formulário. A RPC recusa avaliação já publicada (a estrutura é referência histórica de quem respondeu) ou com qualquer submissão gravada, e a razão vem na própria mensagem de erro. Registra `SURVEY_DELETED` em `audit_events` **antes** do delete, com `application_id` nulo — a coluna referencia `survey_applications` com `on delete set null`, então o identificador do ciclo fica preservado em `metadata`.
 
 **Não confie no cascade para apagar a estrutura.** `survey_sections`, `survey_questions` e `question_options` têm o trigger `enforce_draft_survey_structure` (`before … delete`), que resolve a versão da linha afetada e exige que ela **exista** e esteja em `DRAFT`. Como o `on delete cascade` do PostgreSQL remove a linha-pai antes das filhas, apagar `survey_versions` direto faz cada trigger filho não encontrar mais a versão e abortar tudo com `Versão da pesquisa não encontrada.`. Por isso a exclusão apaga explicitamente **de baixo para cima** — alternativas → perguntas → seções → ciclo → versão → pesquisa — com a versão ainda presente em cada passo (`20260811143000_corrigir_exclusao_pesquisa_rascunho.sql`). Inverter a ordem traz o erro de volta.
+
+O mesmo vale **dentro** de `survey_sections`, que referencia a si mesma com `on delete cascade`: apagar a versão inteira num único `delete` remove a seção-pai antes da filha e reproduz o erro em avaliação com seções aninhadas. `20260811160000_corrigir_exclusao_secoes_aninhadas.sql` substitui essa varredura por um laço que apaga só folhas até esvaziar. Detalhe da regra em [../../../supabase/CLAUDE.md](../../../supabase/CLAUDE.md).
+
+**404 na RPC é migration não aplicada, não bug de tela.** `POST …/rpc/fc_excluir_pesquisa_rascunho 404 (Not Found)` no console significa que a função não existe no banco daquele ambiente — o PostgREST nem chegou a executar SQL. Commit não é deploy: os arquivos em `supabase/migrations/` só passam a valer depois de aplicados no projeto Supabase. Antes de investigar a tela, confirme a existência da função (`select proname from pg_proc where proname = '…'`) e confronte `supabase_migrations.schema_migrations` com o esquema real, pelo procedimento de [../../../docs/operacao-permissoes.md](../../../docs/operacao-permissoes.md).
 
 ### Gestão de participantes
 
@@ -135,7 +156,7 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 - **Admin nunca recebe `ADMIN_ACCESS`, `ADMIN_TEAMS` nem `ADMIN_IMPORT`** — quem gerencia pesquisas não define perfis, não altera dados funcionais e não carrega a base institucional. Cada cartão de `/admin` declara seu módulo e só aparece para quem o tem.
 - **Perfis são exclusivos.** `/admin/acessos` define **o** perfil da pessoa por `fc_definir_perfil_pessoa`, que concede o escolhido e encerra os demais na mesma transação. Não há como acumular Admin + Participante.
 - **Vínculos encerrados são preservados.** Retirar alguém da equipe encerra a vigência e registra evento em `audit_events`; nada é apagado.
-- **Identidade visual:** `update_application_visual_settings` aceita apenas URL **HTTPS** para banner. `themeVariant: "INSTITUTIONAL"` ignora banner personalizado e volta ao padrão (ver `resolveSurveyVisualIdentity` em `@/lib/survey-visual-identity`).
+- **A capa da avaliação é sempre a institucional.** `/admin/pesquisas/[surveyId]/identidade` configura **somente** título e subtítulo de abertura — não há envio de imagem. A tela chama `update_application_visual_settings` com `theme_variant: "INSTITUTIONAL"` e os três parâmetros de banner nulos; os parâmetros continuam na assinatura da RPC por compatibilidade com o bundle publicado, e removê-los exige a ordem descrita em [../../../CLAUDE.md](../../../CLAUDE.md) (publicar o frontend antes da migration). `resolveSurveyVisualIdentity()` descarta `bannerUrl`/`themeVariant` gravados em ciclos antigos — sem isso, uma capa personalizada salva antes da mudança sobreviveria sem caminho de edição. O bucket `survey-assets` deixou de receber uploads pela interface.
 
 ## Dependências
 
@@ -150,14 +171,13 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 
 - Ação destrutiva ou irreversível pede confirmação por `await confirm({ … })` (`useConfirm()` de `@/components/confirmation-provider`), com `tone: "danger"` quando o efeito não se desfaz e texto que cita o objeto afetado.
 - Erros de RPC passam por um helper que percorre `message` → `details` → `hint` antes do texto genérico (ver `errorMessage()` em `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx`).
-- Depois de mutação, recarregue o agregado do banco (`loadOperations()`, `loadTeam()`) em vez de tentar reconciliar estado local — o banco é a fonte da verdade.
+- Depois de mutação, recarregue o agregado do banco (`loadOperations()`, `loadTeam()`) em vez de tentar reconciliar estado local — o banco é a fonte da verdade. Em `/operacao` isso não é só convenção: sem botão de atualizar e sem revalidação automática, a recarga pós-mutação é o único momento em que a tela reencontra o banco depois de abrir.
 - Rótulos de sucesso ficam num mapa por ação, não concatenados em texto livre.
 
 ## Pontos de atenção
 
 - `/admin/importacao` aplica a guarda de `ADMIN_IMPORT` mas **não** usa `PlatformShell` (layout próprio de página inteira). A proteção efetiva continua na rota de API, que exige sessão institucional com perfil Superadmin.
 - O corpo de `/api/admin/import-participants` é validado por esquema `zod` (`@/lib/admin-import-contract`). Mudança no formato enviado pela tela exige mudança no contrato.
-- `/admin` exibe "CDDI 2026 · ciclo encerrado" como texto fixo, independente do estado real da aplicação.
 - **Toda** rota administrativa usa `usePlatformGuard()` + `PlatformGuardState`; as telas inline de "Acesso restrito" (`<main className="p-10 text-red-700">`, sem caminho de volta) deixaram de existir — inclusive nas três rotas sob `/admin/pesquisas/[surveyId]`. O `AdminModulePage` sem consumidores foi removido.
 - `/admin` e `/admin/acessos` chamam `usePlatformGuard()` **sem** módulo, de propósito: a central abre para qualquer `ADMIN_*` (regra de prefixo, não de cartão) e a tela de acessos apresenta a restrição dentro da casca, preservando a navegação.
 - `Dialog` importado de `@/components/ui/dialog` (`<dialog>` nativo) é diferente do `Dialog` de `@/components/ui/overlay-panel` (focus trap manual). O construtor usa o primeiro.
