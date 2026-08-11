@@ -101,6 +101,22 @@ useEffect(() => {
 }, [granted]);
 ```
 
+## Linguagem visual das telas
+
+As telas usam os primitivos de [../components/ui](../components/CLAUDE.md) (`Surface`, `PageHeader`, `StatCard`, `Button`, `Badge`, `Breadcrumbs`, `EmptyState`, `Skeleton`) e **tokens CSS**, nunca hexadecimal literal — é assim que a aplicação inteira acompanha o tema escuro. Três consequências práticas:
+
+- **Código do banco não é rótulo.** `DRAFT`, `OPEN`, `SUBMITTED` são vocabulário interno; a tela mostra "Rascunho", "Aberto", "Enviada", e guarda o código no `title` do selo para quem precisa correlacionar com o banco.
+- **Botão indisponível explica o motivo.** Vale para toda a aplicação, não só para a administração: quando uma ação está desabilitada, a razão aparece junto (`title` + `aria-describedby` + nota visível).
+- **Estado nunca depende só de cor.** Todo selo, cartão de alternativa e etapa de progresso leva rótulo textual ou ícone além da cor.
+
+**Três exceções deliberadas ao uso de tokens**, todas por identidade institucional fixa:
+
+| Onde | O quê | Por quê |
+|---|---|---|
+| `cddi/tela-cddi-autoavaliacao.tsx` e `cddi/chefia/[personId]/…` | `CDDI_INK` (`#26368d`) e `CDDI_RULE` (`#2d3f97`) | Azul do instrumento CDDI, independente do tema da plataforma. São constantes nomeadas no topo de cada arquivo — não espalhe literais novos. |
+| `acesso/tela-acesso.tsx` | paleta institucional literal | Tela pública, sempre clara, fora da casca temática. |
+| Barra de cinco cores | `#003b70 · #0b8f58 · #f2b705 · #d92d3a · #00a8d6` | Marca institucional, não é cor de interface. |
+
 ## Regras de negócio visíveis nesta camada
 
 **Roteamento do catálogo.** `surveyCode === "CDDI"` → `/cddi`; qualquer outro → `/pesquisas/[applicationCode]` com o código codificado por `encodeURIComponent`. A função canônica é `surveyApplicationHref()` em `@/lib/survey-catalog`, hoje importada por `/area` e `/pesquisas` — as duas telas também compartilham a consulta do catálogo pelo hook `useSurveyCatalog` (`src/hooks/use-survey-catalog.ts`).

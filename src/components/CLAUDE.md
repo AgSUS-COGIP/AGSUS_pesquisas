@@ -31,7 +31,7 @@ components/
 ├── platform-guard-state.tsx      renderiza os estados negados de usePlatformGuard()
 ├── external-image.tsx            next/image sem otimização, para host externo
 ├── person-avatar.tsx             foto do Google com fallback de ícone neutro
-├── survey-banner.tsx             banner com fallback em cadeia
+├── survey-banner.tsx             capa institucional com degradação
 ├── cddi-loading-state.tsx        skeleton do formulário CDDI
 ├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
 ├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
@@ -63,7 +63,7 @@ components/
 <PlatformSkeleton title="Carregando …" />
 <PersonAvatar fullName avatarUrl? className? imageClassName? fallbackClassName? alt? />
 <PlatformIcon name={PlatformIconName} className? />
-<SurveyBanner src fallbackSrc? alt className? />
+<SurveyBanner src alt className? />
 
 <Drawer  open onOpenChange title description? side="left|right" … />
 <Dialog  open onOpenChange title description? … />   // de overlay-panel.tsx
@@ -122,7 +122,9 @@ Ciclo `system → light → dark → system`. Grava em `localStorage` e escreve 
 
 ### `SurveyBanner`
 
-Cadeia de fallback: `src` → `fallbackSrc` → bloco com gradiente institucional e `role="img"`. Nunca deixa buraco no layout. As páginas passam `key={bannerUrl}` para forçar remontagem quando a URL configurada muda.
+Capa institucional com degradação para um bloco de gradiente e `role="img"` quando a arte não carrega — nunca deixa buraco no layout.
+
+**Não existe capa personalizada por ciclo.** `src` é sempre o padrão institucional resolvido por `resolveSurveyVisualIdentity()`; o `fallbackSrc` da versão anterior foi removido porque apontava para essa mesma arte. A administração configura apenas título e subtítulo (ver [../app/admin/CLAUDE.md](../app/admin/CLAUDE.md)).
 
 ### `CddiScrollBoundary`
 
@@ -170,5 +172,5 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `admin-participants-table.tsx`, `cddi-visual-banner.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário.
+- Não utilizados: `admin-participants-table.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. `cddi-visual-banner.tsx` (sem consumidores) foi removido.
 - **Removidos.** `admin-module-page.tsx`: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas. `avatar-uploader.tsx`, `avatar-studio.tsx` e `avatar-identity-picker.tsx`: a foto de perfil passou a vir automaticamente da conta Google, sem escolha na interface — a migration `20260805194500_block_uploaded_profile_photos.sql` já bloqueava fotos enviadas no banco.
