@@ -338,6 +338,16 @@ O CDDI adiciona duas particularidades: a chefia responsável é resolvida automa
 
 A estrutura só é editável enquanto a versão está em rascunho; `validate_survey_version_integrity` bloqueia a publicação de instrumentos inconsistentes.
 
+A árvore acima é de **rotas**, não de navegação. Os caminhos que a interface realmente oferece são:
+
+```text
+/admin/pesquisas  ──[Editar formulário]──▶  /admin/pesquisas/[surveyId]
+                  ──[Propriedades]──────▶  …/operacao
+                                               └──[Editar identidade visual]──▶ …/identidade
+```
+
+Ou seja, `/identidade` só é alcançável a partir de `/operacao` — por isso a tela de identidade volta para "Propriedades", e não para o construtor. A tela de propriedades traz as ações de navegação no topo do próprio conteúdo, não na barra da casca. Detalhes e o que foi deliberadamente removido dela em [src/app/admin/CLAUDE.md](src/app/admin/CLAUDE.md).
+
 ### Importação da base institucional
 
 ```text
