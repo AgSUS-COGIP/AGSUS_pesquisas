@@ -6,7 +6,9 @@ import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
 import "./theme-foundation.css";
 import "./theme-enhancements.css";
+import "./dark-theme.css";
 import "./sidebar-monitora.css";
+import "./monitor-dashboard.css";
 
 export const metadata: Metadata = {
   title: {

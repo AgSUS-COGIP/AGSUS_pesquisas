@@ -56,6 +56,45 @@ export function StatTile({ icon, label, value, hint, accent, eyebrow }: { icon?:
   );
 }
 
+export type MetricStripItem = {
+  label: string;
+  value: ReactNode;
+  hint?: string;
+  icon?: ReactNode;
+  tone?: "brand" | "success" | "warning" | "neutral";
+};
+
+/** Indicadores contínuos, para evitar uma grade de cartões desconectados. */
+export function MetricStrip({ items, ariaLabel }: { items: ReadonlyArray<MetricStripItem>; ariaLabel: string }) {
+  const toneClass = {
+    brand: "bg-[var(--status-info-bg)] text-[var(--status-info-text)]",
+    success: "bg-[var(--status-success-bg)] text-[var(--status-success-text)]",
+    warning: "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]",
+    neutral: "bg-[var(--surface-interactive)] text-[var(--text-secondary)]",
+  } as const;
+
+  return (
+    <section className="metric-strip overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--surface-card)]" aria-label={ariaLabel}>
+      <div className="metric-strip-grid grid sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <article key={item.label} data-tone={item.tone ?? "neutral"} className="metric-strip-item flex min-w-0 gap-3 border-b border-[var(--border-subtle)] px-4 py-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:last:border-r-0">
+            {item.icon ? (
+              <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full", toneClass[item.tone ?? "neutral"])} aria-hidden="true">
+                {item.icon}
+              </span>
+            ) : null}
+            <div className="min-w-0">
+              <p className="truncate text-xs font-bold text-[var(--text-secondary)]">{item.label}</p>
+              <strong className="mt-0.5 block text-2xl font-black tabular-nums tracking-tight text-[var(--text-primary)]">{item.value}</strong>
+              {item.hint ? <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{item.hint}</p> : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Barra de progresso rotulada (etapa concluída sobre total). */
 export function ProgressMeter({ label, value, total, description }: { label: string; value: number; total: number; description?: string }) {
   const percentage = total ? (value / total) * 100 : 0;
@@ -101,22 +140,70 @@ export function DistributionBars({ items, emptyLabel = "Ainda não há respostas
   );
 }
 
-/** Série em barras verticais (ex.: atividade por dia). Rola na horizontal em telas estreitas. */
+/** Série temporal contínua com área, pontos e referências de escala. */
 export function BarSeries({ points, ariaLabel, emptyState }: { points: ReadonlyArray<SeriesPoint>; ariaLabel: string; emptyState: { title: string; description?: string } }) {
   if (!points.length) return <ChartEmptyState title={emptyState.title} description={emptyState.description} />;
   const maximum = Math.max(...points.map((point) => point.value), 1);
+  const width = Math.max(720, points.length * 92);
+  const height = 260;
+  const padding = { top: 28, right: 24, bottom: 46, left: 38 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const xFor = (index: number) => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+  const yFor = (value: number) => padding.top + plotHeight - (value / maximum) * plotHeight;
+  const coordinates = points.map((point, index) => ({ ...point, x: xFor(index), y: yFor(point.value) }));
+  const linePath = coordinates.length === 1
+    ? `M ${coordinates[0].x} ${coordinates[0].y}`
+    : `M ${coordinates[0].x} ${coordinates[0].y} ${coordinates.slice(1).map((point, index) => {
+        const previous = coordinates[index];
+        const controlX = (previous.x + point.x) / 2;
+        return `C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
+      }).join(" ")}`;
+  const areaPath = `${linePath} L ${coordinates.at(-1)!.x} ${padding.top + plotHeight} L ${coordinates[0].x} ${padding.top + plotHeight} Z`;
+  const gridValues = [0, maximum * 0.25, maximum * 0.5, maximum * 0.75, maximum];
+
   return (
-    <div className="mt-6 flex min-h-56 items-end gap-2 overflow-x-auto pb-2" role="img" aria-label={ariaLabel}>
-      {points.map((point, index) => {
-        const height = Math.max(16, Math.round((point.value / maximum) * 176));
-        return (
-          <div key={`${point.label}-${index}`} className="flex min-w-11 flex-1 flex-col items-center justify-end gap-2">
-            <span className="text-xs font-black tabular-nums text-[var(--text-primary)]">{point.value}</span>
-            <div className="w-full max-w-12 rounded-t-lg bg-[var(--brand-solid)]" style={{ height }} title={`${point.value} · ${point.label}`} />
-            <span className="max-w-full truncate text-[10px] font-bold text-[var(--text-muted)]">{point.label}</span>
-          </div>
-        );
-      })}
+    <div className="mt-5 overflow-x-auto" role="img" aria-label={ariaLabel}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[260px] min-w-[720px] w-full" aria-hidden="true">
+        <defs>
+          <linearGradient id="activity-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--brand-accent)" stopOpacity="0.36" />
+            <stop offset="55%" stopColor="var(--brand-solid)" stopOpacity="0.13" />
+            <stop offset="100%" stopColor="var(--brand-solid)" stopOpacity="0.01" />
+          </linearGradient>
+          <linearGradient id="activity-line" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="var(--brand-solid)" />
+            <stop offset="55%" stopColor="var(--brand-accent)" />
+            <stop offset="100%" stopColor="var(--status-info-text)" />
+          </linearGradient>
+          <filter id="activity-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+        </defs>
+        {gridValues.map((value) => {
+          const y = yFor(value);
+          return (
+            <g key={value}>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="var(--border-subtle)" strokeDasharray="4 7" />
+              <text x={padding.left - 10} y={y + 4} textAnchor="end" fontSize="10" fill="var(--text-muted)">{numberFormatter.format(value)}</text>
+            </g>
+          );
+        })}
+        {coordinates.map((point, index) => (
+          <line key={`guide-${index}`} x1={point.x} y1={padding.top} x2={point.x} y2={padding.top + plotHeight} stroke="var(--border-subtle)" strokeOpacity=".45" strokeDasharray="2 8" />
+        ))}
+        <path d={areaPath} fill="url(#activity-area)" />
+        <path d={linePath} fill="none" stroke="var(--brand-accent)" strokeWidth="10" strokeOpacity=".2" filter="url(#activity-glow)" />
+        <path d={linePath} fill="none" stroke="url(#activity-line)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        {coordinates.map((point, index) => (
+          <g key={`${point.label}-${index}`}>
+            <circle cx={point.x} cy={point.y} r="9" fill="var(--brand-accent)" fillOpacity=".12" />
+            <circle cx={point.x} cy={point.y} r="5" fill="var(--surface-card)" stroke="var(--brand-accent)" strokeWidth="3" />
+            <text x={point.x} y={Math.max(14, point.y - 12)} textAnchor="middle" fontSize="11" fontWeight="800" fill="var(--text-primary)">{point.value}</text>
+            <text x={point.x} y={height - 16} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-muted)">{point.label}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }

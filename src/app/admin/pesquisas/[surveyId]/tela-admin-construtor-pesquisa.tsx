@@ -607,7 +607,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                   </span>
                 </div>
                 <div className="mt-5 flex items-start gap-4">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(135deg,#003b70,#008f70)] text-white shadow-sm">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[var(--brand-solid)] text-white shadow-sm">
                     <Sparkles className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <div>

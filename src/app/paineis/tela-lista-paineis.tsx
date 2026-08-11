@@ -83,13 +83,16 @@ export default function DashboardsPage() {
 
   return (
     <PlatformShell user={user} eyebrow="Visualizações autorizadas" title="Painéis">
+      <div className="monitor-dashboard">
+      <div className="monitor-topbar p-5">
       <PageHeader
         eyebrow="Indicadores e análises"
         title="Central de indicadores"
         description="Acompanhe participação, conclusão e distribuição das respostas. Esta área é exclusivamente analítica; para preencher instrumentos, acesse Avaliações."
       />
+      </div>
 
-      <Surface className="mt-6 overflow-hidden">
+      <Surface className="monitor-panel mt-6 overflow-hidden">
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,.75fr)]">
           <div className="p-6 sm:p-7"><p className="section-eyebrow">Visão executiva</p><h2 className="mt-2 max-w-2xl text-2xl font-black text-[var(--text-primary)]">Dados para decidir, não apenas números para consultar</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">Cada painel mostra o avanço do ciclo, as pendências operacionais e a distribuição das respostas com atualização controlada.</p></div>
           <div className="grid grid-cols-3 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] lg:border-l lg:border-t-0">
@@ -108,20 +111,16 @@ export default function DashboardsPage() {
           <Link href="/pesquisas" className="secondary-button w-fit">Ir para formulários</Link>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Surface className="group flex flex-col overflow-hidden p-0 transition hover:-translate-y-0.5 hover:border-sky-400/50 hover:shadow-lg">
-            <div className="h-1.5 bg-[linear-gradient(90deg,var(--brand-solid),var(--brand-secondary))]" />
-            <div className="flex flex-1 flex-col p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-700"><Activity className="h-5 w-5" /></div>
-              <Badge variant="info"><Radio className="h-3.5 w-3.5" />Painel institucional</Badge>
-            </div>
-            <h3 className="mt-4 text-lg font-black text-[var(--text-primary)]">AgSUS Monitora CDDI</h3>
-            <p className="mt-2 flex-1 text-sm leading-6 text-[var(--text-secondary)]">Competências, evolução das respostas, situação dos participantes e acompanhamento operacional do ciclo.</p>
-            <Link href="/paineis/cddi" className="primary-button mt-5 w-full justify-center">Abrir painel completo<ArrowRight className="h-4 w-4" /></Link>
-            </div>
-          </Surface>
-        </div>
+        <Surface className="monitor-panel overflow-hidden p-0">
+          <Link href="/paineis/cddi" className="group flex flex-col gap-4 p-5 transition hover:bg-[var(--surface-interactive)] sm:flex-row sm:items-center">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--status-info-bg)] text-[var(--status-info-text)]"><Activity className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-2"><strong className="text-lg text-[var(--text-primary)]">AgSUS Monitora CDDI</strong><Badge variant="info"><Radio className="h-3.5 w-3.5" />Institucional</Badge></span>
+              <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Competências, evolução das respostas, situação dos participantes e acompanhamento operacional do ciclo.</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-[var(--brand-primary)]">Abrir painel <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
+          </Link>
+        </Surface>
       </section>
 
       <section className="mt-8" aria-labelledby="survey-dashboard-title">
@@ -132,33 +131,32 @@ export default function DashboardsPage() {
         </div>
 
         {dashboardSurveys.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Surface className="monitor-panel divide-y divide-[var(--border-subtle)] overflow-hidden p-0">
             {dashboardSurveys.map((survey) => (
-              <Surface key={survey.applicationId} className="group flex flex-col p-5 transition hover:-translate-y-0.5 hover:border-sky-400/50 hover:shadow-lg">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-violet-700"><Gauge className="h-5 w-5" /></div>
-                  <Badge variant={survey.applicationStatus === "OPEN" ? "success" : "neutral"}>
+              <Link key={survey.applicationId} href={`/paineis/${encodeURIComponent(survey.applicationCode!)}`} className="group flex flex-col gap-4 p-5 transition hover:bg-[var(--surface-interactive)] lg:flex-row lg:items-center">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--surface-interactive)] text-[var(--brand-primary)]"><Gauge className="h-5 w-5" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <strong className="text-base text-[var(--text-primary)]">{survey.applicationName || survey.name}</strong>
+                    <Badge variant={survey.applicationStatus === "OPEN" ? "success" : "neutral"}>
                     {survey.applicationStatus === "OPEN" ? "Recebendo respostas" : "Ciclo encerrado"}
-                  </Badge>
-                </div>
-                <p className="mt-4 text-xs font-black uppercase tracking-[.14em] text-[var(--brand-secondary)]">Painel analítico · {survey.code}</p>
-                <h3 className="mt-1 text-lg font-black text-[var(--text-primary)]">{survey.applicationName || survey.name}</h3>
-                <p className="mt-2 flex-1 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Resultados consolidados da avaliação institucional."}</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]">
+                    </Badge>
+                  </span>
+                  <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Resultados consolidados da avaliação institucional."}</span>
+                </span>
+                <span className="flex shrink-0 flex-wrap gap-2 text-xs text-[var(--text-secondary)] lg:max-w-72 lg:justify-end">
                   <span>{survey.sections} seção(ões)</span>
                   <span>·</span>
                   <span>{survey.questions} pergunta(s)</span>
                   <span>·</span>
                   <span>ciclo até {formatDate(survey.closesAt)}</span>
-                </div>
-                <Link href={`/paineis/${encodeURIComponent(survey.applicationCode!)}`} className="primary-button mt-5 w-full justify-center">
-                  Ver indicadores<ArrowRight className="h-4 w-4" />
-                </Link>
-              </Surface>
+                </span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-[var(--brand-primary)] transition group-hover:translate-x-1" />
+              </Link>
             ))}
-          </div>
+          </Surface>
         ) : (
-          <Surface className="p-5">
+          <Surface className="monitor-panel p-5">
             <EmptyState
               icon={<FileText className="h-6 w-6" aria-hidden="true" />}
               title="Nenhum painel adicional disponível"
@@ -168,6 +166,7 @@ export default function DashboardsPage() {
           </Surface>
         )}
       </section>
+      </div>
     </PlatformShell>
   );
 }
