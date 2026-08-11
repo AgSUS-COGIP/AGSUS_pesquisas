@@ -434,8 +434,11 @@ Regras respeitadas em todo o código:
 **Estilo**
 
 - Tailwind utilitário + variáveis CSS (`var(--brand-primary)`, `var(--surface-card)`) definidas em [src/app/globals.css](src/app/globals.css) e arquivos de tema. Não repetir hexadecimais quando existir token.
-- Classes compostas via `cn()` ([src/lib/utils.ts](src/lib/utils.ts)); variantes via `class-variance-authority`.
+- **Cor por token, nunca hexadecimal literal** — é o que faz a aplicação inteira acompanhar o tema escuro. Telas montam a partir dos primitivos de [src/components/ui](src/components/ui) (`Surface`, `PageHeader`, `StatCard`, `Button`, `Badge`, `EmptyState`, `Skeleton`) em vez de recriar caixa e cabeçalho.
+- Três exceções deliberadas, todas por identidade institucional fixa: as constantes `CDDI_INK`/`CDDI_RULE` das telas do CDDI, a paleta literal da tela pública `/acesso` (sempre clara, fora da casca temática) e a barra de cinco cores da marca. Exceção nova exige a mesma justificativa — não espalhe literais.
+- Classes compostas via `cn()` ([src/lib/utils.ts](src/lib/utils.ts)); variantes via `class-variance-authority`. `<Link>` que deve parecer botão usa `buttonVariants({ variant })`, não a cadeia de classes copiada.
 - Alvo interativo mínimo de 44 px, foco visível, `aria-label` em botões só com ícone, respeito a `prefers-reduced-motion`.
+- **Estado nunca depende só de cor** (todo selo leva rótulo ou ícone), **código do banco não é rótulo de interface** (`DRAFT` → "Rascunho", com o código no `title`) e **botão indisponível explica o motivo** (`title` + `aria-describedby` + nota visível).
 
 **Banco de dados**
 
