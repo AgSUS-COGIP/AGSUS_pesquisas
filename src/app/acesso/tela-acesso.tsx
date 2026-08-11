@@ -6,7 +6,11 @@ import { safeAuthNext } from "@/lib/auth-callback";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { PlatformLogo } from "@/components/platform-logo";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
-const BACKGROUNDS = Array.from({ length: 6 }, (_, index) => `/api/background/${index}`);
+import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
+// Imagem de fundo institucional fixa, servida localmente de `public/`. Substituiu
+// o sorteio de fotos externas (Unsplash via `/api/background/*`): a tela sempre
+// "nasce" com a mesma arte, sem troca e sem dependência de serviço externo.
+const BACKGROUND_IMAGE = "/acesso-fundo.png";
 
 function accessErrorMessage(code: string | null) {
   if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br.";
@@ -14,52 +18,17 @@ function accessErrorMessage(code: string | null) {
   return "";
 }
 
-function shuffledBackgrounds() {
-  return [...BACKGROUNDS].sort(() => Math.random() - 0.5);
-}
-
-function preloadFirstAvailable(urls: string[]) {
-  return new Promise<string | null>((resolve) => {
-    const tryNext = (index: number) => {
-      if (index >= urls.length) return resolve(null);
-      const image = new window.Image();
-      const timeout = window.setTimeout(() => {
-        image.src = "";
-        tryNext(index + 1);
-      }, 9000);
-      image.onload = () => {
-        window.clearTimeout(timeout);
-        resolve(urls[index]);
-      };
-      image.onerror = () => {
-        window.clearTimeout(timeout);
-        tryNext(index + 1);
-      };
-      image.src = urls[index];
-    };
-    tryNext(0);
-  });
-}
-
 export default function AccessPage() {
-  const { branding, loading: brandingLoading } = usePlatformBranding();
+  const { branding } = usePlatformBranding();
   const supabaseConfigured = isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [background, setBackground] = useState<string | null>(null);
-  const [backgroundVisible, setBackgroundVisible] = useState(false);
 
   useEffect(() => {
     let active = true;
     const query = new URLSearchParams(window.location.search);
     setMessage(accessErrorMessage(query.get("erro")));
-
-    void preloadFirstAvailable(shuffledBackgrounds()).then((loadedBackground) => {
-      if (!active || !loadedBackground) return;
-      setBackground(loadedBackground);
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => active && setBackgroundVisible(true)));
-    });
 
     void (async () => {
       if (!supabaseConfigured) return;
@@ -118,21 +87,21 @@ export default function AccessPage() {
         <div className="absolute inset-x-[-8%] bottom-[-27%] h-[62%] bg-[#183f42]/95 [clip-path:polygon(0_62%,13%_39%,26%_58%,40%_25%,55%_52%,70%_30%,84%_58%,100%_37%,100%_100%,0_100%)]" />
       </div>
 
-      {background && (
-        <div
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${backgroundVisible ? "opacity-100" : "opacity-0"}`}
-          style={{ backgroundImage: `url(${background})` }}
-        />
-      )}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${BACKGROUND_IMAGE})` }}
+      />
+
 
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,32,64,.70),rgba(0,59,112,.35),rgba(3,25,45,.68))]" />
-      <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#003b70_0_20%,#0b8f58_20%_40%,#f2b705_40%_60%,#d92d3a_60%_80%,#00a8d6_80%_100%)]" />
 
       <section className="relative z-10 w-full max-w-[500px] overflow-hidden rounded-[2rem] border border-white/70 bg-white/95 shadow-[0_30px_100px_rgba(0,0,0,0.34)] backdrop-blur-xl">
         <div className="h-1.5 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" />
         <div className="px-7 py-9 sm:px-12 sm:py-11">
           <div className="text-center">
-            <PlatformLogo src={branding.logoUrl} alt={branding.organizationName} organizationName={branding.organizationName} width={80} height={80} priority loading={brandingLoading} className="mx-auto h-20 w-20 object-contain text-xl" />
+            {/* Tela pública: logotipo institucional embutido (data URI). Renderiza junto
+                com a página, sem requisição de rede e sem "piscar" na abertura. */}
+            <PlatformLogo src={LOGO_INSTITUCIONAL_DATA_URI} alt="AgSUS" organizationName="AgSUS" width={80} height={80} priority className="mx-auto h-20 w-20 object-contain text-xl" />
             <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-[#0b8f58]">Acesso institucional</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-[#003b70] sm:text-[2.15rem]">{branding.productName}</h1>
             <p className="mx-auto mt-4 max-w-sm text-[15px] leading-7 text-slate-600">Entre com sua conta Google corporativa. As avaliações exibidas dependem das autorizações do seu perfil.</p>
