@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, Home, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { SurveyBanner } from "@/components/survey-banner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -61,6 +62,7 @@ export default function CddiFormPage() {
   const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
@@ -220,6 +222,7 @@ export default function CddiFormPage() {
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessageType("success");
       setMessage("Autoavaliação enviada com sucesso.");
+      setCelebrate(true);
     } catch (error) {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
@@ -275,6 +278,11 @@ export default function CddiFormPage() {
       </div>
       <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur"><div className="mx-auto flex max-w-[960px] items-center justify-between gap-3"><div className="hidden text-sm text-slate-500 sm:block">{saveSnapshot.pending > 0 ? "Salvando rascunho..." : saveSnapshot.status === "ERROR" ? "Falha ao salvar" : savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</div><div className="ml-auto flex gap-2">{step === 0 ? <button onClick={() => goToStep(1, true)} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-6 py-3 font-bold text-white transition hover:bg-[#05558f]">Iniciar avaliação<ArrowRight className="h-4 w-4"/></button> : <><button onClick={() => setScreen("home")} className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Tela inicial</button><button onClick={() => goToStep(step - 1, false)} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goToStep(step + 1, true)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></>}</div></div></footer>
     </div>
+    <CompletionCelebration
+      open={celebrate}
+      onClose={() => setCelebrate(false)}
+      message="Sua autoavaliação do CDDI 2026 foi enviada. Obrigado por participar — o desenvolvimento contínuo começa por aqui."
+    />
     </CddiPlatformFrame>
   );
 }

@@ -14,6 +14,7 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { cn } from "@/lib/utils";
 import { summarizeSurveyCatalog, surveyApplicationHref, surveyItemState, type SurveyCatalogItem } from "@/lib/survey-catalog";
+import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
 
 type FilterKey = "ALL" | "OPEN" | "DRAFT" | "COMPLETED" | "SCHEDULED" | "CLOSED";
 
@@ -174,6 +175,8 @@ export default function SurveysPage() {
             {filtered.map((item) => {
               const state = itemFilterState(item);
               const completed = state === "COMPLETED";
+              const deadline = deadlineStatus(item.closesAt, new Date());
+              const showCountdown = item.applicationStatus === "OPEN" && (deadline.state === "counting" || deadline.state === "today");
               return (
                 <Surface key={item.applicationId} className="group flex min-h-64 flex-col overflow-hidden transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
                   <div className="h-1 bg-[linear-gradient(90deg,var(--brand-primary),var(--brand-accent),var(--brand-secondary))]" aria-hidden="true" />
@@ -192,6 +195,11 @@ export default function SurveysPage() {
                       <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-muted)] px-2.5 py-2"><ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />{item.sections} seções · {item.questions} perguntas</span>
                       <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-muted)] px-2.5 py-2"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />Prazo: {dateLabel(item.closesAt)}</span>
                     </div>
+                    {showCountdown ? (
+                      <p className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-lg bg-[var(--status-warning-bg)] px-2.5 py-1.5 text-[11px] font-black text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
+                        <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />{deadlineLabel(deadline)}
+                      </p>
+                    ) : null}
                     <div className="mt-auto flex items-center justify-between gap-3 pt-5">
                       <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-bold text-[var(--text-secondary)]">
                         {completed ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" /> : <FileText className="h-4 w-4 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />}
