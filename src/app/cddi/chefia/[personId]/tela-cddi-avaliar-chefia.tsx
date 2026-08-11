@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirmation-provider";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -44,6 +45,7 @@ export default function LeaderEvaluationPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
@@ -169,6 +171,7 @@ export default function LeaderEvaluationPage() {
       const result = data as { submittedAt?: string; result?: number } | null;
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessage("Avaliação da chefia enviada com sucesso.");
+      setCelebrate(true);
     } catch (error) {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
     } finally { setSubmitting(false); }
@@ -193,5 +196,6 @@ export default function LeaderEvaluationPage() {
       {!currentSection && <section className="mt-4 rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><UserRoundCheck className="h-7 w-7 text-emerald-600"/><div><h2 className="text-2xl font-black text-[#26368d]">Revisão da avaliação</h2><p className="text-sm text-slate-500">Confira o preenchimento antes do envio definitivo.</p></div></div><div className="mt-5 grid gap-3 sm:grid-cols-2">{sections.map((section, index) => <button key={section.id} onClick={() => goTo(index)} className="rounded-xl border border-slate-200 p-4 text-left"><div className="flex justify-between gap-3"><strong className="text-[#26368d]">{section.title}</strong><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${completion(section, answers) === 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{completion(section, answers)}%</span></div></button>)}</div>{canEdit && <button onClick={submit} disabled={submitting || saving || requiredQuestions.some((question) => !answered(question, answers))} className="mt-5 w-full rounded-xl bg-[#086ab6] px-5 py-4 font-black text-white disabled:opacity-50">{submitting ? "Enviando..." : "Confirmar e enviar avaliação da chefia"}</button>}{submission.submission?.status !== "DRAFT" && <p className="mt-5 rounded-xl bg-emerald-50 p-4 font-bold text-emerald-800">Avaliação enviada em {dateLabel(submission.submission?.submittedAt)}.</p>}</section>}
     </div>
     <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)]"><div className="mx-auto flex max-w-[960px] justify-between gap-3"><span className="hidden text-sm text-slate-500 sm:block">{saving ? "Salvando rascunho..." : canEdit ? "Salvamento automático ativo" : "Modo somente leitura"}</span><div className="ml-auto flex gap-2"><Link href="/equipe" className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-3 font-bold text-white"><Home className="h-4 w-4"/>Equipe</Link><button onClick={() => goTo(step - 1)} disabled={step === 0} className="inline-flex items-center gap-2 rounded-xl bg-slate-500 px-4 py-3 font-bold text-white disabled:opacity-40"><ArrowLeft className="h-4 w-4"/>Anterior</button><button onClick={() => goTo(step + 1)} disabled={step === totalSteps - 1} className="inline-flex items-center gap-2 rounded-xl bg-[#086ab6] px-4 py-3 font-bold text-white disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4"/></button></div></div></footer>
+  <CompletionCelebration open={celebrate} onClose={() => setCelebrate(false)} title="Avaliação enviada!" message={`A avaliação de ${member.fullName} foi enviada. Obrigado por concluir esta etapa da liderança.`} />
   </div></CddiPlatformFrame>;
 }
