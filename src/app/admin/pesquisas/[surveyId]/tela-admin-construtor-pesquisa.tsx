@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlignLeft,
   ArrowDown,
@@ -159,6 +160,7 @@ function UnsavedChangesNotice() {
 
 export default function SurveyBuilderPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const confirm = useConfirm();
+  const router = useRouter();
   const { surveyId } = use(params);
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
@@ -171,6 +173,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [questionErrors, setQuestionErrors] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
+  const [surveyDeleteOpen, setSurveyDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [itemOperation, setItemOperation] = useState<string | null>(null);
 
@@ -419,6 +422,25 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     }
   }
 
+  async function deleteSurvey() {
+    setWorking(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error: deleteError } = await supabase.rpc("fc_excluir_pesquisa_rascunho", {
+        p_pesquisa: surveyId,
+      });
+      if (deleteError) throw deleteError;
+      toast.success("Avaliação excluída.");
+      setSurveyDeleteOpen(false);
+      router.push("/admin/pesquisas");
+    } catch (deleteError) {
+      // O banco recusa avaliação publicada ou com respostas, e a razão vem na
+      // própria mensagem — é ela que explica ao operador por que não deu.
+      toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a avaliação.");
+      setWorking(false);
+    }
+  }
+
   function openMoveQuestion(sourceSectionId: string, question: Question) {
     const targets = questionMoveTargets(
       builder?.sections ?? [],
@@ -572,6 +594,19 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               <ImageIcon className="h-4 w-4" aria-hidden="true" />
               Identidade visual
             </Link>
+          )}
+          {/* A exclusão só faz sentido enquanto a versão é rascunho: publicada,
+              a estrutura é referência histórica de quem respondeu e o banco
+              recusa. Fora do rascunho o botão nem aparece. */}
+          {builder && isDraft && (
+            <Button
+              variant="secondary"
+              className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              onClick={() => setSurveyDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Excluir formulário
+            </Button>
           )}
           <Link
             href="/admin/pesquisas"
@@ -1249,6 +1284,34 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               <Button variant="danger" disabled={working} onClick={() => void deleteQuestion()}>
                 {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Excluir pergunta
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={surveyDeleteOpen}
+        onOpenChange={(open) => { if (!open && !working) setSurveyDeleteOpen(false); }}
+        eyebrow="Ação permanente"
+        title="Excluir este formulário?"
+        description="A avaliação, o ciclo, as seções, as perguntas e as alternativas serão removidos definitivamente. A exclusão é recusada se a avaliação já tiver sido publicada ou já possuir respostas."
+        className="max-w-lg"
+      >
+        {builder && (
+          <div>
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[.12em] text-red-700">{builder.survey.code}</p>
+              <p className="mt-2 text-sm font-semibold text-red-950">{builder.survey.name}</p>
+              <p className="mt-2 text-xs leading-5 text-red-900">
+                {builder.sections.length} {builder.sections.length === 1 ? "seção" : "seções"} · {totalQuestions} {totalQuestions === 1 ? "pergunta" : "perguntas"}
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" disabled={working} onClick={() => setSurveyDeleteOpen(false)}>Cancelar</Button>
+              <Button variant="danger" disabled={working} onClick={() => void deleteSurvey()}>
+                {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Excluir formulário
               </Button>
             </div>
           </div>

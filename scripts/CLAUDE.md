@@ -61,6 +61,8 @@ const LEGACY_RESTORED_OBJECTS = {
 };
 ```
 
+Além da restauração de objeto legado, a allowlist cobre o caso vizinho de **redefinir** função legada consumida pelo nome por bundles já publicados — `20260810141000` (RPCs de avatar) e `20260811120000` (`create_survey_draft` e `manage_survey_cycle`, que ganharam a regra de período no futuro). Renomeá-las para `fc_*` derrubaria a tela que as chama antes de o frontend novo estar no ar. Note que `20260811120000` cria também `fc_excluir_pesquisa_rascunho`, que **não** consta da allowlist: objeto novo segue o padrão institucional, sempre.
+
 Consequências de projeto, todas intencionais:
 
 - Dispensa **só o prefixo**. Limite de tamanho e conjunto de caracteres continuam cobrados.
