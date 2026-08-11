@@ -109,8 +109,8 @@ export default function ParticipantAreaPage() {
 
   return (
     <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.9fr)]">
+      <div className="mx-auto w-full max-w-[1400px] space-y-5">
+        <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.9fr)]">
           <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
             <div className="flex items-start gap-4">
               <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-14 w-14 rounded-2xl" fallbackClassName="text-lg" />
@@ -172,7 +172,7 @@ export default function ParticipantAreaPage() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </> : (
-              <div className="flex flex-1 flex-col justify-center">
+              <div className="flex flex-col">
                 <span className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
                   <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
                 </span>
