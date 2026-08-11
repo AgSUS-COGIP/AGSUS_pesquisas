@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   AlignLeft,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   CalendarDays,
   Check,
@@ -423,6 +424,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   }
 
   async function deleteSurvey() {
+    if (working) return;
     setWorking(true);
     try {
       const supabase = createBrowserSupabaseClient();
@@ -432,11 +434,15 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       if (deleteError) throw deleteError;
       toast.success("Avaliação excluída.");
       setSurveyDeleteOpen(false);
+      // A tela deixa de existir depois da navegação, mas `working` é liberado
+      // no `finally` de qualquer forma: se o push demorar ou não desmontar o
+      // componente, o construtor não pode ficar com todos os botões travados.
       router.push("/admin/pesquisas");
     } catch (deleteError) {
       // O banco recusa avaliação publicada ou com respostas, e a razão vem na
       // própria mensagem — é ela que explica ao operador por que não deu.
       toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a avaliação.");
+    } finally {
       setWorking(false);
     }
   }
@@ -584,38 +590,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       user={guard.user}
       eyebrow="Administração"
       title={builder?.survey.name ?? "Studio de avaliação"}
-      actions={(
-        <div className="flex flex-wrap gap-2">
-          {builder?.application.id && (
-            <Link
-              href={`/admin/pesquisas/${surveyId}/identidade`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#003b70] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-            >
-              <ImageIcon className="h-4 w-4" aria-hidden="true" />
-              Identidade visual
-            </Link>
-          )}
-          {/* A exclusão só faz sentido enquanto a versão é rascunho: publicada,
-              a estrutura é referência histórica de quem respondeu e o banco
-              recusa. Fora do rascunho o botão nem aparece. */}
-          {builder && isDraft && (
-            <Button
-              variant="secondary"
-              className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-              onClick={() => setSurveyDeleteOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Excluir formulário
-            </Button>
-          )}
-          <Link
-            href="/admin/pesquisas"
-            className="hidden min-h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
-          >
-            Voltar ao catálogo
-          </Link>
-        </div>
-      )}
     >
       {dataLoading ? (
         <div className="flex min-h-[50vh] items-center justify-center">
@@ -628,12 +602,33 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         </div>
       ) : (
         <>
+          {/* Navegação da tela dentro do conteúdo principal, e não na barra
+              superior: o cabeçalho é da casca da aplicação, então ações da rota
+              ficam junto do que elas afetam. */}
+          <nav aria-label="Ações do formulário" className="mb-5 flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/pesquisas"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar ao catálogo
+            </Link>
+            {builder.application.id && (
+              <Link
+                href={`/admin/pesquisas/${surveyId}/identidade`}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#003b70] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f59] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+              >
+                <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                Editar identidade visual
+              </Link>
+            )}
+          </nav>
+
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:p-8">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#003b70]">{builder.survey.code}</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">Versão {builder.version.number}</span>
                   <span className={isDraft
                     ? "rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800"
                     : "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800"
@@ -1058,6 +1053,32 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               })
             )}
           </div>
+
+          {/* Zona destrutiva no fim da página, longe das ações do dia a dia: a
+              exclusão só faz sentido enquanto a versão é rascunho — publicada, a
+              estrutura é referência histórica de quem respondeu e o banco
+              recusa. Fora do rascunho a seção nem aparece. */}
+          {isDraft && (
+            <section className="mt-8 rounded-3xl border border-red-200 bg-red-50/60 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-red-900">Excluir formulário</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-red-800">
+                    Remove definitivamente a avaliação, o ciclo, as seções, as perguntas e as alternativas. A exclusão é recusada se a avaliação já tiver sido publicada ou já possuir respostas.
+                  </p>
+                </div>
+                <Button
+                  variant="danger"
+                  className="shrink-0"
+                  disabled={working}
+                  onClick={() => setSurveyDeleteOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Excluir formulário
+                </Button>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -1294,7 +1315,9 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         open={surveyDeleteOpen}
         onOpenChange={(open) => { if (!open && !working) setSurveyDeleteOpen(false); }}
         eyebrow="Ação permanente"
-        title="Excluir este formulário?"
+        // O nome do formulário vai no título da confirmação: quem chega aqui
+        // precisa reconhecer o que está apagando antes de confirmar.
+        title={`Você tem certeza que quer excluir o formulário ${builder?.survey.name ?? ""}?`}
         description="A avaliação, o ciclo, as seções, as perguntas e as alternativas serão removidos definitivamente. A exclusão é recusada se a avaliação já tiver sido publicada ou já possuir respostas."
         className="max-w-lg"
       >
@@ -1308,7 +1331,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               </p>
             </div>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="secondary" disabled={working} onClick={() => setSurveyDeleteOpen(false)}>Cancelar</Button>
+              <Button variant="secondary" disabled={working} onClick={() => { if (!working) setSurveyDeleteOpen(false); }}>Cancelar</Button>
               <Button variant="danger" disabled={working} onClick={() => void deleteSurvey()}>
                 {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Excluir formulário
