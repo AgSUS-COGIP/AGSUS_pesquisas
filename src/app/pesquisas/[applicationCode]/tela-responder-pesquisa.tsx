@@ -256,7 +256,7 @@ export default function GenericSurveyPage() {
     : 0;
 
   return (
-    <PlatformShell user={guard.user} eyebrow={definition.survey.code} title={definition.application.name}>
+    <PlatformShell user={guard.user} focus exitHref="/pesquisas" eyebrow={definition.survey.code} title={definition.application.name}>
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
           <div className="grid gap-4 p-6 lg:grid-cols-[1fr_auto] lg:items-start lg:p-7">

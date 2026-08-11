@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
@@ -152,7 +153,7 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
  * que não pode abrir. O fallback é o conjunto do participante — nunca um módulo
  * administrativo.
  */
-export function PlatformShell({ user, title, eyebrow, children, actions }: { user: PlatformUser; title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode }) {
+export function PlatformShell({ user, title, eyebrow, children, actions, focus = false, exitHref = "/pesquisas" }: { user: PlatformUser; title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode; focus?: boolean; exitHref?: string }) {
   const { branding, loading: brandingLoading } = usePlatformBranding();
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
@@ -194,27 +195,38 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-primary)]">
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
-      <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} />
-      <Drawer
-        id={MOBILE_NAVIGATION_ID}
-        open={mobileOpen}
-        onOpenChange={setMobileOpen}
-        title="Navegação principal"
-        description="Acesse os módulos disponíveis para o seu perfil."
-        side="left"
-        className="max-w-[20rem]"
-        contentClassName="flex p-0 sm:p-0"
-        closeLabel="Fechar menu"
-      >
-        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
-      </Drawer>
-      <div className="platform-shell-content min-w-0 transition-[padding] duration-300">
+      {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} /> : null}
+      {!focus ? (
+        <Drawer
+          id={MOBILE_NAVIGATION_ID}
+          open={mobileOpen}
+          onOpenChange={setMobileOpen}
+          title="Navegação principal"
+          description="Acesse os módulos disponíveis para o seu perfil."
+          side="left"
+          className="max-w-[20rem]"
+          contentClassName="flex p-0 sm:p-0"
+          closeLabel="Fechar menu"
+        >
+          <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
+        </Drawer>
+      ) : null}
+      {/* `platform-shell-content` é o container de rolagem no desktop (html/body
+          ficam overflow:hidden) — o modo foco mantém a classe e apenas remove o
+          recuo reservado à barra lateral. */}
+      <div className={`platform-shell-content min-w-0 w-full transition-[padding] duration-300 ${focus ? "platform-shell-content--focus" : ""}`}>
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
           <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
-              <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
-                <PlatformIcon name="menu" />
-              </button>
+              {focus ? (
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[var(--border-subtle)] bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
+                  <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={30} height={30} sizes="30px" loading={brandingLoading} className="h-7 w-7 object-contain text-[10px]" />
+                </span>
+              ) : (
+                <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
+                  <PlatformIcon name="menu" />
+                </button>
+              )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 {eyebrow ? <p className="truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:text-xs">{eyebrow}</p> : null}
                 {eyebrow ? <span className="text-[var(--border-strong)]" aria-hidden="true">/</span> : null}
@@ -223,7 +235,12 @@ export function PlatformShell({ user, title, eyebrow, children, actions }: { use
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <PlatformThemeToggle compact />
-              {actions}
+              {focus ? (
+                <Link href={exitHref} className="secondary-button" aria-label="Sair da avaliação">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Sair
+                </Link>
+              ) : actions}
               <Link href="/perfil" className="hidden min-h-11 items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 transition hover:border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] sm:flex" aria-label={`Abrir perfil de ${user.fullName}`}>
                 <Avatar user={user} compact />
                 <span className="hidden max-w-40 text-left xl:block"><strong className="block truncate text-xs text-[var(--text-primary)]">{user.fullName}</strong><span className="block truncate text-xs text-[var(--text-secondary)]">{user.profileLabel}</span></span>
