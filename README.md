@@ -504,12 +504,9 @@ Nenhum destes arquivos é importado por código de produção:
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
-7. **Ciclo CDDI descrito como encerrado** em texto fixo do painel administrativo ([src/app/admin/tela-central-admin.tsx](src/app/admin/tela-central-admin.tsx#L32)), independente do estado real da aplicação.
+7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
 
-8. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
-
-
-10. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
+8. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
 
 ### Segurança e robustez
 
