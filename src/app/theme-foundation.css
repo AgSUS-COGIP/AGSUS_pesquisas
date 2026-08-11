@@ -162,13 +162,22 @@ textarea {
 
 .cddi-form-shell > footer.fixed {
   position: static !important;
-  margin-top: 1rem;
-  border: 0;
-  border-top: 1px solid var(--border-subtle);
+  width: calc(100% - 2rem);
+  max-width: calc(960px - 3rem);
+  margin: 1rem auto 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
   background: var(--surface-card);
   padding: .6rem 1rem;
-  box-shadow: none;
+  box-shadow: var(--shadow-card);
   backdrop-filter: none;
+}
+
+/* Acompanha o respiro lateral da coluna do formulário (px-6 a partir de sm). */
+@media (min-width: 640px) {
+  .cddi-form-shell > footer.fixed {
+    width: calc(100% - 3rem);
+  }
 }
 
 .cddi-form-shell > footer.fixed button {

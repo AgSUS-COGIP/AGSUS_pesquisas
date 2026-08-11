@@ -3,6 +3,9 @@
 :root {
   --brand-primary: #003b70;
   --brand-primary-strong: #002b54;
+  /* Azul institucional do CDDI — no escuro vira um tom claro legível (dark-theme.css). */
+  --cddi-ink: #26368d;
+  --cddi-rule: #2d3f97;
   --brand-secondary: #0b8f58;
   --brand-accent: #00a8d6;
   --surface-page: #f4f7fb;
@@ -223,6 +226,9 @@ html[data-agsus-theme="dark"] .border-slate-300 { border-color: var(--border-sub
 @media (min-width: 1024px) {
   .platform-desktop-sidebar { width: var(--platform-sidebar-width); }
   .platform-shell-content { padding-left: var(--platform-sidebar-width); }
+  /* Modo foco (responder avaliação): sem barra lateral, o container de rolagem
+     continua sendo o mesmo — só o recuo reservado à barra desaparece. */
+  .platform-shell-content.platform-shell-content--focus { padding-left: 0; }
 }
 @media (forced-colors: active) {
   :focus-visible { outline: 3px solid CanvasText; }
