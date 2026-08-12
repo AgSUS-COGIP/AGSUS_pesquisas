@@ -127,7 +127,7 @@ export default function AdminSurveysPage() {
     eyebrow="Administração"
     title="Avaliações e ciclos"
   >
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5">
       {/* A criação é a ação da rota, não da casca: fica no topo do conteúdo,
           à direita, antes do cabeçalho da tela. */}
       <nav aria-label="Ações do catálogo" className="flex justify-end">
