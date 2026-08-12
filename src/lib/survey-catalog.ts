@@ -1,3 +1,5 @@
+import { deadlineStatus } from "./deadline";
+
 export type SurveyCatalogItem = {
   surveyId: string;
   surveyCode: string;
@@ -79,16 +81,51 @@ export function selectPrioritySurvey(items: SurveyCatalogItem[]) {
     .toSorted(compareSurveyPriority)[0] ?? null;
 }
 
-export function summarizeSurveyCatalog(items: SurveyCatalogItem[]) {
-  return items.reduce(
-    (summary, item) => {
+/** Prazo a partir do qual uma avaliação pendente é tratada como urgente. */
+export const URGENT_DEADLINE_DAYS = 7;
+
+/**
+ * Retrato do catálogo para os indicadores da visão geral.
+ *
+ * Além das contagens por estado, resume o que exige ação: quantas avaliações
+ * ainda dependem da pessoa (`actionable`), quantas delas vencem dentro de
+ * `URGENT_DEADLINE_DAYS` (`urgent`) e qual é o prazo mais próximo
+ * (`nextDeadline`) — é o que transforma número em decisão.
+ *
+ * `now` é parâmetro para manter a função pura e determinística nos testes.
+ */
+export function summarizeSurveyCatalog(items: SurveyCatalogItem[], now: Date = new Date()) {
+  const summary = items.reduce(
+    (accumulator, item) => {
       const state = surveyItemState(item);
-      summary.total += 1;
-      if (state === "COMPLETED") summary.completed += 1;
-      if (state === "IN_PROGRESS") summary.inProgress += 1;
-      if (state === "PENDING") summary.pending += 1;
-      return summary;
+      accumulator.total += 1;
+      if (state === "COMPLETED") accumulator.completed += 1;
+      if (state === "IN_PROGRESS") accumulator.inProgress += 1;
+      if (state === "PENDING") accumulator.pending += 1;
+
+      // Só conta como urgente o que a pessoa ainda pode resolver: item
+      // concluído, encerrado ou agendado não gera cobrança de prazo.
+      if (state === "IN_PROGRESS" || state === "PENDING") {
+        const deadline = deadlineStatus(item.closesAt, now);
+        if (deadline.state === "today" || (deadline.state === "counting" && deadline.days <= URGENT_DEADLINE_DAYS)) {
+          accumulator.urgent += 1;
+        }
+        if (deadline.state === "today" || deadline.state === "counting") {
+          const days = deadline.state === "today" ? 0 : deadline.days;
+          if (accumulator.nextDeadlineDays === null || days < accumulator.nextDeadlineDays) {
+            accumulator.nextDeadlineDays = days;
+          }
+        }
+      }
+      return accumulator;
     },
-    { completed: 0, inProgress: 0, pending: 0, total: 0 },
+    { completed: 0, inProgress: 0, pending: 0, total: 0, urgent: 0, nextDeadlineDays: null as number | null },
   );
+
+  return {
+    ...summary,
+    actionable: summary.pending + summary.inProgress,
+    // Percentual inteiro; catálogo vazio é 0, não divisão por zero.
+    completionRate: summary.total ? Math.round((summary.completed / summary.total) * 100) : 0,
+  };
 }
