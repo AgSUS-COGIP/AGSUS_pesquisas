@@ -64,6 +64,14 @@ const LEGACY_RESTORED_OBJECTS = {
       "manage_survey_cycle",
     ]),
   },
+  // Event trigger que liga RLS em toda tabela nova. Existe no banco desde
+  // sempre, aplicado por SQL direto, e nunca virou arquivo — por isso o
+  // `supabase db reset` do CI reconstruía o esquema sem ele e o teste de RLS
+  // falhava em qualquer branch. O nome legado é requisito: renomear criaria um
+  // segundo gatilho no banco que já tem o original. Ver docs/operacao-permissoes.md.
+  "supabase/migrations/20260812160000_restaurar_event_trigger_rls_automatica.sql": {
+    função: new Set(["rls_auto_enable"]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
