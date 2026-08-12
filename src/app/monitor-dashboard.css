@@ -254,6 +254,7 @@ html[data-agsus-theme="dark"] .area-kpi {
 .monitor-kpi {
   --kpi-accent: var(--monitor-blue);
   position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: .4rem;
@@ -271,7 +272,6 @@ html[data-agsus-theme="dark"] .area-kpi {
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
-  border-radius: .85rem .85rem 0 0;
   background: var(--kpi-accent);
   content: "";
 }
