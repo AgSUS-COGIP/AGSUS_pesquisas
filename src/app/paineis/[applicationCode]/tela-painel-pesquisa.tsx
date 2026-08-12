@@ -53,7 +53,7 @@ type DashboardData = {
 
 async function fetchDashboard(applicationCode: string) {
   const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("get_survey_dashboard", {
+  const { data, error } = await supabase.rpc("fc_obter_painel_pesquisa", {
     target_application_code: applicationCode,
   });
   if (error) throw error;
