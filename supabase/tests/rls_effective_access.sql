@@ -15,7 +15,16 @@ begin;
 select plan(9);
 
 -- ---------------------------------------------------------------------------
--- 1. Toda tabela exposta tem política, não apenas RLS ligada
+-- 1. Tabela alcançável pela API tem política, não apenas RLS ligada
+--
+-- RLS sem política **nega tudo**, então a ausência de política não é falha por
+-- si: quatro tabelas de catálogo (`platform_modules`, `role_module_permissions`,
+-- `person_module_permissions`, `tb_config_plataforma`) são deliberadamente
+-- trancadas assim, sem grant nenhum, e só se leem por função `security definer`.
+--
+-- O que seria perigoso é a combinação inversa: privilégio concedido a `anon` ou
+-- `authenticated` **sem** política que restrinja as linhas. É esse o invariante
+-- verificado aqui.
 -- ---------------------------------------------------------------------------
 select is(
   (
@@ -29,9 +38,15 @@ select is(
         select 1 from pg_catalog.pg_policy policy
         where policy.polrelid = relation.oid
       )
+      and exists (
+        select 1 from information_schema.role_table_grants grant_row
+        where grant_row.table_schema = 'public'
+          and grant_row.table_name = relation.relname
+          and grant_row.grantee in ('anon', 'authenticated')
+      )
   ),
   0::bigint,
-  'nenhuma tabela com RLS habilitada ficou sem política — RLS sem política nega tudo e mascara erro de configuração'
+  'nenhuma tabela concede privilégio a anon/authenticated sem política de RLS que limite as linhas'
 );
 
 -- ---------------------------------------------------------------------------
@@ -93,19 +108,27 @@ select is(
 );
 
 -- ---------------------------------------------------------------------------
--- 5. Nenhuma função interna executável por anon
+-- 5. Só a marca da plataforma é executável por anon
+--
+-- `fc_obter_marca_plataforma()` precisa ser pública: é ela que entrega
+-- logotipo, nome institucional e cor para a tela de acesso, onde ninguém está
+-- autenticado ainda. Não devolve dado pessoal.
+--
+-- Qualquer outra função `security definer` alcançável por `anon` é exposição —
+-- o teste falha e nomeia a função, em vez de só contar.
 -- ---------------------------------------------------------------------------
 select is(
   (
-    select count(*)::bigint
+    select coalesce(string_agg(proc.proname, ', ' order by proc.proname), '')
     from pg_catalog.pg_proc proc
     join pg_catalog.pg_namespace namespace on namespace.oid = proc.pronamespace
     where namespace.nspname = 'public'
       and proc.prosecdef = true
       and has_function_privilege('anon', proc.oid, 'execute')
+      and proc.proname <> 'fc_obter_marca_plataforma'
   ),
-  0::bigint,
-  'nenhuma função security definer é executável pelo papel anon'
+  '',
+  'nenhuma função security definer além da marca da plataforma é executável por anon'
 );
 
 -- ---------------------------------------------------------------------------
