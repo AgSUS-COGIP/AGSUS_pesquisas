@@ -1,8 +1,20 @@
 "use client";
 
-import { ArrowUp, WifiOff } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+
+/**
+ * Posição de rolagem efetiva da tela.
+ *
+ * No desktop a casca rola dentro de `.platform-shell-content` (html/body ficam
+ * travados); no celular e nas telas sem casca, quem rola é a própria janela.
+ * O maior dos dois valores representa "quanto a pessoa desceu".
+ */
+function currentScrollTop() {
+  const shell = document.querySelector(".platform-shell-content");
+  return Math.max(window.scrollY, shell instanceof HTMLElement ? shell.scrollTop : 0);
+}
 
 const shortcuts = [
   { key: "1", href: "/area", module: "HOME" },
@@ -15,7 +27,6 @@ const shortcuts = [
 export function PlatformInteractionLayer({ children, modules = [] }: { children: ReactNode; modules?: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [online, setOnline] = useState(true);
   const [showTop, setShowTop] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
@@ -23,18 +34,13 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
   const allowedShortcuts = useMemo(() => shortcuts.filter((item) => modules.includes(item.module)), [modules]);
 
   useEffect(() => {
-    setOnline(window.navigator.onLine);
-    const handleOnline = () => setOnline(true);
-    const handleOffline = () => setOnline(false);
-    const handleScroll = () => setShowTop(window.scrollY > 520);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    const handleScroll = () => setShowTop(currentScrollTop() > 520);
+    // Captura na fase de captura: o evento `scroll` não borbulha, mas assim o
+    // listener enxerga tanto a janela quanto o container de rolagem da casca.
+    document.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     handleScroll();
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("scroll", handleScroll, { capture: true });
     };
   }, []);
 
@@ -70,22 +76,21 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
     <>
       <div aria-hidden="true" className={`pointer-events-none fixed inset-x-0 top-0 z-[150] h-[3px] origin-left bg-gradient-to-r from-cyan-400 via-emerald-400 to-blue-500 transition-all duration-300 ${transitioning ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"}`} />
 
-      {!online && (
-        <div role="status" className="fixed inset-x-3 top-3 z-[145] mx-auto flex max-w-xl items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-sm font-bold text-amber-900 shadow-xl backdrop-blur">
-          <WifiOff className="h-4 w-4" />
-          Você está offline. Alterações que dependem do servidor podem não ser salvas.
-        </div>
-      )}
-
+      {/* O aviso de offline é responsabilidade única do NetworkStatusBanner —
+          antes os dois componentes exibiam banners simultâneos. */}
       <div className={`transition-opacity duration-300 motion-reduce:transition-none ${pageVisible ? "opacity-100" : "opacity-0"}`}>
         {children}
       </div>
 
       <button
         type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        onClick={() => {
+          const shell = document.querySelector(".platform-shell-content");
+          if (shell instanceof HTMLElement) shell.scrollTo({ top: 0, behavior: "smooth" });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
         aria-label="Voltar ao topo"
-        className={`fixed bottom-5 right-5 z-50 grid h-11 w-11 place-items-center rounded-2xl border border-white/80 bg-slate-950/90 text-white shadow-[0_18px_45px_-20px_rgba(15,23,42,.9)] backdrop-blur transition duration-200 hover:-translate-y-1 hover:bg-[#003b70] focus:outline-none focus:ring-4 focus:ring-cyan-200 motion-reduce:transition-none ${showTop ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
+        className={`fixed bottom-5 right-5 z-50 grid h-11 w-11 place-items-center rounded-2xl border border-white/80 bg-slate-950/90 text-white shadow-[0_18px_45px_-20px_rgba(15,23,42,.9)] backdrop-blur transition duration-200 hover:-translate-y-1 hover:bg-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-cyan-200 motion-reduce:transition-none ${showTop ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
       >
         <ArrowUp className="h-5 w-5" />
       </button>
