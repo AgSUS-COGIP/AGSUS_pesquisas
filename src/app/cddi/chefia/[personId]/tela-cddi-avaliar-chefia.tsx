@@ -8,6 +8,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirmation-provider";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
@@ -53,6 +54,7 @@ export default function LeaderEvaluationPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
@@ -178,6 +180,7 @@ export default function LeaderEvaluationPage() {
       const result = data as { submittedAt?: string; result?: number } | null;
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessage("Avaliação da chefia enviada com sucesso.");
+      setCelebrate(true);
     } catch (error) {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
     } finally { setSubmitting(false); }
@@ -409,5 +412,12 @@ export default function LeaderEvaluationPage() {
         </div>
       </div>
     </footer>
+    <CompletionCelebration
+      open={celebrate}
+      onClose={() => setCelebrate(false)}
+      title="Parabéns! Avaliação concluída"
+      message={`A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
+      actionLabel="Continuar"
+    />
   </div></CddiPlatformFrame>;
 }
