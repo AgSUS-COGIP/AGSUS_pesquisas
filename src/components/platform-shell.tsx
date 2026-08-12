@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
+import { PlatformFooter } from "@/components/platform-footer";
 import { PlatformLogo } from "@/components/platform-logo";
 import { PlatformIcon } from "@/components/platform-icons";
 import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
@@ -17,6 +18,7 @@ import {
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
 import { PARTICIPANT_ROLE_MODULES } from "@/lib/platform-modules";
+import { isSuperAdminOnlyRoute } from "@/lib/platform-support";
 import {
   isPlatformSidebarCompact,
   PLATFORM_SIDEBAR_ATTRIBUTE,
@@ -161,6 +163,10 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   // Sem módulos informados, a casca assume o piso do modelo (Participante) —
   // nunca um conjunto mais amplo do que o perfil da pessoa permite.
   const modules = user.modules ?? [...PARTICIPANT_ROLE_MODULES];
+  // O rodapé de suporte fica fora das rotas exclusivas do Superadmin (quem já é
+  // o canal de suporte) e do modo foco, onde a barra de ações da avaliação ocupa
+  // o rodapé da tela.
+  const showFooter = !focus && !isSuperAdminOnlyRoute(pathname);
 
   // O estado recolhido já foi aplicado ao <html> pelo script beforeInteractive do
   // layout raiz; aqui apenas sincronizamos o React com o DOM para não sobrescrever
@@ -249,6 +255,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
           </div>
         </header>
         <main id="conteudo-principal" tabIndex={-1} className="mx-auto min-w-0 max-w-[1760px] px-4 py-4 outline-none sm:px-5 lg:px-6 lg:py-5">{children}</main>
+        {showFooter ? <PlatformFooter /> : null}
       </div>
     </div>
   );
