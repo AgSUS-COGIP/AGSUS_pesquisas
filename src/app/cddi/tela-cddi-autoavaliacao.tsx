@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { SurveyBanner } from "@/components/survey-banner";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -80,6 +81,7 @@ export default function CddiFormPage() {
   const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
@@ -239,6 +241,7 @@ export default function CddiFormPage() {
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessageType("success");
       setMessage("Autoavaliação enviada com sucesso.");
+      setCelebrate(true);
     } catch (error) {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
@@ -341,6 +344,13 @@ export default function CddiFormPage() {
           </section>
         </div>
       </div>
+      <CompletionCelebration
+        open={celebrate}
+        onClose={() => setCelebrate(false)}
+        title="Parabéns! Autoavaliação concluída"
+        message="Suas respostas foram enviadas com sucesso e já fazem parte do ciclo de avaliação."
+        actionLabel="Continuar"
+      />
     </CddiPlatformFrame>
   );
 
