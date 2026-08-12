@@ -190,7 +190,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
       eyebrow="Administração"
       title="Identidade visual"
     >
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto w-full max-w-[1400px] space-y-5">
         {/* Fica fora do bloco de carregamento de propósito: a saída da tela precisa
             existir antes dos dados e sobreviver a uma falha da RPC. */}
         <nav aria-label="Ações da avaliação">
@@ -334,9 +334,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                         : DEFAULT_CDDI_VISUAL_IDENTITY.bannerAlt}
                       className="aspect-[4/1] w-full object-cover"
                     />
-                    <div className="border-t-[5px] border-[#2d3f97] p-6">
+                    <div className="border-t-[5px] border-[var(--cddi-rule)] p-6">
                       <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">{builder.application.code}</p>
-                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-[#26368d]">
+                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--cddi-ink)]">
                         {visual.heroTitle?.trim() || builder.application.name}
                       </h3>
                       <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">
