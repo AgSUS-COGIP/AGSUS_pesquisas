@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, FileText, Inbox, ShieldCheck, Users2 } from "lucide-react";
+import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -88,14 +88,15 @@ export default function ParticipantAreaPage() {
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
   const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
-  const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
   const firstName = person.fullName.split(/\s+/)[0];
 
+  // A administração não tem atalho aqui: a central foi retirada da navegação e
+  // cada módulo administrativo tem entrada própria no menu lateral.
   const actions = [
     { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar avaliações", icon: FileText },
     ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliar", icon: Users2 }] : []),
     ...(modules.includes(PLATFORM_MODULE.RESULTS) ? [{ href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3 }] : []),
-    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar avaliações, pessoas e acessos", icon: ShieldCheck }] : []),
+    ...(modules.includes(PLATFORM_MODULE.DASHBOARDS) ? [{ href: "/paineis", title: "Painéis", text: "Indicadores e acompanhamento dos ciclos", icon: LayoutDashboard }] : []),
   ];
 
   const metricTiles = [

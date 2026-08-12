@@ -592,7 +592,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     >
       {dataLoading ? (
         <div className="flex min-h-[50vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#003b70]" aria-label="Carregando Studio" />
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-primary)]" aria-label="Carregando Studio" />
         </div>
       ) : !builder ? (
         <div className="mx-auto max-w-2xl py-16">
@@ -618,7 +618,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
             <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:p-8">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#003b70]">{builder.survey.code}</span>
+                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[var(--brand-primary)]">{builder.survey.code}</span>
                   <span className={isDraft
                     ? "rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800"
                     : "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800"
@@ -631,7 +631,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                     <Sparkles className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <div>
-                    <h2 className="text-2xl font-black text-[#003b70] sm:text-3xl">Studio de avaliação</h2>
+                    <h2 className="text-2xl font-black text-[var(--brand-primary)] sm:text-3xl">Studio de avaliação</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
                       Organize seções, edite perguntas e revise alternativas em um fluxo seguro antes da publicação.
                     </p>
@@ -657,7 +657,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               ].map(([label, value], index) => (
                 <div key={String(label)} className={`px-6 py-4 ${index > 0 ? "border-t border-slate-200 sm:border-l sm:border-t-0" : ""}`}>
                   <p className="text-[11px] font-black uppercase tracking-[.14em] text-slate-400">{label}</p>
-                  <strong className="mt-1 block text-lg font-black text-[#003b70]">{value}</strong>
+                  <strong className="mt-1 block text-lg font-black text-[var(--brand-primary)]">{value}</strong>
                 </div>
               ))}
             </div>
@@ -709,14 +709,14 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                   >
                     <header className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                       <div className="flex min-w-0 items-start gap-4">
-                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-[#003b70]">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-[var(--brand-primary)]">
                           {sectionIndex + 1}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[.12em] text-[#0b8f58]">
+                          <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-secondary)]">
                             {section.code}
                           </p>
-                          <h3 className="mt-1 text-xl font-black text-[#003b70]">
+                          <h3 className="mt-1 text-xl font-black text-[var(--brand-primary)]">
                             {section.title}
                           </h3>
                           <p className="mt-1 text-sm leading-6 text-slate-500">
@@ -835,7 +835,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                             return (
                               <li key={question.id}>
                                 <article className="group flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-start">
-                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-black text-[#003b70]">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-black text-[var(--brand-primary)]">
                                     {index + 1}
                                   </span>
                                   <div className="min-w-0 flex-1">
@@ -1162,7 +1162,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                             : questionEditor.optionsText,
                         })}
                         className={selected
-                          ? "flex items-center gap-3 rounded-xl border border-blue-400 bg-blue-50 p-3 text-left text-sm font-black text-[#003b70] shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                          ? "flex items-center gap-3 rounded-xl border border-blue-400 bg-blue-50 p-3 text-left text-sm font-black text-[var(--brand-primary)] shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                           : "flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                         }
                       >
@@ -1224,7 +1224,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               <p className="text-xs font-black uppercase tracking-[.12em] text-blue-700">
                 Pergunta selecionada
               </p>
-              <p className="mt-2 text-sm font-black text-[#003b70]">
+              <p className="mt-2 text-sm font-black text-[var(--brand-primary)]">
                 {questionMoveEditor.questionTitle}
               </p>
               <p className="mt-1 text-xs text-blue-800">

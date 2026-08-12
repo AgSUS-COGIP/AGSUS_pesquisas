@@ -94,6 +94,11 @@ html[data-agsus-theme="dark"] .text-slate-700 { color: var(--text-secondary) !im
 html[data-agsus-theme="dark"] .border-slate-100,
 html[data-agsus-theme="dark"] .border-slate-200,
 html[data-agsus-theme="dark"] .border-slate-300 { border-color: var(--border-subtle) !important; }
+html[data-agsus-theme="dark"] .hover\:bg-slate-50:hover,
+html[data-agsus-theme="dark"] .hover\:bg-slate-100:hover,
+html[data-agsus-theme="dark"] .hover\:bg-slate-200:hover { background-color: var(--surface-hover) !important; }
+html[data-agsus-theme="dark"] .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html[data-agsus-theme="dark"] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-subtle) !important; }
 
 .text-brand-primary { color: var(--brand-primary); }
 .bg-brand-primary { background-color: var(--brand-primary); }

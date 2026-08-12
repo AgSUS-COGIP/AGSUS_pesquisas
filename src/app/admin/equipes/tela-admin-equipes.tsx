@@ -28,7 +28,7 @@ export default function AdminTeamsPage() {
     eyebrow="Estrutura organizacional"
     title="Pessoas, equipes e lideranças"
   >
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <Breadcrumbs items={[{ label: "Administração", href: "/admin" }, { label: "Equipes e lideranças" }]} />
 
       <PageHeader
