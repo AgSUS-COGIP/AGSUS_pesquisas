@@ -85,21 +85,17 @@ export default function DashboardsPage() {
     <PlatformShell user={user} eyebrow="Visualizações autorizadas" title="Painéis">
       <div className="monitor-dashboard">
       <div className="monitor-topbar p-5">
-      <PageHeader
-        eyebrow="Indicadores e análises"
-        title="Central de indicadores"
-        description="Acompanhe participação, conclusão e distribuição das respostas. Esta área é exclusivamente analítica; para preencher instrumentos, acesse Avaliações."
-      />
-      </div>
-
-      <Surface className="monitor-panel mt-6 overflow-hidden">
-        <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,.75fr)]">
-          <div className="p-6 sm:p-7"><p className="section-eyebrow">Visão executiva</p><h2 className="mt-2 max-w-2xl text-2xl font-black text-[var(--text-primary)]">Dados para decidir, não apenas números para consultar</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">Cada painel mostra o avanço do ciclo, as pendências operacionais e a distribuição das respostas com atualização controlada.</p></div>
-          <div className="grid grid-cols-3 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] lg:border-l lg:border-t-0">
-            {[[dashboardSurveys.length, "Disponíveis"], [openDashboards, "Em andamento"], [closedDashboards, "Encerrados"]].map(([value, label]) => <div key={label} className="flex flex-col justify-center border-r border-[var(--border-subtle)] p-4 text-center last:border-r-0"><strong className="text-2xl font-black text-[var(--brand-primary)]">{value}</strong><span className="mt-1 text-[11px] font-bold text-[var(--text-secondary)]">{label}</span></div>)}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <PageHeader
+            eyebrow="Indicadores e análises"
+            title="Central de indicadores"
+            description="Acompanhe participação, conclusão e distribuição das respostas. Esta área é exclusivamente analítica; para preencher instrumentos, acesse Avaliações."
+          />
+          <div className="grid shrink-0 grid-cols-3 gap-2" aria-label="Resumo dos painéis">
+            {[[dashboardSurveys.length, "Disponíveis"], [openDashboards, "Em andamento"], [closedDashboards, "Encerrados"]].map(([value, label]) => <div key={label} className="min-w-28 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3 text-center"><strong className="block text-2xl font-black tabular-nums text-[var(--brand-primary)]">{value}</strong><span className="mt-0.5 block text-[11px] font-bold text-[var(--text-secondary)]">{label}</span></div>)}
           </div>
         </div>
-      </Surface>
+      </div>
 
       <section className="mt-6" aria-labelledby="institutional-dashboard-title">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -123,7 +119,7 @@ export default function DashboardsPage() {
         </Surface>
       </section>
 
-      <section className="mt-8" aria-labelledby="survey-dashboard-title">
+      <section className="mt-6" aria-labelledby="survey-dashboard-title">
         <div className="mb-4">
           <p className="section-eyebrow">Resultados por instrumento</p>
           <h2 id="survey-dashboard-title" className="mt-1 text-xl font-black text-[var(--text-primary)]">Painéis por avaliação</h2>
