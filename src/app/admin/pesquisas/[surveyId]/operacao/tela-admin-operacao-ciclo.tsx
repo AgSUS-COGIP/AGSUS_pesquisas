@@ -298,7 +298,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     eyebrow="Administração · Propriedades"
     title={operations?.survey.name ?? "Propriedades do ciclo"}
   >
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5">
       {/* Navegação da rota no topo do conteúdo: as ações que levam para outra
           página ficam junto do que elas afetam, e não na barra da casca, que é
           da aplicação. Fica fora do bloco de carregamento para que a saída da
