@@ -221,8 +221,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const fieldsEnabled = canEditPeriod || canReopen;
   const minDateTime = nowLocalInputValue();
   const currentPeriodIssues = periodIssues(opensAt, closesAt);
-  const opensAtIssue = currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message;
-  const closesAtIssue = currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message;
+  const opensAtIssue = fieldsEnabled ? currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message : undefined;
+  const closesAtIssue = fieldsEnabled ? currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message : undefined;
   const blockingIssues = operations?.issues.filter((issue) => issue.severity === "BLOCKING") ?? [];
   const periodDirty = Boolean(operations) && (opensAt !== toLocalInput(operations?.application?.opensAt) || closesAt !== toLocalInput(operations?.application?.closesAt));
 
