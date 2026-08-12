@@ -10,5 +10,8 @@ export default defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
-  globalIgnores([".next/**", "out/**", "coverage/**"]),
+  // `supabase/.temp` guarda o andaime que o `supabase start` gera para o
+  // runtime local. É código de terceiro, ignorado pelo git — mas o ESLint tem
+  // lista própria e acusava 99 erros em quem sobe o Supabase na máquina.
+  globalIgnores([".next/**", "out/**", "coverage/**", "supabase/.temp/**"]),
 ]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Info, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -45,7 +45,7 @@ type FormValues = z.infer<typeof schema>;
  */
 const STEPS = [
   { title: "Identificação", description: "Como a avaliação será reconhecida no catálogo institucional.", fields: ["code", "name", "description"] },
-  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts", "anonymous"] },
+  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts"] },
   { title: "Revisão", description: "Confira os dados antes de criar a avaliação.", fields: [] },
 ] as const satisfies ReadonlyArray<{ title: string; description: string; fields: ReadonlyArray<keyof FormValues> }>;
 
@@ -212,9 +212,20 @@ export default function NewSurveyPage() {
                   prosseguir e revalidada no banco. */}
               <Input type="datetime-local" label="Encerramento planejado" min={minOpensAt} hint="Precisa ocorrer após a abertura." error={form.formState.errors.closesAt?.message} {...form.register("closesAt")} />
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3">
               <Checkbox label="Permitir rascunhos" description="A pessoa poderá salvar e continuar depois." {...form.register("allowDrafts")} />
-              <Checkbox label="Avaliação anônima" description="Respostas sem identificação nominal nos resultados." {...form.register("anonymous")} />
+              {/* A opção "Avaliação anônima" foi retirada porque o anonimato
+                  ainda não é estrutural: a submissão guarda quem respondeu, e
+                  quem administra consegue reidentificar. Oferecer a caixa com
+                  um aviso ao lado manteria a promessa na tela — quem marca
+                  raramente lê a ressalva. O banco também recusa o valor
+                  (gatilho `tba_aplicacao_anonima`). */}
+              <p className="flex items-start gap-3 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <strong className="font-semibold">Toda avaliação é identificada.</strong> O modo anônimo está indisponível: as respostas ainda ficam vinculadas a quem respondeu, então a plataforma não pode prometer anonimato. A opção volta quando a separação entre identidade e conteúdo estiver implementada.
+                </span>
+              </p>
             </div>
           </div>
         )}
@@ -229,7 +240,9 @@ export default function NewSurveyPage() {
                 ["Abertura planejada", reviewDateLabel(values.opensAt)],
                 ["Encerramento planejado", reviewDateLabel(values.closesAt)],
                 ["Rascunhos", values.allowDrafts ? "Permitidos" : "Não permitidos"],
-                ["Identificação", values.anonymous ? "Anônima" : "Nominal"],
+                // Sempre nominal: o modo anônimo está indisponível enquanto o
+                // anonimato não for estrutural.
+                ["Identificação", "Nominal"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>
