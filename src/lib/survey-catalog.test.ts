@@ -79,13 +79,46 @@ describe("selectPrioritySurvey", () => {
 });
 
 describe("summarizeSurveyCatalog", () => {
+  const now = new Date("2026-08-10T12:00:00Z");
+
   it("contabiliza apenas os estados exibidos nas métricas", () => {
     expect(summarizeSurveyCatalog([
       item(),
       item({ applicationId: "draft", submissionStatus: "DRAFT" }),
       item({ applicationId: "done", submissionStatus: "VALIDATED" }),
       item({ applicationId: "closed", applicationStatus: "CLOSED" }),
-    ])).toEqual({ pending: 1, inProgress: 1, completed: 1, total: 4 });
+    ], now)).toMatchObject({ pending: 1, inProgress: 1, completed: 1, total: 4 });
+  });
+
+  it("deriva o que exige ação e o percentual de conclusão", () => {
+    expect(summarizeSurveyCatalog([
+      item({ applicationId: "pending" }),
+      item({ applicationId: "draft", submissionStatus: "DRAFT" }),
+      item({ applicationId: "done", submissionStatus: "SUBMITTED" }),
+      item({ applicationId: "other-done", submissionStatus: "SUBMITTED" }),
+    ], now)).toMatchObject({ actionable: 2, completionRate: 50 });
+  });
+
+  it("catálogo vazio não divide por zero", () => {
+    expect(summarizeSurveyCatalog([], now)).toMatchObject({ total: 0, completionRate: 0, actionable: 0, urgent: 0, nextDeadlineDays: null });
+  });
+
+  it("conta como urgente só o que vence dentro da janela e ainda depende da pessoa", () => {
+    const summary = summarizeSurveyCatalog([
+      item({ applicationId: "urgente", closesAt: "2026-08-13T12:00:00Z" }),
+      item({ applicationId: "folgado", closesAt: "2026-09-30T12:00:00Z" }),
+      // Concluída no prazo apertado não gera cobrança.
+      item({ applicationId: "concluida", closesAt: "2026-08-11T12:00:00Z", submissionStatus: "SUBMITTED" }),
+    ], now);
+    expect(summary.urgent).toBe(1);
+  });
+
+  it("reporta o prazo mais próximo entre as pendentes", () => {
+    const summary = summarizeSurveyCatalog([
+      item({ applicationId: "longe", closesAt: "2026-08-30T12:00:00Z" }),
+      item({ applicationId: "perto", closesAt: "2026-08-12T12:00:00Z" }),
+    ], now);
+    expect(summary.nextDeadlineDays).toBe(2);
   });
 });
 
