@@ -15,13 +15,17 @@ import { Button } from "@/components/ui/button";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
+import { SurveyBanner } from "@/components/survey-banner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; label: string; value: string };
 type Question = { id: string; title: string; description: string | null; type: string; required: boolean; options: Option[] };
 type Section = { id: string; title: string; description: string | null; questions: Question[] };
 type Definition = {
-  application: { name: string; status: string };
+  // `settings` carrega a identidade visual configurada para o ciclo — sem ele,
+  // capa, título e subtítulo personalizados nunca chegam ao instrumento.
+  application: { name: string; status: string; settings?: unknown };
   survey: { code: string; name: string; description: string | null };
   sections: Section[];
 };
@@ -251,6 +255,15 @@ export default function GenericSurveyPage() {
   );
 
   const periodOpen = definition.application.status === "OPEN";
+  // A identidade configurada em /admin/pesquisas/[id]/identidade vale para
+  // qualquer instrumento, não só para o CDDI: o fallback é o nome do ciclo e a
+  // descrição da pesquisa, que é o que a tela já mostrava.
+  const visualIdentity = resolveSurveyVisualIdentity(definition.application.settings, {
+    ...DEFAULT_CDDI_VISUAL_IDENTITY,
+    bannerAlt: definition.application.name,
+    heroTitle: definition.application.name,
+    heroSubtitle: definition.survey.description || "Instrumento institucional de avaliação.",
+  });
   const missingInSection = currentSection
     ? currentSection.questions.filter((question) => question.required && !isSurveyAnswerComplete(question.type, answers[question.id])).length
     : 0;
@@ -259,11 +272,20 @@ export default function GenericSurveyPage() {
     <PlatformShell user={guard.user} focus exitHref="/pesquisas" eyebrow={definition.survey.code} title={definition.application.name}>
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+          {visualIdentity.themeVariant === "CUSTOM" ? (
+            <SurveyBanner
+              key={visualIdentity.bannerUrl}
+              src={visualIdentity.bannerUrl}
+              fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl}
+              alt={visualIdentity.bannerAlt}
+              className="h-auto max-h-52 w-full object-cover"
+            />
+          ) : null}
           <div className="grid gap-4 p-6 lg:grid-cols-[1fr_auto] lg:items-start lg:p-7">
             <div className="min-w-0">
               <p className="break-words text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">{definition.survey.name}</p>
-              <h2 className="mt-1.5 break-words text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)] sm:text-3xl">{definition.application.name}</h2>
-              <p className="mt-3 max-w-3xl whitespace-pre-line break-words text-sm leading-7 text-[var(--text-secondary)]">{definition.survey.description || "Instrumento institucional de avaliação."}</p>
+              <h2 className="mt-1.5 break-words text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)] sm:text-3xl">{visualIdentity.heroTitle}</h2>
+              <p className="mt-3 max-w-3xl whitespace-pre-line break-words text-sm leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={periodOpen ? "success" : "neutral"}>{periodOpen ? "Período aberto" : "Período encerrado"}</Badge>
