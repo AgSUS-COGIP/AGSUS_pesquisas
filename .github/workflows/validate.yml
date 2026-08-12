@@ -72,11 +72,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # A action `supabase/setup-cli` baixa o binário sem repetir a tentativa: um
+      # soquete fechado no meio do download derruba o passo, e todos os seguintes
+      # falham com `supabase: command not found` (código 127). Aconteceu nas
+      # execuções #66, #67 e #69, com o mesmo commit passando na #68 — falha de
+      # rede, não do banco. O download aqui é o mesmo, mas insiste antes de desistir.
       - name: Configure Supabase CLI
-        uses: supabase/setup-cli@v2.1.1
-        with:
-          version: 2.109.1
-          github-token: ${{ github.token }}
+        env:
+          SUPABASE_CLI_VERSION: "2.109.1"
+        run: |
+          set -euo pipefail
+          release="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}"
+          arquivo="supabase_${SUPABASE_CLI_VERSION}_linux_amd64.tar.gz"
+          baixado=""
+          for tentativa in 1 2 3; do
+            if curl --fail --silent --show-error --location \
+                    --retry 3 --retry-all-errors --retry-delay 5 \
+                    --connect-timeout 20 --max-time 180 \
+                    --output /tmp/supabase.tar.gz "${release}/${arquivo}"; then
+              baixado="sim"
+              break
+            fi
+            echo "Tentativa ${tentativa} de baixar a Supabase CLI falhou; nova tentativa em 15s."
+            sleep 15
+          done
+          if [ -z "${baixado}" ]; then
+            echo "Não foi possível baixar a Supabase CLI ${SUPABASE_CLI_VERSION}." >&2
+            exit 1
+          fi
+          tar -xzf /tmp/supabase.tar.gz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
 
       - name: Initialize local Supabase configuration
         run: |
@@ -93,6 +119,8 @@ jobs:
       - name: Database and RLS tests
         run: supabase test db
 
+      # Sem a guarda, a limpeza também falha com 127 quando a CLI não instalou, e
+      # o erro real fica atrás de dois erros que só são consequência dele.
       - name: Stop local Supabase
         if: always()
-        run: supabase stop --no-backup
+        run: command -v supabase >/dev/null && supabase stop --no-backup || true
