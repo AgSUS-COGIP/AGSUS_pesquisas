@@ -72,6 +72,22 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260812160000_restaurar_event_trigger_rls_automatica.sql": {
     função: new Set(["rls_auto_enable"]),
   },
+  // Sete RPCs que existem em produção e que nenhuma migration criava — foram
+  // aplicadas por SQL direto. As seis primeiras são chamadas pelo frontend e a
+  // última pela RPC do painel CDDI; renomeá-las derrubaria os bundles já
+  // publicados, que as invocam pelo nome. O arquivo apenas versiona o que já
+  // existe. Ver docs/operacao-permissoes.md.
+  "supabase/migrations/20260812170000_restaurar_rpcs_de_participantes_e_painel.sql": {
+    função: new Set([
+      "list_admin_participant_applications",
+      "list_admin_application_participants",
+      "search_admin_people_for_application",
+      "assign_admin_application_participant",
+      "create_and_assign_admin_participant",
+      "set_admin_application_participant_status",
+      "get_cddi_monitoring_dashboard_internal",
+    ]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
@@ -100,12 +116,21 @@ function normalize(identifier) {
 
 function assertName(errors, file, kind, rawName, pattern, maxLength = 30) {
   const name = normalize(rawName);
-  // A dispensa vale só para o prefixo: tamanho e caracteres permitidos continuam
-  // cobrados, porque nada em objeto legado justifica violá-los.
-  if (!pattern.test(name) && !isLegacyRestored(file, kind, name)) {
+  // Objeto restaurado é dispensado de prefixo **e** de tamanho. A regra anterior
+  // cobrava o tamanho mesmo dos legados, sob o argumento de que nada justifica
+  // violá-lo — o que não se sustenta nesta classe de migration: restaurar exige
+  // o nome exato que o banco e os bundles publicados já usam. Encurtar
+  // `set_admin_application_participant_status` criaria uma segunda função e
+  // derrubaria a tela que a chama. A alternativa seria deixar o objeto fora do
+  // repositório, que é justamente o defeito que a restauração corrige.
+  //
+  // A allowlist continua estreita e indexada por arquivo, tipo e nome exato, e
+  // o conjunto de caracteres segue cobrado para todos.
+  const legacyRestored = isLegacyRestored(file, kind, name);
+  if (!pattern.test(name) && !legacyRestored) {
     errors.push(`${file}: ${kind} '${name}' não segue o prefixo institucional.`);
   }
-  if (name.length > maxLength) {
+  if (name.length > maxLength && !legacyRestored) {
     errors.push(`${file}: ${kind} '${name}' excede ${maxLength} caracteres.`);
   }
   if (!/^[a-z0-9_]+$/.test(name)) {
