@@ -157,7 +157,7 @@ export default function NewSurveyPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
+      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[var(--border-subtle)] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[var(--brand-primary)]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--brand-secondary)]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[var(--brand-primary)]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
 
         <ol className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Etapas da criação">
@@ -177,11 +177,11 @@ export default function NewSurveyPage() {
                   <span className={state === "done"
                     ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-600 text-xs font-black text-white"
                     : state === "current"
-                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#003b70] text-xs font-black text-white"
+                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--brand-solid)] text-xs font-black text-white"
                       : "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-300 text-xs font-black text-white"}>
                     {state === "done" ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
                   </span>
-                  <p className={state === "todo" ? "text-sm font-black text-slate-500" : "text-sm font-black text-[#003b70]"}>{item.title}</p>
+                  <p className={state === "todo" ? "text-sm font-black text-slate-500" : "text-sm font-black text-[var(--brand-primary)]"}>{item.title}</p>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-500">{item.description}</p>
               </li>
@@ -233,7 +233,7 @@ export default function NewSurveyPage() {
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>
-                  <dd className="mt-1 text-sm font-bold text-[#003b70]">{value}</dd>
+                  <dd className="mt-1 text-sm font-bold text-[var(--brand-primary)]">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -281,7 +281,7 @@ export default function NewSurveyPage() {
 
       <aside className="space-y-5">
         <article className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-6 shadow-sm"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]"><ShieldCheck className="h-6 w-6" /></span><h3 className="mt-4 text-xl font-black text-[var(--text-primary)]">Governança desde o início</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Toda avaliação nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da administração.</p></article>
-        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-black text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
+        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[var(--border-subtle)] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-black text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
       </aside>
     </section>
   </PlatformShell>;

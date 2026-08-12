@@ -69,8 +69,8 @@ export function Dialog({
       <div className="max-h-[88vh] overflow-y-auto">
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 p-6 backdrop-blur">
           <div>
-            {eyebrow && <p className="text-xs font-black uppercase tracking-[.15em] text-[#0b8f58]">{eyebrow}</p>}
-            <h2 id={titleId} className="mt-1 text-2xl font-black text-[#003b70]">{title}</h2>
+            {eyebrow && <p className="text-xs font-black uppercase tracking-[.15em] text-[var(--brand-secondary)]">{eyebrow}</p>}
+            <h2 id={titleId} className="mt-1 text-2xl font-black text-[var(--brand-primary)]">{title}</h2>
             {description && <p id={descriptionId} className="mt-2 text-sm leading-6 text-slate-500">{description}</p>}
           </div>
           <button
