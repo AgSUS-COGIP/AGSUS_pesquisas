@@ -22,18 +22,6 @@ function text(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function safeLogoUrl(value: unknown) {
-  if (typeof value !== "string" || !value.trim()) return DEFAULT_PLATFORM_BRANDING.logoUrl;
-  const candidate = value.trim();
-  if (candidate.startsWith("/")) return candidate;
-  try {
-    const url = new URL(candidate);
-    return url.protocol === "https:" ? url.toString() : DEFAULT_PLATFORM_BRANDING.logoUrl;
-  } catch {
-    return DEFAULT_PLATFORM_BRANDING.logoUrl;
-  }
-}
-
 export function normalizePlatformBranding(value: unknown): PlatformBranding {
   const source = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -45,8 +33,11 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
   return {
     organizationName: text(source.organizationName, DEFAULT_PLATFORM_BRANDING.organizationName).slice(0, 60),
     productName: text(source.productName, DEFAULT_PLATFORM_BRANDING.productName).slice(0, 60),
-    logoUrl: safeLogoUrl(source.logoUrl),
-    logoPath: typeof source.logoPath === "string" && source.logoPath.trim() ? source.logoPath.trim() : null,
+    // O logotipo é identidade institucional fixa: uploads antigos gravados no
+    // banco são ignorados de propósito, para a marca oficial nunca ser
+    // sobrescrita pela configuração.
+    logoUrl: DEFAULT_PLATFORM_BRANDING.logoUrl,
+    logoPath: null,
     primaryColor,
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : null,
   };
