@@ -100,10 +100,32 @@ export default function CddiFormPage() {
         const supabase = createBrowserSupabaseClient();
         const { data: userData } = await supabase.auth.getUser();
         if (!userData.user) { window.location.replace("/acesso"); return; }
+
+        /*
+         * O ciclo deixou de estar escrito aqui. `CDDI-2026` aparecia nestas três
+         * chamadas, e com a segunda edição a tela continuaria buscando a
+         * primeira: as pessoas abririam um ciclo encerrado sem entender por quê.
+         *
+         * Quem decide é o banco, que sabe de quais ciclos a pessoa participa e
+         * qual está aberto. `?ciclo=` continua permitindo abrir um específico —
+         * é como `/equipe` propaga a escolha para a avaliação de chefia.
+         */
+        const requestedCycle = new URLSearchParams(window.location.search).get("ciclo");
+        let applicationCode = requestedCycle?.trim() || "";
+        if (!applicationCode) {
+          const { data: cycleData, error: cycleError } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
+          if (cycleError) throw cycleError;
+          const cycle = cycleData as { code?: string } | null;
+          if (!cycle?.code) {
+            throw new Error("Você ainda não faz parte de um ciclo do CDDI. Procure a administração se acredita que isso é um engano.");
+          }
+          applicationCode = cycle.code;
+        }
+
         const [formResponse, submissionResponse, identityResponse] = await Promise.all([
-          supabase.rpc("get_public_survey_form", { target_application_code: "CDDI-2026" }),
-          supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: "CDDI-2026", target_submission_type: "AUTO", target_subject_person_id: null }),
-          supabase.rpc("get_my_cddi_identity", { target_application_code: "CDDI-2026" }),
+          supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
+          supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: applicationCode, target_submission_type: "AUTO", target_subject_person_id: null }),
+          supabase.rpc("get_my_cddi_identity", { target_application_code: applicationCode }),
         ]);
         if (formResponse.error) throw formResponse.error;
         if (submissionResponse.error) throw submissionResponse.error;
