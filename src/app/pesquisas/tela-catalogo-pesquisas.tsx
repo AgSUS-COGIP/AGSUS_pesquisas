@@ -77,6 +77,28 @@ export default function SurveysPage() {
 
   const metrics = useMemo(() => summarizeSurveyCatalog(items), [items]);
 
+  // Rótulos e legendas vieram da #19; aqui eles só deixaram de ser quatro
+  // `StatCard` para virar uma faixa. `alert` liga o realce de urgência sem que a
+  // cor seja o único indicador — a legenda continua dizendo quantas vencem.
+  const metricTiles = [
+    { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false },
+    {
+      label: "Pendentes",
+      value: metrics.actionable,
+      description: metrics.urgent > 0
+        ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias`
+        : "ainda não iniciadas",
+      alert: !catalogLoading && metrics.urgent > 0,
+    },
+    { label: "Em andamento", value: metrics.inProgress, description: "iniciadas e ainda não enviadas", alert: false },
+    {
+      label: "Finalizadas",
+      value: metrics.completed,
+      description: metrics.total ? `${metrics.completionRate}% do total` : "respondidas e enviadas",
+      alert: false,
+    },
+  ];
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return items.filter((item) => {
@@ -124,12 +146,29 @@ export default function SurveysPage() {
           />
 
           {/*
-            Os quatro indicadores saíram daqui. Eram o terceiro resumo empilhado
-            antes do conteúdo: os filtros abaixo já mostram a contagem de cada
-            situação, e "Disponíveis" repetia o total que a linha de resultados
-            informa. O que os indicadores tinham de exclusivo era a urgência de
-            prazo — essa continua, como aviso, e só quando existe.
+            Resolução de conflito com a #19, que reescreveu os rótulos destes
+            indicadores. Os textos de lá foram mantidos na íntegra — "Pendentes",
+            "Finalizadas" e as legendas novas —, e daqui veio só o tratamento
+            visual: sem moldura de cartão, porque eram caixas dentro da caixa do
+            cabeçalho. É o mesmo padrão da Visão geral, com régua fina separando
+            os números.
           */}
+          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
+            {metricTiles.map((tile, index) => (
+              <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
+                <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
+                <dd>
+                  <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${tile.alert ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                    {catalogLoading ? "—" : tile.value}
+                  </strong>
+                  <span className={`mt-2 block text-xs leading-4 ${tile.alert ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
+                    {catalogLoading ? "carregando" : tile.description}
+                  </span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-4" role="tablist" aria-label="Filtrar avaliações por situação">
             <Filter className="mr-1 h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
             {filters.map((item) => (
@@ -150,14 +189,9 @@ export default function SurveysPage() {
 
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" aria-live="polite">
           <p className="text-sm font-semibold text-[var(--text-primary)]">{catalogLoading ? "Atualizando catálogo..." : `${filtered.length} de ${items.length} ciclo(s) exibido(s)`}</p>
-          {!catalogLoading && metrics.urgent > 0 ? (
-            <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--status-warning-text)]">
-              <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
-              {metrics.urgent === 1 ? "1 avaliação vence em até 7 dias" : `${metrics.urgent} avaliações vencem em até 7 dias`}
-            </p>
-          ) : (
-            <p className="text-xs text-[var(--text-secondary)]">A situação combina o período do ciclo com o seu preenchimento.</p>
-          )}
+          {/* O aviso de urgência que eu tinha posto aqui saiu: com os
+              indicadores de volta, ele repetiria a legenda de "Pendentes". */}
+          <p className="text-xs text-[var(--text-secondary)]">A situação combina o período do ciclo com o seu preenchimento.</p>
         </div>
 
         {catalogLoading ? (
