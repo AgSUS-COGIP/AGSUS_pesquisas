@@ -221,35 +221,73 @@ export default function SurveysPage() {
                   Os códigos continuam visíveis, como texto secundário.
                 */
                 <Surface key={item.applicationId} className="group flex min-h-56 flex-col overflow-hidden transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
-                  <div className="flex flex-1 flex-col p-5 sm:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 break-words text-xs font-semibold uppercase tracking-[.12em] text-[var(--brand-secondary)]">{item.surveyName}</p>
-                      <Badge variant={stateBadgeVariant[state === "ALL" ? "OPEN" : state]} className="shrink-0">{completed ? "Concluída" : state === "DRAFT" ? "Em andamento" : statusLabel(item.applicationStatus)}</Badge>
-                    </div>
-                    <h3 className="mt-1.5 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">{item.applicationName}</h3>
-                    <p className="mt-1 truncate text-xs text-[var(--text-muted)]" title={`${item.surveyCode} · ${item.applicationCode}`}>{item.surveyCode} · {item.applicationCode}</p>
-                    <p className="mt-3 line-clamp-2 break-words text-sm leading-6 text-[var(--text-secondary)]">{item.description || "Instrumento institucional disponível conforme seu perfil."}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[var(--text-secondary)]">
-                      <span className="inline-flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />{item.sections} seções · {item.questions} perguntas</span>
-                      <span className="inline-flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />Prazo: {dateLabel(item.closesAt)}</span>
-                      {showCountdown ? (
-                        <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
-                          <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />{deadlineLabel(deadline)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
-                      <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-semibold text-[var(--text-secondary)]">
-                        {completed ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" /> : <FileText className="h-4 w-4 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />}
-                        {completed ? "Envio concluído" : item.submissionStatus === "DRAFT" ? "Rascunho salvo" : "Não iniciada"}
-                      </span>
-                      <div className="flex shrink-0 gap-2">
-                        {item.canManage ? <Link href={`/admin/pesquisas/${item.surveyId}`} aria-label={`Configurar ${item.surveyName}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-10 w-10 px-0")}><Settings2 className="h-4 w-4" aria-hidden="true" /></Link> : null}
-                        <Link href={surveyApplicationHref(item)} className={buttonVariants({ variant: "primary", size: "sm" })}>{actionLabel(item)}</Link>
-                      </div>
-                    </div>
-                  </div>
-                </Surface>
+  {/* ↓ min-w-0 é obrigatório aqui para que o flex respeite a largura do card */}
+  <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
+    <div className="flex items-start justify-between gap-3">
+      {/* ↓ min-w-0 + overflow-hidden evita que o título empurre o badge para fora */}
+      <p className="min-w-0 break-words text-xs font-semibold uppercase tracking-[.12em] text-[var(--brand-secondary)]">
+        {item.surveyName}
+      </p>
+      <Badge variant={stateBadgeVariant[state === "ALL" ? "OPEN" : state]} className="shrink-0">
+        {completed ? "Concluída" : state === "DRAFT" ? "Em andamento" : statusLabel(item.applicationStatus)}
+      </Badge>
+    </div>
+
+    <h3 className="mt-1.5 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">
+      {item.applicationName}
+    </h3>
+
+    <p className="mt-1 truncate text-xs text-[var(--text-muted)]" title={`${item.surveyCode} · ${item.applicationCode}`}>
+      {item.surveyCode} · {item.applicationCode}
+    </p>
+
+    {/* ↓ overflow-hidden reforça o line-clamp; break-all pega strings sem espaços */}
+    <p className="mt-3 line-clamp-2 overflow-hidden break-words text-sm leading-6 text-[var(--text-secondary)]">
+      {item.description || "Instrumento institucional disponível conforme seu perfil."}
+    </p>
+
+    {/* ↓ min-w-0 aqui também, para os metadados não estourarem */}
+    <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[var(--text-secondary)]">
+      <span className="inline-flex min-w-0 items-center gap-1.5 break-words">
+        <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">{item.sections} seções · {item.questions} perguntas</span>
+      </span>
+      <span className="inline-flex min-w-0 items-center gap-1.5 break-words">
+        <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">Prazo: {dateLabel(item.closesAt)}</span>
+      </span>
+      {showCountdown ? (
+        <span className="inline-flex min-w-0 items-center gap-1.5 break-words font-semibold text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
+          <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{deadlineLabel(deadline)}</span>
+        </span>
+      ) : null}
+    </div>
+
+    <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
+      <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-semibold text-[var(--text-secondary)]">
+        {completed ? (
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" />
+        ) : (
+          <FileText className="h-4 w-4 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />
+        )}
+        <span className="truncate">
+          {completed ? "Envio concluído" : item.submissionStatus === "DRAFT" ? "Rascunho salvo" : "Não iniciada"}
+        </span>
+      </span>
+      <div className="flex shrink-0 gap-2">
+        {item.canManage ? (
+          <Link href={`/admin/pesquisas/${item.surveyId}`} aria-label={`Configurar ${item.surveyName}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-10 w-10 px-0")}>
+            <Settings2 className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        ) : null}
+        <Link href={surveyApplicationHref(item)} className={buttonVariants({ variant: "primary", size: "sm" })}>
+          {actionLabel(item)}
+        </Link>
+      </div>
+    </div>
+  </div>
+</Surface>
               );
             })}
           </section>

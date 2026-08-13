@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
@@ -147,7 +148,7 @@ export default function NewSurveyPage() {
       toast.success(`Avaliação ${code} criada como rascunho.`);
       router.push("/admin/pesquisas");
     } catch (submitError) {
-      toast.error(submitError instanceof Error ? submitError.message : "Não foi possível criar a avaliação.");
+      toast.error(errorMessageFromUnknown(submitError));
     } finally {
       setIntent(null);
     }

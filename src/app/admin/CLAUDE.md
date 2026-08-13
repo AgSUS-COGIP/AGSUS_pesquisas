@@ -55,10 +55,18 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 ```text
 DRAFT ──UPDATE_PERIOD──▶ DRAFT
 DRAFT ──PUBLISH──▶ (versão publicada; estrutura congelada)
-DRAFT/SCHEDULED ──SCHEDULE──▶ SCHEDULED ──OPEN──▶ OPEN
+DRAFT/SCHEDULED ──SCHEDULE(período)──▶ SCHEDULED ┬─(a abertura chega)─▶ OPEN
+DRAFT/SCHEDULED ──OPEN──────────────────────────┴────────────────────▶ OPEN
 OPEN ──CLOSE──▶ CLOSED ──REOPEN(novo período)──▶ OPEN
 qualquer ──CANCEL──▶ CANCELLED   (irreversível)
 ```
+
+**`SCHEDULED` vira `OPEN` sozinho** (`20260814100000_abrir_ciclos_agendados.sql`). Antes não virava: nada convertia o estado, e como responder exige `OPEN`, o ciclo chegava na data marcada e continuava fechado — alguém tinha de voltar à tela e abrir na mão. Como o projeto não tem job agendado (sem `pg_cron`, sem cron da Vercel), a abertura é **preguiçosa**, no mesmo desenho do arquivamento: `fc_abrir_ciclos_agendados()` é chamada por `get_survey_operations`, `list_my_survey_catalog` e `get_public_survey_form` antes de montarem o resultado, e materializa a virada de quem já venceu, auditando em `SURVEY_CYCLE_AUTO_OPEN`.
+
+Duas consequências que valem lembrar ao mexer nisso:
+
+- **As três RPCs de leitura deixaram de ser `stable`.** Função `stable` no PostgreSQL não pode gravar, nem através de outra função — manter o marcador faria a chamada falhar com *"UPDATE is not allowed in a non-volatile function"*. Nenhuma delas é chamada por GET (`supabase.rpc()` envia POST), então o PostgREST as aceita normalmente.
+- **Quem decide se dá para responder é o relógio, não o status.** `application_accepts_responses()` — o portão único do runtime, usado pelas duas jornadas, pelos `save_*`/`submit_*` e pelas políticas de RLS — aceita o ciclo `SCHEDULED` cuja abertura já passou. Sem isso haveria corrida: `/cddi` e o runtime genérico disparam `get_public_survey_form` e `start_or_resume_*` no mesmo `Promise.all`, e a primeira pessoa a entrar no minuto da abertura levaria erro. O status é materialização para catálogo, painel e auditoria lerem estado honesto.
 
 **Criação em três etapas** (`/admin/pesquisas/nova`): Identificação → Ciclo e período → Revisão. As etapas 1 e 2 oferecem só **Cancelar** (vermelho claro) e **Prosseguir** (azul); as ações que gravam — **Criar rascunho** e **Publicar** — existem apenas na etapa de revisão, para que nenhuma etapa intermediária pareça capaz de concluir a criação. `goToNextStep()` valida só os campos da etapa atual (`STEPS[step].fields`): exigir o formulário inteiro impediria sair da primeira etapa por causa de campos ainda não exibidos.
 
@@ -74,8 +82,9 @@ Regras aplicadas pelo banco e refletidas na interface:
 
 **A tela de `/operacao` é a "Propriedades" do ciclo** — é assim que o catálogo a chama, pelo botão **"Propriedades"**. Ela usa os primitivos do design system (`Surface`, `PageHeader`, `Button`, `Badge`, `Skeleton`) e tokens CSS, não hexadecimal literal, então acompanha o tema escuro como o restante da administração.
 
-Três decisões estruturam a tela:
+Quatro decisões estruturam a tela:
 
+- **O agendamento mora no cartão de período, não na grade de operações.** "Agendar abertura" era um botão sem dado próprio — toda a informação dele estava no campo **Abertura**, dois cartões acima, e a distância entre os dois fazia o par parecer redundante. Hoje o botão primário do cartão de período é contextual, como já era com `REOPEN`: **Reabrir ciclo com este período** (ciclo encerrado), **Salvar e agendar abertura** (`readyToOpen`, ciclo parado e abertura no futuro, por `opensInFuture()`) ou **Salvar período**. É **uma** chamada, não duas: `SCHEDULE` passou a aceitar `target_opens_at`/`target_closes_at` — encadear `UPDATE_PERIOD` e depois `SCHEDULE` não seria atômico e deixaria o ciclo com período novo e sem agendamento se a segunda falhasse. O bloco de datas registradas ganhou a linha **"O que acontece"** (`periodOutcome()`), que diz a consequência em vez de repetir os campos. Na grade sobraram três operações, e `OPEN` virou **"Abrir agora"**: com a abertura automática, ele deixou de ser o gêmeo do agendamento e passou a ser a antecipação deliberada dela.
 - **Nenhum botão fica apagado sem explicação.** Cada operação do ciclo de vida é um objeto `CycleAction` com `description` (o que a ação faz) e `blockedReason` (por que está indisponível), derivado do estado atual. A mesma frase alimenta o `title`, o `aria-describedby` e a nota sob o botão — é a aplicação concreta da responsabilidade declarada no topo deste arquivo. Adicionar operação nova exige preencher os dois textos.
 - **Código do banco não é rótulo de interface.** `CYCLE_STATUS_LABELS` e `VERSION_STATUS_LABELS` traduzem `DRAFT`/`OPEN`/`PUBLISHED` para português; o código interno sobrevive apenas no `title` do selo, para quem precisa correlacionar com o banco.
 - **A navegação da rota fica no topo do conteúdo, não na casca.** Uma `<nav aria-label="Ações da avaliação">` abre a `main`, antes do `PageHeader`, com "Voltar ao catálogo" e "Editar identidade visual" (azul, `--brand-solid`). Ela fica **fora** do bloco de carregamento de propósito: a saída da tela precisa existir antes dos dados e sobreviver a uma falha da RPC. Por isso o teste do botão de identidade é `operations?.application?.id` — com encadeamento opcional, já que ali `operations` ainda pode ser nulo. `PlatformShell` é chamado **sem** `actions`: a tela não tem ação própria de cabeçalho.
@@ -85,7 +94,7 @@ O que **não** existe nesta tela, e foi removido por decisão de interface — n
 - **Trilha de etapas.** O `CycleProgress` (`Rascunho → Agendado → Aberto → Encerrado`) e a constante `CYCLE_STEPS` foram removidos. O aviso enfático de ciclo cancelado morava no ramo `CANCELLED` dessa trilha; a informação continua na tela por `cycleExplanation()`, no cartão de período.
 - **Breadcrumbs.** A tela não tem caminho estrutural; o retorno é o botão "Voltar ao catálogo". O primitivo `Breadcrumbs` segue em uso em outras rotas administrativas — o que saiu foi só a chamada daqui.
 - **Botão "Editar formulário".** O acesso ao construtor é pelo catálogo. Dentro desta tela, o único link para lá é o atalho "Abrir construtor" do checklist, que `issueFixHref()` só devolve para pendência de `category: "STRUCTURE"` — logo, num ciclo sem pendências não há caminho para o construtor daqui.
-- **Botão "Atualizar dados".** A tela busca o agregado ao abrir (`useEffect`) e depois de cada mutação (`runAction` → `loadOperations()`), e não revalida sozinha — não há React Query nem polling aqui. Consequência aceita: contador de resposta num ciclo aberto e virada automática de `SCHEDULED` para `OPEN` só aparecem ao recarregar a página.
+- **Botão "Atualizar dados".** A tela busca o agregado ao abrir (`useEffect`) e depois de cada mutação (`runAction` → `loadOperations()`), e não revalida sozinha — não há React Query nem polling aqui. Consequência aceita: o contador de resposta num ciclo aberto só muda ao recarregar a página. O estado do ciclo **não** entra nessa ressalva: `get_survey_operations` materializa a abertura vencida antes de responder, então toda carga da tela já traz o ciclo no estado certo.
 
 ### Construtor de formulários
 

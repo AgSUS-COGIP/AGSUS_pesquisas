@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ClipboardList, Copy, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, SlidersHorizontal, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Archive, ArchiveRestore, CalendarDays, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, Share2, SlidersHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/confirmation-provider";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
+import { ActionMenu } from "@/components/ui/action-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
@@ -20,11 +21,21 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type ManagedSurvey = {
   surveyId: string; code: string; name: string; description: string | null; status: string;
+  archivedAt: string | null;
   versionNumber: number; versionStatus: string; applicationName: string | null;
   applicationCode: string | null;
   applicationStatus: string | null; opensAt: string | null; closesAt: string | null;
   sections: number; questions: number;
 };
+
+const ARCHIVE_RETENTION_DAYS = 30;
+
+/** Dias restantes até a exclusão automática, nunca negativo — o banco também protege quem já venceu. */
+function daysUntilExpiration(archivedAt: string) {
+  const elapsedMs = Date.now() - new Date(archivedAt).getTime();
+  const elapsedDays = Math.floor(elapsedMs / 86_400_000);
+  return Math.max(0, ARCHIVE_RETENTION_DAYS - elapsedDays);
+}
 
 /**
  * Copia o link direto de resposta da avaliação.
@@ -88,7 +99,41 @@ export default function AdminSurveysPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [cloningId, setCloningId] = useState<string | null>(null);
+  const [archiveActionId, setArchiveActionId] = useState<string | null>(null);
+  const [showingArchived, setShowingArchived] = useState(false);
   const granted = guard.state === "granted";
+
+  /**
+   * Carrega o catálogo na visão pedida.
+   *
+   * Cada visão tem **função própria**, e não um parâmetro na mesma função: o
+   * PostgREST resolve a função pelo conjunto de argumentos recebidos, então
+   * uma sobrecarga com argumento opcional tornaria ambígua a chamada sem
+   * argumento — a que todo bundle publicado faz. As duas devolvem o mesmo
+   * formato, por isso o cartão é o mesmo nas duas visões.
+   */
+  const loadSurveys = useCallback(async (archivedView: boolean) => {
+    setDataLoading(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error: listError } = archivedView
+        ? await supabase.rpc("fc_listar_pesquisas_arq")
+        : await supabase.rpc("list_managed_surveys");
+      if (listError) throw listError;
+      setSurveys(Array.isArray(data) ? data as ManagedSurvey[] : []);
+    } catch (loadError) {
+      // A visão de arquivadas depende da migration de arquivamento. Enquanto
+      // ela não estiver aplicada, a RPC não existe (404) — a tela diz o que
+      // falta e volta para a visão que funciona, em vez de deixar o operador
+      // diante de um catálogo vazio sem explicação.
+      if (archivedView) {
+        toast.error("As avaliações arquivadas ainda não estão disponíveis neste ambiente: a migration de arquivamento não foi aplicada ao banco.");
+        setShowingArchived(false);
+        return;
+      }
+      toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar as avaliações.");
+    } finally { setDataLoading(false); }
+  }, []);
 
   /**
    * Duplica o instrumento e leva direto para o construtor da cópia.
@@ -126,23 +171,47 @@ export default function AdminSurveysPage() {
     }
   }
 
+  /**
+   * Arquiva ou desarquiva uma avaliação. Arquivar é irreversível na prática
+   * (a avaliação expira em até 30 dias se ninguém agir), então pede
+   * confirmação como as demais ações destrutivas da tela; desarquivar é
+   * inofensivo — só devolve a avaliação ao catálogo padrão — e não pede.
+   */
+  async function toggleArchive(survey: ManagedSurvey) {
+    const archiving = !survey.archivedAt;
+    if (archiving) {
+      const confirmed = await confirm({
+        title: `Arquivar "${survey.name}"?`,
+        description: `A avaliação sai do catálogo padrão e fica disponível por ${ARCHIVE_RETENTION_DAYS} dias em "Avaliações arquivadas". Depois desse prazo, se ninguém desarquivar, ela é excluída automaticamente.`,
+        confirmLabel: "Arquivar avaliação",
+        tone: "danger",
+      });
+      if (!confirmed) return;
+    }
+
+    setArchiveActionId(survey.surveyId);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error: actionError } = await supabase.rpc("manage_survey_cycle", {
+        target_survey_id: survey.surveyId,
+        target_action: archiving ? "ARCHIVE" : "UNARCHIVE",
+      });
+      if (actionError) throw actionError;
+      toast.success(archiving ? "Avaliação arquivada." : "Avaliação restaurada para o catálogo.");
+      await loadSurveys(showingArchived);
+    } catch (actionError) {
+      toast.error(errorMessageFromUnknown(actionError));
+    } finally {
+      setArchiveActionId(null);
+    }
+  }
+
   // Só consulta depois que a guarda liberou: sem módulo, a RPC seria negada
   // pela RLS e o erro apareceria como toast numa tela que nem chega a abrir.
   useEffect(() => {
     if (!granted) return;
-    const load = async () => {
-      setDataLoading(true);
-      try {
-        const supabase = createBrowserSupabaseClient();
-        const { data, error: listError } = await supabase.rpc("list_managed_surveys");
-        if (listError) throw listError;
-        setSurveys(Array.isArray(data) ? data as ManagedSurvey[] : []);
-      } catch (loadError) {
-        toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar as avaliações.");
-      } finally { setDataLoading(false); }
-    };
-    void load();
-  }, [granted]);
+    void loadSurveys(showingArchived);
+  }, [granted, showingArchived, loadSurveys]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -171,8 +240,18 @@ export default function AdminSurveysPage() {
   >
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       {/* A criação é a ação da rota, não da casca: fica no topo do conteúdo,
-          à direita, antes do cabeçalho da tela. */}
-      <nav aria-label="Ações do catálogo" className="flex justify-end">
+          à direita, antes do cabeçalho da tela. Ao lado, a alternância para a
+          lista de arquivadas — não é ação de criação, mas também não pertence
+          à casca, então divide a mesma nav. */}
+      <nav aria-label="Ações do catálogo" className="flex flex-wrap justify-end gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => setShowingArchived((value) => !value)}
+          title={showingArchived ? "Voltar para as avaliações ativas" : "Ver avaliações arquivadas nos últimos 30 dias"}
+        >
+          {showingArchived ? <ArchiveRestore className="h-4 w-4" aria-hidden="true" /> : <Archive className="h-4 w-4" aria-hidden="true" />}
+          {showingArchived ? "Ver avaliações ativas" : "Avaliações arquivadas"}
+        </Button>
         <Link
           href="/admin/pesquisas/nova"
           title="Criar uma avaliação em rascunho"
@@ -184,21 +263,25 @@ export default function AdminSurveysPage() {
       </nav>
 
       <PageHeader
-        eyebrow="Estúdio e operação"
-        title="Da construção à abertura do ciclo"
-        description="Edite o instrumento, verifique a prontidão, configure o período e controle a publicação. Toda alteração é validada no banco."
+        eyebrow={showingArchived ? "Retenção temporária" : "Estúdio e operação"}
+        title={showingArchived ? "Avaliações arquivadas" : "Da construção à abertura do ciclo"}
+        description={showingArchived
+          ? `Avaliações finalizadas ficam aqui por ${ARCHIVE_RETENTION_DAYS} dias. Desarquive para devolver ao catálogo, ou aguarde o prazo — a exclusão automática preserva quem já tem respostas registradas.`
+          : "Edite o instrumento, verifique a prontidão, configure o período e controle a publicação. Toda alteração é validada no banco."}
       />
 
-      <section aria-label="Resumo do catálogo" className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Avaliações" value={dataLoading ? "—" : surveys.length} description="instrumentos sob sua gestão" />
-        <StatCard label="Perguntas cadastradas" value={dataLoading ? "—" : totalQuestions} description="somando todas as versões" />
-        <StatCard label="Ciclos ativos" value={dataLoading ? "—" : activeCycles} description="abertos ou agendados" />
-      </section>
+      {!showingArchived && (
+        <section aria-label="Resumo do catálogo" className="grid gap-4 sm:grid-cols-3">
+          <StatCard label="Avaliações" value={dataLoading ? "—" : surveys.length} description="instrumentos sob sua gestão" />
+          <StatCard label="Perguntas cadastradas" value={dataLoading ? "—" : totalQuestions} description="somando todas as versões" />
+          <StatCard label="Ciclos ativos" value={dataLoading ? "—" : activeCycles} description="abertos ou agendados" />
+        </section>
+      )}
 
       <section aria-label="Catálogo de avaliações" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Catálogo administrativo</h3>
+            <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">{showingArchived ? "Arquivadas" : "Catálogo administrativo"}</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
               {dataLoading
                 ? "Carregando as avaliações..."
@@ -243,7 +326,13 @@ export default function AdminSurveysPage() {
             <ul className="grid gap-4 xl:grid-cols-2">
               {filtered.map((survey) => (
                 <li key={survey.surveyId}>
-                  <SurveyCard survey={survey} onClone={cloneSurvey} cloning={cloningId === survey.surveyId} />
+                  <SurveyCard
+                    survey={survey}
+                    onClone={cloneSurvey}
+                    cloning={cloningId === survey.surveyId}
+                    onToggleArchive={toggleArchive}
+                    archiving={archiveActionId === survey.surveyId}
+                  />
                 </li>
               ))}
             </ul>
@@ -253,6 +342,13 @@ export default function AdminSurveysPage() {
               title="Nenhum resultado para esta busca"
               description={`Nada corresponde a "${search.trim()}". Verifique o termo ou limpe a busca para ver todas as avaliações.`}
               action={<Button variant="secondary" onClick={() => setSearch("")}><X className="h-4 w-4" aria-hidden="true" />Limpar busca</Button>}
+            />
+          ) : showingArchived ? (
+            <EmptyState
+              icon={<Archive className="h-6 w-6" aria-hidden="true" />}
+              title="Nenhuma avaliação arquivada"
+              description="Avaliações finalizadas aparecem aqui por até 30 dias antes da exclusão automática."
+              action={<Button variant="secondary" onClick={() => setShowingArchived(false)}><ArchiveRestore className="h-4 w-4" aria-hidden="true" />Ver avaliações ativas</Button>}
             />
           ) : (
             <EmptyState
@@ -268,30 +364,65 @@ export default function AdminSurveysPage() {
   </PlatformShell>;
 }
 
-function SurveyCard({ survey, onClone, cloning }: {
+function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving }: {
   survey: ManagedSurvey;
   onClone: (survey: ManagedSurvey) => void;
   cloning: boolean;
+  onToggleArchive: (survey: ManagedSurvey) => void;
+  archiving: boolean;
 }) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
+  const archived = Boolean(survey.archivedAt);
+  const busy = cloning || archiving;
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] transition hover:border-[var(--border-strong)]">
+    <article className={`flex h-full flex-col rounded-2xl border p-5 shadow-[var(--shadow-card)] transition ${archived ? "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{survey.code}</Badge>
             <Badge variant={statusVariant(cycleStatus)} title={`Código interno: ${cycleStatus}`}>{statusLabel(cycleStatus)}</Badge>
+            {archived && survey.archivedAt && (
+              <Badge variant="warning" title={`Arquivada em ${dateLabel(survey.archivedAt)}`}>
+                <Archive className="h-3 w-3" aria-hidden="true" />
+                Expira em {daysUntilExpiration(survey.archivedAt)} {daysUntilExpiration(survey.archivedAt) === 1 ? "dia" : "dias"}
+              </Badge>
+            )}
           </div>
-          <h4 className="mt-3 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{survey.name}</h4>
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Sem descrição cadastrada."}</p>
+          <h4 className="mt-3 break-words text-lg font-semibold tracking-tight text-[var(--text-primary)]">{survey.name}</h4>
+          <p className="mt-2 line-clamp-2 break-words text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Sem descrição cadastrada."}</p>
         </div>
-        {/* Era um `FileQuestion` — o ponto de interrogação fazia o enfeite
-            parecer um botão de ajuda. Uma prancheta diz "instrumento", que é o
-            que o cartão representa. */}
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
-          <ClipboardList className="h-5 w-5" aria-hidden="true" />
-        </span>
+        <ActionMenu
+          label="Mais ações desta avaliação"
+          items={[
+            {
+              key: "archive",
+              label: archived ? "Desarquivar" : "Arquivar",
+              icon: archived ? ArchiveRestore : Archive,
+              onSelect: () => onToggleArchive(survey),
+              disabled: busy,
+              title: archived
+                ? "Devolve a avaliação ao catálogo padrão"
+                : `Move para "Avaliações arquivadas" por até ${ARCHIVE_RETENTION_DAYS} dias`,
+            },
+            {
+              key: "share",
+              label: "Compartilhar",
+              icon: Share2,
+              onSelect: () => copyResponseLink(survey),
+              disabled: busy,
+              title: "Copiar o link direto para responder esta avaliação",
+            },
+            {
+              key: "clone",
+              label: "Duplicar",
+              icon: CopyPlus,
+              onSelect: () => onClone(survey),
+              disabled: busy,
+              title: "Criar um rascunho novo com a mesma estrutura — sem ciclo, participantes ou respostas",
+            },
+          ]}
+        />
       </div>
 
       <dl className="mt-4 grid grid-cols-3 gap-2">
@@ -308,9 +439,9 @@ function SurveyCard({ survey, onClone, cloning }: {
       </dl>
 
       <div className="mt-4 flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-        <p className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+        <p className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
           <CalendarDays className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-          {survey.applicationName ?? "Ciclo não configurado"}
+          <span className="min-w-0 truncate">{survey.applicationName ?? "Ciclo não configurado"}</span>
         </p>
         <p className="mt-1.5 pl-6 text-xs leading-5 text-[var(--text-secondary)]">
           {survey.opensAt || survey.closesAt
@@ -319,7 +450,14 @@ function SurveyCard({ survey, onClone, cloning }: {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      {archiving && (
+        <p role="status" className="mt-4 flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+          <Hourglass className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
+          {archived ? "Restaurando..." : "Arquivando..."}
+        </p>
+      )}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={`/admin/pesquisas/${survey.surveyId}`}
           title="Editar seções, perguntas e alternativas"
@@ -328,26 +466,6 @@ function SurveyCard({ survey, onClone, cloning }: {
           <FileEdit className="h-4 w-4" aria-hidden="true" />
           Editar formulário
         </Link>
-        <button
-          type="button"
-          onClick={() => copyResponseLink(survey)}
-          title="Copiar o link direto para responder esta avaliação"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
-        >
-          <Copy className="h-4 w-4" aria-hidden="true" />
-          Copiar link
-        </button>
-        <button
-          type="button"
-          onClick={() => onClone(survey)}
-          disabled={cloning}
-          title="Criar um rascunho novo com a mesma estrutura — sem ciclo, participantes ou respostas"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {cloning
-            ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Duplicando...</>
-            : <><CopyPlus className="h-4 w-4" aria-hidden="true" />Duplicar</>}
-        </button>
         <Link
           href={`/admin/pesquisas/${survey.surveyId}/operacao`}
           title="Publicar a versão, definir o período e abrir ou encerrar o ciclo"
