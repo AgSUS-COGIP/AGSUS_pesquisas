@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/confirmation-provider";
 import { PersonAvatar } from "@/components/person-avatar";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformFooter } from "@/components/platform-footer";
@@ -167,6 +168,8 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   const pathname = usePathname();
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const confirm = useConfirm();
   // Sem módulos informados, a casca assume o piso do modelo (Participante) —
   // nunca um conjunto mais amplo do que o perfil da pessoa permite.
   const modules = user.modules ?? [...PARTICIPANT_ROLE_MODULES];
@@ -193,12 +196,34 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
     });
   }
 
+  /**
+   * Encerra a sessão, com confirmação e estado de saída.
+   *
+   * Sair era um clique só, sem volta — e a barra lateral é estreita, então o
+   * botão fica a poucos pixels da navegação. Quem estava respondendo uma
+   * avaliação perdia o contexto por engano e voltava para a tela de acesso sem
+   * entender o que aconteceu.
+   *
+   * A confirmação avisa também que o encerramento é **deste navegador**: quem
+   * usa a plataforma no celular continua conectado lá, e isso não é óbvio.
+   */
   async function signOut() {
+    const confirmed = await confirm({
+      title: "Deseja realmente sair?",
+      description: "Sua sessão será encerrada neste navegador. Respostas já salvas são preservadas — o preenchimento automático grava conforme você responde.",
+      confirmLabel: "Sair",
+      cancelLabel: "Continuar no sistema",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    setSigningOut(true);
     const supabase = createBrowserSupabaseClient();
     // `scope: "local"` encerra apenas esta sessão: quem usa a plataforma em outro
     // dispositivo não é desconectado ao sair aqui.
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) {
+      setSigningOut(false);
       toast.error("Não foi possível encerrar esta sessão. Tente novamente.");
       return;
     }
@@ -207,6 +232,24 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
 
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-primary)]">
+      {/*
+        Entre confirmar a saída e o navegador trocar de página passa a chamada de
+        `signOut` mais o redirecionamento. Sem cobrir esse intervalo, a tela fica
+        parada respondendo a cliques que já não valem — e quem clicou não sabe se
+        a ação pegou.
+      */}
+      {signingOut ? (
+        <div
+          role="status"
+          aria-live="assertive"
+          className="fixed inset-0 z-[200] grid place-items-center bg-[var(--surface-page)]/85 backdrop-blur-sm"
+        >
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-[var(--border-subtle)] border-t-[var(--brand-primary)] motion-reduce:animate-none" aria-hidden="true" />
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Encerrando sua sessão...</p>
+          </div>
+        </div>
+      ) : null}
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
       {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} /> : null}
       {!focus ? (
