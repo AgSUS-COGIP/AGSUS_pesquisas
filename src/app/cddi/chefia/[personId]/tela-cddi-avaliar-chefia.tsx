@@ -158,6 +158,25 @@ export default function LeaderEvaluationPage() {
     });
     await saveQueue.flush();
   }
+  /**
+   * Última etapa alcançável pelos atalhos numerados.
+   *
+   * `goTo()` valida só a etapa em que a pessoa está, então os atalhos do topo
+   * permitiam sair da 1 para a 13 deixando as do meio para trás. O envio
+   * continuava barrado — nenhum dado inválido chegava ao banco —, mas a
+   * pendência só aparecia no fim, sem indicar de onde vinha.
+   *
+   * Aqui as etapas `0..sections.length - 1` são as competências e a última é a
+   * revisão, diferente da autoavaliação, que tem a identificação na etapa 0.
+   */
+  const firstIncompleteStep = useMemo(() => {
+    if (!canEdit) return totalSteps - 1;
+    const incomplete = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !answered(question, answers)),
+    );
+    return incomplete === -1 ? totalSteps - 1 : incomplete;
+  }, [sections, answers, canEdit, totalSteps]);
+
   function goTo(target: number) {
     if (target > step && currentSection && canEdit) {
       const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
@@ -249,19 +268,25 @@ export default function LeaderEvaluationPage() {
           {Array.from({ length: totalSteps }).map((_, index) => {
             const complete = index < sections.length && completion(sections[index], answers) === 100;
             const current = index === step;
+            const locked = index > firstIncompleteStep;
             return (
               <button
                 key={index}
                 type="button"
                 onClick={() => goTo(index)}
+                disabled={locked}
                 aria-current={current ? "step" : undefined}
-                title={index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
+                title={locked
+                  ? `Responda as obrigatórias da etapa ${String(firstIncompleteStep + 1).padStart(2, "0")} para liberar esta`
+                  : index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
                 className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
                   current
                     ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                    : complete
-                      ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                      : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                    : locked
+                      ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
+                      : complete
+                        ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                        : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
                 }`}
               >
                 {complete && !current && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
