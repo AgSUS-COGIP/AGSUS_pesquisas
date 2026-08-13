@@ -40,7 +40,7 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
   {
     title: "Administração",
     items: [
-      { href: "/admin/pesquisas", label: "Pesquisas e ciclos", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
+      { href: "/admin/pesquisas", label: "Gerenciar avaliações", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
       { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS },
       { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: PLATFORM_MODULE.ADMIN_TEAMS },
       { href: "/admin/configuracoes", label: "Configurações", description: "Marca, aparência e perfis de acesso", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
