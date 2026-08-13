@@ -14,13 +14,19 @@ function isSameOrigin(request: Request) {
 
 // Sanitização repetida no servidor, embora o cliente já a aplique: a rota é
 // pública para a mesma origem e não pode confiar no que recebe.
+//
+// Truncar antes de aplicar as regex (e não depois) limita o custo da
+// sanitização ao `maxLength` declarado, independente do tamanho real do
+// campo recebido — os padrões abaixo evitam classes de caracteres que se
+// sobrepõem (`[\w.-]+` seguido de `.`) para não sofrer backtracking
+// catastrófico (ReDoS) em entradas adversariais.
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value
-    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[email removido]")
-    .replace(/\b\d{5,}\b/g, "[numero removido]")
-    .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, "Bearer [token removido]")
-    .slice(0, maxLength);
+    .slice(0, maxLength)
+    .replace(/[\w.+-]{1,64}@[\w-]{1,255}(?:\.[\w-]{1,63}){1,10}/gi, "[email removido]")
+    .replace(/\b\d{5,20}\b/g, "[numero removido]")
+    .replace(/Bearer\s+[A-Za-z0-9._~-]{1,2048}/gi, "Bearer [token removido]");
 }
 
 function cleanContext(value: unknown) {
