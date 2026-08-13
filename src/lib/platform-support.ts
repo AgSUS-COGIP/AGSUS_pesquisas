@@ -16,6 +16,26 @@ export function supportMailtoHref(subject: string = SUPPORT_SUBJECT) {
 }
 
 /**
+ * Link de composição no Gmail.
+ *
+ * `mailto:` entrega a mensagem ao cliente de e-mail **padrão do sistema** — no
+ * Windows, o Outlook —, e a AgSUS usa Gmail: quem clicava caía num programa que
+ * não usa. Este link abre a janela de composição do Gmail no navegador, com
+ * destinatário e assunto preenchidos.
+ *
+ * Continua sendo só um link: nenhuma mensagem passa pela plataforma.
+ */
+export function gmailComposeHref(subject: string = SUPPORT_SUBJECT) {
+  const params = new URLSearchParams({
+    view: "cm",
+    fs: "1",
+    to: PLATFORM_SUPPORT_EMAIL,
+    su: subject,
+  });
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+/**
  * Módulos exclusivos do Superadmin — administração global.
  *
  * Espelha a exclusão feita em `ADMIN_ROLE_MODULES` (`platform-modules.ts`): são

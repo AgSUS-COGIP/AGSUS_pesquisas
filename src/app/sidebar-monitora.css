@@ -136,3 +136,40 @@
     padding-inline: 0.4rem !important;
   }
 }
+
+/*
+ * Barra de rolagem da navegação lateral.
+ *
+ * Em notebook de tela baixa os itens não cabem e a área rola — isso é correto.
+ * O que estava errado era a aparência: a barra nativa, larga e clara, cortava
+ * um ícone ao meio e destoava do fundo escuro da sidebar. Fina e translúcida,
+ * ela continua indicando que há mais conteúdo sem disputar atenção.
+ *
+ * Fora do bloco `@media` de 1024px porque o drawer móvel rola pelo mesmo motivo.
+ */
+aside.platform-desktop-sidebar .overflow-y-auto,
+.platform-mobile-drawer .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(219, 234, 254, 0.28) transparent;
+}
+
+aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar,
+.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-track,
+.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-thumb,
+.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: rgba(219, 234, 254, 0.28);
+  border-radius: 999px;
+}
+
+aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb,
+.platform-mobile-drawer .overflow-y-auto:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(219, 234, 254, 0.45);
+}

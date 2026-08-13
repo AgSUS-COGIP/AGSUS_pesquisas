@@ -91,6 +91,14 @@ Mapa perfil → módulo em `role_module_permissions` e em `fc_obter_contexto_pla
 
 O avaliador equivalente no cliente é `src/lib/survey-conditional-logic.ts`. **Os dois precisam concordar** — ver as armadilhas de paridade (número e `DATETIME`) em [../src/lib/CLAUDE.md](../src/lib/CLAUDE.md).
 
+### Clonagem de avaliação — `20260813160000_clonar_pesquisa.sql`
+
+`fc_clonar_pesquisa(p_pesquisa, p_nome, p_codigo)` duplica **a estrutura**, não o histórico: seções (inclusive aninhadas), perguntas, alternativas e regras condicionais. Ciclo, participantes, submissões e respostas **não** entram. A cópia nasce em `DRAFT`, sem período e sem público.
+
+**Os identificadores são remapeados, e isso é o cerne da função.** Uma regra condicional aponta para a pergunta de origem e para a alternativa comparada; copiar as regras apontando para os identificadores do original criaria um instrumento cuja lógica depende de outro — alterar o original mudaria a cópia, e apagá-lo deixaria regra órfã. Os mapas `v_mapa_secao`/`v_mapa_pergunta`/`v_mapa_opcao` traduzem cada identificador antigo no novo antes de gravar. O mapa de alternativas pareia por `(pergunta, código)`, que é único por constraint.
+
+Copia a versão `PUBLISHED` se houver, senão o rascunho mais recente — nunca uma `RETIRED`, que é desenho que a própria administração aposentou. O código é gerado com sufixo até achar um livre, para que a tela não devolva erro de constraint a quem clicou em "Duplicar".
+
 ### Governança e observabilidade
 
 `db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
