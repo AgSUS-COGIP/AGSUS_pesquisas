@@ -72,6 +72,18 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260812160000_restaurar_event_trigger_rls_automatica.sql": {
     função: new Set(["rls_auto_enable"]),
   },
+  // Anonimato estrutural: as duas RPCs do runtime genérico precisam saber que o
+  // ciclo é anônimo — uma para não gravar a identidade na submissão, a outra
+  // para destruir o vínculo no envio. São funções legadas consumidas pelo nome
+  // por bundles publicados; renomeá-las derrubaria toda resposta em andamento.
+  // Os objetos novos do arquivo (tb_bilhete_anonimo, fc_validar_ciclo_anonimo,
+  // tba_ciclo_anonimo) seguem o padrão institucional e não constam aqui.
+  "supabase/migrations/20260813220000_anonimato_estrutural.sql": {
+    função: new Set([
+      "start_or_resume_my_survey_submission",
+      "submit_my_survey_submission",
+    ]),
+  },
   // `list_managed_surveys` redefinida para excluir modelos do catálogo
   // administrativo. Função legada consumida pelo nome por bundles publicados
   // (catálogo e painéis): renomeá-la derrubaria as duas telas. A migration só
