@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = new Set(["/", "/acesso", "/auth/confirm", "/api/health"]);
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/background/");
+  return PUBLIC_PATHS.has(pathname);
 }
 
 function addResponseHeaders(response: NextResponse) {
@@ -15,6 +15,12 @@ function addResponseHeaders(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  // CSP deliberadamente restrita às diretivas que não dependem de inventariar
+  // scripts/estilos inline (o layout raiz injeta scripts `beforeInteractive` de
+  // tema e sidebar, que exigiriam `unsafe-inline` e anulariam o ganho de um
+  // `script-src`). `frame-ancestors` reforça o X-Frame-Options em navegadores
+  // modernos; `base-uri`/`form-action` fecham vetores de injeção de destino.
+  response.headers.set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   return response;
 }
 

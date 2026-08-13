@@ -9,6 +9,7 @@ import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { formatDatePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -30,10 +31,7 @@ type ManagedSurvey = {
   updatedAt: string;
 };
 
-function formatDate(value: string | null) {
-  if (!value) return "Sem data definida";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
+const formatDate = (value: string | null) => formatDatePtBr(value, "Sem data definida");
 
 function isCddiSurvey(survey: ManagedSurvey) {
   return survey.code.trim().toUpperCase() === "CDDI"

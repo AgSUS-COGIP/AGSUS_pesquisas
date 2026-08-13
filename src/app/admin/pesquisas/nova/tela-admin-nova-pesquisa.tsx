@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
@@ -51,12 +52,7 @@ const STEPS = [
 
 const LAST_STEP = STEPS.length - 1;
 
-function reviewDateLabel(value: string | undefined) {
-  if (!value) return "Não definido";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Não definido";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(parsed);
-}
+const reviewDateLabel = (value: string | undefined) => formatDateTimePtBr(value, "Não definido");
 
 export default function NewSurveyPage() {
   const router = useRouter();

@@ -89,3 +89,30 @@ export function publishBlockedMessage(
     ? "O período informado já passou. Atualize a abertura e o encerramento antes de publicar."
     : issues[0].message;
 }
+
+/**
+ * Valida a data de reabertura de um ciclo `CLOSED`. A abertura deixou de ser
+ * digitada — o banco a resolve como `now()` quando a tela envia `null` (ver
+ * `manage_survey_cycle`/`REOPEN` em `supabase/CLAUDE.md`) — então só o
+ * encerramento precisa ser validado aqui. A regra do banco é
+ * `target_closes_at > greatest(target_opens_at, now())`, **sem tolerância**:
+ * neste fluxo ela se reduz a `closesAt > agora do banco`. Por isso a margem de
+ * um minuto entra no sentido **mais estrito** que o banco — exigir
+ * `closesAt > agora + 1min` absorve o trânsito entre o clique de confirmação e
+ * a chegada da requisição; aceitar valores já passados faria a pré-validação
+ * liberar exatamente o que o banco recusa.
+ *
+ * Diferente de `periodIssues()`, aqui campo vazio É erro: o encerramento é o
+ * único dado obrigatório deste fluxo, não um período opcional.
+ */
+export function reopenIssue(
+  closesAt: string,
+  reference: Date = new Date(),
+): string | null {
+  const closes = parseLocal(closesAt);
+  if (!closes) return "Informe o novo encerramento para reabrir o ciclo.";
+  const limite = reference.getTime() + TOLERANCIA_MS;
+  return closes.getTime() <= limite
+    ? "O novo encerramento deve estar no futuro."
+    : null;
+}

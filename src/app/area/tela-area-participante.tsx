@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
@@ -39,10 +40,7 @@ function stateVariant(state: string) {
   return "outline" as const;
 }
 
-function dateLabel(value: string | null) {
-  if (!value) return "Sem data definida";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
+const dateLabel = (value: string | null) => formatDateTimePtBr(value, "Sem data definida");
 
 /** Dias restantes até o prazo — o número que decide a urgência da próxima ação. */
 function daysUntil(value: string | null) {

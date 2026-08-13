@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
+import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -54,14 +55,16 @@ export default function GenericSurveyPage() {
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [loading, setLoading] = useState(true);
-  const [pendingSaves, setPendingSaves] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [step, setStep] = useState(0);
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const [saveQueue] = useState(() => new ReliableSaveQueue());
+  const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
   const formTopRef = useRef<HTMLElement>(null);
+
+  useEffect(() => saveQueue.subscribe(setSaveSnapshot), [saveQueue]);
 
   useEffect(() => {
     latestAnswers.current = answers;
@@ -117,21 +120,18 @@ export default function GenericSurveyPage() {
   const progress = requiredQuestions.length ? Math.round((answeredRequired / requiredQuestions.length) * 100) : 100;
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
-  const saving = pendingSaves > 0;
+  const saving = saveSnapshot.pending > 0;
 
   /**
-   * Encadeia a gravação após as anteriores.
-   *
-   * A serialização evita que dois autossalvamentos da mesma pergunta cheguem ao
-   * banco fora de ordem e gravem o valor antigo por último. O `catch` que precede
-   * o `then` mantém a corrente viva depois de uma falha.
+   * Agenda a gravação na `ReliableSaveQueue` (a mesma das jornadas do CDDI),
+   * que serializa os autossalvamentos e rastreia falha por pergunta: o sucesso
+   * de uma pergunta não mascara a falha de outra, e `flush()` continua barrando
+   * o envio definitivo enquanto houver gravação falhada sem retentativa.
    */
   function enqueueSave(question: Question, value: SurveyAnswerValue) {
-    if (!canEdit || !submission?.submission?.id) return saveQueue.current;
+    if (!canEdit || !submission?.submission?.id) return Promise.resolve();
     const submissionId = submission.submission.id;
-    setPendingSaves((current) => current + 1);
-
-    const operation = async () => {
+    return saveQueue.enqueue(async () => {
       const supabase = createBrowserSupabaseClient();
       const { error: saveError } = await supabase.rpc("save_my_survey_answer", {
         target_submission_id: submissionId,
@@ -139,18 +139,10 @@ export default function GenericSurveyPage() {
         ...buildSurveyAnswerPayload(question.type, value),
       });
       if (saveError) throw saveError;
-    };
-
-    saveQueue.current = saveQueue.current
-      .catch(() => undefined)
-      .then(operation)
-      .catch((saveError) => {
-        toast.error(saveError instanceof Error ? saveError.message : "Não foi possível salvar a resposta.");
-        throw saveError;
-      })
-      .finally(() => setPendingSaves((current) => Math.max(0, current - 1)));
-
-    return saveQueue.current;
+    }, question.id).catch((saveError) => {
+      // O erro fica registrado na fila (e barra o flush); aqui só avisamos.
+      toast.error(saveError instanceof Error ? saveError.message : "Não foi possível salvar a resposta.");
+    });
   }
 
   function update(question: Question, value: SurveyAnswerValue, delay = 0) {
@@ -183,7 +175,9 @@ export default function GenericSurveyPage() {
       const value = latestAnswers.current[questionId];
       if (question && value) void enqueueSave(question, value);
     });
-    await saveQueue.current;
+    // Relança a falha mais recente ainda não resolvida — o envio definitivo não
+    // pode prosseguir com resposta perdida no autossalvamento.
+    await saveQueue.flush();
   }
 
   function validateCurrentSection() {

@@ -16,9 +16,11 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { surveyStatusBadgeVariant, surveyStatusLabel } from "@/lib/survey-cycle-status";
 
 type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
 type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null };
@@ -29,13 +31,6 @@ type SortMode = "PRIORITY" | "NAME" | "UPDATED";
 
 const teamCyclesKey = ["team", "cycles"] as const;
 
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
 
 async function fetchTeamCycles() {
   const supabase = createBrowserSupabaseClient();
@@ -81,10 +76,7 @@ function statusVariant(state: Exclude<StatusFilter, "ALL">) {
   if (state === "DRAFT") return "info" as const;
   return "warning" as const;
 }
-function dateTime(value: string | null) {
-  if (!value) return "Sem atividade registrada";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
+const dateTime = (value: string | null) => formatDateTimePtBr(value, "Sem atividade registrada");
 // Equivalente do LIKE '%termo%' do banco: minúsculas e sem acentos nos dois
 // lados, para "joao" encontrar "João" sem depender de nova consulta.
 function normalizeSearchText(value: string) {
@@ -209,8 +201,8 @@ export default function TeamPage() {
         description="As pendências aparecem primeiro. Inicie avaliações, continue rascunhos e consulte os envios concluídos."
         actions={<>
           {workspace?.application && (
-            <Badge variant={cycleStatus === "OPEN" ? "success" : cycleStatus === "CLOSED" ? "neutral" : "info"} title={`Código interno: ${cycleStatus}`}>
-              {workspace.application.code} · {CYCLE_STATUS_LABELS[cycleStatus ?? ""] ?? cycleStatus}
+            <Badge variant={surveyStatusBadgeVariant(cycleStatus)} title={`Código interno: ${cycleStatus}`}>
+              {workspace.application.code} · {surveyStatusLabel(cycleStatus)}
             </Badge>
           )}
           {cycles.length >= 2 && (

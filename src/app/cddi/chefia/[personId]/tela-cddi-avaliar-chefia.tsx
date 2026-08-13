@@ -10,7 +10,9 @@ import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
+import { cddiSectionCompletion, isCddiQuestionAnswered } from "@/lib/cddi-form-progress";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 
@@ -31,15 +33,9 @@ type Member = { personId: string; fullName: string; employeeNumber: string; inst
 type AnswerValue = { value: string; optionId?: string };
 type Answers = Record<string, AnswerValue>;
 
-function dateLabel(value: string | null | undefined) {
-  if (!value) return "Não informado";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
-function answered(question: Question, answers: Answers) { return Boolean(answers[question.id]?.value?.trim()); }
-function completion(section: Section, answers: Answers) {
-  const required = section.questions.filter((question) => question.required);
-  return required.length ? Math.round(required.filter((question) => answered(question, answers)).length / required.length * 100) : 100;
-}
+const dateLabel = (value: string | null | undefined) => formatDateTimePtBr(value, "Não informado");
+const answered = isCddiQuestionAnswered;
+const completion = cddiSectionCompletion;
 
 export default function LeaderEvaluationPage() {
   const confirm = useConfirm();
@@ -66,6 +62,10 @@ export default function LeaderEvaluationPage() {
   }, [answers]);
 
   useEffect(() => {
+    // Navegar entre /cddi/chefia/X e /cddi/chefia/Y não desmonta o componente
+    // (só o parâmetro muda): sem a flag, a resposta atrasada de X sobrescreveria
+    // a tela — e o submissionId usado pelo autosave — já exibindo Y.
+    let active = true;
     const load = async () => {
       try {
         // A tela Minha equipe informa o ciclo escolhido por query string; sem o
@@ -90,18 +90,26 @@ export default function LeaderEvaluationPage() {
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
         const rawDefinition = formResponse.data as FormDefinition;
+        if (!active) return;
         setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "CHEFIA") });
         setSubmission(context);
         setMember(selected);
         latestAnswers.current = restored;
         setAnswers(restored);
       } catch (error) {
+        if (!active) return;
         setMessage(errorMessageFromUnknown(error) || "Não foi possível abrir a avaliação.");
-      } finally { setLoading(false); }
+      } finally {
+        if (active) setLoading(false);
+      }
     };
+    setLoading(true);
     void load();
     const timersToClear = timers.current;
-    return () => Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
+    return () => {
+      active = false;
+      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
+    };
   }, [personId]);
 
   const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
@@ -125,7 +133,7 @@ export default function LeaderEvaluationPage() {
         target_text: question.type === "SCALE" ? null : answer.value,
       });
       if (error) throw new Error(errorMessageFromUnknown(error));
-    }).catch((error) => {
+    }, question.id).catch((error) => {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
       throw error;
     });

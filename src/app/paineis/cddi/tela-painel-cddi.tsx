@@ -26,6 +26,8 @@ import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { BarSeries, ProgressMeter, RadarChart } from "@/components/platform-charts";
 import { average as avg, groupEventsByDay } from "@/lib/chart-data";
+import { formatDateTimePtBr } from "@/lib/date-format";
+import { surveyStatusLabel } from "@/lib/survey-cycle-status";
 
 type Participant = {
   personId: string;
@@ -320,7 +322,7 @@ export default function CddiMonitoringPage() {
           <div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-3 py-1 text-[11px] font-black uppercase tracking-[.1em] text-[var(--status-success-text)]">
-              {data.application.status === "OPEN" ? "Ciclo aberto" : data.application.status}
+              {data.application.status === "OPEN" ? "Ciclo aberto" : surveyStatusLabel(data.application.status)}
             </span>
             <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 py-1 text-[11px] font-black uppercase tracking-[.1em] text-[var(--text-secondary)]">
               Escopo {scopeLabel(data.scope)}
@@ -334,7 +336,7 @@ export default function CddiMonitoringPage() {
           <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex h-10 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-interactive)] px-3 text-xs font-bold text-[var(--text-secondary)]">
             <span className="monitor-status-dot mr-2 h-2 w-2 rounded-full bg-[var(--status-success-text)]" />
-            Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")}
+            Atualizado em {formatDateTimePtBr(data.generatedAt)}
           </span>
           <button
             type="button"
@@ -642,7 +644,7 @@ export default function CddiMonitoringPage() {
         </section>
         <footer className="monitor-footer">
           <span>Agência Brasileira de Apoio à Gestão do SUS · CDDI 2026</span>
-          <span>Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} · <span className="monitor-footer-secure">SEGURO</span></span>
+          <span>Atualizado em {formatDateTimePtBr(data.generatedAt)} · <span className="monitor-footer-secure">SEGURO</span></span>
         </footer>
       </div>
     </PlatformShell>

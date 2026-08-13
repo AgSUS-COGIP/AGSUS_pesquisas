@@ -10,9 +10,11 @@ import { DistributionBars } from "@/components/platform-charts";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { surveyStatusBadgeVariant, surveyStatusLabel } from "@/lib/survey-cycle-status";
 
 type DashboardOption = { id: string; label: string; value: string; count: number };
 type TextResponse = { text: string; submittedAt: string | null };
@@ -60,14 +62,7 @@ async function fetchDashboard(applicationCode: string) {
   return data as DashboardData;
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "Não informado";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
-}
+const formatDate = (value: string | null) => formatDateTimePtBr(value, "Não informado");
 
 export default function SurveyDashboardPage() {
   const params = useParams<{ applicationCode: string }>();
@@ -124,7 +119,7 @@ export default function SurveyDashboardPage() {
           eyebrow="Acompanhamento em tempo real"
           title={application.surveyName}
           description={application.surveyDescription || "Indicadores operacionais e respostas consolidadas desta avaliação."}
-          actions={<Badge variant={application.status === "OPEN" ? "success" : "neutral"}>{application.status === "OPEN" ? "Período aberto" : application.status}</Badge>}
+          actions={<Badge variant={surveyStatusBadgeVariant(application.status)} title={`Código interno: ${application.status}`}>{application.status === "OPEN" ? "Período aberto" : surveyStatusLabel(application.status)}</Badge>}
         />
       </div>
 

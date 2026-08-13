@@ -56,7 +56,7 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 DRAFT ──UPDATE_PERIOD──▶ DRAFT
 DRAFT ──PUBLISH──▶ (versão publicada; estrutura congelada)
 DRAFT/SCHEDULED ──SCHEDULE──▶ SCHEDULED ──OPEN──▶ OPEN
-OPEN ──CLOSE──▶ CLOSED ──REOPEN(novo período)──▶ OPEN
+OPEN ──CLOSE──▶ CLOSED ──REOPEN(novo encerramento, abertura imediata)──▶ OPEN
 qualquer ──CANCEL──▶ CANCELLED   (irreversível)
 ```
 
@@ -68,9 +68,9 @@ Regras aplicadas pelo banco e refletidas na interface:
 
 - **Abertura não pode ser anterior ao momento atual; encerramento tem de ser posterior à abertura.** Vale em `create_survey_draft` e em `UPDATE_PERIOD` (`20260811120000_periodo_futuro_e_exclusao_rascunho.sql`), com tolerância de um minuto para absorver o intervalo entre preencher "agora" e gravar. A checagem **não** entra em `PUBLISH`: bloquear ali deixaria o operador sem saída dentro da tela, já que o período vencido é justamente o que ele precisa abrir para corrigir. Quem avisa antes de publicar é a tela, por toast (`publishBlockedMessage()` em `@/lib/survey-cycle-period`), pedindo a correção do período. `SCHEDULE` e `OPEN` seguem barrando período vencido no banco.
 - Período editável só em `DRAFT` ou `SCHEDULED`. Em `OPEN`, é preciso encerrar antes de alterar.
-- `REOPEN` só a partir de `CLOSED` e exige novo `opensAt`/`closesAt`.
+- `REOPEN` só a partir de `CLOSED` e exige um novo `closesAt` — a abertura não é enviada (a tela manda `null`) e o banco a resolve como `now()` do servidor; o campo de abertura não é mais exibido nesse fluxo.
 - `CANCELLED` não retoma — exige criar novo ciclo.
-- `PUBLISH` roda `validate_survey_version_integrity`, que devolve pendências classificadas por `severity` (`BLOCKING` bloqueia; `WARNING` apenas alerta) e `category` (`STRUCTURE`, `CYCLE`, `PERIOD`, `AUDIENCE`). `readyToPublish` / `readyToOpen` no retorno de `get_survey_operations` derivam dessa validação.
+- `get_survey_operations` roda `validate_survey_version_integrity`, que devolve pendências classificadas por `severity` (`BLOCKING` bloqueia; `WARNING` apenas alerta) e `category` (`STRUCTURE`, `CYCLE`, `PERIOD`, `AUDIENCE`), para computar `readyToPublish`/`readyToOpen` — é esse par que a tela usa para desabilitar os botões antes do clique, e vale para as quatro operações (`PUBLISH`, `SCHEDULE`, `OPEN`, `REOPEN`) desde `20260804195030`. No nível da RPC (`manage_survey_cycle`), porém, só `SCHEDULE`, `OPEN` e `REOPEN` revalidam o checklist e bloqueiam pendência `BLOCKING` na gravação (`20260812090000_restaurar_validacao_integridade_ciclo.sql`, depois de uma migration anterior ter revertido essa checagem sem intenção); `PUBLISH` mantém, na RPC, apenas a checagem rasa de seções/perguntas — a proteção completa para ele continua sendo só o gate do client via `readyToPublish`.
 
 **A tela de `/operacao` é a "Propriedades" do ciclo** — é assim que o catálogo a chama, pelo botão **"Propriedades"**. Ela usa os primitivos do design system (`Surface`, `PageHeader`, `Button`, `Badge`, `Skeleton`) e tokens CSS, não hexadecimal literal, então acompanha o tema escuro como o restante da administração.
 

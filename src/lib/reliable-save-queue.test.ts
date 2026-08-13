@@ -36,6 +36,23 @@ describe("ReliableSaveQueue", () => {
     expect(queue.getSnapshot()).toEqual({ status: "IDLE", pending: 0, lastError: null });
   });
 
+  it("sucesso de outra chave não mascara a falha pendente — flush segue barrando o envio", async () => {
+    const queue = new ReliableSaveQueue();
+
+    await expect(queue.enqueue(async () => {
+      throw new Error("Sem conexão");
+    }, "pergunta-a")).rejects.toThrow("Sem conexão");
+
+    await queue.enqueue(async () => undefined, "pergunta-b");
+
+    expect(queue.getSnapshot().status).toBe("ERROR");
+    await expect(queue.flush()).rejects.toThrow("Sem conexão");
+
+    await queue.enqueue(async () => undefined, "pergunta-a");
+    expect(queue.getSnapshot()).toEqual({ status: "IDLE", pending: 0, lastError: null });
+    await expect(queue.flush()).resolves.toBeUndefined();
+  });
+
   it("não interrompe as próximas operações após uma falha", async () => {
     const queue = new ReliableSaveQueue();
     const nextOperation = vi.fn(async () => undefined);

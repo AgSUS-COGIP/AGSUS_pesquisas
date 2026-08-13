@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { History, Loader2, RefreshCw, Save, Search, UserRoundCog, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { formatDateTimePtBr } from "@/lib/date-format";
 
 type Person = {
   personId: string;
@@ -82,9 +83,9 @@ function personToForm(person: Person): PersonForm {
   };
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
-}
+// Delegar ao util compartilhado também corrige a cópia antiga, que omitia o
+// fuso America/Sao_Paulo e exibia a hora do navegador do operador.
+const formatDate = (value: string) => formatDateTimePtBr(value);
 
 function Field({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
   return <label className="block"><span className="text-xs font-bold text-slate-600">{label}</span><input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500" /></label>;

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { use, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { use, useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, Clock3, Copy, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PauseCircle, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, StopCircle, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -10,12 +10,15 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
+import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
+import { nowLocalInputValue, periodIssues, publishBlockedMessage, reopenIssue } from "@/lib/survey-cycle-period";
+import { surveyStatusBadgeVariant, surveyStatusLabel } from "@/lib/survey-cycle-status";
 
 type Issue = {
   id?: string;
@@ -63,10 +66,7 @@ function toLocalInput(value: string | null | undefined) {
   return local.toISOString().slice(0, 16);
 }
 
-function dateLabel(value: string | null | undefined) {
-  if (!value) return "Não definido";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
+const dateLabel = (value: string | null | undefined) => formatDateTimePtBr(value, "Não definido");
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -79,45 +79,18 @@ function errorMessage(error: unknown, fallback: string) {
 
 /**
  * Os códigos do banco (`DRAFT`, `OPEN`, …) são vocabulário interno. A tela
- * mostra o rótulo em português e guarda o código só como legenda técnica.
+ * mostra o rótulo em português (mapa canônico em `@/lib/survey-cycle-status`)
+ * e guarda o código só como legenda técnica.
  */
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
-
-const VERSION_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  PUBLISHED: "Publicada",
-  ARCHIVED: "Arquivada",
-  RETIRED: "Descontinuada",
-};
-
-function cycleStatusLabel(status: string | undefined) {
-  if (!status) return "Não configurado";
-  return CYCLE_STATUS_LABELS[status] ?? status;
-}
-
-function cycleStatusVariant(status: string | undefined) {
-  switch (status) {
-    case "OPEN": return "success" as const;
-    case "SCHEDULED": return "info" as const;
-    case "CLOSED": return "neutral" as const;
-    case "CANCELLED": return "danger" as const;
-    case "DRAFT": return "warning" as const;
-    default: return "outline" as const;
-  }
-}
+const cycleStatusLabel = (status: string | undefined) => surveyStatusLabel(status);
+const cycleStatusVariant = (status: string | undefined) => surveyStatusBadgeVariant(status);
 
 function cycleExplanation(status: string | undefined) {
   switch (status) {
     case "DRAFT": return "O ciclo está em preparação. Ajuste o período antes de publicar ou abrir.";
     case "SCHEDULED": return "O ciclo está agendado. O período ainda pode ser ajustado antes da abertura.";
     case "OPEN": return "O ciclo está aberto para respostas. Para alterar o período, encerre-o primeiro.";
-    case "CLOSED": return "O ciclo foi encerrado. Informe um novo período e use Reabrir ciclo para receber novas respostas.";
+    case "CLOSED": return "O ciclo foi encerrado. Informe o novo encerramento e use Reabrir ciclo para receber novas respostas imediatamente.";
     case "CANCELLED": return "O ciclo foi cancelado e não pode ser retomado. Crie um novo ciclo para esta avaliação.";
     default: return "Configure o período e o estado operacional deste ciclo.";
   }
@@ -133,6 +106,17 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const [working, setWorking] = useState<string | null>(null);
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const periodSectionRef = useRef<HTMLDivElement>(null);
+  const closesAtInputRef = useRef<HTMLInputElement>(null);
+
+  // "Reabrir" só exige o novo encerramento (a abertura é sempre imediata) — o
+  // atalho do grid de operações leva até esse campo em vez de duplicar o
+  // formulário fora do card de período.
+  const focusPeriodField = useCallback(() => {
+    periodSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    closesAtInputRef.current?.focus();
+  }, []);
 
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
@@ -142,8 +126,13 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       if (operationError) throw operationError;
       const next = data as Operations;
       setOperations(next);
-      setOpensAt(toLocalInput(next.application?.opensAt));
-      setClosesAt(toLocalInput(next.application?.closesAt));
+      // Um ciclo encerrado sempre teve abertura no passado. O campo de
+      // abertura nem é exibido para reabrir (a abertura passou a ser sempre
+      // "agora", ver runAction) — mas o encerramento nasce vazio mesmo assim,
+      // para que o operador informe um valor novo em vez do antigo.
+      const isClosedCycle = next.application?.status === "CLOSED";
+      setOpensAt(isClosedCycle ? "" : toLocalInput(next.application?.opensAt));
+      setClosesAt(isClosedCycle ? "" : toLocalInput(next.application?.closesAt));
     } catch (loadError) {
       toast.error(errorMessage(loadError, "Não foi possível carregar a operação do ciclo."));
     } finally {
@@ -166,30 +155,43 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       if (blocked) return toast.error(blocked);
     }
 
-    // Período gravado passa pela mesma regra do banco antes de sair da tela.
-    if (action === "UPDATE_PERIOD" || action === "REOPEN") {
+    // UPDATE_PERIOD grava as duas datas; REOPEN passou a exigir só a nova
+    // data de encerramento — a abertura é sempre "agora", calculada no envio.
+    if (action === "UPDATE_PERIOD") {
       const issues = periodIssues(opensAt, closesAt);
       if (issues.length) return toast.error(issues[0].message);
     }
+    if (action === "REOPEN") {
+      const issue = reopenIssue(closesAt);
+      if (issue) return toast.error(issue);
+    }
 
+    // CLOSE e CANCEL são confirmadas pelo diálogo próprio de "Parar
+    // recebimento" (StopReceivingDialog), que já é a etapa de confirmação —
+    // por isso não passam por `confirm()` aqui.
     const confirmations: Partial<Record<string, string>> = {
       PUBLISH: "Publicar esta versão? Depois de publicada, a estrutura não poderá ser alterada.",
       OPEN: "Abrir este ciclo agora para receber respostas?",
-      REOPEN: "Reabrir este ciclo com o novo período informado?",
-      CLOSE: "Encerrar este ciclo agora?",
-      CANCEL: "Cancelar este ciclo? Esta ação não poderá ser revertida.",
+      REOPEN: "Reabrir este ciclo agora com o novo encerramento informado? A abertura será imediata.",
     };
     const confirmation = confirmations[action];
-    if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: action === "CANCEL" || action === "CLOSE" ? "Confirmar operação" : "Continuar", tone: action === "CANCEL" || action === "CLOSE" ? "danger" : "primary" }))) return;
+    if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: "Continuar", tone: "primary" }))) return;
 
     const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN";
     setWorking(action);
     try {
       const supabase = createBrowserSupabaseClient();
+      // REOPEN nunca usa o estado `opensAt` (não há mais campo de abertura
+      // nesse fluxo): a tela envia `null` e o banco resolve a abertura como
+      // `now()` do servidor — calcular "agora" aqui deixaria o resultado
+      // refém do relógio da estação do operador (adiantado, gravaria
+      // SCHEDULED em silêncio, e nada promove SCHEDULED a OPEN sozinho).
       const { error: actionError } = await supabase.rpc("manage_survey_cycle", {
         target_survey_id: surveyId,
         target_action: action,
-        target_opens_at: sendsPeriod && opensAt ? new Date(opensAt).toISOString() : null,
+        target_opens_at: action === "REOPEN"
+          ? null
+          : (sendsPeriod && opensAt ? new Date(opensAt).toISOString() : null),
         target_closes_at: sendsPeriod && closesAt ? new Date(closesAt).toISOString() : null,
       });
       if (actionError) throw actionError;
@@ -203,6 +205,14 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     } finally {
       setWorking(null);
     }
+  }
+
+  // STOP e REOPEN não rodam a RPC direto a partir do card: abrem, respectivamente,
+  // o diálogo de escolha e o campo de período — daí ficarem fora de `runAction`.
+  function activateCycleAction(action: string) {
+    if (action === "STOP") return setStopDialogOpen(true);
+    if (action === "REOPEN") return focusPeriodField();
+    void runAction(action);
   }
 
   if (guard.state !== "granted") {
@@ -221,10 +231,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const fieldsEnabled = canEditPeriod || canReopen;
   const minDateTime = nowLocalInputValue();
   const currentPeriodIssues = periodIssues(opensAt, closesAt);
-  const opensAtIssue = fieldsEnabled ? currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message : undefined;
-  const closesAtIssue = fieldsEnabled ? currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message : undefined;
+  // REOPEN só pede o novo encerramento — a abertura é sempre "agora" (ver
+  // runAction) — então sua validação é `reopenIssue`, não `periodIssues`.
+  const reopenClosesIssue = canReopen ? reopenIssue(closesAt) : null;
+  const opensAtIssue = canEditPeriod ? currentPeriodIssues.find((issue) => issue.field === "opensAt")?.message : undefined;
+  const closesAtIssue = canReopen
+    ? reopenClosesIssue ?? undefined
+    : canEditPeriod ? currentPeriodIssues.find((issue) => issue.field === "closesAt")?.message : undefined;
   const blockingIssues = operations?.issues.filter((issue) => issue.severity === "BLOCKING") ?? [];
-  const periodDirty = Boolean(operations) && (opensAt !== toLocalInput(operations?.application?.opensAt) || closesAt !== toLocalInput(operations?.application?.closesAt));
+  // Campo vazio não conta como "alteração não salva" — é apenas ausência de
+  // data ainda não informada, já coberta pelo aviso abaixo do botão. Em
+  // REOPEN só o encerramento importa (não há mais campo de abertura).
+  const periodDirty = canReopen
+    ? Boolean(operations) && Boolean(closesAt) && closesAt !== toLocalInput(operations?.application?.closesAt)
+    : Boolean(operations) && Boolean(opensAt) && Boolean(closesAt)
+      && (opensAt !== toLocalInput(operations?.application?.opensAt) || closesAt !== toLocalInput(operations?.application?.closesAt));
 
   // O motivo de indisponibilidade é calculado uma vez por ação: a mesma frase
   // alimenta o `title`, o `aria-describedby` e a nota abaixo do botão.
@@ -237,7 +258,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       tone: "primary",
       available: operations.readyToPublish && versionStatus !== "PUBLISHED",
       blockedReason: versionStatus === "PUBLISHED"
-        ? `A versão ${operations.version.number} já está publicada.`
+        ? "Esta versão já está publicada."
         : `Resolva ${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} do checklist antes de publicar.`,
     },
     {
@@ -263,24 +284,24 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
     },
     {
-      action: "CLOSE",
-      label: "Encerrar recebimento",
-      icon: CircleSlash,
-      description: "Interrompe novos envios. O ciclo pode ser reaberto depois com um novo período.",
-      tone: "danger",
-      available: cycleStatus === "OPEN",
-      blockedReason: "Só um ciclo aberto pode ser encerrado.",
-    },
-    {
-      action: "CANCEL",
-      label: "Cancelar ciclo",
-      icon: Ban,
-      description: "Encerra o ciclo em definitivo. Não há retomada — seria preciso criar outro ciclo.",
+      action: "STOP",
+      label: "Parar recebimento",
+      icon: StopCircle,
+      description: "Escolha entre encerrar (pode reabrir depois) ou cancelar em definitivo este ciclo.",
       tone: "danger",
       available: ["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? ""),
       blockedReason: cycleStatus === "CANCELLED"
         ? "Este ciclo já foi cancelado."
-        : "Um ciclo encerrado não precisa ser cancelado.",
+        : "Um ciclo encerrado não precisa parar de receber respostas.",
+    },
+    {
+      action: "REOPEN",
+      label: "Reabrir ciclo",
+      icon: RotateCcw,
+      description: "Informe o novo encerramento no card abaixo para reabrir o ciclo agora e voltar a receber respostas.",
+      tone: "primary",
+      available: cycleStatus === "CLOSED",
+      blockedReason: "Só um ciclo encerrado pode ser reaberto.",
     },
   ] : [];
 
@@ -352,10 +373,6 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
               Ciclo {cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}
             </Badge>
-            <Badge variant={versionStatus === "PUBLISHED" ? "success" : "warning"} title={`Código interno da versão: ${versionStatus ?? "—"}`}>
-              <FileStack className="h-3.5 w-3.5" aria-hidden="true" />
-              Versão {operations.version.number} · {(VERSION_STATUS_LABELS[versionStatus ?? ""] ?? versionStatus ?? "—").toLocaleLowerCase("pt-BR")}
-            </Badge>
           </>}
         />
 
@@ -370,7 +387,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <ReadinessChecklist issues={operations.issues} surveyId={surveyId} />
 
           <Surface className="p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div ref={periodSectionRef} className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Período de resposta</p>
                 <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Quando o formulário fica disponível</h3>
@@ -381,23 +398,26 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
             </div>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{cycleExplanation(cycleStatus)}</p>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <PeriodField
-                id="periodo-abertura"
-                label="Abertura"
-                hint="A partir deste momento o formulário aceita respostas."
-                value={opensAt}
-                min={minDateTime}
-                disabled={!fieldsEnabled}
-                error={opensAtIssue}
-                onChange={setOpensAt}
-              />
+            <div className={`mt-5 grid gap-4 ${canReopen ? "" : "sm:grid-cols-2"}`}>
+              {!canReopen && (
+                <PeriodField
+                  id="periodo-abertura"
+                  label="Abertura"
+                  hint="A partir deste momento o formulário aceita respostas."
+                  value={opensAt}
+                  min={minDateTime}
+                  disabled={!fieldsEnabled}
+                  error={opensAtIssue}
+                  onChange={setOpensAt}
+                />
+              )}
               <PeriodField
                 id="periodo-encerramento"
+                inputRef={closesAtInputRef}
                 label="Encerramento"
-                hint="Depois deste momento nenhuma resposta nova é aceita."
+                hint={canReopen ? "A abertura é sempre imediata; depois deste momento nenhuma resposta nova é aceita." : "Depois deste momento nenhuma resposta nova é aceita."}
                 value={closesAt}
-                min={opensAt || minDateTime}
+                min={canReopen ? minDateTime : (opensAt || minDateTime)}
                 disabled={!fieldsEnabled}
                 error={closesAtIssue}
                 onChange={setClosesAt}
@@ -418,7 +438,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
             {fieldsEnabled ? <>
               {periodDirty && <p role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-3 text-xs font-semibold leading-5 text-[var(--status-warning-text)]">
                 <Info className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
-                Alterações ainda não salvas. {canReopen ? "Use Reabrir ciclo para aplicá-las." : "Salve o período para aplicá-las."}
+                Alterações ainda não salvas. {canReopen ? "Use Reabrir ciclo agora para aplicá-las." : "Salve o período para aplicá-las."}
               </p>}
               <Button
                 fullWidth
@@ -426,19 +446,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
                 className="mt-4"
                 variant={canReopen ? "primary" : "secondary"}
                 onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")}
-                disabled={working !== null || !opensAt || !closesAt || currentPeriodIssues.length > 0}
-                title={canReopen ? "Reabre o ciclo encerrado com o novo período" : "Grava o período sem alterar o estado do ciclo"}
+                disabled={working !== null || (canReopen ? (!closesAt || Boolean(reopenClosesIssue)) : (!opensAt || !closesAt || currentPeriodIssues.length > 0))}
+                title={canReopen ? "Reabre o ciclo encerrado agora, com o novo encerramento" : "Grava o período sem alterar o estado do ciclo"}
               >
                 {working === (canReopen ? "REOPEN" : "UPDATE_PERIOD")
                   ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" />
                   : canReopen ? <RotateCcw className="h-5 w-5" aria-hidden="true" /> : <Save className="h-5 w-5" aria-hidden="true" />}
-                {canReopen ? "Reabrir ciclo com este período" : "Salvar período"}
+                {canReopen ? "Reabrir ciclo agora" : "Salvar período"}
               </Button>
-              {(!opensAt || !closesAt) && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Informe as duas datas para habilitar a gravação.</p>}
+              {canReopen
+                ? (!closesAt && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Informe o novo encerramento para habilitar a reabertura.</p>)
+                : ((!opensAt || !closesAt) && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Informe as duas datas para habilitar a gravação.</p>)}
             </> : <p className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
               <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               {cycleStatus === "OPEN"
-                ? "Com o ciclo aberto o período não pode mudar. Encerre o recebimento para editá-lo e reabrir com novas datas."
+                ? "Com o ciclo aberto o período não pode mudar. Encerre o recebimento para editá-lo e reabrir com uma nova data."
                 : "O período não pode ser alterado enquanto o ciclo estiver neste estado."}
             </p>}
           </Surface>
@@ -460,13 +482,84 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
           <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {cycleActions.map((item) => <li key={item.action}>
-              <ActionCard item={item} working={working === item.action} busy={working !== null} onRun={() => void runAction(item.action)} />
+              <ActionCard item={item} working={working === item.action} busy={working !== null} onRun={() => activateCycleAction(item.action)} />
             </li>)}
           </ul>
         </Surface>
       </>}
     </div>
+
+    <StopReceivingDialog
+      open={stopDialogOpen}
+      onOpenChange={setStopDialogOpen}
+      canClose={cycleStatus === "OPEN"}
+      canCancel={["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? "")}
+      busy={working !== null}
+      onClose={() => { setStopDialogOpen(false); void runAction("CLOSE"); }}
+      onCancel={() => { setStopDialogOpen(false); void runAction("CANCEL"); }}
+    />
   </PlatformShell>;
+}
+
+/**
+ * Reúne "encerrar" (reversível, só com ciclo aberto) e "cancelar" (definitivo,
+ * a partir de rascunho, agendado ou aberto) num único fluxo, para que o
+ * operador escolha explicitamente entre as duas em vez de decifrar dois
+ * botões com ícones quase idênticos.
+ */
+function StopReceivingDialog({ open, onOpenChange, canClose, canCancel, busy, onClose, onCancel }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  canClose: boolean;
+  canCancel: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Parar recebimento de respostas"
+      description="Escolha o que acontece com este ciclo. As duas opções impedem novos envios; a diferença é se o ciclo continua existindo."
+    >
+      <div className="space-y-3">
+        <button
+          type="button"
+          disabled={!canClose || busy}
+          onClick={onClose}
+          className="flex w-full items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <PauseCircle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+          <span>
+            <strong className="block text-sm font-semibold text-[var(--text-primary)]">Encerrar recebimento</strong>
+            <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">
+              {canClose
+                ? "Para novos envios agora. O ciclo continua existindo e pode ser reaberto depois com um novo período."
+                : "Só um ciclo aberto pode ser encerrado."}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          disabled={!canCancel || busy}
+          onClick={onCancel}
+          className="flex w-full items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-left transition hover:border-[var(--status-danger-text)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Ban className="mt-0.5 h-5 w-5 shrink-0 text-[var(--status-danger-text)]" aria-hidden="true" />
+          <span>
+            <strong className="block text-sm font-semibold text-[var(--status-danger-text)]">Cancelar em definitivo</strong>
+            <span className="mt-1 block text-sm leading-6 text-[var(--status-danger-text)]">
+              {canCancel
+                ? "Anula o ciclo por completo. Não há retomada — seria preciso criar outro ciclo."
+                : "Este ciclo já foi encerrado ou cancelado; não há mais o que cancelar."}
+            </span>
+          </span>
+        </button>
+      </div>
+    </Dialog>
+  );
 }
 
 function OperationsSkeleton() {
@@ -514,7 +607,7 @@ function MetricCard({ icon: Icon, label, value, description, tone = "neutral", h
   );
 }
 
-function PeriodField({ id, label, hint, value, min, disabled, error, onChange }: {
+function PeriodField({ id, label, hint, value, min, disabled, error, onChange, inputRef }: {
   id: string;
   label: string;
   hint: string;
@@ -523,6 +616,7 @@ function PeriodField({ id, label, hint, value, min, disabled, error, onChange }:
   disabled: boolean;
   error?: string;
   onChange: (value: string) => void;
+  inputRef?: RefObject<HTMLInputElement | null>;
 }) {
   const hintId = `${id}-hint`;
   const errorId = `${id}-erro`;
@@ -532,6 +626,7 @@ function PeriodField({ id, label, hint, value, min, disabled, error, onChange }:
       <p id={hintId} className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{hint}</p>
       <input
         id={id}
+        ref={inputRef}
         type="datetime-local"
         value={value}
         min={min}

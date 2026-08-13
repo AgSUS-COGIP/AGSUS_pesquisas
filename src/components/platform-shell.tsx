@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
+import { PlatformCommandMenu } from "@/components/platform-command-menu";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformFooter } from "@/components/platform-footer";
 import { PlatformLogo } from "@/components/platform-logo";
@@ -201,6 +202,9 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--surface-page)] text-[var(--text-primary)]">
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
+      {/* A paleta (Ctrl+K) recebe os mesmos `modules` da navegação: nunca
+          oferece destino que a sidebar esconde. */}
+      {!focus ? <PlatformCommandMenu modules={modules} /> : null}
       {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} /> : null}
       {!focus ? (
         <Drawer

@@ -9,23 +9,38 @@ export type SaveQueueSnapshot = {
 type SaveOperation = () => Promise<void>;
 type Listener = (snapshot: SaveQueueSnapshot) => void;
 
+/** Chave usada quando o chamador não correlaciona a gravação a um item. */
+const SEM_CHAVE = "__sem_chave__";
+
 /**
  * Fila que serializa gravações de rascunho, preservando a ordem de digitação.
  *
  * Sem serialização, dois autossalvamentos concorrentes da mesma pergunta podem
  * chegar ao banco fora de ordem e gravar o valor antigo por último.
+ *
+ * As falhas são rastreadas **por chave** (`enqueue(op, chave)`): o sucesso de
+ * uma gravação só limpa a falha da mesma chave. Sem isso, a falha da pergunta A
+ * seria mascarada pelo sucesso da pergunta B, o indicador de erro sumiria e
+ * `flush()` liberaria o envio definitivo com a resposta A ausente no banco.
  */
 export class ReliableSaveQueue {
   private tail: Promise<void> = Promise.resolve();
   private pending = 0;
-  private lastError: Error | null = null;
+  private failures = new Map<string, Error>();
   private listeners = new Set<Listener>();
 
+  private lastFailure(): Error | null {
+    let last: Error | null = null;
+    for (const error of this.failures.values()) last = error;
+    return last;
+  }
+
   getSnapshot(): SaveQueueSnapshot {
+    const lastError = this.lastFailure();
     return {
-      status: this.lastError ? "ERROR" : this.pending > 0 ? "SAVING" : "IDLE",
+      status: lastError ? "ERROR" : this.pending > 0 ? "SAVING" : "IDLE",
       pending: this.pending,
-      lastError: this.lastError,
+      lastError,
     };
   }
 
@@ -40,21 +55,24 @@ export class ReliableSaveQueue {
   /**
    * Agenda uma gravação após todas as anteriores.
    *
+   * @param key identifica o item gravado (ex.: id da pergunta). O sucesso desta
+   * operação limpa apenas a falha registrada para a **mesma** chave — regravar
+   * o item que falhou é o que resolve o erro, não gravar qualquer outro.
    * @returns promessa que rejeita se **esta** operação falhar, para o chamador
    * exibir a mensagem. A fila interna continua avançando de qualquer forma.
    */
-  enqueue(operation: SaveOperation) {
+  enqueue(operation: SaveOperation, key: string = SEM_CHAVE) {
     this.pending += 1;
-    this.lastError = null;
     this.emit();
 
     const run = async () => {
       try {
         await operation();
-        this.lastError = null;
+        this.failures.delete(key);
       } catch (error) {
-        this.lastError = error instanceof Error ? error : new Error("Falha desconhecida ao salvar.");
-        throw this.lastError;
+        const failure = error instanceof Error ? error : new Error("Falha desconhecida ao salvar.");
+        this.failures.set(key, failure);
+        throw failure;
       } finally {
         this.pending = Math.max(0, this.pending - 1);
         this.emit();
@@ -68,14 +86,19 @@ export class ReliableSaveQueue {
     return current;
   }
 
-  /** Aguarda a fila esvaziar e relança o último erro. Use antes do envio definitivo. */
+  /**
+   * Aguarda a fila esvaziar e relança a falha mais recente ainda não resolvida
+   * (de qualquer chave). Use antes do envio definitivo: enquanto houver
+   * gravação falhada sem retentativa bem-sucedida, o envio não pode prosseguir.
+   */
   async flush() {
     await this.tail;
-    if (this.lastError) throw this.lastError;
+    const failure = this.lastFailure();
+    if (failure) throw failure;
   }
 
   clearError() {
-    this.lastError = null;
+    this.failures.clear();
     this.emit();
   }
 

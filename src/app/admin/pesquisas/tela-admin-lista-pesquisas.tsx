@@ -11,13 +11,15 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { surveyStatusBadgeVariant, surveyStatusLabel } from "@/lib/survey-cycle-status";
 
 type ManagedSurvey = {
   surveyId: string; code: string; name: string; description: string | null; status: string;
-  versionNumber: number; versionStatus: string; applicationName: string | null;
+  applicationName: string | null;
   applicationCode: string | null;
   applicationStatus: string | null; opensAt: string | null; closesAt: string | null;
   sections: number; questions: number;
@@ -46,36 +48,10 @@ function copyResponseLink(survey: ManagedSurvey) {
   );
 }
 
-/** Códigos do banco traduzidos: a interface fala português, o código fica no `title`. */
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-  ACTIVE: "Ativo",
-  PUBLISHED: "Publicado",
-  ARCHIVED: "Arquivado",
-  RETIRED: "Descontinuado",
-};
-
-function dateLabel(value: string | null) {
-  if (!value) return "sem data";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
-
-function statusLabel(status: string | null) {
-  if (!status) return "Não configurado";
-  return STATUS_LABELS[status] ?? status;
-}
-
-function statusVariant(status: string | null) {
-  if (["OPEN", "ACTIVE", "PUBLISHED"].includes(status ?? "")) return "success" as const;
-  if (["CLOSED", "ARCHIVED", "RETIRED"].includes(status ?? "")) return "neutral" as const;
-  if (status === "CANCELLED") return "danger" as const;
-  if (status === "SCHEDULED") return "info" as const;
-  return "warning" as const;
-}
+/** Códigos do banco traduzidos pelo mapa canônico: a interface fala português, o código fica no `title`. */
+const dateLabel = (value: string | null) => formatDateTimePtBr(value, "sem data");
+const statusLabel = (status: string | null) => surveyStatusLabel(status);
+const statusVariant = (status: string | null) => surveyStatusBadgeVariant(status);
 
 export default function AdminSurveysPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
@@ -241,9 +217,8 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
         </span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-2">
+      <dl className="mt-4 grid grid-cols-2 gap-2">
         {[
-          ["Versão", survey.versionNumber],
           ["Seções", survey.sections],
           ["Perguntas", survey.questions],
         ].map(([label, value]) => (

@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
+import { formatDatePtBr } from "@/lib/date-format";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { cn } from "@/lib/utils";
@@ -32,10 +33,7 @@ function itemFilterState(item: SurveyCatalogItem): FilterKey {
   return state;
 }
 
-function dateLabel(value: string | null) {
-  if (!value) return "Sem data";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
+const dateLabel = (value: string | null) => formatDatePtBr(value, "Sem data");
 
 function actionLabel(item: SurveyCatalogItem) {
   if (["SUBMITTED", "VALIDATED"].includes(item.submissionStatus ?? "")) return "Consultar";

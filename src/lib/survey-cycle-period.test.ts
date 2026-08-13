@@ -3,6 +3,7 @@ import {
   nowLocalInputValue,
   periodIssues,
   publishBlockedMessage,
+  reopenIssue,
 } from "./survey-cycle-period";
 
 // Referência fixa para que os testes não dependam do relógio da máquina.
@@ -82,6 +83,30 @@ describe("publishBlockedMessage", () => {
     expect(publishBlockedMessage(local(120), local(60), AGORA)).toBe(
       "O encerramento deve ocorrer após a abertura.",
     );
+  });
+});
+
+describe("reopenIssue", () => {
+  it("aceita encerramento no futuro", () => {
+    expect(reopenIssue(local(60), AGORA)).toBeNull();
+  });
+
+  it("recusa encerramento no passado", () => {
+    expect(reopenIssue(local(-60), AGORA)).toBe("O novo encerramento deve estar no futuro.");
+  });
+
+  it("recusa o instante corrente e o minuto seguinte — o banco valida closes > now() sem tolerância", () => {
+    expect(reopenIssue(local(0), AGORA)).toBe("O novo encerramento deve estar no futuro.");
+    expect(reopenIssue(local(1), AGORA)).toBe("O novo encerramento deve estar no futuro.");
+    expect(reopenIssue(local(2), AGORA)).toBeNull();
+  });
+
+  it("exige o campo, diferente de periodIssues", () => {
+    expect(reopenIssue("", AGORA)).toBe("Informe o novo encerramento para reabrir o ciclo.");
+  });
+
+  it("ignora valor não interpretável como data, tratando como campo vazio", () => {
+    expect(reopenIssue("não é data", AGORA)).toBe("Informe o novo encerramento para reabrir o ciclo.");
   });
 });
 

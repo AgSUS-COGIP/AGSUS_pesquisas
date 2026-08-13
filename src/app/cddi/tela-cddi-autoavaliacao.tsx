@@ -8,7 +8,9 @@ import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
+import { cddiSectionCompletion, isCddiQuestionAnswered } from "@/lib/cddi-form-progress";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { formatDateTimePtBr } from "@/lib/date-format";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -35,17 +37,9 @@ type Screen = "home" | "auto";
 const CDDI_INK = "var(--cddi-ink)";
 const CDDI_RULE = "var(--cddi-rule)";
 
-function dateLabel(value: string | null | undefined) {
-  if (!value) return "Não informado";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
-function answered(question: Question, answers: Answers) { return Boolean(answers[question.id]?.value?.trim()); }
-/** Percentual das perguntas obrigatórias da competência já respondidas. Seção sem obrigatórias conta como completa. */
-function sectionCompletion(section: Section, answers: Answers) {
-  const required = section.questions.filter((question) => question.required);
-  if (!required.length) return 100;
-  return Math.round(required.filter((question) => answered(question, answers)).length / required.length * 100);
-}
+const dateLabel = (value: string | null | undefined) => formatDateTimePtBr(value, "Não informado");
+const answered = isCddiQuestionAnswered;
+const sectionCompletion = cddiSectionCompletion;
 function scaleBoundary(question: Question, side: "start" | "end") {
   const explicit = question.settings?.[side === "start" ? "scale_start_label" : "scale_end_label"];
   if (typeof explicit === "string" && explicit.trim()) return explicit;
@@ -92,6 +86,8 @@ export default function CddiFormPage() {
   }, [answers]);
 
   useEffect(() => {
+    // Descartar a resposta se o componente desmontar antes de a carga terminar.
+    let active = true;
     const load = async () => {
       try {
         const supabase = createBrowserSupabaseClient();
@@ -112,6 +108,7 @@ export default function CddiFormPage() {
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
         const rawDefinition = formResponse.data as FormDefinition;
+        if (!active) return;
         setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "AUTO") });
         setSubmission(context);
         setIdentity(identityResponse.data as IdentityContext);
@@ -123,13 +120,17 @@ export default function CddiFormPage() {
           setMessage("O período do CDDI 2026 está encerrado. O modo de consulta permanece disponível conforme suas permissões.");
         }
       } catch (error) {
+        if (!active) return;
         setMessageType("error");
         setMessage(error instanceof Error ? error.message : "Não foi possível carregar o CDDI.");
-      } finally { setLoading(false); }
+      } finally {
+        if (active) setLoading(false);
+      }
     };
     void load();
     const timersToClear = saveTimers.current;
     return () => {
+      active = false;
       Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
     };
   }, []);
@@ -155,7 +156,7 @@ export default function CddiFormPage() {
       const { data, error } = await supabase.rpc("save_my_cddi_answer", { target_submission_id: submissionId, target_question_id: question.id, target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null, target_text: question.type === "SCALE" ? null : answer.value });
       if (error) throw new Error(errorMessageFromUnknown(error));
       setSavedAt((data as { savedAt?: string } | null)?.savedAt ?? new Date().toISOString());
-    }).catch((error) => {
+    }, question.id).catch((error) => {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
       throw error;

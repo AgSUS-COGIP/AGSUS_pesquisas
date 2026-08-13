@@ -64,6 +64,13 @@ const LEGACY_RESTORED_OBJECTS = {
       "manage_survey_cycle",
     ]),
   },
+  // Restaura, em manage_survey_cycle, a validação de integridade em
+  // SCHEDULE/OPEN/REOPEN perdida sem intenção por 20260811120000.
+  "supabase/migrations/20260812090000_restaurar_validacao_integridade_ciclo.sql": {
+    função: new Set([
+      "manage_survey_cycle",
+    ]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
