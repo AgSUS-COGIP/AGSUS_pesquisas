@@ -134,34 +134,38 @@ export default function ParticipantAreaPage() {
 
   return (
     <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
-      <div className="mx-auto w-full max-w-[1400px] space-y-5">
-        <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.9fr)]">
-          <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
-            <div className="flex items-start gap-4">
-              <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-14 w-14 rounded-2xl" fallbackClassName="text-lg" />
+      <div className="mx-auto w-full max-w-[1400px] space-y-6">
+        {/*
+          Identificação e métricas deixaram de ser cartões dentro de cartão. A
+          faixa usa espaço e tipografia para separar — não borda —, e a régua
+          vertical entre os números vem só a partir de `sm`, onde há largura
+          para ela significar alguma coisa.
+        */}
+        <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+          <article className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] sm:p-7">
+            <div className="flex items-center gap-4">
+              <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
               <div className="min-w-0">
                 <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
-                <h2 className="mt-0.5 text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">{firstName}</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Veja o que precisa da sua atenção e acompanhe sua jornada em um só lugar.</p>
+                <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[1.75rem]">{firstName}</h2>
               </div>
             </div>
 
-            <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {metricTiles.map((tile) => {
-                // Urgência muda a cor do cartão, mas o texto continua dizendo o
+            <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
+              {metricTiles.map((tile, index) => {
+                // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
                 const highlight = !catalogLoading && tile.alert;
                 return (
-                  <div
-                    key={tile.label}
-                    className={`rounded-xl border p-3.5 ${highlight
-                      ? "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]"
-                      : "border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}
-                  >
-                    <dt className={`text-xs font-semibold uppercase tracking-[.1em] ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--text-secondary)]"}`}>{tile.label}</dt>
+                  <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
+                    <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
                     <dd>
-                      <strong className={`mt-1.5 block text-2xl font-semibold tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>{catalogLoading ? "—" : tile.value}</strong>
-                      <span className={`mt-0.5 block text-[11px] leading-4 ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>{catalogLoading ? "carregando" : tile.description}</span>
+                      <strong className={`mt-1.5 block text-[2rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                        {catalogLoading ? "—" : tile.value}
+                      </strong>
+                      <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
+                        {catalogLoading ? "carregando" : tile.description}
+                      </span>
                     </dd>
                   </div>
                 );
@@ -169,7 +173,12 @@ export default function ParticipantAreaPage() {
             </dl>
           </article>
 
-          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
+          {/*
+            A próxima ação é a única coisa acionável da tela, então é a única que
+            recebe fundo de marca. Antes ela competia de igual para igual com
+            quatro atalhos e uma lista.
+          */}
+          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--brand-primary)]/15 bg-[var(--status-info-bg)] p-6 shadow-[var(--shadow-card)] sm:p-7">
             {catalogLoading ? (
               <div className="space-y-3" aria-busy="true">
                 <Skeleton className="h-4 w-24" />
@@ -189,15 +198,16 @@ export default function ParticipantAreaPage() {
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-6 text-[var(--text-secondary)]">{priorityItem.description || priorityItem.surveyName}</p>
 
-              <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">Prazo</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{dateLabel(priorityItem.closesAt)}</p>
+              {/* O prazo virou uma linha, não uma caixa: são dois dados curtos. */}
+              <p className="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-1 pt-5 text-sm">
+                <span className="text-[var(--text-secondary)]">Prazo</span>
+                <strong className="font-semibold text-[var(--text-primary)]">{dateLabel(priorityItem.closesAt)}</strong>
                 {priorityDeadline !== null && (
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                    {priorityDeadline === 0 ? "Encerra hoje." : `Faltam ${priorityDeadline} ${priorityDeadline === 1 ? "dia" : "dias"}.`}
-                  </p>
+                  <span className="text-[var(--text-secondary)]">
+                    · {priorityDeadline === 0 ? "encerra hoje" : `faltam ${priorityDeadline} ${priorityDeadline === 1 ? "dia" : "dias"}`}
+                  </span>
                 )}
-              </div>
+              </p>
 
               <Link
                 href={applicationHref(priorityItem)}
@@ -218,29 +228,12 @@ export default function ParticipantAreaPage() {
           </aside>
         </section>
 
-        <section className="grid items-start gap-5 xl:grid-cols-[minmax(320px,.8fr)_minmax(0,1.2fr)]">
-          <aside aria-label="Acessos principais" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Ações rápidas</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Acessos principais</h2>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              {actions.map(({ href, title, text, icon: Icon }) => (
-                <li key={href}>
-                  <Link href={href} className="group flex h-full flex-col rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--surface-card)] text-[var(--brand-primary)]">
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-[var(--text-muted)] transition group-hover:translate-x-1 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />
-                    </div>
-                    <strong className="mt-3 block text-sm font-semibold text-[var(--text-primary)]">{title}</strong>
-                    <small className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">{text}</small>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </aside>
-
-          <article className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+        {/*
+          A jornada passou a ocupar a largura toda. Antes dividia a faixa com
+          quatro atalhos que repetem o menu lateral — e era a lista, não os
+          atalhos, que precisava de espaço para respirar.
+        */}
+        <article className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
@@ -289,8 +282,27 @@ export default function ParticipantAreaPage() {
                 description="Assim que uma avaliação for liberada para o seu perfil, ela aparece aqui."
               />
             )}
-          </article>
-        </section>
+        </article>
+
+        {/*
+          Atalhos como faixa de links, não como cartões: eles repetem destinos que
+          já existem no menu lateral, então servem de conveniência — não competem
+          com a próxima ação nem com a jornada.
+        */}
+        <nav aria-label="Acessos principais" className="flex flex-wrap gap-2">
+          {actions.map(({ href, title, text, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              title={text}
+              className="group inline-flex min-h-11 flex-1 items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-card)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)] sm:min-w-52 sm:flex-none"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
+              <span className="truncate">{title}</span>
+              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />
+            </Link>
+          ))}
+        </nav>
       </div>
     </PlatformShell>
   );
