@@ -54,5 +54,16 @@ export async function GET(request: NextRequest) {
     return redirectToAccess(url, "dominio-nao-autorizado");
   }
 
-  return NextResponse.redirect(new URL(next, url.origin));
+  /*
+   * `entrando=1` marca a primeira tela depois do login para que ela diga
+   * "Entrando no sistema" em vez de "Carregando {tela}".
+   *
+   * Quem volta do Google não sabe se a autenticação deu certo: o contexto ainda
+   * está sendo resolvido e o esqueleto genérico não distingue "entrando agora"
+   * de "recarregando uma página". A marca vive só nesta navegação — a tela a
+   * remove da URL assim que a lê.
+   */
+  const destination = new URL(next, url.origin);
+  destination.searchParams.set("entrando", "1");
+  return NextResponse.redirect(destination);
 }
