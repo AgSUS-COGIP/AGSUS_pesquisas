@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FullPageState } from "@/components/full-page-state";
 import { PlatformSkeleton } from "@/components/platform-shell";
 import type { PlatformGuardDecision } from "@/lib/platform-guard";
@@ -40,7 +41,29 @@ export function PlatformGuardState({
   restrictedDescription,
   unidentifiedTitle = "Acesso não identificado",
 }: PlatformGuardStateProps) {
-  if (guard.state === "loading") return <PlatformSkeleton title={`Carregando ${title}`} />;
+  /*
+   * `?entrando=1` é posto pelo callback do OAuth e vale só para esta navegação.
+   *
+   * A leitura é por `window.location` dentro de efeito, e não por
+   * `useSearchParams()`, porque este componente é renderizado por telas
+   * estáticas — o hook exigiria um limite de Suspense em cada uma delas.
+   *
+   * O parâmetro é removido do endereço logo em seguida: recarregar a página
+   * depois não é mais "entrar no sistema", e a mensagem ficaria mentindo.
+   */
+  const [enteringSystem, setEnteringSystem] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("entrando") !== "1") return;
+    setEnteringSystem(true);
+    url.searchParams.delete("entrando");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  if (guard.state === "loading") {
+    return <PlatformSkeleton title={enteringSystem ? "Entrando no sistema" : `Carregando ${title}`} />;
+  }
 
   if (guard.state === "unidentified") {
     return (

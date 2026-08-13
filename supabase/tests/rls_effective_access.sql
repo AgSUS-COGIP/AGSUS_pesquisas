@@ -150,27 +150,48 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------
--- 7. Aplicação nova não pode nascer anônima
+-- 7. O anonimato não pode ser ligado nem desligado com respostas gravadas
+--
+-- Este teste afirmava que o gatilho `tba_aplicacao_anonima` — que **bloqueava**
+-- qualquer ciclo anônimo — estava ativo. Aquele bloqueio era provisório: existia
+-- porque a coluna `anonymous` prometia um anonimato que a estrutura não
+-- entregava. Com o anonimato estrutural, marcar um ciclo como anônimo passou a
+-- ser legítimo, e o invariante mudou de lugar.
+--
+-- O que precisa continuar garantido é a **transição**: ligar o anonimato no meio
+-- deixaria respostas identificadas convivendo com anônimas sob a mesma promessa,
+-- e desligá-lo revelaria quem respondeu acreditando no contrário.
 -- ---------------------------------------------------------------------------
 select ok(
   exists (
     select 1 from pg_catalog.pg_trigger
-    where tgname = 'tba_aplicacao_anonima'
+    where tgname = 'tba_ciclo_anonimo'
       and tgrelid = 'public.survey_applications'::regclass
       and not tgisinternal
   ),
-  'o gatilho que bloqueia aplicação anônima está ativo'
+  'o gatilho que impede mudar o anonimato após respostas está ativo'
 );
 
 -- ---------------------------------------------------------------------------
--- 8. O bloqueio não invalida o histórico já existente
+-- 8. O bilhete anônimo não é legível pela administração
 --
--- Linha marcada como anônima antes do bloqueio continua legível; o gatilho só
--- atua na transição para anônimo.
+-- `tb_bilhete_anonimo` liga pessoa e submissão enquanto o rascunho existe. Se a
+-- administração pudesse lê-lo, o anonimato cairia durante todo o preenchimento
+-- — que é justamente quando a pessoa está escrevendo o que pensa.
+--
+-- A tabela tem RLS com uma única política, restrita à própria pessoa. Nenhuma
+-- política de administração pode aparecer aqui.
 -- ---------------------------------------------------------------------------
-select lives_ok(
-  $$ select count(*) from public.survey_applications where anonymous = true $$,
-  'aplicações anônimas históricas continuam consultáveis após o bloqueio'
+select is(
+  (
+    select coalesce(string_agg(policyname, ', ' order by policyname), '')
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'tb_bilhete_anonimo'
+      and qual not like '%current_person_id()%'
+  ),
+  '',
+  'nenhuma política do bilhete anônimo escapa do vínculo com a própria pessoa'
 );
 
 select * from finish();
