@@ -21,6 +21,7 @@ import {
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useConfirm } from "@/components/confirmation-provider";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { platformBrandingQueryKey, usePlatformBranding } from "@/components/platform-branding-provider";
@@ -107,6 +108,7 @@ export default function PlatformSettingsPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_ACCESS);
   const { branding, loading: brandingLoading } = usePlatformBranding();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const granted = guard.state === "granted";
   const currentPersonId = guard.state === "granted" ? guard.person.id : undefined;
 
@@ -169,6 +171,101 @@ export default function PlatformSettingsPage() {
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const accessPanelIsDark = needsLightForeground(branding.accessPanelColor);
 
+  /*
+   * Galeria das artes já enviadas.
+   *
+   * Sem ela, cada envio deixava o arquivo anterior no storage sem nada
+   * apontando para ele — e trocar de volta para a arte do ano passado exigia
+   * enviar tudo de novo. Com a lista, as campanhas ficam guardadas e a troca é
+   * um clique.
+   *
+   * Lista tudo que está em `branding/`, e não só as artes de acesso: é onde
+   * também ficaram os logotipos enviados antes de a marca virar fixa, que hoje
+   * são órfãos e ninguém tinha como remover pela interface.
+   */
+  const [gallery, setGallery] = useState<{ path: string; url: string; sizeKb: number }[]>([]);
+
+  const loadGallery = useCallback(async () => {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error } = await supabase.storage.from("platform-assets").list("branding", {
+        limit: 100,
+        sortBy: { column: "created_at", order: "desc" },
+      });
+      if (error) throw error;
+      setGallery(
+        (data ?? [])
+          .filter((item) => item.name && !item.name.startsWith("."))
+          .map((item) => {
+            const path = `branding/${item.name}`;
+            return {
+              path,
+              url: supabase.storage.from("platform-assets").getPublicUrl(path).data.publicUrl,
+              sizeKb: Math.round(((item.metadata?.size as number) ?? 0) / 1024),
+            };
+          }),
+      );
+    } catch (listError) {
+      // A galeria é acessório: falhar aqui não pode impedir configurar o resto.
+      console.warn("Galeria de artes indisponível:", errorMessageFromUnknown(listError));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (granted) void loadGallery();
+  }, [granted, loadGallery]);
+
+  /** Ativa uma arte já enviada, sem precisar reenviá-la. */
+  const applyGalleryImage = useCallback(async (item: { path: string; url: string }) => {
+    setUploadingBackground(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.rpc("fc_definir_fundo_acesso", { p_url: item.url, p_caminho: item.path });
+      if (error) throw error;
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding, accessBackgroundUrl: item.url, accessBackgroundPath: item.path,
+      });
+      toast.success("Arte aplicada à tela de acesso.");
+    } catch (useError) {
+      toast.error(errorMessageFromUnknown(useError) || "Não foi possível aplicar a arte.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  /**
+   * Remove uma arte do storage.
+   *
+   * Recusa a que está em uso: apagá-la deixaria a tela de acesso apontando para
+   * um arquivo que não existe mais — e é a única tela por onde se entra.
+   */
+  const deleteGalleryImage = useCallback(async (item: { path: string }) => {
+    if (branding.accessBackgroundPath === item.path) {
+      toast.error("Esta arte está em uso. Escolha outra ou restaure o padrão antes de apagar.");
+      return;
+    }
+    const confirmed = await confirm({
+      title: "Apagar esta arte?",
+      description: "O arquivo sai do armazenamento e não há como recuperar. Artes em uso não podem ser apagadas.",
+      confirmLabel: "Apagar arte",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    setUploadingBackground(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.storage.from("platform-assets").remove([item.path]);
+      if (error) throw error;
+      await loadGallery();
+      toast.success("Arte removida do armazenamento.");
+    } catch (deleteError) {
+      toast.error(errorMessageFromUnknown(deleteError) || "Não foi possível apagar a arte.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding.accessBackgroundPath, confirm, loadGallery]);
+
   /** Grava a cor do painel; `null` restaura o branco institucional. */
   const saveAccessPanelColor = useCallback(async (color: string | null) => {
     setUploadingBackground(true);
@@ -220,13 +317,16 @@ export default function PlatformSettingsPage() {
         accessBackgroundUrl: publicUrl.publicUrl,
         accessBackgroundPath: path,
       });
+      // A arte recém-enviada precisa aparecer na galeria na hora: sem isso,
+      // ela só surgiria no próximo carregamento da tela.
+      await loadGallery();
       toast.success("Fundo da tela de acesso atualizado.");
     } catch (uploadError) {
       toast.error(errorMessageFromUnknown(uploadError) || "Não foi possível enviar a imagem.");
     } finally {
       setUploadingBackground(false);
     }
-  }, [branding, queryClient]);
+  }, [branding, queryClient, loadGallery]);
 
   const clearAccessBackground = useCallback(async () => {
     setUploadingBackground(true);
@@ -515,6 +615,69 @@ export default function PlatformSettingsPage() {
                         </p>
                       </div>
                     </div>
+
+                    {/*
+                      Galeria: as artes enviadas ficam guardadas para reuso.
+
+                      A campanha de agosto volta em agosto do ano que vem — sem
+                      esta lista, seria preciso reenviar o arquivo toda vez, e o
+                      anterior ficaria no armazenamento sem nada apontando para
+                      ele. Aqui a troca é um clique e a limpeza é possível.
+                    */}
+                    {gallery.length > 0 ? (
+                      <div className="mt-5">
+                        <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">
+                          Artes enviadas
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                          Reaproveite campanhas anteriores sem reenviar o arquivo. A arte em uso não pode ser apagada.
+                        </p>
+                        <ul className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {gallery.map((item) => {
+                            const emUso = branding.accessBackgroundPath === item.path;
+                            return (
+                              <li
+                                key={item.path}
+                                className={`overflow-hidden rounded-xl border ${emUso ? "border-[var(--brand-solid)] ring-1 ring-[var(--brand-solid)]" : "border-[var(--border-subtle)]"}`}
+                              >
+                                <div
+                                  className="h-20 bg-cover bg-center"
+                                  style={{ backgroundImage: `url(${item.url})` }}
+                                  role="img"
+                                  aria-label={emUso ? "Arte em uso na tela de acesso" : "Arte disponível"}
+                                />
+                                <div className="flex items-center justify-between gap-2 p-2">
+                                  <span className="text-[11px] text-[var(--text-muted)]">
+                                    {emUso ? "Em uso" : `${item.sizeKb} KB`}
+                                  </span>
+                                  <span className="flex gap-1">
+                                    {!emUso ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void applyGalleryImage(item)}
+                                        disabled={uploadingBackground}
+                                        className="rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                                      >
+                                        Usar
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteGalleryImage(item)}
+                                      disabled={uploadingBackground || emUso}
+                                      title={emUso ? "Arte em uso: escolha outra antes de apagar" : "Apagar do armazenamento"}
+                                      className="rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--status-danger-text)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      Apagar
+                                    </button>
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
 
                     {/*
                       Cor do painel do formulário.
