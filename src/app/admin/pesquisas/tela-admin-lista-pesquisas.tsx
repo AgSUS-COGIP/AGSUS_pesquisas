@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Copy, FileEdit, FilePlus2, FileQuestion, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarDays, ClipboardList, Copy, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, SlidersHorizontal, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/confirmation-provider";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -79,10 +82,49 @@ function statusVariant(status: string | null) {
 
 export default function AdminSurveysPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  const confirm = useConfirm();
+  const router = useRouter();
   const [surveys, setSurveys] = useState<ManagedSurvey[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [cloningId, setCloningId] = useState<string | null>(null);
   const granted = guard.state === "granted";
+
+  /**
+   * Duplica o instrumento e leva direto para o construtor da cópia.
+   *
+   * A confirmação diz o que **não** é copiado, porque é a parte contraintuitiva:
+   * quem duplica uma avaliação com ciclo aberto tende a esperar o ciclo junto.
+   * Copiar o período e o público criaria um segundo ciclo ativo sem ninguém ter
+   * pedido — a cópia nasce em rascunho, para ser configurada de propósito.
+   */
+  async function cloneSurvey(survey: ManagedSurvey) {
+    const confirmed = await confirm({
+      title: `Duplicar "${survey.name}"?`,
+      description: "A cópia leva seções, perguntas, alternativas e regras condicionais, e nasce como rascunho. Ciclo, participantes e respostas não são copiados.",
+      confirmLabel: "Duplicar avaliação",
+    });
+    if (!confirmed) return;
+
+    setCloningId(survey.surveyId);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error: cloneError } = await supabase.rpc("fc_clonar_pesquisa", {
+        p_pesquisa: survey.surveyId,
+        p_nome: null,
+        p_codigo: null,
+      });
+      if (cloneError) throw cloneError;
+
+      const result = data as { surveyId: string; code: string; questions: number } | null;
+      if (!result?.surveyId) throw new Error("A cópia não foi criada.");
+      toast.success(`Cópia criada como ${result.code}, com ${result.questions} ${result.questions === 1 ? "pergunta" : "perguntas"}.`);
+      router.push(`/admin/pesquisas/${result.surveyId}`);
+    } catch (cloneError) {
+      toast.error(errorMessageFromUnknown(cloneError));
+      setCloningId(null);
+    }
+  }
 
   // Só consulta depois que a guarda liberou: sem módulo, a RPC seria negada
   // pela RLS e o erro apareceria como toast numa tela que nem chega a abrir.
@@ -199,7 +241,11 @@ export default function AdminSurveysPage() {
             </div>
           ) : filtered.length ? (
             <ul className="grid gap-4 xl:grid-cols-2">
-              {filtered.map((survey) => <li key={survey.surveyId}><SurveyCard survey={survey} /></li>)}
+              {filtered.map((survey) => (
+                <li key={survey.surveyId}>
+                  <SurveyCard survey={survey} onClone={cloneSurvey} cloning={cloningId === survey.surveyId} />
+                </li>
+              ))}
             </ul>
           ) : searching ? (
             <EmptyState
@@ -222,7 +268,11 @@ export default function AdminSurveysPage() {
   </PlatformShell>;
 }
 
-function SurveyCard({ survey }: { survey: ManagedSurvey }) {
+function SurveyCard({ survey, onClone, cloning }: {
+  survey: ManagedSurvey;
+  onClone: (survey: ManagedSurvey) => void;
+  cloning: boolean;
+}) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
 
   return (
@@ -236,8 +286,11 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
           <h4 className="mt-3 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{survey.name}</h4>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Sem descrição cadastrada."}</p>
         </div>
+        {/* Era um `FileQuestion` — o ponto de interrogação fazia o enfeite
+            parecer um botão de ajuda. Uma prancheta diz "instrumento", que é o
+            que o cartão representa. */}
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
-          <FileQuestion className="h-5 w-5" aria-hidden="true" />
+          <ClipboardList className="h-5 w-5" aria-hidden="true" />
         </span>
       </div>
 
@@ -266,7 +319,7 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <Link
           href={`/admin/pesquisas/${survey.surveyId}`}
           title="Editar seções, perguntas e alternativas"
@@ -283,6 +336,17 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
           Copiar link
+        </button>
+        <button
+          type="button"
+          onClick={() => onClone(survey)}
+          disabled={cloning}
+          title="Criar um rascunho novo com a mesma estrutura — sem ciclo, participantes ou respostas"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {cloning
+            ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Duplicando...</>
+            : <><CopyPlus className="h-4 w-4" aria-hidden="true" />Duplicar</>}
         </button>
         <Link
           href={`/admin/pesquisas/${survey.surveyId}/operacao`}
