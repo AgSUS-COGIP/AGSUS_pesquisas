@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Copy, FileEdit, FilePlus2, FileQuestion, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarDays, FileEdit, FilePlus2, FileQuestion, Search, Share2, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -169,12 +169,12 @@ export default function AdminSurveysPage() {
 
         <div className="mt-6">
           {dataLoading ? (
-            <div className="grid gap-4 xl:grid-cols-2" aria-live="polite" aria-busy="true">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite" aria-busy="true">
               <span className="sr-only">Carregando o catálogo de avaliações.</span>
-              {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-2xl" />)}
+              {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-2xl" />)}
             </div>
           ) : filtered.length ? (
-            <ul className="grid gap-4 xl:grid-cols-2">
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((survey) => <li key={survey.surveyId}><SurveyCard survey={survey} /></li>)}
             </ul>
           ) : searching ? (
@@ -202,7 +202,7 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] transition hover:border-[var(--border-strong)]">
+    <article className="flex h-full flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -212,9 +212,15 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
           <h4 className="mt-3 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{survey.name}</h4>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--text-secondary)]">{survey.description || "Sem descrição cadastrada."}</p>
         </div>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
-          <FileQuestion className="h-5 w-5" aria-hidden="true" />
-        </span>
+        <button
+          type="button"
+          onClick={() => copyResponseLink(survey)}
+          title="Compartilhar: copia o link direto para responder esta avaliação"
+          aria-label="Compartilhar link de resposta desta avaliação"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+        >
+          <Share2 className="h-5 w-5" aria-hidden="true" />
+        </button>
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-2">
@@ -241,7 +247,7 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={`/admin/pesquisas/${survey.surveyId}`}
           title="Editar seções, perguntas e alternativas"
@@ -250,15 +256,6 @@ function SurveyCard({ survey }: { survey: ManagedSurvey }) {
           <FileEdit className="h-4 w-4" aria-hidden="true" />
           Editar formulário
         </Link>
-        <button
-          type="button"
-          onClick={() => copyResponseLink(survey)}
-          title="Copiar o link direto para responder esta avaliação"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
-        >
-          <Copy className="h-4 w-4" aria-hidden="true" />
-          Copiar link
-        </button>
         <Link
           href={`/admin/pesquisas/${survey.surveyId}/operacao`}
           title="Publicar a versão, definir o período e abrir ou encerrar o ciclo"
