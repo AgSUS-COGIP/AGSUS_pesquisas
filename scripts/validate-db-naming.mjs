@@ -72,6 +72,15 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260812160000_restaurar_event_trigger_rls_automatica.sql": {
     função: new Set(["rls_auto_enable"]),
   },
+  // `list_managed_surveys` redefinida para excluir modelos do catálogo
+  // administrativo. Função legada consumida pelo nome por bundles publicados
+  // (catálogo e painéis): renomeá-la derrubaria as duas telas. A migration só
+  // acrescenta um `where` à definição existente; as funções novas do arquivo
+  // (`fc_listar_modelos_avaliacao`, `fc_definir_modelo_avaliacao`) seguem o
+  // padrão institucional e não constam aqui.
+  "supabase/migrations/20260813190000_galeria_de_modelos.sql": {
+    função: new Set(["list_managed_surveys"]),
+  },
   // Sete RPCs que existem em produção e que nenhuma migration criava — foram
   // aplicadas por SQL direto. As seis primeiras são chamadas pelo frontend e a
   // última pela RPC do painel CDDI; renomeá-las derrubaria os bundles já
