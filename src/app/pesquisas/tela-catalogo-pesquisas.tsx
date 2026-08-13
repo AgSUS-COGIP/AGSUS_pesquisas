@@ -135,7 +135,7 @@ export default function SurveysPage() {
             />
             <StatCard label="Em andamento" value={catalogLoading ? "—" : metrics.inProgress} description={catalogLoading ? undefined : "iniciadas e ainda não enviadas"} className="p-4" />
             <StatCard
-              label="Finalizadas "
+              label="Finalizadas"
               value={catalogLoading ? "—" : metrics.completed}
               description={catalogLoading ? undefined : metrics.total ? `${metrics.completionRate}% do total` : "respondidas e enviadas"}
               className="p-4"
