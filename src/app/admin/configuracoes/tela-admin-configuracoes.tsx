@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
   Check,
+  ImagePlus,
   CircleDot,
   LayoutGrid,
   Loader2,
@@ -40,6 +41,7 @@ import {
   DataTableState,
 } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/form-controls";
+import { needsLightForeground } from "@/lib/color-contrast";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
@@ -154,6 +156,98 @@ export default function PlatformSettingsPage() {
   useEffect(() => {
     if (granted) void loadPeople();
   }, [granted, loadPeople]);
+
+
+  /*
+   * Envio da arte de fundo da tela de acesso.
+   *
+   * Mesmo bucket do logotipo (`platform-assets`), em caminho próprio. A
+   * gravação no banco vem **depois** do upload, e uma falha ali remove o
+   * arquivo enviado — senão o storage acumularia imagens que nenhuma
+   * configuração aponta.
+   */
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const accessPanelIsDark = needsLightForeground(branding.accessPanelColor);
+
+  /** Grava a cor do painel; `null` restaura o branco institucional. */
+  const saveAccessPanelColor = useCallback(async (color: string | null) => {
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    try {
+      // A imagem é reenviada junto porque a RPC grava os três campos de uma vez;
+      // omiti-la aqui apagaria o fundo configurado ao trocar só a cor.
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
+        p_url: branding.accessBackgroundUrl,
+        p_caminho: branding.accessBackgroundPath,
+        p_cor_painel: color,
+      });
+      if (saveError) throw saveError;
+      queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessPanelColor: color });
+      toast.success(color ? "Cor do painel atualizada." : "Painel branco restaurado.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a cor.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  const uploadAccessBackground = useCallback(async (file: File) => {
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 4 MB.");
+      return;
+    }
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `acesso/fundo-${crypto.randomUUID()}.${extension}`;
+    try {
+      const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
+
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
+        p_url: publicUrl.publicUrl,
+        p_caminho: path,
+        p_cor_painel: branding.accessPanelColor,
+      });
+      if (saveError) {
+        await supabase.storage.from("platform-assets").remove([path]);
+        throw saveError;
+      }
+
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding,
+        accessBackgroundUrl: publicUrl.publicUrl,
+        accessBackgroundPath: path,
+      });
+      toast.success("Fundo da tela de acesso atualizado.");
+    } catch (uploadError) {
+      toast.error(errorMessageFromUnknown(uploadError) || "Não foi possível enviar a imagem.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  const clearAccessBackground = useCallback(async () => {
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    try {
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", { p_url: null, p_caminho: null, p_cor_painel: branding.accessPanelColor });
+      if (saveError) throw saveError;
+      // O arquivo antigo sai do storage só depois de a configuração deixar de
+      // apontar para ele: na ordem inversa, uma falha na gravação deixaria a
+      // tela apontando para imagem que não existe mais.
+      if (branding.accessBackgroundPath) {
+        await supabase.storage.from("platform-assets").remove([branding.accessBackgroundPath]);
+      }
+      queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessBackgroundUrl: null, accessBackgroundPath: null });
+      toast.success("Arte institucional padrão restaurada.");
+    } catch (clearError) {
+      toast.error(errorMessageFromUnknown(clearError) || "Não foi possível restaurar a arte padrão.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -362,6 +456,113 @@ export default function PlatformSettingsPage() {
                       <div className="flex-1">
                         <p className="inline-flex items-center gap-2 rounded-full border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-3 py-1 text-xs font-black text-[var(--status-success-text)]"><BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />Marca institucional fixa</p>
                         <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">O logotipo oficial da AgSUS é aplicado automaticamente em toda a plataforma e não pode ser substituído por aqui — assim a identidade nunca diverge entre as telas.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/*
+                    Fundo da tela de acesso.
+
+                    Diferente do logotipo, esta arte **é** configurável: ela
+                    acompanha campanha institucional (Agosto Lilás, Setembro
+                    Amarelo) e muda várias vezes por ano. Fixa no repositório,
+                    cada troca viraria pedido para a equipe técnica mais um
+                    deploy — e no intervalo a plataforma anunciaria o mês errado.
+                  */}
+                  <div className="border-t border-[var(--border-subtle)] pt-6">
+                    <p className="section-eyebrow">Fundo da tela de acesso</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      Imagem exibida ao lado do formulário de entrada. Use para acompanhar campanhas institucionais. JPG, PNG ou WEBP, até 4 MB.
+                    </p>
+
+                    <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <div
+                        className="h-24 w-40 shrink-0 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-cover bg-center"
+                        style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? "/acesso-fundo.png"})` }}
+                        role="img"
+                        aria-label={branding.accessBackgroundUrl ? "Prévia do fundo configurado" : "Prévia da arte institucional padrão"}
+                      />
+                      <div className="flex-1">
+                        <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+                          <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                          {uploadingBackground ? "Enviando..." : "Escolher imagem"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            disabled={uploadingBackground}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void uploadAccessBackground(file);
+                            }}
+                          />
+                        </label>
+                        {branding.accessBackgroundUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => void clearAccessBackground()}
+                            disabled={uploadingBackground}
+                            className="ml-2 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[var(--status-danger-text)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                          >
+                            Restaurar padrão
+                          </button>
+                        ) : null}
+                        <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                          {branding.accessBackgroundUrl
+                            ? "A imagem vale imediatamente para quem abrir a tela de acesso."
+                            : "Sem imagem configurada, vale a arte institucional padrão."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/*
+                      Cor do painel do formulário.
+
+                      O contraste do texto e do botão é **derivado** desta cor,
+                      não escolhido à parte: cor livre com contraste manual
+                      produziria tela ilegível na primeira combinação infeliz. A
+                      prévia mostra o resultado já invertido, para a escolha ser
+                      informada em vez de às cegas.
+                    */}
+                    <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">Cor do painel do formulário</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                        O texto e o botão se ajustam sozinhos para continuar legíveis sobre a cor escolhida.
+                      </p>
+
+                      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <input
+                          type="color"
+                          aria-label="Cor do painel da tela de acesso"
+                          value={branding.accessPanelColor ?? "#ffffff"}
+                          onChange={(event) => void saveAccessPanelColor(event.target.value)}
+                          disabled={uploadingBackground}
+                          className="h-12 w-16 shrink-0 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1"
+                        />
+
+                        <div
+                          className="flex-1 rounded-xl border border-[var(--border-subtle)] p-4"
+                          style={{ backgroundColor: branding.accessPanelColor ?? "#ffffff" }}
+                        >
+                          <p className={`text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
+                            Seja bem-vindo(a) à AgSUS
+                          </p>
+                          <span className={`mt-2 inline-flex min-h-9 items-center rounded-lg px-4 text-xs font-semibold ${accessPanelIsDark ? "bg-white text-[#003b70]" : "bg-[#003b70] text-white"}`}>
+                            Entrar com Google institucional
+                          </span>
+                        </div>
+
+                        {branding.accessPanelColor ? (
+                          <button
+                            type="button"
+                            onClick={() => void saveAccessPanelColor(null)}
+                            disabled={uploadingBackground}
+                            className="inline-flex min-h-10 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                          >
+                            Voltar ao branco
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
