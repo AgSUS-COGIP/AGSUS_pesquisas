@@ -70,11 +70,29 @@ export default function LeaderEvaluationPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        // A tela Minha equipe informa o ciclo escolhido por query string; sem o
-        // parâmetro, permanece o ciclo padrão do CDDI.
-        const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
-        const applicationCode = cycleFromQuery || "CDDI-2026";
         const supabase = createBrowserSupabaseClient();
+        /*
+         * A tela Minha equipe informa o ciclo escolhido por query string. Sem o
+         * parâmetro, o ciclo vinha escrito no código (`CDDI-2026`) — o que
+         * levaria quem abrisse o link direto, na segunda edição, a avaliar
+         * alguém no ciclo errado.
+         *
+         * O resolvedor aqui é `fc_listar_ciclos_lideranca`, e não o da
+         * autoavaliação: quem avalia é a chefia, e o ciclo que importa é aquele
+         * em que ela **lidera equipe** — não aquele em que ela é avaliada. A
+         * lista já vem do mais recente para o mais antigo.
+         */
+        const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
+        let applicationCode = cycleFromQuery || "";
+        if (!applicationCode) {
+          const { data: cycleData, error: cycleError } = await supabase.rpc("fc_listar_ciclos_lideranca");
+          if (cycleError) throw cycleError;
+          const cycles = (Array.isArray(cycleData) ? cycleData : []) as Array<{ code?: string }>;
+          if (!cycles[0]?.code) {
+            throw new Error("Você não tem vínculo de liderança em nenhum ciclo do CDDI.");
+          }
+          applicationCode = cycles[0].code;
+        }
         const [formResponse, submissionResponse, teamResponse] = await Promise.all([
           supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
           supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: applicationCode, target_submission_type: "CHEFIA", target_subject_person_id: personId }),
@@ -158,6 +176,25 @@ export default function LeaderEvaluationPage() {
     });
     await saveQueue.flush();
   }
+  /**
+   * Última etapa alcançável pelos atalhos numerados.
+   *
+   * `goTo()` valida só a etapa em que a pessoa está, então os atalhos do topo
+   * permitiam sair da 1 para a 13 deixando as do meio para trás. O envio
+   * continuava barrado — nenhum dado inválido chegava ao banco —, mas a
+   * pendência só aparecia no fim, sem indicar de onde vinha.
+   *
+   * Aqui as etapas `0..sections.length - 1` são as competências e a última é a
+   * revisão, diferente da autoavaliação, que tem a identificação na etapa 0.
+   */
+  const firstIncompleteStep = useMemo(() => {
+    if (!canEdit) return totalSteps - 1;
+    const incomplete = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !answered(question, answers)),
+    );
+    return incomplete === -1 ? totalSteps - 1 : incomplete;
+  }, [sections, answers, canEdit, totalSteps]);
+
   function goTo(target: number) {
     if (target > step && currentSection && canEdit) {
       const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
@@ -249,19 +286,25 @@ export default function LeaderEvaluationPage() {
           {Array.from({ length: totalSteps }).map((_, index) => {
             const complete = index < sections.length && completion(sections[index], answers) === 100;
             const current = index === step;
+            const locked = index > firstIncompleteStep;
             return (
               <button
                 key={index}
                 type="button"
                 onClick={() => goTo(index)}
+                disabled={locked}
                 aria-current={current ? "step" : undefined}
-                title={index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
+                title={locked
+                  ? `Responda as obrigatórias da etapa ${String(firstIncompleteStep + 1).padStart(2, "0")} para liberar esta`
+                  : index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
                 className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
                   current
                     ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                    : complete
-                      ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                      : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                    : locked
+                      ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
+                      : complete
+                        ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                        : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
                 }`}
               >
                 {complete && !current && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
