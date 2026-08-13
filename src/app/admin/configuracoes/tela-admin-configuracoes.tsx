@@ -712,7 +712,24 @@ export default function PlatformSettingsPage() {
                           className="flex-1 rounded-xl border border-[var(--border-subtle)] p-4"
                           style={{ backgroundColor: branding.accessPanelColor ?? "#ffffff" }}
                         >
-                          <p className={`text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
+                          {/* A prévia inclui o logotipo porque é ele que mais
+                              muda de tratamento: sobre painel escuro é
+                              renderizado em branco sólido. Prévia que omite
+                              isso deixaria a surpresa para a tela real. */}
+                          <div
+                            className="w-fit"
+                            style={accessPanelIsDark ? { filter: "brightness(0) invert(1)" } : undefined}
+                          >
+                            <PlatformLogo
+                              src={DEFAULT_PLATFORM_BRANDING.logoUrl}
+                              alt=""
+                              organizationName={watchedOrganization}
+                              width={28}
+                              height={28}
+                              className="h-7 w-7 object-contain text-[10px]"
+                            />
+                          </div>
+                          <p className={`mt-2 text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
                             Seja bem-vindo(a) à AgSUS
                           </p>
                           <span className={`mt-2 inline-flex min-h-9 items-center rounded-lg px-4 text-xs font-semibold ${accessPanelIsDark ? "bg-white text-[#003b70]" : "bg-[#003b70] text-white"}`}>
