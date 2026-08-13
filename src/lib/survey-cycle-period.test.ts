@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   nowLocalInputValue,
+  opensInFuture,
   periodIssues,
   publishBlockedMessage,
 } from "./survey-cycle-period";
@@ -82,6 +83,29 @@ describe("publishBlockedMessage", () => {
     expect(publishBlockedMessage(local(120), local(60), AGORA)).toBe(
       "O encerramento deve ocorrer após a abertura.",
     );
+  });
+});
+
+describe("opensInFuture", () => {
+  it("reconhece abertura marcada para depois de agora", () => {
+    expect(opensInFuture(local(60), AGORA)).toBe(true);
+  });
+
+  it("não considera futura a abertura que já passou", () => {
+    expect(opensInFuture(local(-60), AGORA)).toBe(false);
+  });
+
+  it("não considera futura a abertura dentro da tolerância", () => {
+    // "Agora" continua sendo período válido (periodIssues aceita), mas não é
+    // agendamento: o ciclo abriria na leitura seguinte. Quem quer isso usa
+    // "Abrir agora".
+    expect(opensInFuture(local(0), AGORA)).toBe(false);
+    expect(opensInFuture(local(2), AGORA)).toBe(true);
+  });
+
+  it("trata campo vazio e valor inválido como não futuros", () => {
+    expect(opensInFuture("", AGORA)).toBe(false);
+    expect(opensInFuture("não é data", AGORA)).toBe(false);
   });
 });
 

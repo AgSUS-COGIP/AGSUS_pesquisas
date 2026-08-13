@@ -73,6 +73,23 @@ export function periodIssues(
 }
 
 /**
+ * `true` quando a abertura informada ainda está no futuro.
+ *
+ * É o que decide, na tela de propriedades, se gravar o período **agenda** a
+ * abertura ou apenas guarda as datas. Agendar uma abertura que já passou não
+ * agenda nada: o ciclo abriria na primeira leitura seguinte, e quem quer isso
+ * tem "Abrir agora", que diz o que faz.
+ *
+ * A mesma tolerância de `periodIssues()` é aplicada aqui, para que "válido
+ * como futuro" e "válido como abertura" não discordem na fronteira.
+ */
+export function opensInFuture(opensAt: string, reference: Date = new Date()): boolean {
+  const opens = parseLocal(opensAt);
+  if (!opens) return false;
+  return opens.getTime() > reference.getTime() + TOLERANCIA_MS;
+}
+
+/**
  * Mensagem única para o toast que barra a publicação de um rascunho cujo período
  * envelheceu entre salvar e publicar. Devolve `null` quando o período está apto.
  */

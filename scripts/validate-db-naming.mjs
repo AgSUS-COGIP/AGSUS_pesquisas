@@ -97,6 +97,32 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260813120000_motor_logica_condicional.sql": {
     função: new Set(["submit_my_survey_submission"]),
   },
+  // Arquivamento de avaliação: CANCEL passa a arquivar a pesquisa junto, e
+  // ganham as ações ARCHIVE/UNARCHIVE. `manage_survey_cycle` é chamada pelo
+  // nome pela tela de operação do ciclo já publicada; `list_managed_surveys`
+  // é chamada pelo nome pelo catálogo administrativo já publicado. Renomear
+  // qualquer uma das duas para `fc_*` derrubaria a tela correspondente antes
+  // de o frontend novo estar no ar. A função nova do arquivo
+  // (fc_expirar_pesquisas_arq) segue o padrão e não consta aqui.
+  "supabase/migrations/20260814090000_arquivar_pesquisa.sql": {
+    função: new Set(["manage_survey_cycle", "list_managed_surveys"]),
+  },
+  // Abertura automática do ciclo agendado. Quatro das cinco funções legadas
+  // aqui são chamadas pelo nome por bundles já publicados (a tela de operação,
+  // o catálogo do participante e as duas jornadas de resposta); a quinta,
+  // `application_accepts_responses`, é referenciada por políticas de RLS e por
+  // meia dúzia de RPCs do runtime — trocá-la por uma `fc_*` exigiria redefinir
+  // todas elas na mesma migration. A função nova do arquivo
+  // (fc_abrir_ciclos_agendados) segue o padrão e não consta aqui.
+  "supabase/migrations/20260814100000_abrir_ciclos_agendados.sql": {
+    função: new Set([
+      "application_accepts_responses",
+      "manage_survey_cycle",
+      "list_my_survey_catalog",
+      "get_public_survey_form",
+      "get_survey_operations",
+    ]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {

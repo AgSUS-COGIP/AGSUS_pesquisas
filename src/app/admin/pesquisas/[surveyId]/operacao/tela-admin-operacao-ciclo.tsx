@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -10,12 +10,13 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
+import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
+import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 
 type Issue = {
   id?: string;
@@ -50,7 +51,7 @@ type CycleAction = {
   label: string;
   icon: typeof Send;
   description: string;
-  tone: "primary" | "secondary" | "danger";
+  tone: "primary" | "secondary" | "danger" | "danger-soft";
   available: boolean;
   /** Motivo exibido quando `available` é falso. */
   blockedReason: string;
@@ -115,11 +116,44 @@ function cycleStatusVariant(status: string | undefined) {
 function cycleExplanation(status: string | undefined) {
   switch (status) {
     case "DRAFT": return "O ciclo está em preparação. Ajuste o período antes de publicar ou abrir.";
-    case "SCHEDULED": return "O ciclo está agendado. O período ainda pode ser ajustado antes da abertura.";
+    case "SCHEDULED": return "O ciclo está agendado e abre sozinho na data de abertura. O período ainda pode ser ajustado antes disso.";
     case "OPEN": return "O ciclo está aberto para respostas. Para alterar o período, encerre-o primeiro.";
     case "CLOSED": return "O ciclo foi encerrado. Informe um novo período e use Reabrir ciclo para receber novas respostas.";
     case "CANCELLED": return "O ciclo foi cancelado e não pode ser retomado. Crie um novo ciclo para esta avaliação.";
     default: return "Configure o período e o estado operacional deste ciclo.";
+  }
+}
+
+/**
+ * A consequência do período, em uma frase — o que o cartão de datas não dizia.
+ *
+ * O bloco de datas registradas repetia o valor dos campos logo acima. Com a
+ * abertura automática, o que o operador precisa ler ali é o desfecho: se o
+ * ciclo abre sozinho, se já está recebendo resposta, ou se ninguém vai abri-lo.
+ */
+function periodOutcome(
+  status: string | undefined,
+  versionStatus: string | undefined,
+  opensAt: string | null | undefined,
+  closesAt: string | null | undefined,
+) {
+  switch (status) {
+    case "DRAFT":
+      return versionStatus === "PUBLISHED"
+        ? "Em rascunho, o ciclo não abre sozinho. Agende a abertura ou use Abrir agora."
+        : "Enquanto a versão não for publicada, o ciclo não abre — nem sozinho, nem pela mão do operador.";
+    case "SCHEDULED":
+      return opensAt
+        ? `Abre automaticamente em ${dateLabel(opensAt)} e encerra em ${dateLabel(closesAt)}.`
+        : "Agendado sem data de abertura. Informe o período para que a abertura aconteça.";
+    case "OPEN":
+      return `Recebendo respostas desde ${dateLabel(opensAt)}. Encerra em ${dateLabel(closesAt)}.`;
+    case "CLOSED":
+      return "Encerrado: nenhuma resposta nova é aceita. Informe um novo período para reabrir.";
+    case "CANCELLED":
+      return "Finalizado. Este ciclo não volta a receber respostas.";
+    default:
+      return null;
   }
 }
 
@@ -133,6 +167,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const [working, setWorking] = useState<string | null>(null);
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
+  const [interruptDialogOpen, setInterruptDialogOpen] = useState(false);
 
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
@@ -167,7 +202,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     }
 
     // Período gravado passa pela mesma regra do banco antes de sair da tela.
-    if (action === "UPDATE_PERIOD" || action === "REOPEN") {
+    // SCHEDULE entrou nesta lista porque passou a gravar o período junto.
+    if (action === "UPDATE_PERIOD" || action === "REOPEN" || action === "SCHEDULE") {
       const issues = periodIssues(opensAt, closesAt);
       if (issues.length) return toast.error(issues[0].message);
     }
@@ -176,13 +212,13 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       PUBLISH: "Publicar esta versão? Depois de publicada, a estrutura não poderá ser alterada.",
       OPEN: "Abrir este ciclo agora para receber respostas?",
       REOPEN: "Reabrir este ciclo com o novo período informado?",
-      CLOSE: "Encerrar este ciclo agora?",
-      CANCEL: "Cancelar este ciclo? Esta ação não poderá ser revertida.",
+      CLOSE: "Pausar esta avaliação agora? Ela pode ser reaberta depois com um novo período.",
+      CANCEL: "Finalizar esta avaliação agora? O ciclo é encerrado e a avaliação vai para \"Avaliações arquivadas\", por até 30 dias.",
     };
     const confirmation = confirmations[action];
     if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: action === "CANCEL" || action === "CLOSE" ? "Confirmar operação" : "Continuar", tone: action === "CANCEL" || action === "CLOSE" ? "danger" : "primary" }))) return;
 
-    const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN";
+    const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN" || action === "SCHEDULE";
     setWorking(action);
     try {
       const supabase = createBrowserSupabaseClient();
@@ -194,7 +230,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       });
       if (actionError) throw actionError;
       const successLabels: Record<string, string> = {
-        UPDATE_PERIOD: "Período atualizado.", PUBLISH: "Versão publicada.", SCHEDULE: "Ciclo agendado.", OPEN: "Ciclo aberto.", REOPEN: "Ciclo reaberto.", CLOSE: "Ciclo encerrado.", CANCEL: "Ciclo cancelado.",
+        UPDATE_PERIOD: "Período atualizado.", PUBLISH: "Versão publicada.", SCHEDULE: "Abertura agendada. O ciclo abre sozinho na data marcada.", OPEN: "Ciclo aberto.", REOPEN: "Ciclo reaberto.", CLOSE: "Avaliação pausada.", CANCEL: "Avaliação finalizada e arquivada.",
       };
       toast.success(successLabels[action] ?? "Operação concluída.");
       await loadOperations();
@@ -203,6 +239,16 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     } finally {
       setWorking(null);
     }
+  }
+
+  // "Interromper avaliação" abre um pop-up próprio porque, ao contrário das
+  // demais operações, ela não tem uma única ação de banco: o operador escolhe
+  // entre CLOSE (pausa, reversível) e CANCEL (finaliza, definitivo). A escolha
+  // ainda passa pela confirmação binária de `runAction`, que é quem de fato
+  // dispara a RPC.
+  async function runInterruptChoice(action: "CLOSE" | "CANCEL") {
+    setInterruptDialogOpen(false);
+    await runAction(action);
   }
 
   if (guard.state !== "granted") {
@@ -226,9 +272,37 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const blockingIssues = operations?.issues.filter((issue) => issue.severity === "BLOCKING") ?? [];
   const periodDirty = Boolean(operations) && (opensAt !== toLocalInput(operations?.application?.opensAt) || closesAt !== toLocalInput(operations?.application?.closesAt));
 
+  // O agendamento mora aqui, e não na grade de operações: ele não tem dado
+  // próprio — toda a informação está nos campos de data logo acima. Gravar um
+  // período futuro num ciclo pronto para abrir **é** agendar a abertura, numa
+  // chamada só (`SCHEDULE` passou a aceitar as datas). Fora dessas condições o
+  // botão continua apenas gravando o período.
+  //
+  // `readyToOpen` já implica versão publicada e encerramento no futuro, então
+  // não há o que repetir aqui.
+  const canSchedule = (operations?.readyToOpen ?? false)
+    && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+    && opensInFuture(opensAt);
+
+  const periodAction = canReopen ? "REOPEN" : canSchedule ? "SCHEDULE" : "UPDATE_PERIOD";
+  const periodActionLabel = {
+    REOPEN: "Reabrir ciclo com este período",
+    SCHEDULE: "Salvar e agendar abertura",
+    UPDATE_PERIOD: "Salvar período",
+  }[periodAction];
+  const periodActionTitle = {
+    REOPEN: "Reabre o ciclo encerrado com o novo período",
+    SCHEDULE: "Grava o período e deixa o ciclo pronto para abrir sozinho na data de abertura",
+    UPDATE_PERIOD: "Grava o período sem alterar o estado do ciclo",
+  }[periodAction];
+  const PeriodActionIcon = { REOPEN: RotateCcw, SCHEDULE: CalendarCheck2, UPDATE_PERIOD: Save }[periodAction];
+  const outcome = periodOutcome(cycleStatus, versionStatus, operations?.application?.opensAt, operations?.application?.closesAt);
+
   // O motivo de indisponibilidade é calculado uma vez por ação: a mesma frase
   // alimenta o `title`, o `aria-describedby` e a nota abaixo do botão.
   const cycleActions: CycleAction[] = operations ? [
+    // Ver `runInterruptChoice` e o `<Dialog>` de escolha — "Interromper avaliação"
+    // não roda direto: abre o pop-up entre Pausar e Finalizar.
     {
       action: "PUBLISH",
       label: "Publicar versão",
@@ -240,22 +314,13 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         ? `A versão ${operations.version.number} já está publicada.`
         : `Resolva ${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} do checklist antes de publicar.`,
     },
-    {
-      action: "SCHEDULE",
-      label: "Agendar abertura",
-      icon: CalendarCheck2,
-      description: "Deixa o ciclo pronto para abrir sozinho na data de abertura informada.",
-      tone: "secondary",
-      available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
-      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
-        ? "O checklist ainda aponta pendências que impedem a abertura."
-        : `Só é possível agendar um ciclo em rascunho ou já agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
-    },
+    // "Agendar abertura" saiu daqui: virou o desfecho do cartão de período, ao
+    // lado da data que o alimenta. Ver `periodAction`.
     {
       action: "OPEN",
-      label: "Abrir para respostas",
+      label: "Abrir agora",
       icon: PlayCircle,
-      description: "Libera o formulário imediatamente para as pessoas vinculadas ao ciclo.",
+      description: "Antecipa a abertura: libera o formulário imediatamente, sem esperar a data agendada.",
       tone: "primary",
       available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
       blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
@@ -263,24 +328,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
     },
     {
-      action: "CLOSE",
-      label: "Encerrar recebimento",
-      icon: CircleSlash,
-      description: "Interrompe novos envios. O ciclo pode ser reaberto depois com um novo período.",
-      tone: "danger",
-      available: cycleStatus === "OPEN",
-      blockedReason: "Só um ciclo aberto pode ser encerrado.",
-    },
-    {
-      action: "CANCEL",
-      label: "Cancelar ciclo",
-      icon: Ban,
-      description: "Encerra o ciclo em definitivo. Não há retomada — seria preciso criar outro ciclo.",
-      tone: "danger",
+      action: "INTERRUPT",
+      label: "Interromper avaliação",
+      icon: AlertCircle,
+      description: "Abre a escolha entre pausar (reversível) ou finalizar este ciclo, arquivando a avaliação.",
+      tone: "danger-soft",
       available: ["DRAFT", "SCHEDULED", "OPEN"].includes(cycleStatus ?? ""),
       blockedReason: cycleStatus === "CANCELLED"
         ? "Este ciclo já foi cancelado."
-        : "Um ciclo encerrado não precisa ser cancelado.",
+        : "Um ciclo encerrado não precisa ser interrompido.",
     },
   ] : [];
 
@@ -413,32 +469,40 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
                 <dt className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">Encerramento registrado</dt>
                 <dd className="mt-1 font-semibold text-[var(--text-primary)]">{dateLabel(operations.application?.closesAt)}</dd>
               </div>
+              {outcome && <div className="border-t border-[var(--border-subtle)] pt-3 sm:col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">O que acontece</dt>
+                <dd className="mt-1 flex items-start gap-2 leading-6 text-[var(--text-primary)]">
+                  <CalendarCheck2 className="mt-1 h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
+                  {outcome}
+                </dd>
+              </div>}
             </dl>
 
             {fieldsEnabled ? <>
               {periodDirty && <p role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-3 text-xs font-semibold leading-5 text-[var(--status-warning-text)]">
                 <Info className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
-                Alterações ainda não salvas. {canReopen ? "Use Reabrir ciclo para aplicá-las." : "Salve o período para aplicá-las."}
+                Alterações ainda não salvas. Use &ldquo;{periodActionLabel}&rdquo; para aplicá-las.
               </p>}
               <Button
                 fullWidth
                 size="lg"
                 className="mt-4"
-                variant={canReopen ? "primary" : "secondary"}
-                onClick={() => void runAction(canReopen ? "REOPEN" : "UPDATE_PERIOD")}
+                variant={periodAction === "UPDATE_PERIOD" ? "secondary" : "primary"}
+                onClick={() => void runAction(periodAction)}
                 disabled={working !== null || !opensAt || !closesAt || currentPeriodIssues.length > 0}
-                title={canReopen ? "Reabre o ciclo encerrado com o novo período" : "Grava o período sem alterar o estado do ciclo"}
+                title={periodActionTitle}
               >
-                {working === (canReopen ? "REOPEN" : "UPDATE_PERIOD")
+                {working === periodAction
                   ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" />
-                  : canReopen ? <RotateCcw className="h-5 w-5" aria-hidden="true" /> : <Save className="h-5 w-5" aria-hidden="true" />}
-                {canReopen ? "Reabrir ciclo com este período" : "Salvar período"}
+                  : <PeriodActionIcon className="h-5 w-5" aria-hidden="true" />}
+                {periodActionLabel}
               </Button>
+              {periodAction === "SCHEDULE" && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">O ciclo abre sozinho na data de abertura, sem ninguém precisar voltar aqui.</p>}
               {(!opensAt || !closesAt) && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Informe as duas datas para habilitar a gravação.</p>}
             </> : <p className="mt-4 flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
               <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               {cycleStatus === "OPEN"
-                ? "Com o ciclo aberto o período não pode mudar. Encerre o recebimento para editá-lo e reabrir com novas datas."
+                ? "Com o ciclo aberto o período não pode mudar. Interrompa a avaliação para editá-lo e reabrir com novas datas."
                 : "O período não pode ser alterado enquanto o ciclo estiver neste estado."}
             </p>}
           </Surface>
@@ -459,11 +523,60 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           </p>}
 
           <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {cycleActions.map((item) => <li key={item.action}>
-              <ActionCard item={item} working={working === item.action} busy={working !== null} onRun={() => void runAction(item.action)} />
-            </li>)}
+            {cycleActions.map((item) => {
+              const isInterrupt = item.action === "INTERRUPT";
+              const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
+              return (
+                <li key={item.action}>
+                  <ActionCard
+                    item={item}
+                    working={isWorking}
+                    busy={working !== null}
+                    onRun={() => (isInterrupt ? setInterruptDialogOpen(true) : void runAction(item.action))}
+                  />
+                </li>
+              );
+            })}
           </ul>
         </Surface>
+
+        <Dialog
+          open={interruptDialogOpen}
+          onOpenChange={setInterruptDialogOpen}
+          title="Interromper avaliação"
+          description="Escolha o que fazer com este ciclo. As duas opções interrompem o recebimento de respostas agora."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => void runInterruptChoice("CLOSE")}
+              disabled={cycleStatus !== "OPEN"}
+              title={cycleStatus === "OPEN" ? undefined : "Só um ciclo aberto pode ser pausado."}
+              className="flex flex-col gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[var(--border-subtle)] disabled:hover:bg-[var(--surface-card)]"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <CircleSlash className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
+                Pausar avaliação
+              </span>
+              <span className="text-xs leading-5 text-[var(--text-secondary)]">
+                {cycleStatus === "OPEN"
+                  ? "Interrompe novos envios. O ciclo pode ser reaberto depois com um novo período."
+                  : "Só um ciclo aberto pode ser pausado."}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void runInterruptChoice("CANCEL")}
+              className="flex flex-col gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--status-danger-text)]">
+                <Ban className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Finalizar avaliação
+              </span>
+              <span className="text-xs leading-5 text-[var(--text-secondary)]">Encerra o ciclo e arquiva a avaliação por até 30 dias. Ela pode ser restaurada nesse período; depois, se ninguém agir, é excluída.</span>
+            </button>
+          </div>
+        </Dialog>
       </>}
     </div>
   </PlatformShell>;
@@ -557,12 +670,14 @@ function ActionCard({ item, working, busy, onRun }: { item: CycleAction; working
   const Icon = item.icon;
   const noteId = `acao-${item.action}-nota`;
   const disabled = busy || !item.available;
+  const isDangerSoft = item.tone === "danger-soft";
 
   return (
     <div className={`flex h-full flex-col rounded-2xl border p-4 transition ${item.available ? "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]" : "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}>
       <Button
         fullWidth
-        variant={item.tone}
+        variant={isDangerSoft ? "danger" : (item.tone as "primary" | "secondary" | "danger")}
+        style={isDangerSoft ? { backgroundColor: "#e13b3b" } : undefined}
         onClick={onRun}
         disabled={disabled}
         aria-describedby={noteId}
