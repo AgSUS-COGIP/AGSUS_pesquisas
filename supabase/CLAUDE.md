@@ -71,6 +71,26 @@ Mapa perfil → módulo em `role_module_permissions` e em `fc_obter_contexto_pla
 | `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
 | `RESPONDENT` | `SURVEYS` |
 
+### Lógica condicional — `20260813120000_motor_logica_condicional.sql`
+
+`public.tb_regra_condicional` (uma regra vigente por alvo, garantida pelo índice parcial `in_regra_condicional_alvo`) e `public.tb_condicao_regra` (as condições daquela regra). Alvo é pergunta **ou** seção; esconder a seção esconde tudo dentro dela. RLS habilitada e todos os privilégios revogados: o acesso é só pelas funções `security definer`.
+
+**Por que tabela e não `display_logic`.** A coluna JSONB existe desde o esquema inicial e nunca ganhou leitor. Como JSON solto, ela não consegue garantir o que uma regra precisa garantir — que a pergunta de origem existe, pertence à mesma versão, que a alternativa comparada é daquela pergunta e que o conjunto não forma ciclo. `display_logic` **fica intocado**: sua única ocorrência preenchida em produção é `CHEFIA_RESPONSAVEL` no CDDI publicado, e o conteúdo lá é filtro de tipo de submissão, lido por `isCddiQuestionVisible()` no frontend — assunto diferente, apesar do nome parecido.
+
+**O grafo precisa ser acíclico.** Se A depende de B e B volta a depender de A, não existe ordem de avaliação. `fc_regra_gera_ciclo()` percorre o grafo na **gravação** e recusa a regra — o operador vê o erro ao montar o instrumento, não o participante na frente da tela. É essa garantia que torna segura a recursão de `fc_alvo_visivel()`.
+
+| RPC | Uso |
+|---|---|
+| `fc_salvar_regra_condicional(...)` | Substitui em bloco a regra do alvo. Exige `can_manage_surveys()` e **versão em `DRAFT`** — regra é estrutura do instrumento, como seção e pergunta. |
+| `fc_excluir_regra_condicional(p_alvo)` | Remove a regra vigente do alvo. |
+| `fc_listar_regras_condicionais(p_versao)` | Regras da versão, para o construtor. |
+| `fc_obter_regras_do_ciclo(p_codigo_ciclo)` | Regras do ciclo, para o runtime. Respeita `can_access_application()`. |
+| `fc_pergunta_visivel(submissão, pergunta)` | Seção visível **e** regra própria satisfeita. É o que o envio consulta. |
+
+**`submit_my_survey_submission` foi redefinida** (mesma assinatura) para não contar como pendente a obrigatória que a lógica escondeu. Sem isso, a primeira regra criada tornaria o instrumento impossível de enviar. Por redefinir função legada consumida pelo nome por bundles publicados, o arquivo tem entrada em `LEGACY_RESTORED_OBJECTS`.
+
+O avaliador equivalente no cliente é `src/lib/survey-conditional-logic.ts`. **Os dois precisam concordar** — ver as armadilhas de paridade (número e `DATETIME`) em [../src/lib/CLAUDE.md](../src/lib/CLAUDE.md).
+
 ### Governança e observabilidade
 
 `db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
