@@ -88,6 +88,15 @@ const LEGACY_RESTORED_OBJECTS = {
       "get_cddi_monitoring_dashboard_internal",
     ]),
   },
+  // Redefinição de `submit_my_survey_submission` para que pergunta escondida pela
+  // lógica condicional deixe de contar como obrigatória pendente. A função é
+  // chamada pelo nome pelo runtime genérico já publicado; criar uma `fc_*` no
+  // lugar dela exigiria publicar o frontend antes, e no intervalo o envio ficaria
+  // impossível em qualquer instrumento com regra ativa. A migration só troca o
+  // corpo, mantendo a assinatura.
+  "supabase/migrations/20260813120000_motor_logica_condicional.sql": {
+    função: new Set(["submit_my_survey_submission"]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
