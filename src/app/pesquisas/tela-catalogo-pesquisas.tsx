@@ -8,7 +8,7 @@ import { PlatformShell } from "@/components/platform-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
+import { PageHeader, Surface } from "@/components/ui/surface";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -123,48 +123,41 @@ export default function SurveysPage() {
             }
           />
 
-          {/* A legenda de cada indicador diz o que o número significa para a
-              decisão: urgência de prazo e percentual concluído. */}
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Disponíveis" value={catalogLoading ? "—" : metrics.total} description={catalogLoading ? undefined : "no total, para o seu perfil"} className="p-4" />
-            <StatCard
-              label="A responder"
-              value={catalogLoading ? "—" : metrics.actionable}
-              description={catalogLoading ? undefined : metrics.urgent > 0 ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias` : "sem prazo apertado"}
-              className="p-4"
-            />
-            <StatCard label="Em andamento" value={catalogLoading ? "—" : metrics.inProgress} description={catalogLoading ? undefined : "iniciadas, faltam enviar"} className="p-4" />
-            <StatCard
-              label="Concluídas"
-              value={catalogLoading ? "—" : metrics.completed}
-              description={catalogLoading ? undefined : metrics.total ? `${metrics.completionRate}% do total` : "enviadas e registradas"}
-              className="p-4"
-            />
-          </div>
-
-          <div className="mt-5 border-t border-[var(--border-subtle)] pt-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Filtrar avaliações por situação">
-              <Filter className="mr-1 h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
-              {filters.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === item.key}
-                  onClick={() => setFilter(item.key)}
-                  className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-xs font-black transition ${filter === item.key ? "bg-[var(--brand-primary)] text-white shadow-sm" : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
-                >
-                  {item.label}
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filter === item.key ? "bg-white/15" : "bg-[var(--surface-card)]"}`}>{counts[item.key]}</span>
-                </button>
-              ))}
-            </div>
+          {/*
+            Os quatro indicadores saíram daqui. Eram o terceiro resumo empilhado
+            antes do conteúdo: os filtros abaixo já mostram a contagem de cada
+            situação, e "Disponíveis" repetia o total que a linha de resultados
+            informa. O que os indicadores tinham de exclusivo era a urgência de
+            prazo — essa continua, como aviso, e só quando existe.
+          */}
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-4" role="tablist" aria-label="Filtrar avaliações por situação">
+            <Filter className="mr-1 h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+            {filters.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={filter === item.key}
+                onClick={() => setFilter(item.key)}
+                className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-xs font-semibold transition ${filter === item.key ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)] shadow-sm" : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+              >
+                {item.label}
+                <span className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${filter === item.key ? "bg-white/20" : "bg-[var(--surface-card)]"}`}>{counts[item.key]}</span>
+              </button>
+            ))}
           </div>
         </Surface>
 
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" aria-live="polite">
-          <p className="text-sm font-bold text-[var(--text-primary)]">{catalogLoading ? "Atualizando catálogo..." : `${filtered.length} de ${items.length} ciclo(s) exibido(s)`}</p>
-          <p className="text-xs text-[var(--text-secondary)]">A situação combina o período do ciclo com o seu preenchimento.</p>
+          <p className="text-sm font-semibold text-[var(--text-primary)]">{catalogLoading ? "Atualizando catálogo..." : `${filtered.length} de ${items.length} ciclo(s) exibido(s)`}</p>
+          {!catalogLoading && metrics.urgent > 0 ? (
+            <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--status-warning-text)]">
+              <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+              {metrics.urgent === 1 ? "1 avaliação vence em até 7 dias" : `${metrics.urgent} avaliações vencem em até 7 dias`}
+            </p>
+          ) : (
+            <p className="text-xs text-[var(--text-secondary)]">A situação combina o período do ciclo com o seu preenchimento.</p>
+          )}
         </div>
 
         {catalogLoading ? (
@@ -186,30 +179,33 @@ export default function SurveysPage() {
               const deadline = deadlineStatus(item.closesAt, new Date());
               const showCountdown = item.applicationStatus === "OPEN" && (deadline.state === "counting" || deadline.state === "today");
               return (
-                <Surface key={item.applicationId} className="group flex min-h-64 flex-col overflow-hidden transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
-                  <div className="h-1 bg-[linear-gradient(90deg,var(--brand-primary),var(--brand-accent),var(--brand-secondary))]" aria-hidden="true" />
-                  <div className="flex flex-1 flex-col p-5">
+                /*
+                  Cartão enxugado. Saíram a faixa de gradiente (repetida em todo
+                  cartão, virava ruído em vez de marca), os dois selos de código
+                  no topo — que competiam com o selo de situação, o único que
+                  informa algo acionável — e as caixas cinza em volta dos metadados.
+                  Os códigos continuam visíveis, como texto secundário.
+                */
+                <Surface key={item.applicationId} className="group flex min-h-56 flex-col overflow-hidden transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
+                  <div className="flex flex-1 flex-col p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-wrap gap-2">
-                        <Badge variant="info">{item.surveyCode}</Badge>
-                        <Badge variant="neutral">{item.applicationCode}</Badge>
-                      </div>
+                      <p className="min-w-0 break-words text-xs font-semibold uppercase tracking-[.12em] text-[var(--brand-secondary)]">{item.surveyName}</p>
                       <Badge variant={stateBadgeVariant[state === "ALL" ? "OPEN" : state]} className="shrink-0">{completed ? "Concluída" : state === "DRAFT" ? "Em andamento" : statusLabel(item.applicationStatus)}</Badge>
                     </div>
-                    <p className="mt-4 break-words text-[11px] font-black uppercase tracking-[.12em] text-[var(--brand-secondary)]">{item.surveyName}</p>
-                    <h3 className="mt-1 line-clamp-2 break-words text-lg font-black leading-snug text-[var(--text-primary)]">{item.applicationName}</h3>
+                    <h3 className="mt-1.5 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">{item.applicationName}</h3>
+                    <p className="mt-1 truncate text-xs text-[var(--text-muted)]" title={`${item.surveyCode} · ${item.applicationCode}`}>{item.surveyCode} · {item.applicationCode}</p>
                     <p className="mt-3 line-clamp-2 break-words text-sm leading-6 text-[var(--text-secondary)]">{item.description || "Instrumento institucional disponível conforme seu perfil."}</p>
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-muted)] px-2.5 py-2"><ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />{item.sections} seções · {item.questions} perguntas</span>
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-muted)] px-2.5 py-2"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />Prazo: {dateLabel(item.closesAt)}</span>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[var(--text-secondary)]">
+                      <span className="inline-flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />{item.sections} seções · {item.questions} perguntas</span>
+                      <span className="inline-flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />Prazo: {dateLabel(item.closesAt)}</span>
+                      {showCountdown ? (
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
+                          <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />{deadlineLabel(deadline)}
+                        </span>
+                      ) : null}
                     </div>
-                    {showCountdown ? (
-                      <p className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-lg bg-[var(--status-warning-bg)] px-2.5 py-1.5 text-[11px] font-black text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
-                        <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />{deadlineLabel(deadline)}
-                      </p>
-                    ) : null}
-                    <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-                      <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-bold text-[var(--text-secondary)]">
+                    <div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
+                      <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-semibold text-[var(--text-secondary)]">
                         {completed ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" /> : <FileText className="h-4 w-4 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />}
                         {completed ? "Envio concluído" : item.submissionStatus === "DRAFT" ? "Rascunho salvo" : "Não iniciada"}
                       </span>
