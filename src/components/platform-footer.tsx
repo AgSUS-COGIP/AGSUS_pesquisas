@@ -1,26 +1,24 @@
-import { PLATFORM_SUPPORT_EMAIL, supportMailtoHref } from "@/lib/platform-support";
+import { PlatformSupportContact } from "@/components/platform-support-contact";
 
 /**
  * Rodapé institucional das telas internas.
  *
- * Discreto de propósito: uma linha com o canal de suporte. O link é `mailto:`,
- * então abre o cliente de e-mail padrão da máquina com destinatário e assunto
- * já preenchidos — não depende de nenhuma integração da plataforma.
+ * Discreto de propósito: identificação da instituição de um lado, canal de
+ * suporte do outro. O contato vive em `PlatformSupportContact` porque precisa de
+ * interatividade (copiar para a área de transferência) — este arquivo continua
+ * sendo componente de servidor.
  *
  * Não aparece nas rotas exclusivas do Superadmin (ver `PlatformShell`).
  */
 export function PlatformFooter() {
   return (
-    <footer data-print-hidden="true" className="mx-auto max-w-[1760px] px-2 pb-5 pt-1 text-center text-xs text-[var(--text-secondary)] sm:px-5 lg:px-6">
-      <p className="border-t border-[var(--border-subtle)] pt-3">
-        Precisa de ajuda? Fale conosco:{" "}
-        <a
-          href={supportMailtoHref()}
-          className="font-semibold underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
-          style={{ color: "#8f8f8f" }}>
-        {PLATFORM_SUPPORT_EMAIL}
-        </a>
-      </p>
+    <footer data-print-hidden="true" className="mx-auto max-w-[1760px] px-2 pb-6 pt-1 sm:px-5 lg:px-6">
+      <div className="flex flex-col items-center gap-2 border-t border-[var(--border-subtle)] pt-4 sm:flex-row sm:justify-between">
+        <p className="text-xs leading-5 text-[var(--text-muted)]">
+          Agência Brasileira de Apoio à Gestão do SUS
+        </p>
+        <PlatformSupportContact />
+      </div>
     </footer>
   );
 }

@@ -108,7 +108,14 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
       <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-4">
+      {/*
+        `overflow-x-hidden` é obrigatório aqui, não decorativo: pela regra do
+        CSS, quando um eixo deixa de ser `visible`, o outro também deixa — então
+        `overflow-y-auto` sozinho fazia o eixo horizontal virar `auto` e uma
+        barra de rolagem horizontal aparecia dentro da sidebar em telas baixas,
+        roubando altura e cortando os ícones.
+      */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 pb-4">
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>

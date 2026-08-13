@@ -128,6 +128,15 @@ function statusFilterLabel(value: string) {
   return "";
 }
 
+/** Ciclo listado por `fc_listar_ciclos_pesquisa`. */
+type CycleOption = {
+  applicationId: string; code: string; name: string; status: string;
+  opensAt: string | null; closesAt: string | null; participants: number;
+};
+
+/** Ciclo aberto hoje. Deixa de ser a única opção: vira só o valor inicial. */
+const DEFAULT_CDDI_CYCLE = "CDDI-2026";
+
 export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [showFilters, setShowFilters] = useState(false);
@@ -136,17 +145,42 @@ export default function CddiMonitoringPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [directorateDraft, setDirectorateDraft] = useState("");
   const [statusDraft, setStatusDraft] = useState("");
+  // Recortes que faltavam. A diretoria sozinha é grossa demais para quem
+  // acompanha o ciclo no dia a dia: a pergunta real costuma ser "como está a
+  // minha unidade" ou "quem ainda não foi avaliado pela chefia tal".
+  const [unit, setUnit] = useState("");
+  const [coordination, setCoordination] = useState("");
+  const [manager, setManager] = useState("");
+  const [unitDraft, setUnitDraft] = useState("");
+  const [coordinationDraft, setCoordinationDraft] = useState("");
+  const [managerDraft, setManagerDraft] = useState("");
+  // O ciclo deixou de ser constante no código: vazio significa "o mais recente",
+  // que é o que a RPC resolve sozinha.
+  const [cycleCode, setCycleCode] = useState<string>(DEFAULT_CDDI_CYCLE);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const granted = guard.state === "granted";
 
+  // Ciclos disponíveis para o seletor. Falha aqui não derruba o painel: sem a
+  // lista, resta o ciclo corrente, que é o comportamento anterior.
+  const cycles = useQuery({
+    queryKey: ["cddi-cycles", granted ? guard.person.id : null],
+    enabled: granted,
+    queryFn: async () => {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error: rpcError } = await supabase.rpc("fc_listar_ciclos_pesquisa", { p_codigo_pesquisa: "CDDI" });
+      if (rpcError) throw rpcError;
+      return (Array.isArray(data) ? data : []) as CycleOption[];
+    },
+  });
+
   const dashboard = useQuery({
-    queryKey: ["cddi-monitoring", granted ? guard.person.id : null],
+    queryKey: ["cddi-monitoring", granted ? guard.person.id : null, cycleCode],
     enabled: granted,
     queryFn: async () => {
       const supabase = createBrowserSupabaseClient();
       const { data, error: rpcError } = await supabase.rpc("get_cddi_monitoring_dashboard", {
-        target_application_code: "CDDI-2026",
+        target_application_code: cycleCode,
       });
       if (rpcError) throw rpcError;
       return data as DashboardPayload;
@@ -155,7 +189,7 @@ export default function CddiMonitoringPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, directorate, statusFilter, pageSize]);
+  }, [query, directorate, unit, coordination, manager, statusFilter, pageSize, cycleCode]);
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -178,8 +212,14 @@ export default function CddiMonitoringPage() {
   }
 
   const data = dashboard.data;
+  const cycleOptions = cycles.data ?? [];
   const all = data.participants || [];
   const directorates = Array.from(new Set(all.map((item) => item.directorate).filter(Boolean))).sort();
+  // As opções de unidade e coordenação acompanham a diretoria já escolhida: numa
+  // base de mil pessoas, uma lista de unidades sem recorte é inutilizável.
+  const units = Array.from(new Set(all.filter((item) => !directorate || item.directorate === directorate).map((item) => item.unit).filter(Boolean))).sort();
+  const coordinations = Array.from(new Set(all.filter((item) => !directorate || item.directorate === directorate).map((item) => item.coordination).filter(Boolean))).sort();
+  const managers = Array.from(new Set(all.map((item) => item.managerName).filter((value): value is string => Boolean(value)))).sort();
   const filtered = all.filter((item) => {
     const term = query.trim().toLocaleLowerCase("pt-BR");
     const matchesTerm =
@@ -188,12 +228,15 @@ export default function CddiMonitoringPage() {
         (value) => value?.toLocaleLowerCase("pt-BR").includes(term),
       );
     const matchesDirectorate = !directorate || item.directorate === directorate;
+    const matchesUnit = !unit || item.unit === unit;
+    const matchesCoordination = !coordination || item.coordination === coordination;
+    const matchesManager = !manager || item.managerName === manager;
     const state = participantState(item);
     const matchesStatus =
       !statusFilter ||
       state === statusFilter ||
       (statusFilter === "NO_MANAGER" && !item.managerName);
-    return matchesTerm && matchesDirectorate && matchesStatus;
+    return matchesTerm && matchesDirectorate && matchesUnit && matchesCoordination && matchesManager && matchesStatus;
   });
 
   const autoDone = filtered.filter((item) => item.autoCompleted).length;
@@ -279,16 +322,19 @@ export default function CddiMonitoringPage() {
 
   function clearFilters() {
     setQuery("");
-    setDirectorate("");
-    setStatusFilter("");
-    setDirectorateDraft("");
-    setStatusDraft("");
+    setDirectorate(""); setUnit(""); setCoordination(""); setManager(""); setStatusFilter("");
+    setDirectorateDraft(""); setUnitDraft(""); setCoordinationDraft(""); setManagerDraft(""); setStatusDraft("");
   }
 
   function applyFilters() {
     setDirectorate(directorateDraft);
+    setUnit(unitDraft);
+    setCoordination(coordinationDraft);
+    setManager(managerDraft);
     setStatusFilter(statusDraft);
   }
+
+  const hasActiveFilter = Boolean(query || directorate || unit || coordination || manager || statusFilter);
 
   // Clicar num KPI aplica (ou remove, se já ativo) o recorte por situação —
   // como no AgSUS Monitora. O rascunho do filtro acompanha para o painel refletir.
@@ -308,8 +354,17 @@ export default function CddiMonitoringPage() {
     { key: "__taxa", label: "Taxa de conclusão", value: pct(completion), tone: "brand", interactive: false },
   ];
 
-  const contextLine = query || directorate || statusFilter
-    ? `Recorte ativo: ${filtered.length} de ${all.length} participantes${directorate ? ` · ${directorate}` : ""}${statusFilter ? ` · ${statusFilterLabel(statusFilter)}` : ""}${query ? ` · busca "${query.trim()}"` : ""}.`
+  // A linha precisa nomear **todos** os recortes ativos. Um filtro que encolhe o
+  // número sem aparecer aqui faz o operador desconfiar do painel.
+  const contextLine = hasActiveFilter
+    ? `Recorte ativo: ${filtered.length} de ${all.length} participantes${[
+        directorate,
+        unit,
+        coordination,
+        manager ? `chefia ${manager}` : "",
+        statusFilter ? statusFilterLabel(statusFilter) : "",
+        query.trim() ? `busca "${query.trim()}"` : "",
+      ].filter(Boolean).map((part) => ` · ${part}`).join("")}.`
     : `Sem filtros aplicados. Recorte base: ${all.length} participantes do ciclo.`;
 
   return (
@@ -359,7 +414,7 @@ export default function CddiMonitoringPage() {
             <h2 id="dashboard-filter-title" className="mt-1 text-base font-black text-[var(--text-primary)]">Refinar visualização</h2>
           </div>
           <div className="flex items-center gap-3">
-            {(query || directorate || statusFilter || directorateDraft || statusDraft) ? (
+            {(hasActiveFilter || directorateDraft || unitDraft || coordinationDraft || managerDraft || statusDraft) ? (
               <button type="button" onClick={clearFilters} className="text-xs font-black text-[var(--brand-primary)] hover:underline">Limpar filtros</button>
             ) : null}
             <button type="button" onClick={() => setShowFilters((visible) => !visible)} className="secondary-button inline-flex h-9 items-center gap-2 px-3 text-xs" aria-expanded={showFilters} aria-controls="dashboard-filters">
@@ -369,17 +424,49 @@ export default function CddiMonitoringPage() {
           </div>
         </div>
         {showFilters ? <form id="dashboard-filters" className="mt-5 grid gap-4 border-t border-[var(--border-subtle)] pt-5 lg:grid-cols-12 lg:items-end" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+          {/*
+            Saíram dois `select` desabilitados: um "Nível" com a única opção
+            "Diretoria" e o "Ciclo avaliativo" travado no código fixo. Controle
+            que não muda nada não é filtro — é ruído que faz o operador procurar
+            por que não funciona. No lugar entraram os recortes que a operação
+            usa de fato, e o seletor de ciclo virou real.
+          */}
           <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Nível</span>
-            <select className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]" value="DIRECTORATE" disabled>
-              <option value="DIRECTORATE">Diretoria</option>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Diretoria</span>
+            <select
+              value={directorateDraft}
+              onChange={(event) => {
+                // Trocar a diretoria zera unidade e coordenação: manter a
+                // escolha anterior produziria recorte vazio sem explicação.
+                setDirectorateDraft(event.target.value);
+                setUnitDraft("");
+                setCoordinationDraft("");
+              }}
+              className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]"
+            >
+              <option value="">Todas as diretorias</option>
+              {directorates.map((item) => <option key={item}>{item}</option>)}
             </select>
           </label>
           <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Opção</span>
-            <select value={directorateDraft} onChange={(event) => setDirectorateDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
-              <option value="">Todas as diretorias</option>
-              {directorates.map((item) => <option key={item}>{item}</option>)}
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Unidade</span>
+            <select value={unitDraft} onChange={(event) => setUnitDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
+              <option value="">Todas as unidades</option>
+              {units.map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="lg:col-span-3">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Coordenação</span>
+            <select value={coordinationDraft} onChange={(event) => setCoordinationDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
+              <option value="">Todas as coordenações</option>
+              {coordinations.map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="lg:col-span-3">
+            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Chefia</span>
+            <select value={managerDraft} onChange={(event) => setManagerDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
+              <option value="">Todas as chefias</option>
+              {managers.map((item) => <option key={item}>{item}</option>)}
             </select>
           </label>
           <label className="lg:col-span-3">
@@ -393,13 +480,31 @@ export default function CddiMonitoringPage() {
               <option value="NO_MANAGER">Sem chefia informada</option>
             </select>
           </label>
-          <label className="lg:col-span-2">
+          {/*
+            O ciclo troca a consulta, não o recorte em memória, então aplica na
+            hora — esperar o "Filtrar" faria a tela mostrar dados de um ciclo com
+            o seletor exibindo outro. Com um único ciclo cadastrado o controle
+            continua visível, mas fica desabilitado e diz por quê.
+          */}
+          <label className="lg:col-span-3">
             <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
-            <select className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]" value={data.application.code} disabled>
-              <option value={data.application.code}>{data.application.name}</option>
+            <select
+              value={cycleCode}
+              onChange={(event) => setCycleCode(event.target.value)}
+              disabled={cycleOptions.length < 2}
+              title={cycleOptions.length < 2 ? "Só existe um ciclo do CDDI cadastrado" : "Trocar o ciclo recarrega o painel"}
+              className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {cycleOptions.length
+                ? cycleOptions.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.name} ({item.participants} {item.participants === 1 ? "participante" : "participantes"})
+                    </option>
+                  ))
+                : <option value={data.application.code}>{data.application.name}</option>}
             </select>
           </label>
-          <button type="submit" className="primary-button h-11 justify-center lg:col-span-1" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
+          <button type="submit" className="primary-button h-11 justify-center lg:col-span-3" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
         </form> : null}
       </section>
 

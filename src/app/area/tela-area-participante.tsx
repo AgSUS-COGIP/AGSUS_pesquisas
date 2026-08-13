@@ -134,7 +134,24 @@ export default function ParticipantAreaPage() {
 
   return (
     <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
-      <div className="mx-auto w-full max-w-[1400px] space-y-6">
+      {/*
+        Tentei antes forçar a página a ocupar a altura da janela, com
+        `min-height` e a jornada crescendo para absorver a sobra. Em monitor
+        grande o resultado foi pior: o cartão esticava e virava um bloco branco
+        enorme com uma linha só dentro.
+
+        Altura vazia é honesta quando não há o que mostrar; caixa vazia esticada
+        não é. A coluna voltou a ter altura natural, e a escala desceu — em tela
+        de 1080 os números de 2,5rem e o avatar maior ficavam grandes demais.
+      */}
+      {/*
+        Sem `max-w` próprio: a `<main>` da casca já limita em 1760px, e o rodapé
+        usa a mesma medida. O cap de 1400px daqui deixava o conteúdo mais estreito
+        que o rodapé logo abaixo — visível em monitor grande, onde a linha da
+        instituição começava à esquerda dos cartões — e ainda desperdiçava 360px
+        de largura justamente na tela em que sobrava espaço.
+      */}
+      <div className="flex w-full flex-col gap-5">
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
@@ -142,25 +159,35 @@ export default function ParticipantAreaPage() {
           para ela significar alguma coisa.
         */}
         <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-          <article className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] sm:p-7">
+          <article className="@container flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
             <div className="flex items-center gap-4">
               <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
               <div className="min-w-0">
                 <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
-                <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[1.75rem]">{firstName}</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">{firstName}</h2>
               </div>
             </div>
 
-            <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-6 pt-8 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
+            {/*
+              Quatro colunas dependem da largura do **cartão**, não da janela —
+              daí o `@container` no elemento acima e o `@4xl` (56rem) aqui.
+
+              A primeira tentativa usou `lg:`, que responde à janela: num
+              notebook de 1359px a janela já passava de `lg`, mas o cartão tinha
+              só ~700px, e "Prazo mais próximo" quebrava em duas linhas do mesmo
+              jeito. O breakpoint estava medindo a coisa errada.
+            */}
+            <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
               {metricTiles.map((tile, index) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
                 const highlight = !catalogLoading && tile.alert;
+                // O recuo acompanha a régua: só existe onde ela existe.
                 return (
-                  <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
+                  <div key={tile.label} className={index > 0 ? "@4xl:pl-6" : undefined}>
                     <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
                     <dd>
-                      <strong className={`mt-1.5 block text-[2rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                      <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
                         {catalogLoading ? "—" : tile.value}
                       </strong>
                       <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
@@ -178,7 +205,7 @@ export default function ParticipantAreaPage() {
             recebe fundo de marca. Antes ela competia de igual para igual com
             quatro atalhos e uma lista.
           */}
-          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--brand-primary)]/15 bg-[var(--status-info-bg)] p-6 shadow-[var(--shadow-card)] sm:p-7">
+          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--brand-primary)]/15 bg-[var(--status-info-bg)] p-5 shadow-[var(--shadow-card)] sm:p-6">
             {catalogLoading ? (
               <div className="space-y-3" aria-busy="true">
                 <Skeleton className="h-4 w-24" />
@@ -233,7 +260,7 @@ export default function ParticipantAreaPage() {
           quatro atalhos que repetem o menu lateral — e era a lista, não os
           atalhos, que precisava de espaço para respirar.
         */}
-        <article className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+        <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
@@ -250,8 +277,11 @@ export default function ParticipantAreaPage() {
                 {Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)}
               </div>
             ) : catalog.length ? (
+              // Passou de 4 para 6: com a coluna ocupando a altura inteira, o
+              // corte em 4 deixaria espaço sobrando justamente para quem tem
+              // avaliações a mostrar.
               <ul className="divide-y divide-[var(--border-subtle)]">
-                {catalog.slice(0, 4).map((item) => {
+                {catalog.slice(0, 6).map((item) => {
                   const state = itemState(item);
                   return (
                     <li key={item.applicationId}>
