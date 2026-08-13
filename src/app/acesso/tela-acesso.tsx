@@ -6,7 +6,7 @@ import { safeAuthNext } from "@/lib/auth-callback";
 import { needsLightForeground } from "@/lib/color-contrast";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { PlatformLogo } from "@/components/platform-logo";
-import { usePlatformBranding } from "@/components/platform-branding-provider";
+import type { PlatformBranding } from "@/lib/platform-branding";
 import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
 /*
  * Arte padrão da tela de acesso, servida localmente de `public/`.
@@ -27,8 +27,17 @@ function accessErrorMessage(code: string | null) {
   return "";
 }
 
-export default function AccessPage() {
-  const { branding } = usePlatformBranding();
+export default function AccessPage({ initialBranding }: { initialBranding: PlatformBranding }) {
+  /*
+   * A marca vem resolvida do servidor (`page.tsx`) e é usada como está, sem
+   * esperar o provedor do cliente.
+   *
+   * O provedor só responde depois da primeira pintura: até lá valia o padrão, e
+   * a tela abria com a arte institucional para trocar pela configurada em
+   * seguida. O piscar era curto, mas dava a impressão de que a configuração não
+   * tinha pegado — e esta é a primeira tela que qualquer pessoa vê.
+   */
+  const branding = initialBranding;
   const supabaseConfigured = isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -104,14 +113,21 @@ export default function AccessPage() {
     /*
       Duas colunas: formulário à esquerda, arte à direita — o formato usado nos
       demais sistemas da AgSUS.
-      
-      A arte fica **oculta abaixo de `lg`** em vez de virar faixa no topo: em
-      celular ela empurraria o botão de entrar para fora da primeira dobra, e a
-      única coisa que a pessoa precisa fazer nesta tela é entrar.
+
+      As duas colunas começam em `md` (768px), não em `lg`. Entre 768 e 1023 a
+      arte ficava escondida e o painel ocupava a largura inteira com uma coluna
+      de 384px perdida no meio — muito vazio dos dois lados, que é o que dava
+      aparência de tela inacabada em tablet e notebook estreito. Nessa faixa as
+      metades são iguais; a partir de `lg` o formulário passa a ter largura fixa
+      e a arte fica com o resto.
+
+      Abaixo de `md` a arte some de propósito: em celular ela empurraria o botão
+      de entrar para fora da primeira dobra, e entrar é a única coisa que a
+      pessoa precisa fazer aqui.
     */
-    <main className="grid min-h-screen bg-white lg:grid-cols-[minmax(0,460px)_1fr]">
+    <main className="grid min-h-screen bg-white md:grid-cols-2 lg:grid-cols-[minmax(0,460px)_1fr]">
       <section
-        className="flex flex-col justify-center px-6 py-10 sm:px-12"
+        className="flex flex-col justify-center px-6 py-8 sm:px-10 lg:px-12 lg:py-10"
         style={panelColor ? { backgroundColor: panelColor } : undefined}
       >
         {/* Coluna centralizada: o logotipo já vinha centralizado e o texto
@@ -150,7 +166,7 @@ export default function AccessPage() {
               width={112}
               height={112}
               priority
-              className="h-28 w-28 object-contain text-2xl"
+              className="h-20 w-20 object-contain text-xl lg:h-28 lg:w-28 lg:text-2xl"
             />
           </div>
 
@@ -166,11 +182,11 @@ export default function AccessPage() {
             Título e nome do sistema vêm da marca configurada, não de texto fixo:
             trocar o nome do produto em /admin/configuracoes precisa valer aqui.
           */}
-          <p className={`mt-8 text-xs font-semibold uppercase tracking-[.22em] ${lightOnPanel ? "text-emerald-300" : "text-[#0b8f58]"}`}>Acesso institucional</p>
-          <h1 className={`mt-2 text-[1.75rem] font-semibold tracking-tight ${lightOnPanel ? "text-white" : "text-[#003b70]"}`}>
+          <p className={`mt-6 text-xs font-semibold uppercase tracking-[.22em] lg:mt-8 ${lightOnPanel ? "text-emerald-300" : "text-[#0b8f58]"}`}>Acesso institucional</p>
+          <h1 className={`mt-2 text-2xl font-semibold tracking-tight lg:text-[1.75rem] ${lightOnPanel ? "text-white" : "text-[#003b70]"}`}>
             {branding.organizationName} {branding.productName}
           </h1>
-          <p className={`mt-3 text-[15px] leading-7 ${lightOnPanel ? "text-white/80" : "text-slate-600"}`}>
+          <p className={`mt-3 text-sm leading-6 lg:text-[15px] lg:leading-7 ${lightOnPanel ? "text-white/80" : "text-slate-600"}`}>
             Plataforma institucional de pesquisas e avaliações.
           </p>
 
@@ -180,7 +196,7 @@ export default function AccessPage() {
             disabled={loading || blocked}
             aria-describedby="access-help"
             title={blocked ? "A configuração deste ambiente ainda não foi concluída" : "Abrir a seleção de conta do Google"}
-            className={`mt-8 flex min-h-14 w-full items-center justify-center gap-3 rounded-xl px-5 text-base font-semibold shadow-lg transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-not-allowed disabled:opacity-60 ${lightOnPanel ? "bg-white text-[#003b70] hover:bg-slate-100" : "bg-[#003b70] text-white shadow-blue-950/20 hover:bg-[#075ea8]"}`}
+            className={`mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm lg:mt-8 lg:min-h-14 lg:text-base font-semibold shadow-lg transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-not-allowed disabled:opacity-60 ${lightOnPanel ? "bg-white text-[#003b70] hover:bg-slate-100" : "bg-[#003b70] text-white shadow-blue-950/20 hover:bg-[#075ea8]"}`}
           >
             {loading
               ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" />
@@ -189,7 +205,7 @@ export default function AccessPage() {
           </button>
 
           {loading && (
-            <p role="status" className="mt-3 text-center text-xs leading-5 text-slate-500">
+            <p role="status" className={`mt-3 text-center text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
               Você será levado à tela de seleção de conta do Google.
             </p>
           )}
@@ -209,18 +225,21 @@ export default function AccessPage() {
             </div>
           ) : null}
 
-          <p id="access-help" className={`mt-7 flex items-center justify-center gap-2 text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
-            <ShieldCheck className="h-4 w-4 shrink-0 text-[#0b8f58]" aria-hidden="true" />
+          <p id="access-help" className={`mt-5 flex items-center justify-center gap-2 text-xs leading-5 lg:mt-7 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
+            {/* O escudo fica solto sobre o painel, sem fundo próprio — diferente
+                dos alertas e do círculo do "G", que carregam o contraste
+                consigo. Por isso ele acompanha, e eles não precisam. */}
+            <ShieldCheck className={`h-4 w-4 shrink-0 ${lightOnPanel ? "text-emerald-300" : "text-[#0b8f58]"}`} aria-hidden="true" />
             <span>Acesso seguro, exclusivo para contas <strong className="font-semibold">@agenciasus.org.br</strong>.</span>
           </p>
 
-          <p className={`mt-10 border-t pt-5 text-xs ${lightOnPanel ? "border-white/20 text-white/70" : "border-slate-200 text-slate-500"}`}>
+          <p className={`mt-8 border-t pt-4 text-xs lg:mt-10 lg:pt-5 ${lightOnPanel ? "border-white/20 text-white/70" : "border-slate-200 text-slate-500"}`}>
             Agência Brasileira de Apoio à Gestão do SUS
           </p>
         </div>
       </section>
 
-      <aside className="relative hidden lg:block" aria-hidden="true">
+      <aside className="relative hidden md:block" aria-hidden="true">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? BACKGROUND_IMAGE})` }}
