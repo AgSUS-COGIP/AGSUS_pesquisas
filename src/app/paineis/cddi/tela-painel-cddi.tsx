@@ -134,9 +134,6 @@ type CycleOption = {
   opensAt: string | null; closesAt: string | null; participants: number;
 };
 
-/** Ciclo aberto hoje. Deixa de ser a única opção: vira só o valor inicial. */
-const DEFAULT_CDDI_CYCLE = "CDDI-2026";
-
 export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [showFilters, setShowFilters] = useState(false);
@@ -154,9 +151,11 @@ export default function CddiMonitoringPage() {
   const [unitDraft, setUnitDraft] = useState("");
   const [coordinationDraft, setCoordinationDraft] = useState("");
   const [managerDraft, setManagerDraft] = useState("");
-  // O ciclo deixou de ser constante no código: vazio significa "o mais recente",
-  // que é o que a RPC resolve sozinha.
-  const [cycleCode, setCycleCode] = useState<string>(DEFAULT_CDDI_CYCLE);
+  // Nenhum código de ciclo escrito aqui: vazio significa "ainda não escolhi", e
+  // o painel assume o primeiro da lista — que a RPC já devolve do mais recente
+  // para o mais antigo. Com `CDDI-2026` fixo, a segunda edição abriria sempre
+  // no ciclo errado.
+  const [cycleCode, setCycleCode] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const granted = guard.state === "granted";
@@ -174,13 +173,18 @@ export default function CddiMonitoringPage() {
     },
   });
 
+  // Enquanto a lista não chega, `cycleCode` está vazio e o primeiro da lista
+  // vale como escolha. Consultar o painel sem código nenhum falharia, então a
+  // consulta espera a resolução em vez de disparar no vazio.
+  const resolvedCycle = cycleCode || cycles.data?.[0]?.code || "";
+
   const dashboard = useQuery({
-    queryKey: ["cddi-monitoring", granted ? guard.person.id : null, cycleCode],
-    enabled: granted,
+    queryKey: ["cddi-monitoring", granted ? guard.person.id : null, resolvedCycle],
+    enabled: granted && Boolean(resolvedCycle),
     queryFn: async () => {
       const supabase = createBrowserSupabaseClient();
       const { data, error: rpcError } = await supabase.rpc("get_cddi_monitoring_dashboard", {
-        target_application_code: cycleCode,
+        target_application_code: resolvedCycle,
       });
       if (rpcError) throw rpcError;
       return data as DashboardPayload;
@@ -189,7 +193,7 @@ export default function CddiMonitoringPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, directorate, unit, coordination, manager, statusFilter, pageSize, cycleCode]);
+  }, [query, directorate, unit, coordination, manager, statusFilter, pageSize, resolvedCycle]);
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -199,7 +203,19 @@ export default function CddiMonitoringPage() {
       restrictedDescription="O módulo Painéis está disponível para a administração da plataforma."
     />;
   }
-  if (dashboard.isLoading) return <PlatformSkeleton title="Montando painel analítico" />;
+  if (dashboard.isLoading || (cycles.isLoading && !resolvedCycle)) return <PlatformSkeleton title="Montando painel analítico" />;
+  // Sem nenhum ciclo do CDDI cadastrado não há painel a montar — e dizer isso é
+  // melhor do que deixar o esqueleto girando para sempre.
+  if (!resolvedCycle) {
+    return (
+      <FullPageState
+        title={cycles.error ? "Não foi possível listar os ciclos" : "Nenhum ciclo do CDDI cadastrado"}
+        description={cycles.error instanceof Error ? cycles.error.message : "Assim que um ciclo for criado e publicado, o painel passa a acompanhá-lo."}
+        actionHref="/paineis"
+        actionLabel="Voltar aos painéis"
+      />
+    );
+  }
   if (dashboard.error || !dashboard.data) {
     return (
       <FullPageState
@@ -489,7 +505,7 @@ export default function CddiMonitoringPage() {
           <label className="lg:col-span-3">
             <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
             <select
-              value={cycleCode}
+              value={resolvedCycle}
               onChange={(event) => setCycleCode(event.target.value)}
               disabled={cycleOptions.length < 2}
               title={cycleOptions.length < 2 ? "Só existe um ciclo do CDDI cadastrado" : "Trocar o ciclo recarrega o painel"}

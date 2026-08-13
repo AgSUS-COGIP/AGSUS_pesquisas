@@ -70,11 +70,29 @@ export default function LeaderEvaluationPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        // A tela Minha equipe informa o ciclo escolhido por query string; sem o
-        // parâmetro, permanece o ciclo padrão do CDDI.
-        const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
-        const applicationCode = cycleFromQuery || "CDDI-2026";
         const supabase = createBrowserSupabaseClient();
+        /*
+         * A tela Minha equipe informa o ciclo escolhido por query string. Sem o
+         * parâmetro, o ciclo vinha escrito no código (`CDDI-2026`) — o que
+         * levaria quem abrisse o link direto, na segunda edição, a avaliar
+         * alguém no ciclo errado.
+         *
+         * O resolvedor aqui é `fc_listar_ciclos_lideranca`, e não o da
+         * autoavaliação: quem avalia é a chefia, e o ciclo que importa é aquele
+         * em que ela **lidera equipe** — não aquele em que ela é avaliada. A
+         * lista já vem do mais recente para o mais antigo.
+         */
+        const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
+        let applicationCode = cycleFromQuery || "";
+        if (!applicationCode) {
+          const { data: cycleData, error: cycleError } = await supabase.rpc("fc_listar_ciclos_lideranca");
+          if (cycleError) throw cycleError;
+          const cycles = (Array.isArray(cycleData) ? cycleData : []) as Array<{ code?: string }>;
+          if (!cycles[0]?.code) {
+            throw new Error("Você não tem vínculo de liderança em nenhum ciclo do CDDI.");
+          }
+          applicationCode = cycles[0].code;
+        }
         const [formResponse, submissionResponse, teamResponse] = await Promise.all([
           supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
           supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: applicationCode, target_submission_type: "CHEFIA", target_subject_person_id: personId }),
