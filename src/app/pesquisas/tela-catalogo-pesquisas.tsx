@@ -126,18 +126,18 @@ export default function SurveysPage() {
           {/* A legenda de cada indicador diz o que o número significa para a
               decisão: urgência de prazo e percentual concluído. */}
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Disponíveis" value={catalogLoading ? "—" : metrics.total} description={catalogLoading ? undefined : "no total, para o seu perfil"} className="p-4" />
+            <StatCard label="Disponíveis" value={catalogLoading ? "—" : metrics.total} description={catalogLoading ? undefined : "total destinado ao seu perfil"} className="p-4" />
             <StatCard
-              label="A responder"
+              label="Pendentes"
               value={catalogLoading ? "—" : metrics.actionable}
-              description={catalogLoading ? undefined : metrics.urgent > 0 ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias` : "sem prazo apertado"}
+              description={catalogLoading ? undefined : metrics.urgent > 0 ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias` : "ainda não iniciadas"}
               className="p-4"
             />
-            <StatCard label="Em andamento" value={catalogLoading ? "—" : metrics.inProgress} description={catalogLoading ? undefined : "iniciadas, faltam enviar"} className="p-4" />
+            <StatCard label="Em andamento" value={catalogLoading ? "—" : metrics.inProgress} description={catalogLoading ? undefined : "iniciadas e ainda não enviadas"} className="p-4" />
             <StatCard
-              label="Concluídas"
+              label="Finalizadas"
               value={catalogLoading ? "—" : metrics.completed}
-              description={catalogLoading ? undefined : metrics.total ? `${metrics.completionRate}% do total` : "enviadas e registradas"}
+              description={catalogLoading ? undefined : metrics.total ? `${metrics.completionRate}% do total` : "respondidas e enviadas"}
               className="p-4"
             />
           </div>
