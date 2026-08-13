@@ -114,26 +114,64 @@ export default function AccessPage() {
         className="flex flex-col justify-center px-6 py-10 sm:px-12"
         style={panelColor ? { backgroundColor: panelColor } : undefined}
       >
-        <div className="mx-auto w-full max-w-sm">
-          {/* Tela pública: logotipo institucional embutido (data URI). Renderiza junto
-              com a página, sem requisição de rede e sem "piscar" na abertura. */}
-          <PlatformLogo
-            src={LOGO_INSTITUCIONAL_DATA_URI}
-            alt="AgSUS"
-            organizationName="AgSUS"
-            width={64}
-            height={64}
-            priority
-            className="h-16 w-16 object-contain text-lg"
-          />
+        {/* Coluna centralizada: o logotipo já vinha centralizado e o texto
+            alinhado à esquerda deixava o conjunto desequilibrado. */}
+        <div className="mx-auto w-full max-w-sm text-center">
+          {/*
+            Tela pública: logotipo institucional embutido (data URI). Renderiza
+            junto com a página, sem requisição de rede e sem "piscar" na abertura.
 
+            Sobre painel escuro o logotipo é renderizado em branco sólido, por
+            decisão do produto — acompanha o contraste como o texto e o botão.
+            `brightness(0)` achata o desenho para preto e `invert(1)` o leva a
+            branco: o resultado é a silhueta em branco puro, previsível em
+            qualquer cor de painel, e não um clareamento que variaria conforme o
+            fundo escolhido.
+
+            Fica o registro de que isso altera as cores da marca. Se a
+            identidade visual passar a exigir as cores originais, a alternativa
+            é o quadrado branco atrás do logotipo — o mesmo recurso que a barra
+            lateral escura usa.
+          */}
+          {/*
+            O filtro vai em `style`, não em classe utilitária arbitrária: o
+            Tailwind gerou `filter:brightness(0)invert()` para
+            `[filter:brightness(0)_invert(1)]` — sem o espaço entre as funções e
+            sem o argumento, o que é CSS inválido e simplesmente não aplicava.
+          */}
+          <div
+            className="mx-auto w-fit"
+            style={lightOnPanel ? { filter: "brightness(0) invert(1)" } : undefined}
+          >
+            <PlatformLogo
+              src={LOGO_INSTITUCIONAL_DATA_URI}
+              alt="AgSUS"
+              organizationName="AgSUS"
+              width={112}
+              height={112}
+              priority
+              className="h-28 w-28 object-contain text-2xl"
+            />
+          </div>
+
+          {/*
+            Texto institucional, não de boas-vindas: o título nomeia o sistema em
+            vez de saudar, porque quem chega aqui está entrando para trabalhar e
+            só precisa confirmar que é a plataforma certa.
+
+            Uma linha basta. A instrução de entrar com conta corporativa já
+            aparece **duas vezes** logo abaixo — no rótulo do botão e na nota de
+            acesso seguro. Repeti-la aqui era texto que ninguém lê.
+
+            Título e nome do sistema vêm da marca configurada, não de texto fixo:
+            trocar o nome do produto em /admin/configuracoes precisa valer aqui.
+          */}
           <p className={`mt-8 text-xs font-semibold uppercase tracking-[.22em] ${lightOnPanel ? "text-emerald-300" : "text-[#0b8f58]"}`}>Acesso institucional</p>
           <h1 className={`mt-2 text-[1.75rem] font-semibold tracking-tight ${lightOnPanel ? "text-white" : "text-[#003b70]"}`}>
-            Seja bem-vindo(a) à AgSUS
+            {branding.organizationName} {branding.productName}
           </h1>
           <p className={`mt-3 text-[15px] leading-7 ${lightOnPanel ? "text-white/80" : "text-slate-600"}`}>
-            {branding.productName} — entre com sua conta Google corporativa. O que você verá
-            depois depende das autorizações do seu perfil.
+            Plataforma institucional de pesquisas e avaliações.
           </p>
 
           <button
@@ -171,7 +209,7 @@ export default function AccessPage() {
             </div>
           ) : null}
 
-          <p id="access-help" className={`mt-7 flex items-center gap-2 text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
+          <p id="access-help" className={`mt-7 flex items-center justify-center gap-2 text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
             <ShieldCheck className="h-4 w-4 shrink-0 text-[#0b8f58]" aria-hidden="true" />
             <span>Acesso seguro, exclusivo para contas <strong className="font-semibold">@agenciasus.org.br</strong>.</span>
           </p>
@@ -187,9 +225,6 @@ export default function AccessPage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? BACKGROUND_IMAGE})` }}
         />
-        <span className="absolute bottom-4 right-5 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-[10px] font-medium tracking-wide text-white/80 backdrop-blur-md">
-          Imagem de fundo ilustrativa
-        </span>
       </aside>
     </main>
   );
