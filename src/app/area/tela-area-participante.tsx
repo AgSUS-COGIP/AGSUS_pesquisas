@@ -15,6 +15,7 @@ import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
+import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
 
 function greeting() {
   const hour = Number(new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date()).replace(/\D/g, ""));
@@ -44,13 +45,18 @@ function dateLabel(value: string | null) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
 }
 
-/** Dias restantes até o prazo — o número que decide a urgência da próxima ação. */
-function daysUntil(value: string | null) {
-  if (!value) return null;
-  const diff = new Date(value).getTime() - Date.now();
-  if (Number.isNaN(diff) || diff < 0) return null;
-  return Math.ceil(diff / 86_400_000);
-}
+/*
+ * A contagem de dias vive em `@/lib/deadline` e é a única do sistema.
+ *
+ * Havia aqui uma segunda implementação, `daysUntil`, que arredondava a
+ * diferença exata em horas para cima (`Math.ceil`). O restante da plataforma
+ * conta **dias de calendário**, que é o que a pessoa espera de um "faltam X
+ * dias". Para o mesmo encerramento — 29/08 às 17h09 — a faixa de métricas
+ * mostrava "16d" e o cartão de próxima ação, logo ao lado, "faltam 17 dias".
+ *
+ * Dois números para o mesmo prazo, na mesma tela. Duplicar a regra foi o
+ * defeito; a correção é não ter a segunda cópia.
+ */
 
 export default function ParticipantAreaPage() {
   // Sem módulo exigido no hook: o Participante não tem Visão Geral, mas /area é
@@ -130,7 +136,9 @@ export default function ParticipantAreaPage() {
     },
   ];
 
-  const priorityDeadline = priorityItem ? daysUntil(priorityItem.closesAt) : null;
+  // Mesma fonte que alimenta a métrica "Prazo mais próximo" e os cartões do
+  // catálogo — por isso os números concordam.
+  const priorityDeadline = priorityItem ? deadlineLabel(deadlineStatus(priorityItem.closesAt, new Date())) : null;
 
   return (
     <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
@@ -229,10 +237,8 @@ export default function ParticipantAreaPage() {
               <p className="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-1 pt-5 text-sm">
                 <span className="text-[var(--text-secondary)]">Prazo</span>
                 <strong className="font-semibold text-[var(--text-primary)]">{dateLabel(priorityItem.closesAt)}</strong>
-                {priorityDeadline !== null && (
-                  <span className="text-[var(--text-secondary)]">
-                    · {priorityDeadline === 0 ? "encerra hoje" : `faltam ${priorityDeadline} ${priorityDeadline === 1 ? "dia" : "dias"}`}
-                  </span>
+                {priorityDeadline && (
+                  <span className="text-[var(--text-secondary)]">· {priorityDeadline.toLocaleLowerCase("pt-BR")}</span>
                 )}
               </p>
 
