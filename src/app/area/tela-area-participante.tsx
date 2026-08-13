@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, FileText, Inbox, ShieldCheck, Users2 } from "lucide-react";
+import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -86,21 +86,46 @@ export default function ParticipantAreaPage() {
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
   const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
-  const isAdmin = modules.some((item) => item.startsWith("ADMIN_"));
   const firstName = person.fullName.split(/\s+/)[0];
 
+  // A administração não tem atalho aqui: a central foi retirada da navegação e
+  // cada módulo administrativo tem entrada própria no menu lateral.
   const actions = [
     { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar avaliações", icon: FileText },
     ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliar", icon: Users2 }] : []),
     ...(modules.includes(PLATFORM_MODULE.RESULTS) ? [{ href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3 }] : []),
-    ...(isAdmin ? [{ href: "/admin", title: "Administração", text: "Gerenciar avaliações, pessoas e acessos", icon: ShieldCheck }] : []),
+    ...(modules.includes(PLATFORM_MODULE.DASHBOARDS) ? [{ href: "/paineis", title: "Painéis", text: "Indicadores e acompanhamento dos ciclos", icon: LayoutDashboard }] : []),
   ];
 
+  // A legenda de cada indicador responde "e daí?": urgência quando há prazo
+  // apertado, percentual quando o número sozinho não diz se está bem.
+  const urgentLabel = metrics.urgent === 1 ? "1 vence em até 7 dias" : `${metrics.urgent} vencem em até 7 dias`;
   const metricTiles = [
-    { label: "Pendentes", value: metrics.pending, description: "aguardando você começar" },
-    { label: "Em andamento", value: metrics.inProgress, description: "já iniciadas, faltam enviar" },
-    { label: "Concluídas", value: metrics.completed, description: "enviadas e registradas" },
-    { label: "Disponíveis", value: metrics.total, description: "no total, para o seu perfil" },
+    {
+      label: "Pendentes",
+      value: metrics.pending,
+      description: metrics.pending === 0 ? "nada aguardando você" : "aguardando você começar",
+    },
+    {
+      label: "Em andamento",
+      value: metrics.inProgress,
+      description: metrics.inProgress === 0 ? "nenhuma iniciada" : "já iniciadas, faltam enviar",
+    },
+    {
+      label: "Concluídas",
+      value: metrics.completed,
+      description: metrics.total ? `${metrics.completionRate}% do que está disponível` : "enviadas e registradas",
+    },
+    {
+      label: "Prazo mais próximo",
+      value: metrics.nextDeadlineDays === null ? "—" : metrics.nextDeadlineDays === 0 ? "hoje" : `${metrics.nextDeadlineDays}d`,
+      description: metrics.actionable === 0
+        ? "sem prazos em aberto"
+        : metrics.urgent > 0
+          ? urgentLabel
+          : `${metrics.actionable} ${metrics.actionable === 1 ? "avaliação aberta" : "avaliações abertas"}`,
+      alert: metrics.urgent > 0,
+    },
   ];
 
   const priorityDeadline = priorityItem ? daysUntil(priorityItem.closesAt) : null;
@@ -120,15 +145,25 @@ export default function ParticipantAreaPage() {
             </div>
 
             <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {metricTiles.map((tile) => (
-                <div key={tile.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3.5">
-                  <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
-                  <dd>
-                    <strong className="mt-1.5 block text-2xl font-semibold text-[var(--brand-primary)]">{catalogLoading ? "—" : tile.value}</strong>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-[var(--text-muted)]">{tile.description}</span>
-                  </dd>
-                </div>
-              ))}
+              {metricTiles.map((tile) => {
+                // Urgência muda a cor do cartão, mas o texto continua dizendo o
+                // motivo — cor nunca é o único indicador de estado.
+                const highlight = !catalogLoading && tile.alert;
+                return (
+                  <div
+                    key={tile.label}
+                    className={`rounded-xl border p-3.5 ${highlight
+                      ? "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)]"
+                      : "border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}
+                  >
+                    <dt className={`text-xs font-semibold uppercase tracking-[.1em] ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--text-secondary)]"}`}>{tile.label}</dt>
+                    <dd>
+                      <strong className={`mt-1.5 block text-2xl font-semibold tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>{catalogLoading ? "—" : tile.value}</strong>
+                      <span className={`mt-0.5 block text-[11px] leading-4 ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>{catalogLoading ? "carregando" : tile.description}</span>
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           </article>
 

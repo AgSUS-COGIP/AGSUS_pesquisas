@@ -194,7 +194,7 @@ export default function TeamPage() {
     eyebrow="Gestão da liderança"
     title="Minha equipe"
   >
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <PageHeader
         eyebrow={workspace?.application ? workspace.application.name : "Ciclo de avaliação"}
         title="Avaliações da minha equipe"

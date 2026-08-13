@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
+import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
+import { SurveyBanner } from "@/components/survey-banner";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { cddiSectionCompletion, isCddiQuestionAnswered } from "@/lib/cddi-form-progress";
@@ -14,7 +16,7 @@ import { formatDateTimePtBr } from "@/lib/date-format";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
+import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
 type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; validation?: Record<string, unknown>; settings: Record<string, unknown>; options: Option[] };
@@ -73,6 +75,7 @@ export default function CddiFormPage() {
   const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
   const [saveQueue] = useState(() => new ReliableSaveQueue());
@@ -239,6 +242,7 @@ export default function CddiFormPage() {
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessageType("success");
       setMessage("Autoavaliação enviada com sucesso.");
+      setCelebrate(true);
     } catch (error) {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
@@ -275,7 +279,17 @@ export default function CddiFormPage() {
     <CddiPlatformFrame title="CDDI 2026">
       <div className="min-h-[60vh] text-[var(--text-primary)]">
         <div className="mx-auto max-w-[960px] space-y-4">
-          <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-7" style={{ borderTopColor: CDDI_RULE }}>
+          {/* A capa configurada em /admin/pesquisas/[id]/identidade abre a
+              jornada — é ela que dá identidade visual ao instrumento. */}
+          <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] shadow-[var(--shadow-card)]" style={{ borderTopColor: CDDI_RULE }}>
+            <SurveyBanner
+              key={visualIdentity.bannerUrl}
+              src={visualIdentity.bannerUrl}
+              fallbackSrc={DEFAULT_CDDI_VISUAL_IDENTITY.bannerUrl}
+              alt={visualIdentity.bannerAlt}
+              className="h-auto max-h-56 w-full object-cover"
+            />
+            <div className="p-5 sm:p-7">
             <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
             <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
@@ -286,6 +300,7 @@ export default function CddiFormPage() {
               {identityFields}
               <IdentityField label="Unidade" value={person.unit || "Não informada"} />
             </dl>
+            </div>
           </section>
 
           <section className={`rounded-2xl border border-l-4 p-5 shadow-[var(--shadow-card)] ${periodClosed
@@ -330,6 +345,13 @@ export default function CddiFormPage() {
           </section>
         </div>
       </div>
+      <CompletionCelebration
+        open={celebrate}
+        onClose={() => setCelebrate(false)}
+        title="Parabéns! Autoavaliação concluída"
+        message="Suas respostas foram enviadas com sucesso e já fazem parte do ciclo de avaliação."
+        actionLabel="Continuar"
+      />
     </CddiPlatformFrame>
   );
 
