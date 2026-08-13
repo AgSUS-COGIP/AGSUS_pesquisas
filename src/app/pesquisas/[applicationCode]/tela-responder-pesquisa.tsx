@@ -231,6 +231,24 @@ export default function GenericSurveyPage() {
     window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
+  /**
+   * Última etapa alcançável pelos atalhos do topo.
+   *
+   * O botão "Próxima" sempre validou a etapa atual, mas os atalhos numerados não
+   * validavam nada: dava para pular da etapa 1 para a 3 deixando obrigatórias
+   * para trás. Nenhum dado inválido chegava ao banco — o envio continua barrado —,
+   * só que a pessoa descobria a pendência no fim, sem saber de onde ela veio.
+   *
+   * Voltar continua livre: revisar o que já foi respondido não exige validação.
+   */
+  const firstIncompleteStep = useMemo(() => {
+    if (!canEdit) return sections.length - 1;
+    const incomplete = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !isSurveyAnswerComplete(question.type, answers[question.id])),
+    );
+    return incomplete === -1 ? sections.length - 1 : incomplete;
+  }, [sections, answers, canEdit]);
+
   async function submitSurvey() {
     if (!submission?.submission?.id || !canEdit) return;
     if (answeredRequired !== requiredQuestions.length) {
@@ -353,17 +371,21 @@ export default function GenericSurveyPage() {
           <nav aria-label="Etapas da avaliação" className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {sections.map((section, index) => {
               const current = index === currentStep;
+              const locked = index > firstIncompleteStep;
               return (
                 <button
                   key={section.id}
                   type="button"
                   onClick={() => goToStep(index)}
-                  title={section.title}
+                  disabled={locked}
+                  title={locked ? `Responda as obrigatórias da etapa ${firstIncompleteStep + 1} para liberar esta` : section.title}
                   aria-current={current ? "step" : undefined}
                   className={`max-w-60 shrink-0 truncate rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     current
                       ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                      : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                      : locked
+                        ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
+                        : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   }`}
                 >
                   {index + 1}. {section.title}
