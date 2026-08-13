@@ -212,6 +212,30 @@ export default function CddiFormPage() {
     }
     return true;
   }
+  /**
+   * Última etapa alcançável pelos atalhos numerados.
+   *
+   * `validateCurrentStep()` valida **só a etapa em que a pessoa está**. Como os
+   * atalhos do topo chamam `goToStep(index, index > step)`, dava para sair da
+   * etapa 1 direto para a 13: o avanço validava a 1 e as onze do meio passavam
+   * batido. O envio continuava barrado, então nenhum dado inválido chegava ao
+   * banco — mas a pessoa só descobria a pendência no fim, sem saber de onde
+   * vinha, num instrumento de 15 etapas.
+   *
+   * A etapa 0 é identificação, `1..sections.length` são as competências e a
+   * última é a revisão — daí o `+ 1` no índice da primeira incompleta. Sem
+   * chefia registrada, nada além da identificação é alcançável, que é a mesma
+   * regra que `validateCurrentStep()` já aplicava ao avançar.
+   */
+  const firstIncompleteStep = useMemo(() => {
+    if (!canEdit) return totalSteps - 1;
+    if (!identity?.leader) return 0;
+    const incomplete = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !answered(question, answers)),
+    );
+    return incomplete === -1 ? totalSteps - 1 : incomplete + 1;
+  }, [sections, answers, canEdit, identity?.leader, totalSteps]);
+
   /** Navega entre etapas. Só valida ao avançar — voltar para revisar é sempre livre. */
   function goToStep(target: number, validateAdvance = true) {
     if (validateAdvance && target > step && !validateCurrentStep()) return;
@@ -405,20 +429,29 @@ export default function CddiFormPage() {
                     ? sectionCompletion(sections[index - 1], answers) === 100
                     : answeredRequired === requiredQuestions.length;
                 const current = index === step;
+                const locked = index > firstIncompleteStep;
                 const label = index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0");
+                const lockedReason = !identity.leader
+                  ? "Sua chefia responsável precisa estar registrada antes de começar"
+                  : `Responda as obrigatórias da etapa ${String(firstIncompleteStep).padStart(2, "0")} para liberar esta`;
                 return (
                   <button
                     key={index}
                     type="button"
                     onClick={() => goToStep(index, index > step)}
+                    disabled={locked}
                     aria-current={current ? "step" : undefined}
-                    title={index === 0 ? "Identificação e chefia" : index === totalSteps - 1 ? "Revisão final" : sections[index - 1]?.title}
+                    title={locked
+                      ? lockedReason
+                      : index === 0 ? "Identificação e chefia" : index === totalSteps - 1 ? "Revisão final" : sections[index - 1]?.title}
                     className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
                       current
                         ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                        : complete
-                          ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                          : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                        : locked
+                          ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
+                          : complete
+                            ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                            : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
                     }`}
                   >
                     {complete && !current && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
