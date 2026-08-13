@@ -13,7 +13,7 @@ export function CddiLoadingState() {
           <Skeleton className="aspect-[4/1] w-full rounded-none" />
         </section>
 
-        <section className="rounded-2xl border-t-[5px] border-[#2d3f97] bg-white p-5 shadow-sm sm:p-7">
+        <section className="rounded-2xl border-t-[5px] border-[var(--cddi-rule)] bg-white p-5 shadow-sm sm:p-7">
           <div className="flex items-start gap-4">
             <Skeleton className="h-14 w-14 shrink-0 rounded-2xl" />
             <div className="min-w-0 flex-1 space-y-3">
@@ -23,7 +23,7 @@ export function CddiLoadingState() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 rounded-xl bg-[#edf5fc] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
+          <div className="mt-6 grid gap-4 rounded-xl bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
             <Skeleton className="h-16 w-16 rounded-2xl" />
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="space-y-2">

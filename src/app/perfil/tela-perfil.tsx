@@ -37,7 +37,7 @@ export default function ProfilePage() {
 
   return (
     <PlatformShell user={user} eyebrow="Conta" title="Perfil">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto w-full max-w-[1400px] space-y-5">
         <section className="page-intro">
           <div>
             <p className="section-eyebrow">Identidade institucional</p>

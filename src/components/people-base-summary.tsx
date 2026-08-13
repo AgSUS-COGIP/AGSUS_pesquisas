@@ -52,7 +52,7 @@ export function PeopleBaseSummaryCard() {
   useEffect(() => { void load(); }, [load]);
 
   const metrics = [
-    { label: "Pessoas na base", value: summary.totalPeople, helper: "cadastros institucionais", icon: UsersRound, tone: "text-[#003b70] bg-blue-50" },
+    { label: "Pessoas na base", value: summary.totalPeople, helper: "cadastros institucionais", icon: UsersRound, tone: "text-[var(--brand-primary)] bg-blue-50" },
     { label: "Ativas e disponíveis", value: summary.availableToLink, helper: "podem ser vinculadas", icon: CheckCircle2, tone: "text-emerald-700 bg-emerald-50" },
     { label: "Com e-mail", value: summary.withInstitutionalEmail, helper: "aptas ao acesso", icon: Mail, tone: "text-violet-700 bg-violet-50" },
     { label: "Já autenticadas", value: summary.authenticatedPeople, helper: "entraram na plataforma", icon: KeyRound, tone: "text-amber-700 bg-amber-50" },
@@ -63,7 +63,7 @@ export function PeopleBaseSummaryCard() {
       <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">Base mestra de pessoas</p>
-          <h2 className="mt-1 text-xl font-black text-[#003b70]">Disponibilidade para avaliações</h2>
+          <h2 className="mt-1 text-xl font-black text-[var(--brand-primary)]">Disponibilidade para avaliações</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">A importação atualiza estes cadastros. A autorização para responder é realizada separadamente em cada avaliação.</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">

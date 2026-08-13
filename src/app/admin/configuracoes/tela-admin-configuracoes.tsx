@@ -4,12 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   Check,
   CircleDot,
-  ImageUp,
   LayoutGrid,
   Loader2,
-  RotateCcw,
   Save,
   Search,
   SlidersHorizontal,
@@ -55,12 +54,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const logoExtensionByType: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
 
 // Perfis e pessoas (consolidados de /admin/acessos) ------------------------------
 type Role = { code: string; name: string; description: string | null };
@@ -108,69 +101,6 @@ function effectiveRoleCode(person: Person) {
   return resolvePlatformRole(person.roles.map((role) => role.code));
 }
 
-async function validateLogoComposition(file: File) {
-  const image = await createImageBitmap(file);
-  try {
-    if (image.width < 128 || image.height < 128) {
-      throw new Error("Use uma imagem com pelo menos 128 × 128 pixels.");
-    }
-    const aspectRatio = image.width / image.height;
-    if (aspectRatio < 0.5 || aspectRatio > 2) {
-      throw new Error("Use um logotipo quadrado ou com proporção próxima de 1:1.");
-    }
-
-    const scale = Math.min(1, 256 / Math.max(image.width, image.height));
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return;
-    context.drawImage(image, 0, 0, width, height);
-    const pixels = context.getImageData(0, 0, width, height).data;
-    const cornerIndexes = [0, (width - 1) * 4, (height - 1) * width * 4, (height * width - 1) * 4];
-    const background = cornerIndexes.reduce(
-      (color, index) => ({
-        r: color.r + pixels[index] / cornerIndexes.length,
-        g: color.g + pixels[index + 1] / cornerIndexes.length,
-        b: color.b + pixels[index + 2] / cornerIndexes.length,
-        a: color.a + pixels[index + 3] / cornerIndexes.length,
-      }),
-      { r: 0, g: 0, b: 0, a: 0 },
-    );
-    let minX = width;
-    let minY = height;
-    let maxX = -1;
-    let maxY = -1;
-
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const index = (y * width + x) * 4;
-        const alpha = pixels[index + 3];
-        const colorDistance = Math.abs(pixels[index] - background.r)
-          + Math.abs(pixels[index + 1] - background.g)
-          + Math.abs(pixels[index + 2] - background.b)
-          + Math.abs(alpha - background.a);
-        const isContent = background.a < 24 ? alpha > 32 : colorDistance > 70;
-        if (!isContent) continue;
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-      }
-    }
-
-    const contentWidth = maxX >= minX ? (maxX - minX + 1) / width : 0;
-    const contentHeight = maxY >= minY ? (maxY - minY + 1) / height : 0;
-    if (contentWidth < 0.35 || contentHeight < 0.35) {
-      throw new Error("O símbolo ocupa uma área muito pequena da imagem. Recorte as margens antes de enviar.");
-    }
-  } finally {
-    image.close();
-  }
-}
-
 export default function PlatformSettingsPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_ACCESS);
   const { branding, loading: brandingLoading } = usePlatformBranding();
@@ -180,10 +110,6 @@ export default function PlatformSettingsPage() {
 
   const [tab, setTab] = useState<"all" | SectionId>("all");
   const [wsQuery, setWsQuery] = useState("");
-
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [removeLogo, setRemoveLogo] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Estado da seção Acessos
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -211,16 +137,6 @@ export default function PlatformSettingsPage() {
     });
   }, [branding, form]);
 
-  useEffect(() => {
-    if (!logoFile) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(logoFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [logoFile]);
-
   const loadPeople = useCallback(async (term = "") => {
     setFetching(true);
     try {
@@ -242,54 +158,30 @@ export default function PlatformSettingsPage() {
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const supabase = createBrowserSupabaseClient();
-      let logoUrl = removeLogo ? null : branding.logoUrl === DEFAULT_PLATFORM_BRANDING.logoUrl ? null : branding.logoUrl;
-      let logoPath = removeLogo ? null : branding.logoPath;
-      let uploadedPath: string | null = null;
+      // O logotipo é identidade institucional fixa: a gravação sempre zera os
+      // campos de logo no banco, para nenhum upload antigo sobrescrever a marca.
+      const { data, error: saveError } = await supabase.rpc("fc_atualizar_marca_plataforma", {
+        no_organizacao_param: values.organizationName,
+        no_produto_param: values.productName,
+        tx_url_logotipo_param: null,
+        tx_caminho_param: null,
+        co_cor_principal_param: values.primaryColor,
+      });
+      if (saveError) throw saveError;
 
-      try {
-        if (logoFile) {
-          const extension = logoExtensionByType[logoFile.type] ?? "png";
-          const path = `branding/logo-${crypto.randomUUID()}.${extension}`;
-          const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, logoFile, {
-            cacheControl: "3600",
-            contentType: logoFile.type,
-            upsert: false,
-          });
-          if (uploadError) throw uploadError;
-          uploadedPath = path;
-          const { data } = supabase.storage.from("platform-assets").getPublicUrl(path);
-          logoUrl = data.publicUrl;
-          logoPath = path;
-        }
-
-        const { data, error: saveError } = await supabase.rpc("fc_atualizar_marca_plataforma", {
-          no_organizacao_param: values.organizationName,
-          no_produto_param: values.productName,
-          tx_url_logotipo_param: logoUrl,
-          tx_caminho_param: logoPath,
-          co_cor_principal_param: values.primaryColor,
-        });
-        if (saveError) throw saveError;
-
-        return normalizePlatformBranding(data);
-      } catch (saveError) {
-        if (uploadedPath) await supabase.storage.from("platform-assets").remove([uploadedPath]);
-        throw saveError;
-      }
+      return normalizePlatformBranding(data);
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(platformBrandingQueryKey, updated);
-      setLogoFile(null);
-      setRemoveLogo(false);
       toast.success("Identidade da plataforma atualizada.");
     },
     onError: (saveError) => {
       const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a identidade.";
-      toast.error(/bucket not found/i.test(message) ? "O armazenamento institucional não está disponível. Atualize a página e tente novamente." : message);
+      toast.error(message);
     },
   });
 
-  const brandDirty = form.formState.isDirty || Boolean(logoFile) || removeLogo;
+  const brandDirty = form.formState.isDirty;
   const submitBranding = useCallback(() => {
     void form.handleSubmit((values) => mutation.mutate(values))();
   }, [form, mutation]);
@@ -307,25 +199,6 @@ export default function PlatformSettingsPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [brandDirty, mutation.isPending, submitBranding]);
-
-  async function selectLogo(file: File | undefined) {
-    if (!file) return;
-    if (!acceptedTypes.has(file.type)) {
-      toast.error("Envie uma imagem PNG, JPG ou WebP.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("O logotipo deve possuir no máximo 2 MB.");
-      return;
-    }
-    try {
-      await validateLogoComposition(file);
-      setLogoFile(file);
-      setRemoveLogo(false);
-    } catch (validationError) {
-      toast.error(validationError instanceof Error ? validationError.message : "Não foi possível validar o logotipo.");
-    }
-  }
 
   const isCurrentPerson = (person: Person) => Boolean(currentPersonId) && person.personId === currentPersonId;
 
@@ -388,7 +261,7 @@ export default function PlatformSettingsPage() {
     />;
   }
 
-  const displayedLogo = removeLogo ? DEFAULT_PLATFORM_BRANDING.logoUrl : previewUrl ?? branding.logoUrl;
+  const displayedLogo = DEFAULT_PLATFORM_BRANDING.logoUrl;
 
   return (
     <PlatformShell user={guard.user} eyebrow="Administração" title="Configurações do sistema">
@@ -484,16 +357,11 @@ export default function PlatformSettingsPage() {
                 <div className="space-y-6">
                   <div>
                     <p className="section-eyebrow">Logotipo</p>
-                    <p className="mt-1 text-xs text-[var(--text-secondary)]">PNG, JPG ou WebP, até 2 MB. Prefira uma imagem quadrada com fundo transparente.</p>
                     <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center">
-                      <div className="grid h-28 w-28 shrink-0 place-items-center rounded-3xl border border-[var(--border-subtle)] bg-white p-4 shadow-sm"><PlatformLogo src={displayedLogo} alt="Prévia do logotipo" organizationName={watchedOrganization} width={96} height={96} loading={brandingLoading && !previewUrl} className="h-full w-full object-contain text-xl" /></div>
+                      <div className="grid h-28 w-28 shrink-0 place-items-center rounded-3xl border border-[var(--border-subtle)] bg-white p-4 shadow-sm"><PlatformLogo src={displayedLogo} alt="Logotipo institucional" organizationName={watchedOrganization} width={96} height={96} loading={brandingLoading} className="h-full w-full object-contain text-xl" /></div>
                       <div className="flex-1">
-                        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-4 text-sm font-black text-white transition hover:bg-[var(--brand-solid-hover)]">
-                          <ImageUp className="h-4 w-4" aria-hidden="true" />Selecionar imagem
-                          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => void selectLogo(event.target.files?.[0])} />
-                        </label>
-                        <Button type="button" variant="ghost" className="ml-2" onClick={() => { setLogoFile(null); setRemoveLogo(true); }}><RotateCcw className="h-4 w-4" aria-hidden="true" />Usar marca padrão</Button>
-                        <p className="mt-3 text-xs text-[var(--text-secondary)]">{logoFile ? logoFile.name : removeLogo ? "A marca institucional padrão será restaurada." : branding.logoPath ? "Logotipo personalizado ativo." : "Marca institucional padrão ativa."}</p>
+                        <p className="inline-flex items-center gap-2 rounded-full border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-3 py-1 text-xs font-black text-[var(--status-success-text)]"><BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />Marca institucional fixa</p>
+                        <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">O logotipo oficial da AgSUS é aplicado automaticamente em toda a plataforma e não pode ser substituído por aqui — assim a identidade nunca diverge entre as telas.</p>
                       </div>
                     </div>
                   </div>
@@ -513,7 +381,7 @@ export default function PlatformSettingsPage() {
                   <div className="p-5">
                     <p className="section-eyebrow">Prévia do menu</p>
                     <div className="mt-4 rounded-2xl bg-[var(--sidebar-background)] p-4 text-white">
-                      <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white p-2"><PlatformLogo src={displayedLogo} alt="" organizationName={watchedOrganization} width={40} height={40} loading={brandingLoading && !previewUrl} className="h-10 w-10 object-contain text-xs" /></span><span><small className="block uppercase tracking-[.18em] text-[var(--sidebar-muted)]">{watchedOrganization}</small><strong className="mt-1 block">{watchedName}</strong></span></div>
+                      <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white p-2"><PlatformLogo src={displayedLogo} alt="" organizationName={watchedOrganization} width={40} height={40} loading={brandingLoading} className="h-10 w-10 object-contain text-xs" /></span><span><small className="block uppercase tracking-[.18em] text-[var(--sidebar-muted)]">{watchedOrganization}</small><strong className="mt-1 block">{watchedName}</strong></span></div>
                       <div className="mt-5 rounded-xl px-3 py-3 text-sm font-bold text-white" style={{ background: watchedColor }}>Visão geral</div>
                     </div>
                     <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">A prévia representa a identidade global.</p>

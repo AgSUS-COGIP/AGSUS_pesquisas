@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Info, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -46,7 +46,7 @@ type FormValues = z.infer<typeof schema>;
  */
 const STEPS = [
   { title: "Identificação", description: "Como a avaliação será reconhecida no catálogo institucional.", fields: ["code", "name", "description"] },
-  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts", "anonymous"] },
+  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts"] },
   { title: "Revisão", description: "Confira os dados antes de criar a avaliação.", fields: [] },
 ] as const satisfies ReadonlyArray<{ title: string; description: string; fields: ReadonlyArray<keyof FormValues> }>;
 
@@ -153,7 +153,7 @@ export default function NewSurveyPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[#d7e5f2] bg-white p-6 shadow-sm sm:p-8">
+      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[var(--border-subtle)] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[var(--brand-primary)]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--brand-secondary)]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[var(--brand-primary)]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
 
         <ol className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Etapas da criação">
@@ -173,11 +173,11 @@ export default function NewSurveyPage() {
                   <span className={state === "done"
                     ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-600 text-xs font-black text-white"
                     : state === "current"
-                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#003b70] text-xs font-black text-white"
+                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--brand-solid)] text-xs font-black text-white"
                       : "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-300 text-xs font-black text-white"}>
                     {state === "done" ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
                   </span>
-                  <p className={state === "todo" ? "text-sm font-black text-slate-500" : "text-sm font-black text-[#003b70]"}>{item.title}</p>
+                  <p className={state === "todo" ? "text-sm font-black text-slate-500" : "text-sm font-black text-[var(--brand-primary)]"}>{item.title}</p>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-500">{item.description}</p>
               </li>
@@ -208,9 +208,20 @@ export default function NewSurveyPage() {
                   prosseguir e revalidada no banco. */}
               <Input type="datetime-local" label="Encerramento planejado" min={minOpensAt} hint="Precisa ocorrer após a abertura." error={form.formState.errors.closesAt?.message} {...form.register("closesAt")} />
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3">
               <Checkbox label="Permitir rascunhos" description="A pessoa poderá salvar e continuar depois." {...form.register("allowDrafts")} />
-              <Checkbox label="Avaliação anônima" description="Respostas sem identificação nominal nos resultados." {...form.register("anonymous")} />
+              {/* A opção "Avaliação anônima" foi retirada porque o anonimato
+                  ainda não é estrutural: a submissão guarda quem respondeu, e
+                  quem administra consegue reidentificar. Oferecer a caixa com
+                  um aviso ao lado manteria a promessa na tela — quem marca
+                  raramente lê a ressalva. O banco também recusa o valor
+                  (gatilho `tba_aplicacao_anonima`). */}
+              <p className="flex items-start gap-3 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <strong className="font-semibold">Toda avaliação é identificada.</strong> O modo anônimo está indisponível: as respostas ainda ficam vinculadas a quem respondeu, então a plataforma não pode prometer anonimato. A opção volta quando a separação entre identidade e conteúdo estiver implementada.
+                </span>
+              </p>
             </div>
           </div>
         )}
@@ -225,11 +236,13 @@ export default function NewSurveyPage() {
                 ["Abertura planejada", reviewDateLabel(values.opensAt)],
                 ["Encerramento planejado", reviewDateLabel(values.closesAt)],
                 ["Rascunhos", values.allowDrafts ? "Permitidos" : "Não permitidos"],
-                ["Identificação", values.anonymous ? "Anônima" : "Nominal"],
+                // Sempre nominal: o modo anônimo está indisponível enquanto o
+                // anonimato não for estrutural.
+                ["Identificação", "Nominal"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>
-                  <dd className="mt-1 text-sm font-bold text-[#003b70]">{value}</dd>
+                  <dd className="mt-1 text-sm font-bold text-[var(--brand-primary)]">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -277,7 +290,7 @@ export default function NewSurveyPage() {
 
       <aside className="space-y-5">
         <article className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-6 shadow-sm"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]"><ShieldCheck className="h-6 w-6" /></span><h3 className="mt-4 text-xl font-black text-[var(--text-primary)]">Governança desde o início</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Toda avaliação nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da administração.</p></article>
-        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[#d7e5f2] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-black text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
+        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[var(--border-subtle)] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-black text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
       </aside>
     </section>
   </PlatformShell>;

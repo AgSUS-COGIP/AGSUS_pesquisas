@@ -6,10 +6,11 @@ describe("platform branding", () => {
     expect(normalizePlatformBranding(null)).toEqual(DEFAULT_PLATFORM_BRANDING);
   });
 
-  it("aceita somente logo segura e cor hexadecimal completa", () => {
+  it("ignora logotipo gravado no banco e mantém a marca institucional", () => {
     expect(normalizePlatformBranding({ logoUrl: "javascript:alert(1)", primaryColor: "red" })).toEqual(DEFAULT_PLATFORM_BRANDING);
-    expect(normalizePlatformBranding({ logoUrl: "https://example.org/logo.png", primaryColor: "#126B98" })).toMatchObject({
-      logoUrl: "https://example.org/logo.png",
+    expect(normalizePlatformBranding({ logoUrl: "https://example.org/logo.png", logoPath: "branding/logo-x.png", primaryColor: "#126B98" })).toMatchObject({
+      logoUrl: DEFAULT_PLATFORM_BRANDING.logoUrl,
+      logoPath: null,
       primaryColor: "#126b98",
     });
   });
