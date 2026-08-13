@@ -43,6 +43,10 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
       { href: "/admin/pesquisas", label: "Gerenciar avaliações", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
       { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS },
       { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: PLATFORM_MODULE.ADMIN_TEAMS },
+      // Remover resposta alheia é administração global, não operação de
+      // pesquisa: fica sob `ADMIN_TEAMS`, exclusivo do Superadmin, e não sob
+      // `ADMIN_PARTICIPANTS`, que o Admin também tem.
+      { href: "/admin/respostas", label: "Respostas", description: "Anular ou apagar resposta de participante", icon: "results", module: PLATFORM_MODULE.ADMIN_TEAMS },
       { href: "/admin/configuracoes", label: "Configurações", description: "Marca, aparência e perfis de acesso", icon: "settings", module: PLATFORM_MODULE.ADMIN_ACCESS },
     ],
   },
