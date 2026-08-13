@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
+import { buildSurveyRuleContext, normalizeSurveyRules, visibleSurveySections, type SurveyRule } from "@/lib/survey-conditional-logic";
 import { SurveyBanner } from "@/components/survey-banner";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
@@ -55,6 +56,7 @@ export default function GenericSurveyPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS);
   const granted = guard.state === "granted";
   const [definition, setDefinition] = useState<Definition | null>(null);
+  const [rules, setRules] = useState<SurveyRule[]>([]);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [loading, setLoading] = useState(true);
@@ -79,12 +81,17 @@ export default function GenericSurveyPage() {
       setLoading(true);
       try {
         const supabase = createBrowserSupabaseClient();
-        const [formResponse, submissionResponse] = await Promise.all([
+        const [formResponse, submissionResponse, rulesResponse] = await Promise.all([
           supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
           supabase.rpc("start_or_resume_my_survey_submission", { target_application_code: applicationCode }),
+          supabase.rpc("fc_obter_regras_do_ciclo", { p_codigo_ciclo: applicationCode }),
         ]);
         if (formResponse.error) throw formResponse.error;
         if (submissionResponse.error) throw submissionResponse.error;
+        // Falha ao ler as regras não impede responder: sem regra, o instrumento
+        // aparece inteiro, que é como ele se comportava antes de existir lógica
+        // condicional. Esconder por engano seria pior do que mostrar demais.
+        if (rulesResponse.error) console.warn("Lógica condicional indisponível:", rulesResponse.error.message);
         if (!formResponse.data) throw new Error("A avaliação ainda não está publicada.");
 
         const restored: Answers = {};
@@ -96,6 +103,7 @@ export default function GenericSurveyPage() {
         if (!active) return;
         latestAnswers.current = restored;
         setDefinition(formResponse.data as Definition);
+        setRules(rulesResponse.error ? [] : normalizeSurveyRules(rulesResponse.data));
         setSubmission(resolvedSubmission);
         setAnswers(restored);
       } catch (loadError) {
@@ -113,9 +121,27 @@ export default function GenericSurveyPage() {
     };
   }, [applicationCode, granted]);
 
-  const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
-  const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
-  const currentSection = sections[step];
+  const allSections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
+  /**
+   * Etapas efetivamente aplicáveis a esta pessoa, já filtradas pela lógica
+   * condicional. Recalcula a cada resposta: marcar uma alternativa pode revelar
+   * ou retirar perguntas e até etapas inteiras.
+   *
+   * O mesmo filtro roda no banco, dentro de `submit_my_survey_submission` — o
+   * que a tela esconde é exatamente o que deixa de ser exigido no envio.
+   */
+  const sections = useMemo(
+    () => visibleSurveySections(allSections, buildSurveyRuleContext(allSections, rules, answers)),
+    [allSections, rules, answers],
+  );
+  // Indexa **todas** as perguntas, não só as visíveis: `flushPendingSaves()`
+  // precisa gravar o que estava em debounce mesmo que a resposta anterior tenha
+  // acabado de esconder o campo, senão o texto digitado se perde em silêncio.
+  const questionsById = useMemo(() => new Map(allSections.flatMap((section) => section.questions).map((question) => [question.id, question])), [allSections]);
+  // Uma resposta pode remover a etapa em que a pessoa está. Sem o limite, `step`
+  // apontaria para uma seção inexistente e a tela ficaria em branco.
+  const currentStep = Math.min(step, Math.max(0, sections.length - 1));
+  const currentSection = sections[currentStep];
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
   const answeredRequired = requiredQuestions.filter((question) => isSurveyAnswerComplete(question.type, answers[question.id])).length;
   const progress = requiredQuestions.length ? Math.round((answeredRequired / requiredQuestions.length) * 100) : 100;
@@ -204,6 +230,24 @@ export default function GenericSurveyPage() {
     setStep(Math.max(0, Math.min(target, sections.length - 1)));
     window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
+
+  /**
+   * Última etapa alcançável pelos atalhos do topo.
+   *
+   * O botão "Próxima" sempre validou a etapa atual, mas os atalhos numerados não
+   * validavam nada: dava para pular da etapa 1 para a 3 deixando obrigatórias
+   * para trás. Nenhum dado inválido chegava ao banco — o envio continua barrado —,
+   * só que a pessoa descobria a pendência no fim, sem saber de onde ela veio.
+   *
+   * Voltar continua livre: revisar o que já foi respondido não exige validação.
+   */
+  const firstIncompleteStep = useMemo(() => {
+    if (!canEdit) return sections.length - 1;
+    const incomplete = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !isSurveyAnswerComplete(question.type, answers[question.id])),
+    );
+    return incomplete === -1 ? sections.length - 1 : incomplete;
+  }, [sections, answers, canEdit]);
 
   async function submitSurvey() {
     if (!submission?.submission?.id || !canEdit) return;
@@ -326,18 +370,22 @@ export default function GenericSurveyPage() {
           </div>
           <nav aria-label="Etapas da avaliação" className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {sections.map((section, index) => {
-              const current = index === step;
+              const current = index === currentStep;
+              const locked = index > firstIncompleteStep;
               return (
                 <button
                   key={section.id}
                   type="button"
                   onClick={() => goToStep(index)}
-                  title={section.title}
+                  disabled={locked}
+                  title={locked ? `Responda as obrigatórias da etapa ${firstIncompleteStep + 1} para liberar esta` : section.title}
                   aria-current={current ? "step" : undefined}
                   className={`max-w-60 shrink-0 truncate rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     current
                       ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                      : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                      : locked
+                        ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
+                        : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   }`}
                 >
                   {index + 1}. {section.title}
@@ -349,7 +397,7 @@ export default function GenericSurveyPage() {
 
         {currentSection && (
           <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)] sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Etapa {step + 1} de {sections.length}</p>
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Etapa {currentStep + 1} de {sections.length}</p>
             <h3 className="mt-1.5 break-words text-xl font-semibold leading-snug tracking-tight text-[var(--text-primary)] sm:text-2xl">{currentSection.title}</h3>
             {currentSection.description && <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-[var(--text-secondary)]">{currentSection.description}</p>}
 
@@ -470,13 +518,13 @@ export default function GenericSurveyPage() {
                 <FileText className="h-4 w-4" aria-hidden="true" />
                 Catálogo
               </Link>
-              <Button variant="secondary" onClick={() => goToStep(step - 1)} disabled={step === 0 || submitting}>
+              <Button variant="secondary" onClick={() => goToStep(currentStep - 1)} disabled={currentStep === 0 || submitting}>
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Anterior
               </Button>
-              {step < sections.length - 1 ? (
+              {currentStep < sections.length - 1 ? (
                 <Button
-                  onClick={() => { if (validateCurrentSection()) goToStep(step + 1); }}
+                  onClick={() => { if (validateCurrentSection()) goToStep(currentStep + 1); }}
                   disabled={submitting}
                   title={missingInSection > 0 ? `Faltam ${missingInSection} obrigatórias nesta etapa` : "Ir para a próxima etapa"}
                 >
@@ -502,7 +550,7 @@ export default function GenericSurveyPage() {
               ) : null}
             </div>
           </div>
-          {canEdit && step === sections.length - 1 && answeredRequired !== requiredQuestions.length && (
+          {canEdit && currentStep === sections.length - 1 && answeredRequired !== requiredQuestions.length && (
             <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
               Faltam {requiredQuestions.length - answeredRequired} {requiredQuestions.length - answeredRequired === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio.
             </p>
