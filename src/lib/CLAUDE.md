@@ -49,7 +49,7 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | `survey-runtime.ts` | `restoreSurveyAnswer()`, `isSurveyAnswerComplete()`, `buildSurveyAnswerPayload()`, tipos `StoredSurveyAnswer`, `SurveyAnswerValue` |
 | `cddi-question-applicability.ts` | `isCddiQuestionVisible()`, `visibleCddiSections()` |
 | `platform-branding.ts` | `PlatformBranding`, `DEFAULT_PLATFORM_BRANDING`, `normalizePlatformBranding()`, `platformBrandingTitle()` |
-| `admin-import-contract.ts` | `adminImportRequestSchema`, `parseAdminImportRequest()`, `formatAdminImportValidationErrors()`, `MAX_IMPORT_ROWS_PER_REQUEST`, `MAX_IMPORT_TOTAL_ROWS`, tipos `AdminImportRequest`, `ParticipantImportRow` |
+| `admin-import-contract.ts` | `adminImportRequestSchema`, `parseAdminImportRequest()`, `formatAdminImportValidationErrors()`, `MAX_IMPORT_ROWS_PER_REQUEST`, `MAX_IMPORT_TOTAL_ROWS`, tipo `AdminImportRequest` |
 | `people-import.ts` | `parsePeopleImportRows()`, `summarizePeopleImport()`, tipos `PeopleImportRow`, `PeopleImportSummary` |
 | `observability.ts` | `reportApplicationError()`, `sanitizeObservabilityText()`, `errorMessageFromUnknown()`, `createErrorReference()` |
 | `reliable-save-queue.ts` | classe `ReliableSaveQueue` |

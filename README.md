@@ -159,11 +159,11 @@ agsus-pesquisas/
 
 ## Dependências
 
-**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (leitura de planilhas na importação).
+**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (leitura de planilhas na importação).
 
 **Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
 
-> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`; `zod` também define o contrato da importação em `src/lib/admin-import-contract.ts`. `@tanstack/react-table` só é importado por um componente sem consumidores. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
+> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`; `zod` também define o contrato da importação em `src/lib/admin-import-contract.ts`. As tabelas administrativas usam os primitivos próprios de `src/components/ui/data-table.tsx` — não há dependência de biblioteca de tabela.
 
 ## Variáveis de ambiente
 
@@ -471,24 +471,24 @@ Levantamento feito durante a documentação. **Nenhum item abaixo foi alterado**
 
 ### Código não utilizado
 
-Nenhum destes arquivos é importado por código de produção:
+Nenhum arquivo de `src/` está hoje sem consumidor — a varredura por importadores não acusa órfãos.
 
-| Arquivo | Situação |
+Duas funções seguem exportadas, testadas e **sem chamador em produção**. São de uma linha e fazem parte da interface pública documentada do módulo, então ficam registradas para decisão da equipe (adotar ou remover junto com o teste):
+
+| Símbolo | Situação |
 |---|---|
-| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
-| [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
+| `metadataObject()` — [src/lib/person-metadata.ts](src/lib/person-metadata.ts) | Só `metadataText()` é chamada pelas telas. Coberta por `person-metadata.test.ts`. |
+| `platformBrandingTitle()` — [src/lib/platform-branding.ts](src/lib/platform-branding.ts) | Nenhuma tela compõe o título por ela. Coberta por `platform-branding.test.ts`. |
 
 **Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
 
-**Resolvidos.** `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou `usePlatformGuard()` + `PlatformGuardState`, hoje usada por todas as rotas. `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
+**Resolvidos.** `admin-participants-table.tsx` foi **removido** (tabela de participantes substituída por `admin-participant-management.tsx`), e com ele saiu a dependência `@tanstack/react-table`, que só existia para esse arquivo. `ui/tabs.tsx` foi **removido** — primitivo sem consumidores, junto com o tipo `TabButtonProps`. Também foram removidos `StatTile` e `MetricStrip`/`MetricStripItem` de `platform-charts.tsx`, `TextSkeleton` de `ui/skeleton.tsx` e, em `admin-import-contract.ts`, o esquema `importAuthorizationContextSchema` (nunca ligado à rota de API) com os tipos `ImportAuthorizationContext` e `ParticipantImportRow` — todos sem qualquer referência. `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou `usePlatformGuard()` + `PlatformGuardState`, hoje usada por todas as rotas. `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
 
 ### Duplicação de lógica
 
-1. **Uma fila de autossalvamento ainda fora do padrão.** [src/app/pesquisas/[applicationCode]/tela-responder-pesquisa.tsx](src/app/pesquisas/[applicationCode]/tela-responder-pesquisa.tsx) serializa gravações com um `useRef<Promise>` próprio, enquanto as duas jornadas do CDDI já usam `ReliableSaveQueue` — que faz o mesmo com testes e notificação de estado. Migrar o runtime genérico encerra a duplicação.
+1. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
 
-2. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
-
-**Resolvidos.** A **guarda de acesso deixou de ser reescrita em cada página**: as 17 telas autenticadas repetiam a mesma sequência (carregando → identidade → módulo → montar o `user` da casca), com desfechos divergentes — parte usava `FullPageState`, parte um `<main>` vermelho sem caminho de volta. Hoje `usePlatformGuard()` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) resolve os quatro estados e `PlatformGuardState` os apresenta. `metadataText()` e `metadataObject()`, antes duplicadas em `/area` e `/perfil`, vivem em [src/lib/person-metadata.ts](src/lib/person-metadata.ts). O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
+**Resolvidos.** A **fila de autossalvamento do runtime genérico entrou no padrão**: `tela-responder-pesquisa.tsx` não tem mais o `useRef<Promise>` próprio — usa `ReliableSaveQueue`, como as duas jornadas do CDDI. A **guarda de acesso deixou de ser reescrita em cada página**: as 17 telas autenticadas repetiam a mesma sequência (carregando → identidade → módulo → montar o `user` da casca), com desfechos divergentes — parte usava `FullPageState`, parte um `<main>` vermelho sem caminho de volta. Hoje `usePlatformGuard()` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) resolve os quatro estados e `PlatformGuardState` os apresenta. `metadataText()` e `metadataObject()`, antes duplicadas em `/area` e `/perfil`, vivem em [src/lib/person-metadata.ts](src/lib/person-metadata.ts). O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
 
 ### Inconsistências
 
@@ -504,7 +504,7 @@ Nenhum destes arquivos é importado por código de produção:
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
-7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
+7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, e `zod` também valida o contrato da importação; o restante das telas continua com estado local e validação manual.
 
 8. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
 

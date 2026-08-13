@@ -49,8 +49,7 @@ components/
     ├── overlay-panel.tsx OverlayPanel · Dialog · Drawer  (focus trap manual)
     ├── dialog.tsx       Dialog  (<dialog> nativo) — homônimo, comportamento diferente
     ├── page-navigation.tsx Breadcrumbs · PageActions
-    ├── skeleton.tsx     Skeleton · TextSkeleton
-    └── tabs.tsx         Tabs  (não utilizado)
+    └── skeleton.tsx     Skeleton
 ```
 
 ## Interfaces públicas principais
@@ -172,5 +171,5 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `admin-participants-table.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. `cddi-visual-banner.tsx` (sem consumidores) foi removido.
+- Nenhum componente deste módulo está sem consumidor hoje. `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. Removidos por não ter consumidor: `cddi-visual-banner.tsx`, `admin-participants-table.tsx` (substituído por `admin-participant-management.tsx`; era o único uso de `@tanstack/react-table`, dependência que saiu do projeto junto) e `ui/tabs.tsx`. De `platform-charts.tsx` saíram `StatTile` e `MetricStrip`/`MetricStripItem`; de `ui/skeleton.tsx`, `TextSkeleton`. Ver melhorias no [README](../../README.md).
 - **Removidos.** `admin-module-page.tsx`: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas. `avatar-uploader.tsx`, `avatar-studio.tsx` e `avatar-identity-picker.tsx`: a foto de perfil passou a vir automaticamente da conta Google, sem escolha na interface — a migration `20260805194500_block_uploaded_profile_photos.sql` já bloqueava fotos enviadas no banco.

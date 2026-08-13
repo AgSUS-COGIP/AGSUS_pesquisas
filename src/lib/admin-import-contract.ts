@@ -100,18 +100,7 @@ export const adminImportRequestSchema = z.object({
   }
 });
 
-export const importAuthorizationContextSchema = z.object({
-  status: z.string(),
-  canManageSurveys: z.boolean().optional(),
-  roles: z.array(z.string()).optional(),
-  person: z.object({
-    id: z.string().uuid(),
-  }).passthrough().optional(),
-}).passthrough();
-
 export type AdminImportRequest = z.infer<typeof adminImportRequestSchema>;
-export type ParticipantImportRow = z.infer<typeof participantImportRowSchema>;
-export type ImportAuthorizationContext = z.infer<typeof importAuthorizationContextSchema>;
 
 export function parseAdminImportRequest(value: unknown) {
   return adminImportRequestSchema.safeParse(value);

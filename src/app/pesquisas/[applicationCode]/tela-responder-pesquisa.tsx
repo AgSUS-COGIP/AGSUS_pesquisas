@@ -431,7 +431,7 @@ export default function GenericSurveyPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p role="status" className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
               {saving
-                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando {pendingSaves > 1 ? `${pendingSaves} alterações` : "alteração"}...</>
+                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando {saveSnapshot.pending > 1 ? `${saveSnapshot.pending} alterações` : "alteração"}...</>
                 : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Todas as respostas foram salvas automaticamente" : isSubmitted ? "Envio concluído" : "Somente leitura"}</>}
             </p>
             <div className="flex flex-wrap justify-end gap-2">
