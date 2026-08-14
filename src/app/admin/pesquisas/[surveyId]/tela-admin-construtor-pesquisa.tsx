@@ -57,6 +57,7 @@ import {
   type SurveyOption,
 } from "@/lib/survey-builder";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { cycleStatusLabel } from "@/lib/survey-status-labels";
 
 type Question = {
   id: string;
@@ -653,7 +654,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               {[
                 ["Seções", builder.sections.length],
                 ["Perguntas", totalQuestions],
-                ["Ciclo", builder.application.status],
+                // Era `builder.application.status` cru: a tela exibia "OPEN"
+                // enquanto /operacao e /equipe mostravam "Aberto" para o mesmo
+                // ciclo. Código do banco não é rótulo de interface.
+                ["Ciclo", cycleStatusLabel(builder.application.status)],
               ].map(([label, value], index) => (
                 <div key={String(label)} className={`px-6 py-4 ${index > 0 ? "border-t border-slate-200 sm:border-l sm:border-t-0" : ""}`}>
                   <p className="text-[11px] font-black uppercase tracking-[.14em] text-slate-400">{label}</p>

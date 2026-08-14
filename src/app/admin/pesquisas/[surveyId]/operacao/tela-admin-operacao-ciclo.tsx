@@ -16,6 +16,7 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
+import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
 
 type Issue = {
   id?: string;
@@ -81,25 +82,6 @@ function errorMessage(error: unknown, fallback: string) {
  * Os códigos do banco (`DRAFT`, `OPEN`, …) são vocabulário interno. A tela
  * mostra o rótulo em português e guarda o código só como legenda técnica.
  */
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
-
-const VERSION_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  PUBLISHED: "Publicada",
-  ARCHIVED: "Arquivada",
-  RETIRED: "Descontinuada",
-};
-
-function cycleStatusLabel(status: string | undefined) {
-  if (!status) return "Não configurado";
-  return CYCLE_STATUS_LABELS[status] ?? status;
-}
 
 function cycleStatusVariant(status: string | undefined) {
   switch (status) {
@@ -409,7 +391,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
             </Badge>
             <Badge variant={versionStatus === "PUBLISHED" ? "success" : "warning"} title={`Código interno da versão: ${versionStatus ?? "—"}`}>
               <FileStack className="h-3.5 w-3.5" aria-hidden="true" />
-              Versão {operations.version.number} · {(VERSION_STATUS_LABELS[versionStatus ?? ""] ?? versionStatus ?? "—").toLocaleLowerCase("pt-BR")}
+              Versão {operations.version.number} · {versionStatusLabel(versionStatus).toLocaleLowerCase("pt-BR")}
             </Badge>
           </>}
         />
