@@ -106,8 +106,8 @@ Os códigos de perfil vêm de `PLATFORM_ROLE` (`platform-roles.ts`): Superadmin 
 O acesso é determinado **exclusivamente pelo perfil**. Não há `explicitModules` nem derivação por `isLeader`: `resolvePlatformRole()` escolhe o perfil de maior privilégio entre os vigentes (piso: Participante) e `resolvePlatformModules()` devolve o conjunto de `ROLE_MODULES` correspondente.
 
 ```text
-ADMINISTRATOR  → os 10 módulos
-SURVEY_MANAGER → HOME, SURVEYS, DASHBOARDS, TEAM, RESULTS,
+ADMINISTRATOR  → os 9 módulos
+SURVEY_MANAGER → HOME, SURVEYS, DASHBOARDS, TEAM,
                  ADMIN_SURVEYS, ADMIN_PARTICIPANTS
 LEADER         → HOME, SURVEYS, TEAM
 RESPONDENT     → SURVEYS

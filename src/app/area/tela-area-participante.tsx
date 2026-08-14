@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -101,7 +101,6 @@ export default function ParticipantAreaPage() {
   const actions = [
     { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar avaliações", icon: FileText },
     ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliar", icon: Users2 }] : []),
-    ...(modules.includes(PLATFORM_MODULE.RESULTS) ? [{ href: "/resultados", title: "Resultados", text: "Consultar devolutivas e indicadores", icon: BarChart3 }] : []),
     ...(modules.includes(PLATFORM_MODULE.DASHBOARDS) ? [{ href: "/paineis", title: "Painéis", text: "Indicadores e acompanhamento dos ciclos", icon: LayoutDashboard }] : []),
   ];
 

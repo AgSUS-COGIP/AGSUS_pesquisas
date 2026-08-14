@@ -54,7 +54,6 @@ A coluna **Tela** é o arquivo a abrir para editar a rota — o `page.tsx` ao la
 | `/paineis/[applicationCode]` | `paineis/[applicationCode]/tela-painel-pesquisa.tsx` | `DASHBOARDS` | `get_survey_dashboard` |
 | `/paineis/cddi` | `paineis/cddi/tela-painel-cddi.tsx` | `DASHBOARDS` | `get_cddi_monitoring_dashboard` |
 | `/perfil` | `perfil/tela-perfil.tsx` | autenticado | foto do Google sincronizada por `usePlatformContext()`; dados institucionais somente leitura |
-| `/resultados` | `resultados/tela-resultados.tsx` | `RESULTS` (Admin e Superadmin) | nenhuma — placeholder com `EmptyState` |
 | `/admin/**` | ver [admin/CLAUDE.md](admin/CLAUDE.md) | `ADMIN_*` | ver [admin/CLAUDE.md](admin/CLAUDE.md) |
 | `/api/**` | `route.ts` por pasta | ver módulo | ver [api/CLAUDE.md](api/CLAUDE.md) |
 
