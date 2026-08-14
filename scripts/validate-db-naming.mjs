@@ -53,6 +53,13 @@ const LEGACY_RESTORED_OBJECTS = {
       "sync_my_google_avatar",
     ]),
   },
+  // Painel do CDDI acelerado: a migration apenas redefine a função existente,
+  // com o papel resolvido antes do filtro em vez de por linha. Renomeá-la
+  // exigiria mexer no wrapper que os bundles publicados chamam, e a mudança é
+  // de desempenho — não é hora de trocar contrato.
+  "supabase/migrations/20260814170000_acelerar_painel_cddi.sql": {
+    função: new Set(["get_cddi_monitoring_dashboard_internal"]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria
