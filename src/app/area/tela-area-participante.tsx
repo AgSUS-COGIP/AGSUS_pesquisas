@@ -18,13 +18,11 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
+import { timeGreeting } from "@/lib/greeting";
 
-function greeting() {
-  const hour = Number(new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date()).replace(/\D/g, ""));
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
-}
+// A regra de saudação vive em `@/lib/greeting`, testada e compartilhada com a
+// recepção da primeira visita. Duas cópias divergiriam em silêncio — e a
+// daqui não tratava a meia-noite, que o `hour12: false` devolve como "24".
 
 function stateLabel(state: string) {
   if (state === "COMPLETED") return "Concluída";
@@ -86,7 +84,7 @@ export default function ParticipantAreaPage() {
     ? catalogQuery.error.message
     : "Não foi possível carregar suas avaliações agora.";
 
-  useEffect(() => setSalutation(greeting()), []);
+  useEffect(() => setSalutation(timeGreeting()), []);
 
   const hasHomeModule = granted ? guard.modules.includes(PLATFORM_MODULE.HOME) : true;
   useEffect(() => {
