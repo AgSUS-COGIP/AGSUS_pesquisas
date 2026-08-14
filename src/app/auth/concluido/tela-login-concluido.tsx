@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { safeAuthNext } from "@/lib/auth-callback";
 import { LOGIN_POPUP_MESSAGE } from "@/lib/login-popup";
 
 /**
@@ -39,7 +40,20 @@ export default function LoginConcluidoPage() {
     */
     const timer = window.setTimeout(() => {
       if (window.closed) return;
-      const destino = new URLSearchParams(window.location.search).get("destino") || "/area";
+      /*
+        `safeAuthNext` não é zelo excessivo: sem ele este trecho era uma falha
+        de segurança de verdade, e o CodeQL pegou.
+
+        O destino vinha do endereço sem nenhuma checagem, então
+        `?destino=javascript:…` virava execução de código na sessão de quem
+        acabou de entrar, e `?destino=https://…` levava para fora do domínio
+        logo depois do login — o momento em que a pessoa mais confia na tela.
+
+        Esta é a mesma função que o callback do OAuth usa para o mesmo fim:
+        aceita só caminho interno e devolve `/area` para qualquer outra coisa,
+        inclusive nulo.
+      */
+      const destino = safeAuthNext(new URLSearchParams(window.location.search).get("destino"));
       window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
     }, 600);
 
