@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Dar ao Admin e ao Superadmin autonomia para criar instrumentos, operar ciclos, definir público, corrigir estrutura organizacional, administrar acessos e atualizar a base institucional — sempre com validação e auditoria no banco.
+Dar ao Admin e ao Superadmin autonomia para criar instrumentos, operar ciclos, definir público, corrigir estrutura organizacional e administrar acessos — sempre com validação e auditoria no banco.
 
 Perfis: Admin (código interno `SURVEY_MANAGER`) opera as pesquisas — `ADMIN_SURVEYS` e `ADMIN_PARTICIPANTS`; Superadmin (código interno `ADMINISTRATOR`) soma a administração global — `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT`. Constantes em `@/lib/platform-roles` e `@/lib/platform-modules`.
 
@@ -30,7 +30,6 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
 | `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
-| `/admin/importacao` | `importacao/tela-admin-importacao.tsx` | `ADMIN_IMPORT` | via `POST /api/admin/import-participants` |
 
 ## Fluxo interno
 
@@ -143,25 +142,6 @@ sucesso → queryClient.setQueryData(platformBrandingQueryKey, …)
 
 A marca resolvida é distribuída por `PlatformBrandingProvider` (ver [../../components/CLAUDE.md](../../components/CLAUDE.md)), então salvar aqui muda cabeçalho e logotipo de toda a aplicação sem recarregar.
 
-### Importação da base institucional
-
-```text
-navegador                       lê CSV/XLSX com `xlsx`
-                                aba preferida: BASE_PARTICIPANTES → BASE → primeira
-                                parsePeopleImportRows() + summarizePeopleImport()
-                                lotes de CHUNK_SIZE = 200 linhas válidas
-        ↓ POST /api/admin/import-participants  (sessão institucional, sem token)
-servidor                        resolveAuthorizedActor() → apenas Superadmin
-                                parseAdminImportRequest() → esquema zod
-                                sync_people_base_rows → sync_cddi_manager_rows
-                                registra data_import_batches / data_import_issues
-```
-
-- Só linhas com `valid === true` são enviadas; avisos não impedem o envio.
-- `isFirstChunk` cria o lote; `isLastChunk` fecha como `COMPLETED` ou `COMPLETED_WITH_WARNINGS`.
-- `survey_assignment: false` nos metadados registra que ninguém foi vinculado a pesquisa.
-- CPF não é lido nem armazenado neste fluxo.
-
 ## Regras de negócio específicas
 
 - **`/admin/equipes` exige o módulo `ADMIN_TEAMS`**, que pertence só ao Superadmin — a guarda é uma só, pelo módulo. A dupla verificação anterior (módulo **e** papel) deixou de existir: com perfis exclusivos, o mapa de módulos já é a regra.
@@ -175,9 +155,7 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 
 - [@/components](../../components/CLAUDE.md) — `admin-participant-*`, `admin-people-teams-management`, `people-base-summary`, primitivos `ui/`.
 - [@/lib/survey-builder](../../lib/CLAUDE.md) — validação de rascunhos.
-- [@/lib/people-import](../../lib/CLAUDE.md) — parsing e resumo da planilha.
 - [@/lib/platform-branding](../../lib/CLAUDE.md) — normalização da marca em `/admin/configuracoes`.
-- [/api/admin/import-participants](../api/CLAUDE.md) — única rota administrativa com service role.
 - `react-hook-form` + `zod` (via `zodResolver`) nos formulários de `/admin/configuracoes` e `/admin/pesquisas/nova`; o restante das telas usa estado local.
 
 ## Convenções específicas
@@ -189,8 +167,6 @@ servidor                        resolveAuthorizedActor() → apenas Superadmin
 
 ## Pontos de atenção
 
-- `/admin/importacao` aplica a guarda de `ADMIN_IMPORT` mas **não** usa `PlatformShell` (layout próprio de página inteira). A proteção efetiva continua na rota de API, que exige sessão institucional com perfil Superadmin.
-- O corpo de `/api/admin/import-participants` é validado por esquema `zod` (`@/lib/admin-import-contract`). Mudança no formato enviado pela tela exige mudança no contrato.
 - **Toda** rota administrativa usa `usePlatformGuard()` + `PlatformGuardState`; as telas inline de "Acesso restrito" (`<main className="p-10 text-red-700">`, sem caminho de volta) deixaram de existir — inclusive nas três rotas sob `/admin/pesquisas/[surveyId]`. O `AdminModulePage` sem consumidores foi removido.
 - `/admin` e `/admin/acessos` chamam `usePlatformGuard()` **sem** módulo, de propósito: a central abre para qualquer `ADMIN_*` (regra de prefixo, não de cartão) e a tela de acessos apresenta a restrição dentro da casca, preservando a navegação.
 - `Dialog` importado de `@/components/ui/dialog` (`<dialog>` nativo) é diferente do `Dialog` de `@/components/ui/overlay-panel` (focus trap manual). O construtor usa o primeiro.

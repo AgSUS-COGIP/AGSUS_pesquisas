@@ -7,7 +7,7 @@ Este arquivo é o índice. **Carregue apenas o `CLAUDE.md` do módulo em que voc
 | Módulo | Quando carregar |
 |---|---|
 | [src/app/CLAUDE.md](src/app/CLAUDE.md) | Rotas, páginas, jornadas do participante e da liderança |
-| [src/app/admin/CLAUDE.md](src/app/admin/CLAUDE.md) | Central administrativa, construtor, ciclos, importação |
+| [src/app/admin/CLAUDE.md](src/app/admin/CLAUDE.md) | Central administrativa, construtor, ciclos |
 | [src/app/api/CLAUDE.md](src/app/api/CLAUDE.md) | Route Handlers, service role, observabilidade, health |
 | [src/components/CLAUDE.md](src/components/CLAUDE.md) | Casca visual, design system, blocos administrativos |
 | [src/lib/CLAUDE.md](src/lib/CLAUDE.md) | Domínio no cliente, contexto de plataforma, clientes Supabase |
