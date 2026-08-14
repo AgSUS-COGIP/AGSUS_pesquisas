@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeErrorReference } from "@/lib/observability-reference";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const ALLOWED_TYPES = new Set(["CLIENTE", "SERVIDOR", "REDE", "BANCO", "DESCONHECIDO"]);
@@ -61,15 +62,34 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json() as Record<string, unknown>;
-    const reference = cleanText(payload.reference, 80);
-    const route = cleanText(payload.route, 200);
-    const message = cleanText(payload.message, 1000);
-    const type = cleanText(payload.type, 40).toUpperCase();
+    // Não passa por `cleanText`: a referência é gerada pela plataforma, não é
+    // texto de usuário, e o sanitizador a corrompia. Ver `observability-reference`.
+    const reference = normalizeErrorReference(payload.reference);
+    const tipoRecebido = cleanText(payload.type, 40).toUpperCase();
     const httpStatus = typeof payload.httpStatus === "number" ? payload.httpStatus : null;
 
-    if (!reference || !route || !message || !ALLOWED_TYPES.has(type)) {
+    // Sem referência não há como correlacionar nem deduplicar, e ela é o único
+    // campo que a plataforma sempre produz. É o que resta como requisito.
+    if (!reference) {
       return NextResponse.json({ error: "Relatório inválido." }, { status: 400 });
     }
+
+    /*
+      Rota, mensagem e tipo ausentes deixaram de derrubar o relatório.
+
+      Nem todo erro consegue se descrever: `window.onerror` disparado por script
+      de outra origem entrega "Script error." sem mais nada, e valor não-Error
+      lançado numa promise pode não render mensagem alguma. Recusar esses
+      relatórios apagava justamente o registro de que **algo** falhou — o
+      contrário do que esta rota existe para fazer. Some o sintoma junto com a
+      descrição dele.
+
+      O que não se sabe entra como texto explícito, para ninguém ler o vazio como
+      se fosse informação.
+    */
+    const route = cleanText(payload.route, 200) || "(rota não informada)";
+    const message = cleanText(payload.message, 1000) || "(erro sem mensagem)";
+    const type = ALLOWED_TYPES.has(tipoRecebido) ? tipoRecebido : "DESCONHECIDO";
 
     const environment = process.env.VERCEL_ENV === "production"
       ? "PRODUCAO"
