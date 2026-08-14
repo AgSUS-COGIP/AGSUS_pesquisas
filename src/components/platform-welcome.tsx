@@ -2,17 +2,11 @@
 
 import { Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { consumeEnteringFlag } from "@/lib/entering-system";
 import { timeGreeting, type Greeting } from "@/lib/greeting";
 
-const STORAGE_PREFIX = "agsus-boas-vindas-v1:";
-
 /**
- * Recepção da primeira visita.
- *
- * Aparece uma vez por pessoa e some ao ser dispensada — quem já conhece a
- * plataforma não é recebido de novo toda vez que entra. A chave inclui a
- * **matrícula**, que é como este projeto identifica a pessoa: em máquina
- * compartilhada, a mensagem de uma não cala a da próxima.
+ * Recepção de quem acabou de entrar.
  *
  * **Não usa o confete de `CompletionCelebration`.** Confete é para conquista;
  * chegar não é uma. Gastá-lo aqui barateia o momento que ele existe para
@@ -28,33 +22,29 @@ const STORAGE_PREFIX = "agsus-boas-vindas-v1:";
  * pelo nome, e o bloco de identificação logo abaixo não pode cumprimentar de
  * novo — "Boas-vindas, YASSURY" seguido de "Boa tarde, YASSURY" é a mesma
  * saudação duas vezes, uma sob a outra.
+ *
+ * Aparece **a cada login**, e não uma vez na vida.
+ *
+ * A primeira versão gravava a dispensa no `localStorage`, e isso guardava a
+ * informação no lugar errado: a marca ficava no navegador, então a mesma pessoa
+ * era recebida de novo em outra máquina e nunca mais na dela. Pior, ninguém
+ * conseguia rever a mensagem depois de dispensá-la uma vez.
+ *
+ * O sinal certo já existia: o callback do OAuth marca a primeira tela depois do
+ * login, e `consumeEnteringFlag()` o gasta uma vez por entrada. Some
+ * armazenamento, some chave, some o "nunca mais volta" — recebe quem chegou
+ * agora, e some ao ser dispensada ou na próxima navegação.
  */
-export function useWelcomeState(personId: string) {
-  // Começa oculta e só aparece depois de consultar o armazenamento: renderizar
-  // primeiro e esconder depois faria a faixa piscar para quem já a dispensou.
+export function useWelcomeState() {
+  // Começa oculta e só aparece depois do efeito: o sinal vive no navegador, e
+  // renderizar antes disso não teria como saber se houve login.
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!personId) return;
-    try {
-      if (!window.localStorage.getItem(`${STORAGE_PREFIX}${personId}`)) setVisible(true);
-    } catch {
-      // Armazenamento indisponível (navegação privada, bloqueio de terceiros):
-      // não mostrar é melhor que mostrar toda vez sem conseguir dispensar.
-    }
-  }, [personId]);
+    if (consumeEnteringFlag()) setVisible(true);
+  }, []);
 
-  function dismiss() {
-    setVisible(false);
-    try {
-      window.localStorage.setItem(`${STORAGE_PREFIX}${personId}`, new Date().toISOString());
-    } catch {
-      // Sem armazenamento, a faixa volta na próxima visita. É a degradação
-      // aceitável: ela informa, não bloqueia.
-    }
-  }
-
-  return { visible, dismiss };
+  return { visible, dismiss: () => setVisible(false) };
 }
 
 export function PlatformWelcome({ visible, onDismiss, firstName }: { visible: boolean; onDismiss: () => void; firstName: string }) {
