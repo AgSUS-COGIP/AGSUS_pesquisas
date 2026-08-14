@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
   Check,
+  ImagePlus,
   CircleDot,
   LayoutGrid,
   Loader2,
@@ -20,6 +21,7 @@ import {
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useConfirm } from "@/components/confirmation-provider";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { platformBrandingQueryKey, usePlatformBranding } from "@/components/platform-branding-provider";
@@ -40,6 +42,7 @@ import {
   DataTableState,
 } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/form-controls";
+import { needsLightForeground } from "@/lib/color-contrast";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
@@ -105,6 +108,7 @@ export default function PlatformSettingsPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_ACCESS);
   const { branding, loading: brandingLoading } = usePlatformBranding();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const granted = guard.state === "granted";
   const currentPersonId = guard.state === "granted" ? guard.person.id : undefined;
 
@@ -154,6 +158,196 @@ export default function PlatformSettingsPage() {
   useEffect(() => {
     if (granted) void loadPeople();
   }, [granted, loadPeople]);
+
+
+  /*
+   * Envio da arte de fundo da tela de acesso.
+   *
+   * Mesmo bucket do logotipo (`platform-assets`), em caminho próprio. A
+   * gravação no banco vem **depois** do upload, e uma falha ali remove o
+   * arquivo enviado — senão o storage acumularia imagens que nenhuma
+   * configuração aponta.
+   */
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const accessPanelIsDark = needsLightForeground(branding.accessPanelColor);
+
+  /*
+   * Galeria das artes já enviadas.
+   *
+   * Sem ela, cada envio deixava o arquivo anterior no storage sem nada
+   * apontando para ele — e trocar de volta para a arte do ano passado exigia
+   * enviar tudo de novo. Com a lista, as campanhas ficam guardadas e a troca é
+   * um clique.
+   *
+   * Lista tudo que está em `branding/`, e não só as artes de acesso: é onde
+   * também ficaram os logotipos enviados antes de a marca virar fixa, que hoje
+   * são órfãos e ninguém tinha como remover pela interface.
+   */
+  const [gallery, setGallery] = useState<{ path: string; url: string; sizeKb: number }[]>([]);
+
+  const loadGallery = useCallback(async () => {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error } = await supabase.storage.from("platform-assets").list("branding", {
+        limit: 100,
+        sortBy: { column: "created_at", order: "desc" },
+      });
+      if (error) throw error;
+      setGallery(
+        (data ?? [])
+          .filter((item) => item.name && !item.name.startsWith("."))
+          .map((item) => {
+            const path = `branding/${item.name}`;
+            return {
+              path,
+              url: supabase.storage.from("platform-assets").getPublicUrl(path).data.publicUrl,
+              sizeKb: Math.round(((item.metadata?.size as number) ?? 0) / 1024),
+            };
+          }),
+      );
+    } catch (listError) {
+      // A galeria é acessório: falhar aqui não pode impedir configurar o resto.
+      console.warn("Galeria de artes indisponível:", errorMessageFromUnknown(listError));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (granted) void loadGallery();
+  }, [granted, loadGallery]);
+
+  /** Ativa uma arte já enviada, sem precisar reenviá-la. */
+  const applyGalleryImage = useCallback(async (item: { path: string; url: string }) => {
+    setUploadingBackground(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.rpc("fc_definir_fundo_acesso", { p_url: item.url, p_caminho: item.path });
+      if (error) throw error;
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding, accessBackgroundUrl: item.url, accessBackgroundPath: item.path,
+      });
+      toast.success("Arte aplicada à tela de acesso.");
+    } catch (useError) {
+      toast.error(errorMessageFromUnknown(useError) || "Não foi possível aplicar a arte.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  /**
+   * Remove uma arte do storage.
+   *
+   * Recusa a que está em uso: apagá-la deixaria a tela de acesso apontando para
+   * um arquivo que não existe mais — e é a única tela por onde se entra.
+   */
+  const deleteGalleryImage = useCallback(async (item: { path: string }) => {
+    if (branding.accessBackgroundPath === item.path) {
+      toast.error("Esta arte está em uso. Escolha outra ou restaure o padrão antes de apagar.");
+      return;
+    }
+    const confirmed = await confirm({
+      title: "Apagar esta arte?",
+      description: "O arquivo sai do armazenamento e não há como recuperar. Artes em uso não podem ser apagadas.",
+      confirmLabel: "Apagar arte",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    setUploadingBackground(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.storage.from("platform-assets").remove([item.path]);
+      if (error) throw error;
+      await loadGallery();
+      toast.success("Arte removida do armazenamento.");
+    } catch (deleteError) {
+      toast.error(errorMessageFromUnknown(deleteError) || "Não foi possível apagar a arte.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding.accessBackgroundPath, confirm, loadGallery]);
+
+  /** Grava a cor do painel; `null` restaura o branco institucional. */
+  const saveAccessPanelColor = useCallback(async (color: string | null) => {
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    try {
+      // A imagem é reenviada junto porque a RPC grava os três campos de uma vez;
+      // omiti-la aqui apagaria o fundo configurado ao trocar só a cor.
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
+        p_url: branding.accessBackgroundUrl,
+        p_caminho: branding.accessBackgroundPath,
+        p_cor_painel: color,
+      });
+      if (saveError) throw saveError;
+      queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessPanelColor: color });
+      toast.success(color ? "Cor do painel atualizada." : "Painel branco restaurado.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a cor.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  const uploadAccessBackground = useCallback(async (file: File) => {
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 4 MB.");
+      return;
+    }
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `acesso/fundo-${crypto.randomUUID()}.${extension}`;
+    try {
+      const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
+
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
+        p_url: publicUrl.publicUrl,
+        p_caminho: path,
+        p_cor_painel: branding.accessPanelColor,
+      });
+      if (saveError) {
+        await supabase.storage.from("platform-assets").remove([path]);
+        throw saveError;
+      }
+
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding,
+        accessBackgroundUrl: publicUrl.publicUrl,
+        accessBackgroundPath: path,
+      });
+      // A arte recém-enviada precisa aparecer na galeria na hora: sem isso,
+      // ela só surgiria no próximo carregamento da tela.
+      await loadGallery();
+      toast.success("Fundo da tela de acesso atualizado.");
+    } catch (uploadError) {
+      toast.error(errorMessageFromUnknown(uploadError) || "Não foi possível enviar a imagem.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient, loadGallery]);
+
+  const clearAccessBackground = useCallback(async () => {
+    setUploadingBackground(true);
+    const supabase = createBrowserSupabaseClient();
+    try {
+      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", { p_url: null, p_caminho: null, p_cor_painel: branding.accessPanelColor });
+      if (saveError) throw saveError;
+      // O arquivo antigo sai do storage só depois de a configuração deixar de
+      // apontar para ele: na ordem inversa, uma falha na gravação deixaria a
+      // tela apontando para imagem que não existe mais.
+      if (branding.accessBackgroundPath) {
+        await supabase.storage.from("platform-assets").remove([branding.accessBackgroundPath]);
+      }
+      queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessBackgroundUrl: null, accessBackgroundPath: null });
+      toast.success("Arte institucional padrão restaurada.");
+    } catch (clearError) {
+      toast.error(errorMessageFromUnknown(clearError) || "Não foi possível restaurar a arte padrão.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -362,6 +556,176 @@ export default function PlatformSettingsPage() {
                       <div className="flex-1">
                         <p className="inline-flex items-center gap-2 rounded-full border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-3 py-1 text-xs font-black text-[var(--status-success-text)]"><BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />Marca institucional fixa</p>
                         <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">O logotipo oficial da AgSUS é aplicado automaticamente em toda a plataforma e não pode ser substituído por aqui — assim a identidade nunca diverge entre as telas.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/*
+                    Fundo da tela de acesso.
+
+                    Diferente do logotipo, esta arte **é** configurável: ela
+                    acompanha campanha institucional (Agosto Lilás, Setembro
+                    Amarelo) e muda várias vezes por ano. Fixa no repositório,
+                    cada troca viraria pedido para a equipe técnica mais um
+                    deploy — e no intervalo a plataforma anunciaria o mês errado.
+                  */}
+                  <div className="border-t border-[var(--border-subtle)] pt-6">
+                    <p className="section-eyebrow">Fundo da tela de acesso</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      Imagem exibida ao lado do formulário de entrada. Use para acompanhar campanhas institucionais. JPG, PNG ou WEBP, até 4 MB.
+                    </p>
+
+                    <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <div
+                        className="h-24 w-40 shrink-0 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-cover bg-center"
+                        style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? "/acesso-fundo.png"})` }}
+                        role="img"
+                        aria-label={branding.accessBackgroundUrl ? "Prévia do fundo configurado" : "Prévia da arte institucional padrão"}
+                      />
+                      <div className="flex-1">
+                        <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+                          <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                          {uploadingBackground ? "Enviando..." : "Escolher imagem"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            disabled={uploadingBackground}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void uploadAccessBackground(file);
+                            }}
+                          />
+                        </label>
+                        {branding.accessBackgroundUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => void clearAccessBackground()}
+                            disabled={uploadingBackground}
+                            className="ml-2 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[var(--status-danger-text)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                          >
+                            Restaurar padrão
+                          </button>
+                        ) : null}
+                        <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                          {branding.accessBackgroundUrl
+                            ? "A imagem vale imediatamente para quem abrir a tela de acesso."
+                            : "Sem imagem configurada, vale a arte institucional padrão."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/*
+                      Galeria: as artes enviadas ficam guardadas para reuso.
+
+                      A campanha de agosto volta em agosto do ano que vem — sem
+                      esta lista, seria preciso reenviar o arquivo toda vez, e o
+                      anterior ficaria no armazenamento sem nada apontando para
+                      ele. Aqui a troca é um clique e a limpeza é possível.
+                    */}
+                    {gallery.length > 0 ? (
+                      <div className="mt-5">
+                        <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">
+                          Artes enviadas
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                          Reaproveite campanhas anteriores sem reenviar o arquivo. A arte em uso não pode ser apagada.
+                        </p>
+                        <ul className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {gallery.map((item) => {
+                            const emUso = branding.accessBackgroundPath === item.path;
+                            return (
+                              <li
+                                key={item.path}
+                                className={`overflow-hidden rounded-xl border ${emUso ? "border-[var(--brand-solid)] ring-1 ring-[var(--brand-solid)]" : "border-[var(--border-subtle)]"}`}
+                              >
+                                <div
+                                  className="h-20 bg-cover bg-center"
+                                  style={{ backgroundImage: `url(${item.url})` }}
+                                  role="img"
+                                  aria-label={emUso ? "Arte em uso na tela de acesso" : "Arte disponível"}
+                                />
+                                <div className="flex items-center justify-between gap-2 p-2">
+                                  <span className="text-[11px] text-[var(--text-muted)]">
+                                    {emUso ? "Em uso" : `${item.sizeKb} KB`}
+                                  </span>
+                                  <span className="flex gap-1">
+                                    {!emUso ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void applyGalleryImage(item)}
+                                        disabled={uploadingBackground}
+                                        className="rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                                      >
+                                        Usar
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteGalleryImage(item)}
+                                      disabled={uploadingBackground || emUso}
+                                      title={emUso ? "Arte em uso: escolha outra antes de apagar" : "Apagar do armazenamento"}
+                                      className="rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--status-danger-text)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      Apagar
+                                    </button>
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {/*
+                      Cor do painel do formulário.
+
+                      O contraste do texto e do botão é **derivado** desta cor,
+                      não escolhido à parte: cor livre com contraste manual
+                      produziria tela ilegível na primeira combinação infeliz. A
+                      prévia mostra o resultado já invertido, para a escolha ser
+                      informada em vez de às cegas.
+                    */}
+                    <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">Cor do painel do formulário</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                        O texto e o botão se ajustam sozinhos para continuar legíveis sobre a cor escolhida.
+                      </p>
+
+                      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <input
+                          type="color"
+                          aria-label="Cor do painel da tela de acesso"
+                          value={branding.accessPanelColor ?? "#ffffff"}
+                          onChange={(event) => void saveAccessPanelColor(event.target.value)}
+                          disabled={uploadingBackground}
+                          className="h-12 w-16 shrink-0 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1"
+                        />
+
+                        <div
+                          className="flex-1 rounded-xl border border-[var(--border-subtle)] p-4"
+                          style={{ backgroundColor: branding.accessPanelColor ?? "#ffffff" }}
+                        >
+                          <p className={`text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
+                            Seja bem-vindo(a) à AgSUS
+                          </p>
+                          <span className={`mt-2 inline-flex min-h-9 items-center rounded-lg px-4 text-xs font-semibold ${accessPanelIsDark ? "bg-white text-[#003b70]" : "bg-[#003b70] text-white"}`}>
+                            Entrar com Google institucional
+                          </span>
+                        </div>
+
+                        {branding.accessPanelColor ? (
+                          <button
+                            type="button"
+                            onClick={() => void saveAccessPanelColor(null)}
+                            disabled={uploadingBackground}
+                            className="inline-flex min-h-10 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                          >
+                            Voltar ao branco
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>

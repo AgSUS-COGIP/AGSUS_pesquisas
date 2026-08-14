@@ -15,17 +15,19 @@ begin;
 -- `fc_expirar_pesquisas_arq()` antes de montar o resultado. O catálogo se
 -- autolimpa sempre que alguém o abre, sem depender de nada externo.
 
--- Colunas do recurso de modelos, criadas fora do repositório.
+-- Colunas do recurso de modelos.
 --
--- `st_modelo` e `tx_categoria_modelo` existem no banco de produção mas não em
--- nenhuma migration — foram aplicadas por SQL direto, como já aconteceu antes
--- neste projeto (ver docs/operacao-permissoes.md). Elas são declaradas aqui
--- para que um banco reconstruído a partir das migrations (`supabase db reset`,
--- usado pelo CI) tenha o mesmo esquema da produção: sem isso, a cláusula
--- `st_modelo = false` de `list_managed_surveys` quebraria a reconstrução.
+-- Quando este arquivo foi escrito, `st_modelo` e `tx_categoria_modelo` existiam
+-- no banco de produção sem constar de nenhuma migration — tinham sido aplicadas
+-- por SQL direto, como já aconteceu antes neste projeto (ver
+-- docs/operacao-permissoes.md). Declará-las aqui era o que impedia a cláusula
+-- `st_modelo = false` de `list_managed_surveys` de quebrar um banco
+-- reconstruído do zero (`supabase db reset`, usado pelo CI).
 --
--- `if not exists` torna o passo inerte onde as colunas já existem: a definição
--- de produção é preservada exatamente como está, e nada é alterado lá.
+-- Desde então `20260813190000_galeria_de_modelos.sql` passou a versioná-las, e
+-- roda antes desta migration — o passo abaixo virou redundante. Fica por ser
+-- inerte: `if not exists` não altera coluna existente, e removê-lo agora só
+-- criaria diferença entre este arquivo e o que já rodou em produção.
 alter table public.surveys
   add column if not exists st_modelo boolean not null default false;
 
