@@ -4,44 +4,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Loader2, Plus, RefreshCw, Search, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  alterarStatusDoParticipante,
+  listarCiclosDeParticipantes,
+  listarParticipantes,
+  listarPessoasDisponiveis,
+  vincularParticipantes,
+} from "@/lib/api/cliente-pessoas";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import type {
+  AvaliacaoComParticipantes,
+  ParticipanteDaAvaliacao,
+  PessoaCandidataAoCiclo,
+} from "@/lib/api/contratos-pessoas";
 
-type ApplicationItem = {
-  id: string;
-  code: string;
-  name: string;
-  status: string;
-  accessMode: string;
-  participantCount: number;
-  completedCount: number;
-};
-
-type Participant = {
-  id: string;
-  personId: string;
-  employeeNumber: string;
-  fullName: string;
-  institutionalEmail: string | null;
-  jobTitle: string | null;
-  costCenter: string | null;
-  avatarUrl: string | null;
-  accessProfile: string | null;
-  status: string;
-  completedAt: string | null;
-  hasSubmission: boolean;
-};
-
-type PersonSearchResult = {
-  personId: string;
-  employeeNumber: string;
-  fullName: string;
-  institutionalEmail: string | null;
-  jobTitle: string | null;
-  costCenter: string | null;
-  avatarUrl: string | null;
-  participantId: string | null;
-  participantStatus: string | null;
-};
+// Formatos vindos do contrato da API, não de cópias locais — ver o comentário
+// equivalente em `admin-participant-bulk-selector.tsx`.
+type ApplicationItem = AvaliacaoComParticipantes;
+type Participant = ParticipanteDaAvaliacao;
+type PersonSearchResult = PessoaCandidataAoCiclo;
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -73,20 +54,14 @@ export function AdminParticipantManagement() {
   const selectedApplication = applications.find((item) => item.id === applicationId) ?? null;
 
   const loadApplications = useCallback(async () => {
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("list_admin_participant_applications");
-    if (error) throw error;
-    const rows = Array.isArray(data) ? data as ApplicationItem[] : [];
+    const rows = await listarCiclosDeParticipantes();
     setApplications(rows);
     setApplicationId((current) => current || rows[0]?.id || "");
   }, []);
 
   const loadParticipants = useCallback(async (targetId: string) => {
     if (!targetId) return;
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("list_admin_application_participants", { target_application_id: targetId });
-    if (error) throw error;
-    setParticipants(Array.isArray(data) ? data as Participant[] : []);
+    setParticipants(await listarParticipantes(targetId));
   }, []);
 
   async function refreshAll() {
@@ -95,29 +70,33 @@ export function AdminParticipantManagement() {
       await loadApplications();
       if (applicationId) await loadParticipants(applicationId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível carregar os participantes.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível carregar os participantes.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { void loadApplications().catch((error) => toast.error(error.message)).finally(() => setLoading(false)); }, [loadApplications]);
+  useEffect(() => {
+    void loadApplications()
+      .catch((error) => toast.error(errorMessageFromUnknown(error)))
+      .finally(() => setLoading(false));
+  }, [loadApplications]);
   useEffect(() => {
     if (!applicationId) return;
     setLoading(true);
-    void loadParticipants(applicationId).catch((error) => toast.error(error.message)).finally(() => setLoading(false));
+    void loadParticipants(applicationId)
+      .catch((error) => toast.error(errorMessageFromUnknown(error)))
+      .finally(() => setLoading(false));
   }, [applicationId, loadParticipants]);
 
   useEffect(() => {
     if (!applicationId || search.trim().length < 2) { setPeople([]); return; }
     const timeout = window.setTimeout(async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("search_admin_people_for_application", {
-        target_application_id: applicationId,
-        target_search: search.trim(),
-      });
-      if (error) toast.error(error.message);
-      else setPeople(Array.isArray(data) ? data as PersonSearchResult[] : []);
+      try {
+        setPeople(await listarPessoasDisponiveis(applicationId, { busca: search.trim() }));
+      } catch (searchError) {
+        toast.error(errorMessageFromUnknown(searchError) || "Não foi possível pesquisar pessoas.");
+      }
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [applicationId, search]);
@@ -127,59 +106,49 @@ export function AdminParticipantManagement() {
   async function assign(personId: string) {
     setWorking(personId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("assign_admin_application_participant", {
-        target_application_id: applicationId,
-        target_person_id: personId,
-        target_access_profile: "PARTICIPANTE",
-      });
-      if (error) throw error;
+      await vincularParticipantes(applicationId, { pessoas: [personId] });
       toast.success("Pessoa vinculada à avaliação.");
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
       setSearch("");
       setPeople([]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível vincular a pessoa.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível vincular a pessoa.");
     } finally { setWorking(""); }
   }
 
   async function createAndAssign() {
     setWorking("CREATE");
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("create_and_assign_admin_participant", {
-        target_application_id: applicationId,
-        target_employee_number: form.employeeNumber,
-        target_full_name: form.fullName,
-        target_institutional_email: form.institutionalEmail,
-        target_job_title: form.jobTitle || null,
-        target_cost_center: form.costCenter || null,
-        target_workplace: form.costCenter || null,
-        target_access_profile: "PARTICIPANTE",
+      await vincularParticipantes(applicationId, {
+        criar: {
+          employeeNumber: form.employeeNumber,
+          fullName: form.fullName,
+          institutionalEmail: form.institutionalEmail,
+          jobTitle: form.jobTitle || null,
+          costCenter: form.costCenter || null,
+          // A tela nunca teve campo próprio de local de trabalho: o centro de
+          // custo servia aos dois desde a primeira versão. Mantido para não
+          // mudar o que a base recebe junto com esta migração.
+          workplace: form.costCenter || null,
+        },
       });
-      if (error) throw error;
       toast.success("Pessoa cadastrada e vinculada à avaliação.");
       setForm({ employeeNumber: "", fullName: "", institutionalEmail: "", jobTitle: "", costCenter: "" });
       setShowCreate(false);
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível cadastrar a pessoa.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível cadastrar a pessoa.");
     } finally { setWorking(""); }
   }
 
   async function changeStatus(participantId: string, status: "ELIGIBLE" | "BLOCKED" | "EXCLUDED") {
     setWorking(participantId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("set_admin_application_participant_status", {
-        target_participant_id: participantId,
-        target_status: status,
-      });
-      if (error) throw error;
+      await alterarStatusDoParticipante(applicationId, participantId, status);
       toast.success(status === "ELIGIBLE" ? "Participante reativado." : status === "BLOCKED" ? "Participante bloqueado." : "Participante removido da avaliação.");
       await Promise.all([loadParticipants(applicationId), loadApplications()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível alterar o participante.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível alterar o participante.");
     } finally { setWorking(""); }
   }
 
