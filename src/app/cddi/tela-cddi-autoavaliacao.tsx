@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import { usePlatformGuard } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 // O cliente Supabase permanece na tela apenas para `auth.getUser()`: sessão é
 // autenticação, não acesso a dados.

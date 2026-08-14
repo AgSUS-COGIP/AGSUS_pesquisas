@@ -57,6 +57,7 @@ import {
   type SurveyOption,
 } from "@/lib/survey-builder";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import { cycleStatusLabel } from "@/lib/survey-status-labels";
 import { excluirAvaliacao } from "@/lib/api/cliente";
 import {
   atualizarPergunta,
