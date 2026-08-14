@@ -677,7 +677,7 @@ function ActionCard({ item, working, busy, onRun }: { item: CycleAction; working
       <Button
         fullWidth
         variant={isDangerSoft ? "danger" : (item.tone as "primary" | "secondary" | "danger")}
-        style={isDangerSoft ? { backgroundColor: "#e13b3b" } : undefined}
+        style={isDangerSoft ? { backgroundColor: "var(--status-danger-soft-solid)" } : undefined}
         onClick={onRun}
         disabled={disabled}
         aria-describedby={noteId}
