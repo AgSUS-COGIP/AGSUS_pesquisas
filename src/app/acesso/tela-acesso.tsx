@@ -77,51 +77,74 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
   }
 
   /**
-   * Acompanha a janela de login até ela concluir, falhar ou ser fechada.
+   * Acompanha a janela de login até haver sessão, falhar ou ser fechada.
    *
-   * A janela é do mesmo domínio nas pontas e do Google no meio; ler o endereço
-   * dela só funciona nas pontas, e é por isso que a leitura vive num `try`. O
-   * que interessa capturar ali é a volta para `/acesso?erro=…`, que é como o
-   * callback informa recusa — sem isso a janela ficaria aberta mostrando a tela
-   * de acesso de novo, sem explicação.
+   * **A tela não espera um recado — ela olha se já existe sessão.** A primeira
+   * versão dependia de a janela avisar por `postMessage`, e isso tem meia dúzia
+   * de formas de não acontecer: o vínculo entre as janelas pode ser cortado por
+   * política do navegador, o `window.close()` pode ser recusado, a janela pode
+   * ficar aberta na página final. Quando o recado não chegava, a tela de trás
+   * ficava presa em "Entrando…" com a sessão já criada — que foi exatamente o
+   * defeito observado.
+   *
+   * Perguntar "há sessão?" não tem esse problema: é o estado real, gravado em
+   * cookie do mesmo domínio, visível para as duas janelas. O recado continua
+   * sendo ouvido, mas só para encurtar a espera — nunca como única saída.
    */
   function acompanharJanela(janela: Window, destino: string) {
+    const supabase = createBrowserSupabaseClient();
+    let encerrado = false;
+
     const encerrar = () => {
+      encerrado = true;
       window.removeEventListener("message", aoReceber);
       window.clearInterval(vigia);
     };
 
-    const aoReceber = (evento: MessageEvent) => {
-      if (evento.origin !== window.location.origin) return;
-      if ((evento.data as { type?: string } | null)?.type !== LOGIN_POPUP_MESSAGE) return;
+    const concluir = () => {
+      if (encerrado) return;
       encerrar();
+      if (!janela.closed) janela.close();
       // A sessão já está nos cookies: basta ir para o destino, marcando a
       // chegada para a tela receber quem entrou.
       window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
     };
 
+    // Atalho, não dependência: quando o recado chega, a espera acaba antes.
+    const aoReceber = (evento: MessageEvent) => {
+      if (evento.origin !== window.location.origin) return;
+      if ((evento.data as { type?: string } | null)?.type !== LOGIN_POPUP_MESSAGE) return;
+      concluir();
+    };
     window.addEventListener("message", aoReceber);
 
     const vigia = window.setInterval(() => {
-      if (janela.closed) {
-        encerrar();
-        resetSignIn();
-        return;
-      }
-      try {
-        const atual = new URL(janela.location.href);
-        if (atual.origin !== window.location.origin) return;
-        const erro = atual.searchParams.get("erro");
-        if (atual.pathname === "/acesso" && erro) {
-          encerrar();
-          janela.close();
-          resetSignIn(accessErrorMessage(erro));
+      void (async () => {
+        if (encerrado) return;
+
+        // `getSession()` lê o cookie local, sem ida ao servidor.
+        const { data } = await supabase.auth.getSession();
+        if (data.session) { concluir(); return; }
+
+        // Sem sessão e sem janela: ou a pessoa desistiu, ou o acesso foi
+        // recusado. O endereço da janela diria qual — mas ela já não existe.
+        if (janela.closed) { encerrar(); resetSignIn(); return; }
+
+        try {
+          const atual = new URL(janela.location.href);
+          if (atual.origin !== window.location.origin) return;
+          const erro = atual.searchParams.get("erro");
+          if (atual.pathname === "/acesso" && erro) {
+            encerrar();
+            janela.close();
+            resetSignIn(accessErrorMessage(erro));
+          }
+        } catch {
+          // Enquanto está no Google, o endereço é de outra origem e a leitura
+          // lança. É o estado normal do meio do fluxo.
         }
-      } catch {
-        // Enquanto está no Google, o endereço é de outra origem e a leitura
-        // lança. É o estado normal do meio do fluxo.
-      }
-    }, 400);
+      })();
+    }, 600);
   }
 
   async function signInWithGoogle() {

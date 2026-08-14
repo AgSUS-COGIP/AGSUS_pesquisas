@@ -16,25 +16,47 @@ import { LOGIN_POPUP_MESSAGE } from "@/lib/login-popup";
  */
 export default function LoginConcluidoPage() {
   useEffect(() => {
-    // `window.opener` some se a janela for aberta fora do fluxo esperado; nesse
-    // caso não há a quem avisar, e o `location.replace` abaixo resolve sozinho.
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: LOGIN_POPUP_MESSAGE }, window.location.origin);
-      window.close();
-      return;
+    // Avisa quem abriu, se ainda houver vínculo. É um atalho para a tela de trás
+    // não precisar esperar a próxima verificação — nunca a única saída dela.
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: LOGIN_POPUP_MESSAGE }, window.location.origin);
+      }
+    } catch {
+      // Vínculo cortado por política do navegador. A tela de trás percebe a
+      // sessão sozinha; aqui só resta sair da frente.
     }
 
-    // Sem janela de trás: esta virou a janela principal. Segue para o destino
-    // como se o login tivesse sido pelo caminho tradicional.
-    const destino = new URLSearchParams(window.location.search).get("destino") || "/area";
-    window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
+    window.close();
+
+    /*
+      `window.close()` pode ser recusado — e foi, no primeiro teste desta tela.
+      Quando isso acontece esta página fica parada, aberta, dizendo "pode
+      fechar" a quem não pediu para fechar nada.
+
+      Então ela não insiste: segue para o destino e vira uma janela útil do
+      sistema. Pior que uma janela a mais é uma janela morta.
+    */
+    const timer = window.setTimeout(() => {
+      if (window.closed) return;
+      const destino = new URLSearchParams(window.location.search).get("destino") || "/area";
+      window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
+    }, 600);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
+  /*
+    Esta tela quase nunca é vista: existe por alguns milissegundos entre a
+    sessão ser gravada e a janela sair de cena. O texto fala de continuidade,
+    não de fechar — se ela chegar a aparecer, é porque o fechamento foi recusado
+    e o destino está a caminho.
+  */
   return (
-    <main className="grid min-h-dvh place-items-center bg-[#0b3b52] px-6 text-center text-white">
+    <main className="grid min-h-dvh place-items-center bg-[var(--surface-page)] px-6 text-center">
       <div>
-        <p className="text-lg font-semibold">Acesso concluído</p>
-        <p className="mt-2 text-sm text-white/70">Você já pode fechar esta janela.</p>
+        <p className="text-lg font-semibold text-[var(--text-primary)]">Acesso concluído</p>
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">Levando você para a plataforma…</p>
       </div>
     </main>
   );
