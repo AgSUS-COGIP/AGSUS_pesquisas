@@ -11,6 +11,7 @@ import { SurveyBanner } from "@/components/survey-banner";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { usePlatformGuard } from "@/lib/platform-context";
@@ -277,7 +278,7 @@ export default function CddiFormPage() {
     if (validateAdvance && target > step && !validateCurrentStep()) return;
     setMessage("");
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
-    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
   /**
    * Envio definitivo da autoavaliação — irreversível.
