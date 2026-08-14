@@ -312,7 +312,13 @@ button.monitor-kpi:focus-visible { outline: 2px solid var(--kpi-accent); outline
 .monitor-table-zebra tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-interactive) 45%, transparent); }
 .monitor-table-zebra tbody tr:hover td { background: var(--status-info-bg) !important; }
 
-/* Rodapé institucional discreto. */
+/*
+ * Linha de apuração do painel.
+ *
+ * Era um rodapé institucional completo, que repetia a assinatura já exibida
+ * pela casca — os dois apareciam um sobre o outro. Sobrou o que só o painel
+ * sabe: quando o dado foi apurado.
+ */
 .monitor-footer {
   display: flex;
   flex-wrap: wrap;
@@ -326,14 +332,4 @@ button.monitor-kpi:focus-visible { outline: 2px solid var(--kpi-accent); outline
   color: var(--text-muted);
 }
 
-.monitor-footer-secure {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  background: var(--status-success-bg);
-  color: var(--status-success-text);
-  padding: .12rem .5rem;
-  font-size: .6rem;
-  font-weight: 900;
-  letter-spacing: .06em;
-}
+
