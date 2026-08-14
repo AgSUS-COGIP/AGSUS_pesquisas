@@ -19,6 +19,7 @@ import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import { cycleStatusLabel } from "@/lib/survey-status-labels";
 import {
   incluirIntegrante,
   listarCandidatosDaEquipe,
@@ -37,14 +38,6 @@ type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
 type SortMode = "PRIORITY" | "NAME" | "UPDATED";
 
 const teamCyclesKey = ["team", "cycles"] as const;
-
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
 
 // As três consultas passaram a chamar as rotas REST. A tela deixou de conhecer
 // nome de RPC e nome de parâmetro do banco: pede a equipe, os ciclos e os
