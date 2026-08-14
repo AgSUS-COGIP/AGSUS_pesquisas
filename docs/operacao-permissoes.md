@@ -104,7 +104,7 @@ with esperado(tipo, nome, origem) as (values
   ('funcao','get_my_platform_context','REMOVIDA em 20260807150000'),
   ('funcao','fc_obter_contexto_plataforma','20260807150000'),
   ('funcao','fc_listar_ciclos_lideranca','20260807151500'),
-  ('funcao','set_person_role','REMOVIDA em 20260810120000'),
+  ('funcao','set_person_role','PONTE desde 20260814140000 — delega a fc_definir_perfil_pessoa'),
   ('funcao','fc_definir_perfil_pessoa','20260810120000')
 )
 select e.tipo, e.nome, e.origem,
@@ -125,7 +125,10 @@ Como ler o resultado:
 - `get_my_platform_context` **existe** e `fc_obter_contexto_plataforma` **ausente**
   → o banco está antes de `20260807150000`. Foi o caso de produção em 10/08.
 - `set_person_role` **existe** e `fc_definir_perfil_pessoa` **ausente**
-  → falta `20260810120000`.
+  → falta `20260810120000`. As duas existindo é o estado esperado desde
+  `20260814140000`: a antiga virou ponte para a nova. O que **não** pode
+  acontecer é a antiga existir com corpo próprio — foi o que a auditoria de
+  14/08/2026 encontrou em produção, quando esta tabela ainda a dava por removida.
 - Falta alguma tabela do núcleo (`people`, `system_roles`…)
   → esquema base ausente; provavelmente o projeto Supabase errado.
 

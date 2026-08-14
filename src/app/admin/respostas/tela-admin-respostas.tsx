@@ -122,11 +122,12 @@ export default function AdminRespostasPage() {
    * A confirmação é diferente para cada modo porque as consequências são
    * diferentes: anular é reversível na prática (a pessoa responde de novo e o
    * registro anterior continua auditável), apagar não é. O motivo é digitado
-   * aqui e vai para a auditoria — o banco recusa com menos de 10 caracteres.
+   * dentro do próprio diálogo e vai para a auditoria — uma decisão só, em vez
+   * de confirmar primeiro e descobrir depois que o motivo era obrigatório.
    */
   async function removeSubmission(submission: Submission, mode: "INVALIDATE" | "DELETE") {
     const anular = mode === "INVALIDATE";
-    const confirmed = await confirm({
+    const reason = await confirm({
       title: anular
         ? `Anular a resposta de ${submission.fullName ?? "participante"}?`
         : `Apagar definitivamente a resposta de ${submission.fullName ?? "participante"}?`,
@@ -135,14 +136,18 @@ export default function AdminRespostasPage() {
         : `As ${submission.answers} resposta(s) serão removidas da base e não há como recuperar. Só o registro da operação permanece na auditoria. Prefira anular, salvo se o conteúdo não puder permanecer gravado.`,
       confirmLabel: anular ? "Anular resposta" : "Apagar definitivamente",
       tone: anular ? undefined : "danger",
+      prompt: {
+        label: "Motivo da operação",
+        hint: "Fica registrado na auditoria, junto de quem executou e quando.",
+        placeholder: anular
+          ? "Ex.: respondeu no lugar de outra pessoa, a pedido da chefia da unidade."
+          : "Ex.: o conteúdo trazia dado pessoal de terceiro e não pode permanecer gravado.",
+        // O mesmo mínimo que `fc_remover_resposta_pessoa` exige. Validar aqui
+        // evita confirmar o irreversível e só então descobrir que faltou motivo.
+        minLength: 10,
+      },
     });
-    if (!confirmed) return;
-
-    const reason = window.prompt(
-      `Descreva o motivo (mínimo de 10 caracteres). Ele fica registrado na auditoria.`,
-      "",
-    );
-    if (reason === null) return;
+    if (!reason) return;
 
     setBusyId(submission.submissionId);
     try {

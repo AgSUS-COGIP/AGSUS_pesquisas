@@ -53,6 +53,13 @@ const LEGACY_RESTORED_OBJECTS = {
       "sync_my_google_avatar",
     ]),
   },
+  // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
+  // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
+  // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria
+  // API nova — esvazia a antiga, deixando só a delegação.
+  "supabase/migrations/20260814140000_limpar_superficie_legada.sql": {
+    função: new Set(["set_person_role"]),
+  },
   // Regra de período no futuro aplicada às duas RPCs legadas que gravam
   // abertura e encerramento. A migration apenas redefine funções existentes,
   // consumidas pelo nome por bundles já publicados — renomeá-las derrubaria a

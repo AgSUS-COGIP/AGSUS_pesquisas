@@ -50,6 +50,7 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | `survey-conditional-logic.ts` | `normalizeSurveyRules()`, `buildSurveyRuleContext()`, `isQuestionVisible()`, `isSectionVisible()`, `visibleSurveySections()`, tipos `SurveyRule`, `SurveyRuleCondition`, `SurveyRuleOperator` |
 | `cddi-question-applicability.ts` | `isCddiQuestionVisible()`, `visibleCddiSections()` |
 | `platform-branding.ts` | `PlatformBranding`, `DEFAULT_PLATFORM_BRANDING`, `normalizePlatformBranding()`, `platformBrandingTitle()` |
+| `confirmation-prompt.ts` | `confirmationReasonError()`, `confirmationReasonValue()` — validação do motivo exigido em confirmação destrutiva |
 | `observability.ts` | `reportApplicationError()`, `sanitizeObservabilityText()`, `errorMessageFromUnknown()`, `createErrorReference()` |
 | `reliable-save-queue.ts` | classe `ReliableSaveQueue` |
 | `utils.ts` | `cn()` — `twMerge(clsx(...))` |
