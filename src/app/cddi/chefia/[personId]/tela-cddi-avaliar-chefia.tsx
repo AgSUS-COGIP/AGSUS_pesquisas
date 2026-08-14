@@ -12,6 +12,7 @@ import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 
@@ -202,7 +203,7 @@ export default function LeaderEvaluationPage() {
     }
     setMessage("");
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
-    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
