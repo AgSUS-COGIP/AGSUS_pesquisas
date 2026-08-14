@@ -71,7 +71,24 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
   );
 }
 
-function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void }) {
+/**
+ * Rótulo que aparece ao lado do ícone quando o menu está compacto.
+ *
+ * Com 68px de largura não cabe texto sob o ícone — "Gerenciar avaliações" não
+ * cabe de jeito nenhum —, então o compacto escondia o nome e deixava o `title`
+ * nativo como única pista: meio segundo de espera, sem estilo, e **invisível
+ * para quem navega por teclado**.
+ *
+ * O rótulo não pode morar dentro da barra: o `aside` declara
+ * `contain: layout paint` e a área de navegação precisa de `overflow-x: hidden`
+ * (sem isso surge rolagem horizontal dentro da barra em telas baixas). Qualquer
+ * um dos dois recorta o que passar da borda, inclusive elemento `fixed`. Por
+ * isso quem o renderiza é a casca, fora do `aside`, a partir da posição que o
+ * item informa ao entrar em foco ou sob o cursor.
+ */
+type NavTip = { label: string; description: string; top: number } | null;
+
+function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
   /*
     A casca renderiza a navegação duas vezes — a barra do desktop e a gaveta do
     celular. O id derivado do título do grupo era o mesmo nas duas, então cada
@@ -95,9 +112,22 @@ function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNav
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-              title={compact ? item.label : undefined}
+              // Sem `title` no compacto: o rótulo flutuante o substitui, e os
+              // dois juntos mostrariam a mesma frase duas vezes.
               aria-label={compact ? `${item.label}: ${item.description}` : undefined}
               aria-current={active ? "page" : undefined}
+              onMouseEnter={compact && onTip ? (event) => {
+                const r = event.currentTarget.getBoundingClientRect();
+                onTip({ label: item.label, description: item.description, top: r.top + r.height / 2 });
+              } : undefined}
+              onMouseLeave={compact && onTip ? () => onTip(null) : undefined}
+              // Foco também mostra: quem chega por Tab não tem cursor para
+              // revelar o nome, e era esse o caso que o `title` nunca cobriu.
+              onFocus={compact && onTip ? (event) => {
+                const r = event.currentTarget.getBoundingClientRect();
+                onTip({ label: item.label, description: item.description, top: r.top + r.height / 2 });
+              } : undefined}
+              onBlur={compact && onTip ? () => onTip(null) : undefined}
               className={`group relative flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-bold transition-colors ${active ? "bg-[var(--brand-primary)] text-white shadow-[0_10px_24px_-18px_rgba(7,59,98,.95)]" : "text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
             >
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
@@ -112,7 +142,7 @@ function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNav
   );
 }
 
-function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void }) {
+function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onToggle, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
 
@@ -129,7 +159,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         roubando altura e cortando os ícones.
       */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 pb-4">
-        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} />)}
+        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} onTip={onTip} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
         {!mobile && onToggle ? (
@@ -175,10 +205,33 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
 }
 
 function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
+  const [tip, setTip] = useState<NavTip>(null);
+
+  // Recolher ou expandir move todos os itens: a posição guardada deixa de valer.
+  useEffect(() => setTip(null), [compact]);
+
   return (
-    <aside data-print-hidden="true" aria-label="Navegação principal" className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex">
-      <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} />
-    </aside>
+    <>
+      <aside data-print-hidden="true" aria-label="Navegação principal" className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex">
+        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} onTip={setTip} />
+      </aside>
+      {/*
+        Fora do `aside` de propósito — ver o comentário de `NavTip`. `aria-hidden`
+        porque o nome já vai no `aria-label` do próprio link: para quem usa leitor
+        de tela isto seria a mesma frase repetida.
+      */}
+      {compact && tip ? (
+        <div
+          data-print-hidden="true"
+          aria-hidden="true"
+          className="pointer-events-none fixed z-[60] hidden max-w-xs -translate-y-1/2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-2 shadow-[0_18px_45px_-20px_rgba(15,23,42,.55)] lg:block"
+          style={{ top: tip.top, left: "calc(var(--platform-sidebar-compact-width, 4.25rem) + 0.5rem)" }}
+        >
+          <strong className="block whitespace-nowrap text-xs font-bold text-[var(--text-primary)]">{tip.label}</strong>
+          <span className="mt-0.5 block text-[11px] leading-4 text-[var(--text-secondary)]">{tip.description}</span>
+        </div>
+      ) : null}
+    </>
   );
 }
 
