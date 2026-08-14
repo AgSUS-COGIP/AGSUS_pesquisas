@@ -761,10 +761,17 @@ export default function CddiMonitoringPage() {
             <p className="text-xs text-[var(--text-muted)]">Página {safePage} de {pageCount}</p>
           </div>
         </section>
-        <footer className="monitor-footer">
-          <span>Agência Brasileira de Apoio à Gestão do SUS · CDDI 2026</span>
-          <span>Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} · <span className="monitor-footer-secure">SEGURO</span></span>
-        </footer>
+        {/*
+          A identificação institucional saiu daqui: a casca já a exibe no rodapé,
+          e as duas apareciam uma sobre a outra.
+
+          O que fica é o que só este painel sabe — o instante da apuração. Num
+          painel que não revalida sozinho, saber de quando é o número é o que
+          separa dado atual de dado velho na tela.
+        */}
+        <p className="monitor-footer">
+          <span>Apurado em {new Date(data.generatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
+        </p>
       </div>
     </PlatformShell>
   );

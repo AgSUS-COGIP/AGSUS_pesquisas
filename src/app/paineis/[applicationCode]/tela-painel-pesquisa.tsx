@@ -193,10 +193,12 @@ export default function SurveyDashboardPage() {
           </Surface>
         ))}
       </div>
-      <footer className="monitor-footer">
-        <span>Agência Brasileira de Apoio à Gestão do SUS · {application.surveyCode}</span>
-        <span>Atualizado em {formatDate(dashboard.generatedAt)} · <span className="monitor-footer-secure">SEGURO</span></span>
-      </footer>
+      {/* Mesma duplicação do painel do CDDI: a casca já assina a instituição no
+          rodapé. Fica só a hora da apuração, que é o que este painel sabe e ela
+          não. */}
+      <p className="monitor-footer">
+        <span>Apurado em {formatDate(dashboard.generatedAt)}</span>
+      </p>
       </div>
     </PlatformShell>
   );
