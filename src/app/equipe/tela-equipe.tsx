@@ -195,7 +195,7 @@ export default function TeamPage() {
         actions={<>
           {workspace?.application && (
             <Badge variant={cycleStatus === "OPEN" ? "success" : cycleStatus === "CLOSED" ? "neutral" : "info"} title={`Código interno: ${cycleStatus}`}>
-              {workspace.application.code} · {CYCLE_STATUS_LABELS[cycleStatus ?? ""] ?? cycleStatus}
+              {workspace.application.code} · {cycleStatusLabel(cycleStatus)}
             </Badge>
           )}
           {cycles.length >= 2 && (

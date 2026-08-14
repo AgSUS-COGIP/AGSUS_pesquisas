@@ -95,3 +95,37 @@ html[data-agsus-theme="dark"] {
 .agsus-progress-fill {
   background: linear-gradient(90deg, var(--progress-start), var(--progress-middle), var(--progress-end));
 }
+
+/*
+  Recepção da primeira visita.
+
+  A entrada é curta e sutil de propósito: a faixa recebe alguém, não pede
+  atenção. Animação longa numa tela de trabalho vira espera.
+
+  `prefers-reduced-motion` cancela as duas animações — quem pediu menos
+  movimento continua vendo a faixa, parada, com o mesmo conteúdo.
+*/
+@keyframes agsus-welcome-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes agsus-welcome-badge-in {
+  from { opacity: 0; transform: scale(.82) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+.platform-welcome {
+  animation: agsus-welcome-in .34s cubic-bezier(.22, .68, .36, 1) both;
+}
+
+.platform-welcome-badge {
+  animation: agsus-welcome-badge-in .42s cubic-bezier(.34, 1.32, .58, 1) .08s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-welcome,
+  .platform-welcome-badge {
+    animation: none;
+  }
+}

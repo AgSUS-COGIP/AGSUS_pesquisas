@@ -11,6 +11,7 @@ import { SurveyBanner } from "@/components/survey-banner";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 // O cliente Supabase permanece na tela apenas para `auth.getUser()`: sessão é
@@ -80,6 +81,18 @@ function IdentityField({ label, value }: { label: string; value: string }) {
 
 export default function CddiFormPage() {
   const confirm = useConfirm();
+  /*
+    A guarda de acesso da rota é da moldura (`CddiPlatformFrame`); aqui ela é
+    lida só para saber se esta pessoa tem equipe. O atalho "Avaliar minha
+    equipe" era renderizado sem condição, então quem só participa via o cartão,
+    clicava e caía na tela de acesso restrito — a rota `/equipe` exige o módulo
+    `TEAM`, que o perfil Participante não tem.
+
+    `/area` já decidia o mesmo atalho por `modules.includes(TEAM)`. A regra
+    passa a ser a mesma nas duas telas.
+  */
+  const guard = usePlatformGuard();
+  const podeAvaliarEquipe = guard.state === "granted" && guard.modules.includes(PLATFORM_MODULE.TEAM);
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [identity, setIdentity] = useState<IdentityContext | null>(null);
@@ -268,7 +281,7 @@ export default function CddiFormPage() {
     if (validateAdvance && target > step && !validateCurrentStep()) return;
     setMessage("");
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
-    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
   /**
    * Envio definitivo da autoavaliação — irreversível.
@@ -301,7 +314,7 @@ export default function CddiFormPage() {
     <CddiPlatformFrame title="CDDI 2026">
       <div className="grid min-h-[60vh] place-items-center px-6">
         <section className="max-w-xl rounded-2xl border border-[var(--status-danger-border)] bg-[var(--surface-card)] p-8 shadow-[var(--shadow-card)]">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h1>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{message}</p>
           <Link href="/area" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]">Voltar à área</Link>
         </section>
@@ -337,7 +350,7 @@ export default function CddiFormPage() {
               className="h-auto max-h-56 w-full object-cover"
             />
             <div className="p-5 sm:p-7">
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
             <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
             <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
@@ -367,10 +380,18 @@ export default function CddiFormPage() {
 
           <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
             <div>
-              <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>Escolha o que fazer agora</h2>
-              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Quem tem equipe pode responder a própria autoavaliação e avaliar as pessoas vinculadas.</p>
+              <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>
+                {podeAvaliarEquipe ? "Escolha o que fazer agora" : "Sua avaliação neste ciclo"}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
+                {podeAvaliarEquipe
+                  ? "Responda a própria autoavaliação e avalie as pessoas vinculadas a você."
+                  : "Avalie suas próprias competências neste ciclo. As respostas são salvas automaticamente."}
+              </p>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {/* Uma coluna quando só existe uma escolha: a grade de dois deixava
+                metade da faixa vazia para quem não avalia equipe. */}
+            <div className={`mt-4 grid gap-3 ${podeAvaliarEquipe ? "md:grid-cols-2" : ""}`}>
               <button
                 type="button"
                 onClick={() => { setScreen("auto"); setStep(0); }}
@@ -380,14 +401,16 @@ export default function CddiFormPage() {
                 <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Responder minha autoavaliação</strong>
                 <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Avalie suas próprias competências neste ciclo.</span>
               </button>
-              <Link
-                href="/equipe"
-                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
-              >
-                <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
-                <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
-                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
-              </Link>
+              {podeAvaliarEquipe ? (
+                <Link
+                  href="/equipe"
+                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                >
+                  <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+                  <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
+                  <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
+                </Link>
+              ) : null}
             </div>
           </section>
         </div>
@@ -410,7 +433,7 @@ export default function CddiFormPage() {
       <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
         <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] space-y-4 px-4 py-4 sm:px-6">
           <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6" style={{ borderTopColor: CDDI_RULE }}>
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
             <p className="mt-2 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             <dl className="mt-4 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
               <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" />

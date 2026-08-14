@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +8,9 @@ import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
@@ -16,13 +18,11 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
+import { timeGreeting } from "@/lib/greeting";
 
-function greeting() {
-  const hour = Number(new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date()).replace(/\D/g, ""));
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
-}
+// A regra de saudação vive em `@/lib/greeting`, testada e compartilhada com a
+// recepção da primeira visita. Duas cópias divergiriam em silêncio — e a
+// daqui não tratava a meia-noite, que o `hour12: false` devolve como "24".
 
 function stateLabel(state: string) {
   if (state === "COMPLETED") return "Concluída";
@@ -66,11 +66,23 @@ export default function ParticipantAreaPage() {
   const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
+  const welcome = useWelcomeState();
   const catalogQuery = useSurveyCatalog(granted);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
+  /*
+    Falha do catálogo não pode virar lista vazia. Sem esta distinção, `data`
+    indefinido cai no mesmo `?? []` do caso legítimo e a tela afirma "Nenhuma
+    avaliação disponível" e "Tudo em dia — você não tem ações pendentes" a quem
+    talvez tenha prazo correndo. `/pesquisas` já separava os dois; aqui os três
+    blocos alimentados pelo catálogo passam a separar também.
+  */
+  const catalogFailed = catalogQuery.isError;
+  const catalogError = catalogQuery.error instanceof Error
+    ? catalogQuery.error.message
+    : "Não foi possível carregar suas avaliações agora.";
 
-  useEffect(() => setSalutation(greeting()), []);
+  useEffect(() => setSalutation(timeGreeting()), []);
 
   const hasHomeModule = granted ? guard.modules.includes(PLATFORM_MODULE.HOME) : true;
   useEffect(() => {
@@ -79,6 +91,42 @@ export default function ParticipantAreaPage() {
 
   const metrics = useMemo(() => summarizeSurveyCatalog(catalog), [catalog]);
   const priorityItem = useMemo(() => selectPrioritySurvey(catalog), [catalog]);
+  /*
+    A lista mostra o que **não** está em destaque.
+
+    Com a maioria dos participantes tendo uma avaliação só — o CDDI —, o mesmo
+    item aparecia três vezes na tela: nos indicadores, no cartão "Próxima ação"
+    e de novo aqui, repetindo prazo e situação. Não era caso raro: é o caso
+    normal de 1.023 pessoas.
+
+    Excluir o item em destaque resolve os dois extremos de uma vez. Com uma
+    avaliação, o bloco desaparece e a tela diz uma coisa só; com várias, a lista
+    volta a ter função — o que vem depois da próxima ação.
+  */
+  const otherItems = useMemo(
+    () => catalog.filter((item) => item.applicationId !== priorityItem?.applicationId),
+    [catalog, priorityItem],
+  );
+
+  /**
+   * Data do prazo mais próximo entre o que a pessoa ainda pode resolver.
+   *
+   * O indicador mostrava só a contagem de dias; sem a data, "15 dias" não diz
+   * até quando. Considera apenas pendente e em andamento — concluída, encerrada
+   * ou agendada não gera prazo a cumprir, que é a mesma regra usada por
+   * `summarizeSurveyCatalog` para contar os dias.
+   */
+  const nextDeadlineDate = useMemo(() => {
+    const abertos = catalog
+      .filter((item) => ["PENDING", "IN_PROGRESS"].includes(itemState(item)))
+      .map((item) => item.closesAt)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    const proximo = abertos[0];
+    return proximo
+      ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(proximo))
+      : null;
+  }, [catalog]);
 
   if (guard.state !== "granted") {
     return <PlatformGuardState guard={guard} title="painel institucional" unidentifiedTitle="Não foi possível abrir seu painel" />;
@@ -94,7 +142,10 @@ export default function ParticipantAreaPage() {
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
   const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
-  const firstName = person.fullName.split(/\s+/)[0];
+  // `?? fullName` porque `split` é tipado como podendo não ter o índice 0 —
+  // nome com espaço no início devolveria vazio, e é melhor o nome inteiro que
+  // uma saudação sem ninguém.
+  const firstName = person.fullName.split(/\s+/).filter(Boolean)[0] ?? person.fullName;
 
   // A administração não tem atalho aqui: a central foi retirada da navegação e
   // cada módulo administrativo tem entrada própria no menu lateral.
@@ -125,12 +176,30 @@ export default function ParticipantAreaPage() {
     },
     {
       label: "Prazo mais próximo",
-      value: metrics.nextDeadlineDays === null ? "—" : metrics.nextDeadlineDays === 0 ? "hoje" : `${metrics.nextDeadlineDays}d`,
+      /*
+        Antes: "15d" com a legenda "1 avaliação aberta". Duas coisas erradas —
+        "15d" é abreviação de painel, não linguagem de quem responde, e a
+        legenda não dizia **até quando**. A pessoa lia "15 dias" e continuava
+        sem saber a data, que estava no cartão ao lado.
+
+        Agora o número fala por extenso e a legenda traz a data. "Hoje" e
+        "amanhã" ganham texto próprio: dizer "1 dia" a quem tem até amanhã é
+        pedir para alguém errar a conta.
+      */
+      value: metrics.nextDeadlineDays === null
+        ? "—"
+        : metrics.nextDeadlineDays === 0
+          ? "hoje"
+          : metrics.nextDeadlineDays === 1
+            ? "amanhã"
+            : `${metrics.nextDeadlineDays} dias`,
       description: metrics.actionable === 0
         ? "sem prazos em aberto"
-        : metrics.urgent > 0
-          ? urgentLabel
-          : `${metrics.actionable} ${metrics.actionable === 1 ? "avaliação aberta" : "avaliações abertas"}`,
+        : metrics.nextDeadlineDays === 0
+          ? "último dia para enviar"
+          : nextDeadlineDate
+            ? `até ${nextDeadlineDate}`
+            : urgentLabel,
       alert: metrics.urgent > 0,
     },
   ];
@@ -159,6 +228,8 @@ export default function ParticipantAreaPage() {
         de largura justamente na tela em que sobrava espaço.
       */}
       <div className="flex w-full flex-col gap-5">
+        {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
+        <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
@@ -167,13 +238,21 @@ export default function ParticipantAreaPage() {
         */}
         <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
           <article className="@container flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-            <div className="flex items-center gap-4">
-              <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
-              <div className="min-w-0">
-                <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
-                <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">{firstName}</h2>
+            {/*
+              A saudação sai enquanto a recepção estiver no ar: a faixa acima já
+              diz "Boas-vindas, {nome}", e repetir "Boa tarde, {nome}" logo
+              abaixo é a mesma saudação duas vezes, uma sob a outra. Dispensada a
+              faixa, ela volta — é ela que dá rosto à tela no uso do dia a dia.
+            */}
+            {!welcome.visible ? (
+              <div className="flex items-center gap-4">
+                <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
+                <div className="min-w-0">
+                  <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
+                  <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">{firstName}</h2>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/*
               Quatro colunas dependem da largura do **cartão**, não da janela —
@@ -188,17 +267,20 @@ export default function ParticipantAreaPage() {
               {metricTiles.map((tile, index) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
-                const highlight = !catalogLoading && tile.alert;
+                const highlight = !catalogLoading && !catalogFailed && tile.alert;
+                // Zero é uma afirmação. Sem catálogo, o número não é zero — é
+                // desconhecido, e o traço diz isso.
+                const unknown = catalogLoading || catalogFailed;
                 // O recuo acompanha a régua: só existe onde ela existe.
                 return (
                   <div key={tile.label} className={index > 0 ? "@4xl:pl-6" : undefined}>
                     <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
                     <dd>
                       <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
-                        {catalogLoading ? "—" : tile.value}
+                        {unknown ? "—" : tile.value}
                       </strong>
                       <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
-                        {catalogLoading ? "carregando" : tile.description}
+                        {catalogLoading ? "carregando" : catalogFailed ? "indisponível" : tile.description}
                       </span>
                     </dd>
                   </div>
@@ -219,6 +301,20 @@ export default function ParticipantAreaPage() {
                 <Skeleton className="h-7 w-3/4" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="mt-auto h-11 w-40" />
+              </div>
+            ) : catalogFailed ? (
+              <div className="flex flex-col">
+                <span className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]">
+                  <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível verificar</h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                  {catalogError} Você pode ter avaliações pendentes — tente novamente antes de considerar que não há nada a responder.
+                </p>
+                <Button variant="secondary" className="mt-4 self-start" onClick={() => void catalogQuery.refetch()}>
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Tentar novamente
+                </Button>
               </div>
             ) : priorityItem ? <>
               <div className="flex items-start justify-between gap-4">
@@ -264,12 +360,17 @@ export default function ParticipantAreaPage() {
           A jornada passou a ocupar a largura toda. Antes dividia a faixa com
           quatro atalhos que repetem o menu lateral — e era a lista, não os
           atalhos, que precisava de espaço para respirar.
+
+          O bloco só existe quando há o que listar além do que já está em
+          destaque, ou quando o catálogo falhou — nesse caso ele é o lugar que
+          explica a falha e oferece nova tentativa.
         */}
+        {catalogLoading || catalogFailed || otherItems.length ? (
         <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Avaliações recentes</h2>
+                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Suas outras avaliações</h2>
               </div>
               <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]">
                 Ver catálogo
@@ -281,12 +382,25 @@ export default function ParticipantAreaPage() {
                 <span className="sr-only">Carregando suas avaliações.</span>
                 {Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)}
               </div>
-            ) : catalog.length ? (
+            ) : catalogFailed ? (
+              <EmptyState
+                className="m-5 border-0 shadow-none"
+                icon={<AlertTriangle className="h-6 w-6" aria-hidden="true" />}
+                title="Não foi possível carregar suas avaliações"
+                description={`${catalogError} A lista abaixo não reflete o que existe — tente novamente.`}
+                action={
+                  <Button variant="secondary" onClick={() => void catalogQuery.refetch()}>
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Tentar novamente
+                  </Button>
+                }
+              />
+            ) : (
               // Passou de 4 para 6: com a coluna ocupando a altura inteira, o
               // corte em 4 deixaria espaço sobrando justamente para quem tem
               // avaliações a mostrar.
               <ul className="divide-y divide-[var(--border-subtle)]">
-                {catalog.slice(0, 6).map((item) => {
+                {otherItems.slice(0, 6).map((item) => {
                   const state = itemState(item);
                   return (
                     <li key={item.applicationId}>
@@ -309,15 +423,9 @@ export default function ParticipantAreaPage() {
                   );
                 })}
               </ul>
-            ) : (
-              <EmptyState
-                className="m-5 border-0 shadow-none"
-                icon={<Inbox className="h-6 w-6" aria-hidden="true" />}
-                title="Nenhuma avaliação disponível"
-                description="Assim que uma avaliação for liberada para o seu perfil, ela aparece aqui."
-              />
             )}
         </article>
+        ) : null}
 
         {/*
           Atalhos como faixa de links, não como cartões: eles repetem destinos que

@@ -11,6 +11,18 @@ const buttonVariants = cva(
         secondary: "border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
         ghost: "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
         danger: "bg-red-700 text-white shadow-sm hover:bg-red-800",
+        /*
+          Entrada de fluxo destrutivo: contornada, não preenchida.
+          A cor e o ícone marcam o risco, mas o peso visual fica abaixo do da
+          ação primária. Preenchida, ela vencia a disputa de atenção justamente
+          quando as ações seguras estavam indisponíveis — e o elemento mais
+          chamativo da tela passava a ser o mais perigoso.
+          O vermelho sólido continua existindo em `danger`, para o botão que
+          confirma dentro do diálogo: ali a pessoa já escolheu, e a ênfase
+          descreve a consequência em vez de convidar ao clique.
+        */
+        "danger-outline":
+          "border border-[var(--status-danger-border)] bg-[var(--surface-card)] text-[var(--status-danger-text)] hover:bg-[var(--status-danger-bg)]",
       },
       size: {
         sm: "min-h-9 px-3 text-xs",

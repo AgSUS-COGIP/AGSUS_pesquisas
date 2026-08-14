@@ -743,7 +743,14 @@ export default function PlatformSettingsPage() {
                     <p className="section-eyebrow">Cor principal</p>
                     <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Aplicada em botões e navegação ativa. O modo escuro mantém contraste próprio para textos e superfícies.</p>
                     <div className="mt-4 flex max-w-md items-center gap-3">
-                      <input id="primaryColor" type="color" value={watchedColor} onChange={(event) => form.setValue("primaryColor", event.target.value, { shouldDirty: true, shouldValidate: true })} className="h-12 w-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1" />
+                      {/*
+                        O `aria-label` é o único nome que este controle pode ter:
+                        "Cor principal" acima é um parágrafo, não `label`, e o
+                        `label` ao lado pertence ao campo hexadecimal. Sem ele o
+                        leitor de tela anunciava apenas "seletor de cor" — e é o
+                        controle que define a cor de toda a plataforma.
+                      */}
+                      <input id="primaryColor" aria-label="Cor principal da plataforma" type="color" value={watchedColor} onChange={(event) => form.setValue("primaryColor", event.target.value, { shouldDirty: true, shouldValidate: true })} className="h-12 w-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1" />
                       <Input label="Valor hexadecimal" containerClassName="flex-1" form="config-brand-form" error={form.formState.errors.primaryColor?.message} {...form.register("primaryColor")} />
                     </div>
                   </div>
