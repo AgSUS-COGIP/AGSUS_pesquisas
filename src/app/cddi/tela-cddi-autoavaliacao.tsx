@@ -299,7 +299,7 @@ export default function CddiFormPage() {
     <CddiPlatformFrame title="CDDI 2026">
       <div className="grid min-h-[60vh] place-items-center px-6">
         <section className="max-w-xl rounded-2xl border border-[var(--status-danger-border)] bg-[var(--surface-card)] p-8 shadow-[var(--shadow-card)]">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h1>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{message}</p>
           <Link href="/area" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]">Voltar à área</Link>
         </section>
@@ -335,7 +335,7 @@ export default function CddiFormPage() {
               className="h-auto max-h-56 w-full object-cover"
             />
             <div className="p-5 sm:p-7">
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
             <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
             <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
@@ -408,7 +408,7 @@ export default function CddiFormPage() {
       <div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
         <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] space-y-4 px-4 py-4 sm:px-6">
           <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6" style={{ borderTopColor: CDDI_RULE }}>
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h1>
+            <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
             <p className="mt-2 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             <dl className="mt-4 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
               <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-lg" />
