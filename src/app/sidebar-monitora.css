@@ -14,7 +14,23 @@
     overscroll-behavior: none;
   }
 
+  /*
+    `position: fixed` não é decoração: é o que impede o documento de rolar.
+
+    Com o contêiner no fluxo normal, o documento mantinha área rolável — e como
+    o `html` está `overflow: hidden`, essa área existia sem barra. Bastava um
+    campo lá embaixo receber foco (o que acontece a cada clique numa alternativa
+    do CDDI) para o navegador rolar o documento até 248px e a aplicação inteira
+    subir, deixando uma faixa branca no rodapé com o formulário cortado. Não
+    havia volta: sem barra, e `scrollTop` não é gravável nesse estado. Só
+    recarregando a página.
+
+    Elemento fixo não contribui para a rolagem do documento, então o navegador
+    passa a ter só um lugar para rolar — este contêiner, que tem barra visível.
+  */
   .platform-shell-content {
+    position: fixed;
+    inset: 0;
     height: 100dvh;
     min-height: 0;
     overflow-x: hidden;
