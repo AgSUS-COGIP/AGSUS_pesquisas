@@ -4,6 +4,7 @@ import { Hourglass, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { safeAuthNext } from "@/lib/auth-callback";
 import { needsLightForeground } from "@/lib/color-contrast";
+import { abrirJanelaDeLogin, LOGIN_POPUP_LANDING, LOGIN_POPUP_MESSAGE, suportaJanelaDeLogin } from "@/lib/login-popup";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { PlatformLogo } from "@/components/platform-logo";
 import type { PlatformBranding } from "@/lib/platform-branding";
@@ -42,6 +43,9 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  // Muda o que a tela diz enquanto espera: com janela separada ninguém é levado
+  // a lugar nenhum, e prometer isso confundiria quem está vendo a janela abrir.
+  const [usandoJanela, setUsandoJanela] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +68,85 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
     };
   }, [supabaseConfigured]);
 
+  /** Volta o botão ao normal — usado quando a janela fecha sem concluir. */
+  function resetSignIn(mensagem = "") {
+    signInPendingRef.current = false;
+    setLoading(false);
+    setUsandoJanela(false);
+    if (mensagem) setMessage(mensagem);
+  }
+
+  /**
+   * Acompanha a janela de login até haver sessão, falhar ou ser fechada.
+   *
+   * **A tela não espera um recado — ela olha se já existe sessão.** A primeira
+   * versão dependia de a janela avisar por `postMessage`, e isso tem meia dúzia
+   * de formas de não acontecer: o vínculo entre as janelas pode ser cortado por
+   * política do navegador, o `window.close()` pode ser recusado, a janela pode
+   * ficar aberta na página final. Quando o recado não chegava, a tela de trás
+   * ficava presa em "Entrando…" com a sessão já criada — que foi exatamente o
+   * defeito observado.
+   *
+   * Perguntar "há sessão?" não tem esse problema: é o estado real, gravado em
+   * cookie do mesmo domínio, visível para as duas janelas. O recado continua
+   * sendo ouvido, mas só para encurtar a espera — nunca como única saída.
+   */
+  function acompanharJanela(janela: Window, destino: string) {
+    const supabase = createBrowserSupabaseClient();
+    let encerrado = false;
+
+    const encerrar = () => {
+      encerrado = true;
+      window.removeEventListener("message", aoReceber);
+      window.clearInterval(vigia);
+    };
+
+    const concluir = () => {
+      if (encerrado) return;
+      encerrar();
+      if (!janela.closed) janela.close();
+      // A sessão já está nos cookies: basta ir para o destino, marcando a
+      // chegada para a tela receber quem entrou.
+      window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
+    };
+
+    // Atalho, não dependência: quando o recado chega, a espera acaba antes.
+    const aoReceber = (evento: MessageEvent) => {
+      if (evento.origin !== window.location.origin) return;
+      if ((evento.data as { type?: string } | null)?.type !== LOGIN_POPUP_MESSAGE) return;
+      concluir();
+    };
+    window.addEventListener("message", aoReceber);
+
+    const vigia = window.setInterval(() => {
+      void (async () => {
+        if (encerrado) return;
+
+        // `getSession()` lê o cookie local, sem ida ao servidor.
+        const { data } = await supabase.auth.getSession();
+        if (data.session) { concluir(); return; }
+
+        // Sem sessão e sem janela: ou a pessoa desistiu, ou o acesso foi
+        // recusado. O endereço da janela diria qual — mas ela já não existe.
+        if (janela.closed) { encerrar(); resetSignIn(); return; }
+
+        try {
+          const atual = new URL(janela.location.href);
+          if (atual.origin !== window.location.origin) return;
+          const erro = atual.searchParams.get("erro");
+          if (atual.pathname === "/acesso" && erro) {
+            encerrar();
+            janela.close();
+            resetSignIn(accessErrorMessage(erro));
+          }
+        } catch {
+          // Enquanto está no Google, o endereço é de outra origem e a leitura
+          // lança. É o estado normal do meio do fluxo.
+        }
+      })();
+    }, 600);
+  }
+
   async function signInWithGoogle() {
     if (signInPendingRef.current || !supabaseConfigured) return;
 
@@ -71,16 +154,34 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
     setLoading(true);
     setMessage("");
 
+    const query = new URLSearchParams(window.location.search);
+    const destino = safeAuthNext(query.get("next"));
+
+    /*
+      A janela é aberta **antes** de qualquer `await`: depois de uma espera o
+      navegador já não associa a abertura ao clique e a bloqueia. Vazia agora,
+      apontada para o Google assim que a URL chegar.
+
+      Se voltar nula — bloqueador, política do navegador, tela pequena —, o
+      fluxo segue pelo redirecionamento de página inteira, que é como sempre
+      funcionou.
+    */
+    const janela = suportaJanelaDeLogin() ? abrirJanelaDeLogin() : null;
+
     try {
-      const query = new URLSearchParams(window.location.search);
       const callbackUrl = new URL("/auth/confirm", window.location.origin);
-      callbackUrl.searchParams.set("next", safeAuthNext(query.get("next")));
+      // Em janela separada o callback termina numa página que avisa e fecha;
+      // sem ela, termina direto no destino, como antes.
+      callbackUrl.searchParams.set("next", janela ? LOGIN_POPUP_LANDING : destino);
 
       const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: callbackUrl.toString(),
+          // Com janela, a navegação é nossa: o Supabase devolve a URL em vez de
+          // levar a página inteira para o Google.
+          skipBrowserRedirect: Boolean(janela),
           queryParams: {
             prompt: "select_account",
             hd: "agenciasus.org.br",
@@ -89,10 +190,16 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
       });
 
       if (error) throw error;
+
+      if (janela) {
+        if (!data?.url) throw new Error("Não foi possível iniciar o acesso com Google.");
+        janela.location.href = data.url;
+        setUsandoJanela(true);
+        acompanharJanela(janela, destino);
+      }
     } catch (error) {
-      signInPendingRef.current = false;
-      setMessage(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
-      setLoading(false);
+      janela?.close();
+      resetSignIn(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
     }
   }
 
@@ -206,7 +313,9 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
 
           {loading && (
             <p role="status" className={`mt-3 text-center text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
-              Você será levado à tela de seleção de conta do Google.
+              {usandoJanela
+                ? "Escolha sua conta na janela que abriu. Esta tela continua aqui."
+                : "Você será levado à tela de seleção de conta do Google."}
             </p>
           )}
 

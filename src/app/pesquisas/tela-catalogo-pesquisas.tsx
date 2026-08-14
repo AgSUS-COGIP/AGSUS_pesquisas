@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, ClipboardList, FileText, Filter, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell } from "@/components/platform-shell";
+import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
@@ -68,6 +69,12 @@ export default function SurveysPage() {
   const catalogQuery = useSurveyCatalog(guard.state === "granted");
   const items = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
+  // Matrícula: é como este projeto identifica a pessoa, e é a chave que faz a
+  // recepção ser dispensada uma vez só, valendo para as duas telas de entrada.
+  const welcome = useWelcomeState();
+  const firstName = guard.state === "granted"
+    ? guard.person.fullName.split(/\s+/).filter(Boolean)[0] ?? guard.person.fullName
+    : "";
 
   const counts = useMemo(() => {
     const result: Record<FilterKey, number> = { ALL: items.length, OPEN: 0, DRAFT: 0, COMPLETED: 0, SCHEDULED: 0, CLOSED: 0 };
@@ -130,6 +137,17 @@ export default function SurveysPage() {
       title="Avaliações"
     >
       <div className="space-y-5">
+        {/*
+          A recepção mora aqui **e** na Visão geral porque as duas são "primeira
+          tela" para públicos diferentes. O Participante não tem o módulo `HOME`:
+          `/area` o redireciona para cá. Colocar as boas-vindas só lá deixava a
+          mensagem invisível justamente para quem ela foi escrita — quem abre um
+          formulário de 52 perguntas pela primeira vez.
+
+          Dispensar numa tela dispensa na outra: a chave é a matrícula, não a
+          rota.
+        */}
+        <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
         <Surface className="p-5 sm:p-6">
           <PageHeader
             eyebrow="Instrumentos disponíveis"

@@ -66,9 +66,7 @@ export default function ParticipantAreaPage() {
   const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
-  // A matrícula é como este projeto identifica a pessoa. Vazia antes da guarda
-  // liberar; o hook não consulta armazenamento nesse caso.
-  const welcome = useWelcomeState(granted ? guard.person.employeeNumber : "");
+  const welcome = useWelcomeState();
   const catalogQuery = useSurveyCatalog(granted);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
