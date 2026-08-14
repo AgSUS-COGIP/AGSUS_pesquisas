@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BarChart3, CircleCheckBig, Clock3, UsersRound } from "lucide-react";
+import { ArrowLeft, BarChart3, CircleCheckBig, Clock3, ShieldCheck, UsersRound } from "lucide-react";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { DistributionBars } from "@/components/platform-charts";
@@ -25,11 +25,17 @@ type DashboardQuestion = {
   position: number;
   sectionTitle: string;
   responseCount: number;
+  /** Recorte pequeno demais para aparecer sem identificar quem respondeu. */
+  suppressed?: boolean;
   options: DashboardOption[];
   textResponses: TextResponse[];
 };
 type DashboardData = {
   generatedAt: string;
+  /** Ciclo anônimo: o painel agrega sem conseguir voltar à pessoa. */
+  anonymous?: boolean;
+  /** Mínimo de respostas para um recorte poder aparecer. Zero em ciclo identificado. */
+  threshold?: number;
   application: {
     code: string;
     name: string;
@@ -110,6 +116,8 @@ export default function SurveyDashboardPage() {
   }
 
   const { application, summary, questions } = dashboard;
+  const isAnonymous = dashboard.anonymous === true;
+  const threshold = dashboard.threshold ?? 0;
 
   return (
     <PlatformShell user={user} eyebrow={application.surveyCode} title={application.name}>
@@ -127,6 +135,18 @@ export default function SurveyDashboardPage() {
           actions={<Badge variant={application.status === "OPEN" ? "success" : "neutral"}>{application.status === "OPEN" ? "Período aberto" : application.status}</Badge>}
         />
       </div>
+
+      {isAnonymous ? (
+        <section className="monitor-panel mt-6 flex gap-3 border-y border-[var(--border-subtle)] bg-[var(--surface-card)] p-5">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
+          <div className="text-sm text-[var(--text-secondary)]">
+            <strong className="block text-[var(--text-primary)]">Avaliação anônima</strong>
+            As respostas não estão ligadas a quem as enviou — nem no banco, nem aqui. O acompanhamento mostra quem já
+            concluiu, sem revelar o que respondeu. Perguntas com menos de {threshold} respostas ficam sem resultado até
+            alcançarem esse mínimo, porque num grupo pequeno o agregado identifica as pessoas por dedução.
+          </div>
+        </section>
+      ) : null}
 
       <div className="monitor-kpi-grid mt-6" aria-label="Indicadores da avaliação">
         <div className="monitor-kpi" data-tone="brand"><span className="monitor-kpi-label">Participantes</span><strong className="monitor-kpi-value">{summary.totalParticipants}</strong></div>
@@ -169,6 +189,20 @@ export default function SurveyDashboardPage() {
               <Badge variant="neutral">{question.responseCount} resposta(s)</Badge>
             </div>
 
+            {question.suppressed ? (
+              /* Sem esta explicação, a supressão é indistinguível de "ninguém
+                 respondeu" — e a contagem ao lado do título contradiria a tela. */
+              <div className="mt-5 flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
+                <div className="text-sm text-[var(--text-secondary)]">
+                  <strong className="block text-[var(--text-primary)]">Resultado preservado por anonimato</strong>
+                  Esta pergunta tem {question.responseCount} resposta(s), menos que o mínimo de {threshold} exigido
+                  nesta avaliação anônima. Com um grupo pequeno, o resultado agregado permite deduzir quem respondeu
+                  o quê. Os números aparecem assim que o mínimo for alcançado.
+                </div>
+              </div>
+            ) : null}
+
             {question.options?.length ? <DistributionBars items={question.options} /> : null}
 
             {question.textResponses?.length ? (
@@ -178,14 +212,18 @@ export default function SurveyDashboardPage() {
                   {question.textResponses.map((response, responseIndex) => (
                     <article key={`${question.id}-${responseIndex}`} className="bg-[var(--surface-card)] p-4">
                       <p className="whitespace-pre-wrap text-sm leading-6 text-[var(--text-primary)]">{response.text}</p>
-                      <p className="mt-2 text-xs text-[var(--text-secondary)]">Enviada em {formatDate(response.submittedAt)}</p>
+                      {/* Ciclo anônimo não devolve horário — escrever "Enviada em
+                          Não informado" sugeriria dado faltando, não proteção. */}
+                      {response.submittedAt ? (
+                        <p className="mt-2 text-xs text-[var(--text-secondary)]">Enviada em {formatDate(response.submittedAt)}</p>
+                      ) : null}
                     </article>
                   ))}
                 </div>
               </div>
             ) : null}
 
-            {!question.options?.length && !question.textResponses?.length ? (
+            {!question.suppressed && !question.options?.length && !question.textResponses?.length ? (
               <div className="mt-5 rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
                 Ainda não há respostas enviadas para esta pergunta.
               </div>

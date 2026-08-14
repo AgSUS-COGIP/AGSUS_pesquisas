@@ -138,6 +138,8 @@ Carrega a marca institucional (nome da organização, nome do produto, cor princ
 
 Substitui `window.confirm` em toda a aplicação. `await confirm({ title, description?, confirmLabel?, tone? })` devolve `boolean`; `tone: "danger"` marca ação irreversível. É montado por `AppProviders`, portanto qualquer componente de cliente pode chamar o hook. Como devolve promise, o padrão nas telas é `if (!(await confirm({ … }))) return;`.
 
+**Com `prompt`, o diálogo também colhe a justificativa** e devolve o texto no lugar de `true` — `false` continua significando desistência, então o mesmo `if (!(await confirm({ … }))) return;` serve aos dois casos, e nenhuma chamada existente muda. `prompt: { label, placeholder?, hint?, minLength? }`; a validação é `confirmationReasonError()` de [@/lib/confirmation-prompt](../lib/CLAUDE.md), função pura e testada. Isso substituiu o `window.prompt` que a tela de remoção de respostas usava: ele abre fora da aplicação, ignora o tema, pode estar bloqueado no navegador e — o pior — não validava nada, então a pessoa confirmava o irreversível e só depois o banco recusava o motivo curto. **`minLength` tem de espelhar o mínimo da RPC**; divergir devolve o erro ao ponto que a validação existe para evitar.
+
 ### `OverlayPanel`
 
 Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o primeiro elemento focável, circula `Tab`/`Shift+Tab`, fecha com `Escape` e restaura o foco anterior na desmontagem. `onOpenChange` é lido de um ref para não recriar os listeners a cada render.
