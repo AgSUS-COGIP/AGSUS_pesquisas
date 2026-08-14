@@ -21,6 +21,12 @@ describe("safeAuthNext", () => {
     "/\\example.com/roubo",
     "javascript:alert(1)",
     " /area",
+    // Os dois ataques que o CodeQL apontou em `/auth/concluido`, onde o destino
+    // era lido do endereço sem passar por aqui: execução de código na sessão de
+    // quem acabou de entrar, e saída do domínio logo depois do login.
+    "javascript:alert(document.cookie)",
+    "https://exemplo-malicioso.test/roubo",
+    "data:text/html,<script>alert(1)</script>",
   ])("bloqueia destino externo ou ambíguo: %s", (value) => {
     expect(safeAuthNext(value)).toBe(DEFAULT_AUTH_DESTINATION);
   });
