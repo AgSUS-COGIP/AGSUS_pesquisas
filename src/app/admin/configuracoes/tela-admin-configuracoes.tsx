@@ -271,13 +271,10 @@ export default function PlatformSettingsPage() {
     setUploadingBackground(true);
     const supabase = createBrowserSupabaseClient();
     try {
-      // A imagem é reenviada junto porque a RPC grava os três campos de uma vez;
-      // omiti-la aqui apagaria o fundo configurado ao trocar só a cor.
-      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
-        p_url: branding.accessBackgroundUrl,
-        p_caminho: branding.accessBackgroundPath,
-        p_cor_painel: color,
-      });
+      // Grava só a cor. A funcao anterior gravava os tres campos de uma vez,
+      // entao reenviar a imagem a partir de um estado desatualizado apagava o
+      // fundo — foi o que aconteceu em producao.
+      const { error: saveError } = await supabase.rpc("fc_definir_cor_painel_acesso", { p_cor: color });
       if (saveError) throw saveError;
       queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessPanelColor: color });
       toast.success(color ? "Cor do painel atualizada." : "Painel branco restaurado.");
@@ -289,23 +286,30 @@ export default function PlatformSettingsPage() {
   }, [branding, queryClient]);
 
   const uploadAccessBackground = useCallback(async (file: File) => {
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error("A imagem precisa ter até 4 MB.");
+    // 2 MB é o limite do próprio bucket `platform-assets`. Validar aqui existe
+    // para a pessoa saber antes de esperar o envio, e o número precisa bater com
+    // o do storage: prometer 4 MB faria uma imagem de 3 MB passar por esta
+    // checagem e ser recusada depois, com mensagem técnica.
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 2 MB.");
       return;
     }
     setUploadingBackground(true);
     const supabase = createBrowserSupabaseClient();
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `acesso/fundo-${crypto.randomUUID()}.${extension}`;
+    // O caminho precisa começar com `branding/`: é o que a política de inserção
+    // do bucket exige (`name like 'branding/%'`). Usar outra pasta devolve
+    // "new row violates row-level security policy" — a política é a regra, e o
+    // caminho é que se ajusta a ela.
+    const path = `branding/acesso-${crypto.randomUUID()}.${extension}`;
     try {
       const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
 
-      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", {
+      const { error: saveError } = await supabase.rpc("fc_definir_fundo_acesso", {
         p_url: publicUrl.publicUrl,
         p_caminho: path,
-        p_cor_painel: branding.accessPanelColor,
       });
       if (saveError) {
         await supabase.storage.from("platform-assets").remove([path]);
@@ -332,7 +336,7 @@ export default function PlatformSettingsPage() {
     setUploadingBackground(true);
     const supabase = createBrowserSupabaseClient();
     try {
-      const { error: saveError } = await supabase.rpc("fc_definir_visual_acesso", { p_url: null, p_caminho: null, p_cor_painel: branding.accessPanelColor });
+      const { error: saveError } = await supabase.rpc("fc_definir_fundo_acesso", { p_url: null, p_caminho: null });
       if (saveError) throw saveError;
       // O arquivo antigo sai do storage só depois de a configuração deixar de
       // apontar para ele: na ordem inversa, uma falha na gravação deixaria a
@@ -572,7 +576,7 @@ export default function PlatformSettingsPage() {
                   <div className="border-t border-[var(--border-subtle)] pt-6">
                     <p className="section-eyebrow">Fundo da tela de acesso</p>
                     <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                      Imagem exibida ao lado do formulário de entrada. Use para acompanhar campanhas institucionais. JPG, PNG ou WEBP, até 4 MB.
+                      Imagem exibida ao lado do formulário de entrada. Use para acompanhar campanhas institucionais. JPG, PNG ou WEBP, até 2 MB.
                     </p>
 
                     <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -708,7 +712,24 @@ export default function PlatformSettingsPage() {
                           className="flex-1 rounded-xl border border-[var(--border-subtle)] p-4"
                           style={{ backgroundColor: branding.accessPanelColor ?? "#ffffff" }}
                         >
-                          <p className={`text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
+                          {/* A prévia inclui o logotipo porque é ele que mais
+                              muda de tratamento: sobre painel escuro é
+                              renderizado em branco sólido. Prévia que omite
+                              isso deixaria a surpresa para a tela real. */}
+                          <div
+                            className="w-fit"
+                            style={accessPanelIsDark ? { filter: "brightness(0) invert(1)" } : undefined}
+                          >
+                            <PlatformLogo
+                              src={DEFAULT_PLATFORM_BRANDING.logoUrl}
+                              alt=""
+                              organizationName={watchedOrganization}
+                              width={28}
+                              height={28}
+                              className="h-7 w-7 object-contain text-[10px]"
+                            />
+                          </div>
+                          <p className={`mt-2 text-sm font-semibold ${accessPanelIsDark ? "text-white" : "text-[#003b70]"}`}>
                             Seja bem-vindo(a) à AgSUS
                           </p>
                           <span className={`mt-2 inline-flex min-h-9 items-center rounded-lg px-4 text-xs font-semibold ${accessPanelIsDark ? "bg-white text-[#003b70]" : "bg-[#003b70] text-white"}`}>
