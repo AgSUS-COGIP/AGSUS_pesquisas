@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { FullPageState } from "@/components/full-page-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
@@ -228,7 +229,7 @@ export default function GenericSurveyPage() {
 
   function goToStep(target: number) {
     setStep(Math.max(0, Math.min(target, sections.length - 1)));
-    window.requestAnimationFrame(() => formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
 
   /**
