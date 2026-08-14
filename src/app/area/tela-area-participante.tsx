@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -91,6 +91,22 @@ export default function ParticipantAreaPage() {
 
   const metrics = useMemo(() => summarizeSurveyCatalog(catalog), [catalog]);
   const priorityItem = useMemo(() => selectPrioritySurvey(catalog), [catalog]);
+  /*
+    A lista mostra o que **não** está em destaque.
+
+    Com a maioria dos participantes tendo uma avaliação só — o CDDI —, o mesmo
+    item aparecia três vezes na tela: nos indicadores, no cartão "Próxima ação"
+    e de novo aqui, repetindo prazo e situação. Não era caso raro: é o caso
+    normal de 1.023 pessoas.
+
+    Excluir o item em destaque resolve os dois extremos de uma vez. Com uma
+    avaliação, o bloco desaparece e a tela diz uma coisa só; com várias, a lista
+    volta a ter função — o que vem depois da próxima ação.
+  */
+  const otherItems = useMemo(
+    () => catalog.filter((item) => item.applicationId !== priorityItem?.applicationId),
+    [catalog, priorityItem],
+  );
 
   if (guard.state !== "granted") {
     return <PlatformGuardState guard={guard} title="painel institucional" unidentifiedTitle="Não foi possível abrir seu painel" />;
@@ -293,12 +309,17 @@ export default function ParticipantAreaPage() {
           A jornada passou a ocupar a largura toda. Antes dividia a faixa com
           quatro atalhos que repetem o menu lateral — e era a lista, não os
           atalhos, que precisava de espaço para respirar.
+
+          O bloco só existe quando há o que listar além do que já está em
+          destaque, ou quando o catálogo falhou — nesse caso ele é o lugar que
+          explica a falha e oferece nova tentativa.
         */}
+        {catalogLoading || catalogFailed || otherItems.length ? (
         <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Avaliações recentes</h2>
+                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Suas outras avaliações</h2>
               </div>
               <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]">
                 Ver catálogo
@@ -323,12 +344,12 @@ export default function ParticipantAreaPage() {
                   </Button>
                 }
               />
-            ) : catalog.length ? (
+            ) : (
               // Passou de 4 para 6: com a coluna ocupando a altura inteira, o
               // corte em 4 deixaria espaço sobrando justamente para quem tem
               // avaliações a mostrar.
               <ul className="divide-y divide-[var(--border-subtle)]">
-                {catalog.slice(0, 6).map((item) => {
+                {otherItems.slice(0, 6).map((item) => {
                   const state = itemState(item);
                   return (
                     <li key={item.applicationId}>
@@ -351,15 +372,9 @@ export default function ParticipantAreaPage() {
                   );
                 })}
               </ul>
-            ) : (
-              <EmptyState
-                className="m-5 border-0 shadow-none"
-                icon={<Inbox className="h-6 w-6" aria-hidden="true" />}
-                title="Nenhuma avaliação disponível"
-                description="Assim que uma avaliação for liberada para o seu perfil, ela aparece aqui."
-              />
             )}
         </article>
+        ) : null}
 
         {/*
           Atalhos como faixa de links, não como cartões: eles repetem destinos que
