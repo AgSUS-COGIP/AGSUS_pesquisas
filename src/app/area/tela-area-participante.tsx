@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, Inbox, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -9,6 +9,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
@@ -69,6 +70,17 @@ export default function ParticipantAreaPage() {
   const catalogQuery = useSurveyCatalog(granted);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
+  /*
+    Falha do catálogo não pode virar lista vazia. Sem esta distinção, `data`
+    indefinido cai no mesmo `?? []` do caso legítimo e a tela afirma "Nenhuma
+    avaliação disponível" e "Tudo em dia — você não tem ações pendentes" a quem
+    talvez tenha prazo correndo. `/pesquisas` já separava os dois; aqui os três
+    blocos alimentados pelo catálogo passam a separar também.
+  */
+  const catalogFailed = catalogQuery.isError;
+  const catalogError = catalogQuery.error instanceof Error
+    ? catalogQuery.error.message
+    : "Não foi possível carregar suas avaliações agora.";
 
   useEffect(() => setSalutation(greeting()), []);
 
@@ -188,17 +200,20 @@ export default function ParticipantAreaPage() {
               {metricTiles.map((tile, index) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
-                const highlight = !catalogLoading && tile.alert;
+                const highlight = !catalogLoading && !catalogFailed && tile.alert;
+                // Zero é uma afirmação. Sem catálogo, o número não é zero — é
+                // desconhecido, e o traço diz isso.
+                const unknown = catalogLoading || catalogFailed;
                 // O recuo acompanha a régua: só existe onde ela existe.
                 return (
                   <div key={tile.label} className={index > 0 ? "@4xl:pl-6" : undefined}>
                     <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
                     <dd>
                       <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
-                        {catalogLoading ? "—" : tile.value}
+                        {unknown ? "—" : tile.value}
                       </strong>
                       <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
-                        {catalogLoading ? "carregando" : tile.description}
+                        {catalogLoading ? "carregando" : catalogFailed ? "indisponível" : tile.description}
                       </span>
                     </dd>
                   </div>
@@ -219,6 +234,20 @@ export default function ParticipantAreaPage() {
                 <Skeleton className="h-7 w-3/4" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="mt-auto h-11 w-40" />
+              </div>
+            ) : catalogFailed ? (
+              <div className="flex flex-col">
+                <span className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]">
+                  <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível verificar</h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                  {catalogError} Você pode ter avaliações pendentes — tente novamente antes de considerar que não há nada a responder.
+                </p>
+                <Button variant="secondary" className="mt-4 self-start" onClick={() => void catalogQuery.refetch()}>
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Tentar novamente
+                </Button>
               </div>
             ) : priorityItem ? <>
               <div className="flex items-start justify-between gap-4">
@@ -281,6 +310,19 @@ export default function ParticipantAreaPage() {
                 <span className="sr-only">Carregando suas avaliações.</span>
                 {Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)}
               </div>
+            ) : catalogFailed ? (
+              <EmptyState
+                className="m-5 border-0 shadow-none"
+                icon={<AlertTriangle className="h-6 w-6" aria-hidden="true" />}
+                title="Não foi possível carregar suas avaliações"
+                description={`${catalogError} A lista abaixo não reflete o que existe — tente novamente.`}
+                action={
+                  <Button variant="secondary" onClick={() => void catalogQuery.refetch()}>
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Tentar novamente
+                  </Button>
+                }
+              />
             ) : catalog.length ? (
               // Passou de 4 para 6: com a coluna ocupando a altura inteira, o
               // corte em 4 deixaria espaço sobrando justamente para quem tem

@@ -228,7 +228,7 @@ export default function LeaderEvaluationPage() {
     <CddiPlatformFrame title="Avaliação da chefia">
       <div className="grid min-h-[60vh] place-items-center px-6">
         <section className="max-w-xl rounded-2xl border border-[var(--status-danger-border)] bg-[var(--surface-card)] p-8 shadow-[var(--shadow-card)]">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Avaliação indisponível</h1>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Avaliação indisponível</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{message || "Não foi possível abrir a avaliação desta pessoa."}</p>
           <Link href="/equipe" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]">Voltar à equipe</Link>
         </section>
@@ -246,7 +246,7 @@ export default function LeaderEvaluationPage() {
           <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
-            <h1 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h1>
+            <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h2>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p>
           </div>
           <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">

@@ -397,8 +397,15 @@ export default function CddiMonitoringPage() {
               Escopo {scopeLabel(data.scope)}
             </span>
           </div>
-          <h1 className="mt-3 text-xl font-black tracking-tight text-[var(--text-primary)]">AgSUS Monitora CDDI</h1>
-          <p className="mt-1 max-w-3xl text-sm leading-5 text-[var(--text-secondary)]">
+          {/*
+            O título saiu daqui: a casca recebe `title="AgSUS Monitora CDDI"` e
+            já o exibe no cabeçalho, então a mesma frase aparecia duas vezes na
+            tela — e, pior, como duas `h1`. Um documento tem um só título de
+            primeiro nível; a segunda disputava com a da casca e o leitor de tela
+            anunciava o nome do painel em dobro. Fica a frase que explica o que
+            a tela faz, que é o que ali informa alguma coisa.
+          */}
+          <p className="mt-3 max-w-3xl text-sm leading-5 text-[var(--text-secondary)]">
             Acompanhe adesão, pendências e resultados consolidados do Ciclo de Devolutivas e Desenvolvimento Individual.
           </p>
           </div>

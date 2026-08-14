@@ -9,7 +9,6 @@ import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/feedback";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
@@ -17,6 +16,7 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
+import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
 
 type Issue = {
   id?: string;
@@ -82,25 +82,6 @@ function errorMessage(error: unknown, fallback: string) {
  * Os códigos do banco (`DRAFT`, `OPEN`, …) são vocabulário interno. A tela
  * mostra o rótulo em português e guarda o código só como legenda técnica.
  */
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
-
-const VERSION_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  PUBLISHED: "Publicada",
-  ARCHIVED: "Arquivada",
-  RETIRED: "Descontinuada",
-};
-
-function cycleStatusLabel(status: string | undefined) {
-  if (!status) return "Não configurado";
-  return CYCLE_STATUS_LABELS[status] ?? status;
-}
 
 function cycleStatusVariant(status: string | undefined) {
   switch (status) {
@@ -410,13 +391,25 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
             </Badge>
             <Badge variant={versionStatus === "PUBLISHED" ? "success" : "warning"} title={`Código interno da versão: ${versionStatus ?? "—"}`}>
               <FileStack className="h-3.5 w-3.5" aria-hidden="true" />
-              Versão {operations.version.number} · {(VERSION_STATUS_LABELS[versionStatus ?? ""] ?? versionStatus ?? "—").toLocaleLowerCase("pt-BR")}
+              Versão {operations.version.number} · {versionStatusLabel(versionStatus).toLocaleLowerCase("pt-BR")}
             </Badge>
           </>}
         />
 
         <section aria-label="Números do ciclo" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={ListChecks} label="Estrutura" value={`${operations.metrics.sections} / ${operations.metrics.questions}`} description={`${operations.metrics.sections === 1 ? "seção" : "seções"} e ${operations.metrics.questions === 1 ? "pergunta" : "perguntas"} · ${operations.metrics.requiredQuestions} ${operations.metrics.requiredQuestions === 1 ? "obrigatória" : "obrigatórias"}`} />
+          {/*
+            Um número só, como nos outros três cartões. "13 / 52" com a legenda
+            "seções e perguntas" lia como fração de progresso — 13 de 52 —
+            quando são duas grandezas diferentes. O tamanho do instrumento é o
+            número de perguntas; quantas seções o organizam é detalhe, e desce
+            para a legenda.
+          */}
+          <MetricCard
+            icon={ListChecks}
+            label="Estrutura"
+            value={operations.metrics.questions}
+            description={`${operations.metrics.questions === 1 ? "pergunta" : "perguntas"} em ${operations.metrics.sections} ${operations.metrics.sections === 1 ? "seção" : "seções"} · ${operations.metrics.requiredQuestions} ${operations.metrics.requiredQuestions === 1 ? "obrigatória" : "obrigatórias"}`}
+          />
           <MetricCard icon={Users2} label="Participantes" value={operations.metrics.participants} description={operations.metrics.participants ? "pessoas vinculadas a este ciclo" : "nenhuma pessoa vinculada ainda"} href="/admin/participantes" hrefLabel="Gerenciar público" />
           <MetricCard icon={Clock3} label="Em preenchimento" value={operations.metrics.draftSubmissions} description="respostas iniciadas e ainda não enviadas" />
           <MetricCard icon={CheckCircle2} label="Respostas enviadas" value={operations.metrics.submittedSubmissions} description="submissões concluídas e registradas" tone="success" />
@@ -676,8 +669,7 @@ function ActionCard({ item, working, busy, onRun }: { item: CycleAction; working
     <div className={`flex h-full flex-col rounded-2xl border p-4 transition ${item.available ? "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]" : "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}>
       <Button
         fullWidth
-        variant={isDangerSoft ? "danger" : (item.tone as "primary" | "secondary" | "danger")}
-        style={isDangerSoft ? { backgroundColor: "#e13b3b" } : undefined}
+        variant={isDangerSoft ? "danger-outline" : (item.tone as "primary" | "secondary" | "danger")}
         onClick={onRun}
         disabled={disabled}
         aria-describedby={noteId}
@@ -739,8 +731,15 @@ function ReadinessChecklist({ issues, surveyId }: { issues: Issue[]; surveyId: s
             </Badge>}
       </div>
 
-      <div className="mt-5 flex-1 space-y-3">
-        {issues.length ? issues.map((issue, index) => {
+      {/*
+        Sem pendência, o corpo não existe. O cabeçalho já diz "Nenhuma
+        pendência: a estrutura e o período estão consistentes" e o selo já diz
+        "Tudo pronto" — um `EmptyState` de tela inteira repetindo isso pela
+        terceira vez fazia a ausência de problema ocupar mais espaço que a
+        presença deles.
+      */}
+      <div className={`space-y-3 ${issues.length ? "mt-5 flex-1" : ""}`}>
+        {issues.map((issue, index) => {
           const blocking = issue.severity === "BLOCKING";
           const fix = issueFixHref(issue.category, surveyId);
           return (
@@ -774,14 +773,7 @@ function ReadinessChecklist({ issues, surveyId }: { issues: Issue[]; surveyId: s
               </div>
             </article>
           );
-        }) : (
-          <EmptyState
-            className="border-[var(--status-success-border)] bg-[var(--status-success-bg)]"
-            icon={<CheckCircle2 className="h-6 w-6 text-[var(--status-success-text)]" aria-hidden="true" />}
-            title="Pronto para operar"
-            description="A validação do banco não encontrou pendências de estrutura, período ou público neste ciclo."
-          />
-        )}
+        })}
       </div>
     </Surface>
   );

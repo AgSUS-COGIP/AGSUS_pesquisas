@@ -19,6 +19,7 @@ import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { cycleStatusLabel } from "@/lib/survey-status-labels";
 
 type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
 type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null };
@@ -28,14 +29,6 @@ type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
 type SortMode = "PRIORITY" | "NAME" | "UPDATED";
 
 const teamCyclesKey = ["team", "cycles"] as const;
-
-const CYCLE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Rascunho",
-  SCHEDULED: "Agendado",
-  OPEN: "Aberto",
-  CLOSED: "Encerrado",
-  CANCELLED: "Cancelado",
-};
 
 async function fetchTeamCycles() {
   const supabase = createBrowserSupabaseClient();
@@ -210,7 +203,7 @@ export default function TeamPage() {
         actions={<>
           {workspace?.application && (
             <Badge variant={cycleStatus === "OPEN" ? "success" : cycleStatus === "CLOSED" ? "neutral" : "info"} title={`Código interno: ${cycleStatus}`}>
-              {workspace.application.code} · {CYCLE_STATUS_LABELS[cycleStatus ?? ""] ?? cycleStatus}
+              {workspace.application.code} · {cycleStatusLabel(cycleStatus)}
             </Badge>
           )}
           {cycles.length >= 2 && (

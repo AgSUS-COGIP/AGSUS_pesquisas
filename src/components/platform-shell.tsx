@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -72,9 +72,21 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
 }
 
 function NavGroup({ group, pathname, compact, onNavigate }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void }) {
+  /*
+    A casca renderiza a navegação duas vezes — a barra do desktop e a gaveta do
+    celular. O id derivado do título do grupo era o mesmo nas duas, então cada
+    `nav-group-*` existia em dobro e o `aria-labelledby` resolvia para a
+    primeira ocorrência, que costuma ser a cópia escondida. `useId()` dá um
+    identificador por instância, como já se faz nos controles de formulário.
+
+    O título também deixa de compor o id: "Atuação" gerava `nav-group-atuação`,
+    com acento, que exige escape em qualquer `querySelector`.
+  */
+  const tituloId = useId();
+
   return (
-    <section className="mt-4" aria-labelledby={`nav-group-${group.title.toLowerCase()}`}>
-      {!compact ? <p id={`nav-group-${group.title.toLowerCase()}`} className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
+    <section className="mt-4" aria-labelledby={compact ? undefined : tituloId} aria-label={compact ? group.title : undefined}>
+      {!compact ? <p id={tituloId} className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
       <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
@@ -132,12 +144,27 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
             {!compact ? <span>Recolher menu</span> : null}
           </button>
         ) : null}
-        <Link href="/perfil" onClick={onNavigate} className={`flex min-h-11 items-center gap-2 rounded-xl p-2 transition hover:bg-[var(--surface-hover)] ${compact && !mobile ? "justify-center" : ""}`} aria-label={`Abrir perfil de ${user.fullName}`}>
-          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${mobile ? "bg-[var(--surface-muted)] text-[var(--brand-primary)]" : "bg-white/10 text-[var(--sidebar-foreground)]"}`} aria-hidden="true">
-            <PlatformIcon name="profile" className="h-[18px] w-[18px]" />
-          </span>
-          {(!compact || mobile) ? <span className="min-w-0"><strong className={`block truncate text-xs ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>Meu perfil</strong><span className={`block truncate text-[11px] ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{user.profileLabel}</span></span> : null}
-        </Link>
+        {/*
+          Só na gaveta. No desktop isto repetia o que o cabeçalho já mostra —
+          o avatar leva ao perfil a partir de `sm`, e a partir de `xl` ele exibe
+          nome e perfil por extenso, então o rodapé da barra dizia "Meu perfil ·
+          Superadmin" ao lado de um cabeçalho dizendo a mesma coisa.
+
+          Abaixo de `sm` o cabeçalho esconde o link de perfil, e aí a gaveta é o
+          único caminho até `/perfil`. Por isso não dá para remover dos dois
+          lugares: some o acesso justamente em tela pequena.
+        */}
+        {mobile ? (
+          <Link href="/perfil" onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-xl p-2 transition hover:bg-[var(--surface-hover)]" aria-label={`Abrir perfil de ${user.fullName}`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]" aria-hidden="true">
+              <PlatformIcon name="profile" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0">
+              <strong className="block truncate text-xs text-[var(--text-primary)]">Meu perfil</strong>
+              <span className="block truncate text-[11px] text-[var(--text-secondary)]">{user.profileLabel}</span>
+            </span>
+          </Link>
+        ) : null}
         <button type="button" onClick={onSignOut} aria-label="Sair da sessão atual" className={`mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${compact && !mobile ? "px-2" : ""}`}>
           <PlatformIcon name="logout" className="h-4 w-4" />
           {(!compact || mobile) ? "Sair" : null}
@@ -284,9 +311,26 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                 </button>
               )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
-                {eyebrow ? <p className="truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:text-xs">{eyebrow}</p> : null}
-                {eyebrow ? <span className="text-[var(--border-strong)]" aria-hidden="true">/</span> : null}
-                <h1 className="truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
+                {/*
+                  Regra: **um** dos dois trunca, nunca os dois.
+
+                  Antes ambos tinham `truncate` e encolhiam juntos — em tela
+                  estreita o cabeçalho virava "ADMINISTRAÇÃO ·… / Ciclo de
+                  Devolutivas e Desenvol…", as duas metades cortadas e nenhuma
+                  informação inteira. A primeira tentativa de correção limitou o
+                  contexto a um terço da linha, e isso o cortava mesmo **sobrando
+                  espaço**: "Ambiente institucional" precisa de 200px, recebia 97
+                  numa linha de 294 e virava "AMBIENT…".
+
+                  O contexto é um rótulo curto, autoral e fixo por rota, então
+                  não encolhe (`shrink-0`) nem quebra (`whitespace-nowrap`). Quem
+                  absorve a pressão é o título, que é o texto variável e o único
+                  com motivo para truncar. Abaixo de `sm` o contexto some, e o
+                  título fica com a linha inteira.
+                */}
+                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
+                {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
+                <h1 className="min-w-0 truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
