@@ -7,7 +7,7 @@ import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { metadataText } from "@/lib/person-metadata";
 import { usePlatformGuard } from "@/lib/platform-context";
-import { platformRoleLabel } from "@/lib/platform-roles";
+import { navigationGroupsForModules } from "@/lib/platform-navigation";
 
 export default function ProfilePage() {
   // Sem módulo exigido: o próprio perfil é acessível a qualquer pessoa com
@@ -17,7 +17,7 @@ export default function ProfilePage() {
     return <PlatformGuardState guard={guard} title="seu perfil" unidentifiedTitle="Não foi possível identificar seu acesso" />;
   }
 
-  const { context, person, modules } = guard;
+  const { person, modules } = guard;
   // A foto vem da conta Google, sincronizada no login: não há mais escolha de
   // avatar nesta tela, então a casca e o cartão mostram a mesma imagem.
   const googleAvatarUrl = person.avatarUrl ?? metadataText(person.metadata, "google_avatar_url");
@@ -82,7 +82,24 @@ export default function ProfilePage() {
             <p className="section-eyebrow">Acesso</p>
             <h3 className="mt-1 text-lg font-semibold text-slate-950">Perfil e permissões</h3>
             <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{user.profileLabel}</p></div>
-            <div className="mt-4 flex flex-wrap gap-2">{(context.roles ?? []).map((role) => <span key={role} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{platformRoleLabel(role)}</span>)}</div>
+            {/*
+              Aqui havia a lista de papéis vigentes, que repetia palavra por
+              palavra a caixa acima: desde `20260810120000` os perfis são
+              **exclusivos**, então `roles` traz sempre um só — o mesmo que
+              `profileLabel`. A tela dizia "Superadmin" duas vezes seguidas.
+
+              No lugar entra o que o título promete e a tela não entregava: as
+              permissões. Vêm da mesma fonte que monta o menu, então o que se lê
+              aqui é exatamente o que aparece na navegação.
+            */}
+            <div className="mt-4">
+              <p className="text-xs font-medium text-slate-500">Áreas liberadas para você</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {navigationGroupsForModules(modules).flatMap((group) => group.items).map((item) => (
+                  <span key={item.href} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{item.label}</span>
+                ))}
+              </div>
+            </div>
             <div className="mt-6 space-y-2">
               <Link href="/area" className="primary-button w-full justify-center">Voltar à visão geral</Link>
               {modules.some((module) => module.startsWith("ADMIN_")) && <Link href="/admin" className="secondary-button w-full justify-center">Abrir administração</Link>}
