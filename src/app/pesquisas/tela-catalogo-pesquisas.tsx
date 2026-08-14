@@ -84,7 +84,13 @@ export default function SurveysPage() {
     { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false },
     {
       label: "Pendentes",
-      value: metrics.actionable,
+      // `metrics.pending`, não `metrics.actionable`. `actionable` é
+      // `pending + inProgress`, então uma avaliação já iniciada era contada aqui
+      // **e** no indicador ao lado: a mesma avaliação aparecia como "ainda não
+      // iniciada" e "em andamento" ao mesmo tempo, e a soma dos dois passava do
+      // total de "Disponíveis". `/area` sempre usou `pending` — as duas telas
+      // discordavam sobre o mesmo catálogo.
+      value: metrics.pending,
       description: metrics.urgent > 0
         ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias`
         : "ainda não iniciadas",
