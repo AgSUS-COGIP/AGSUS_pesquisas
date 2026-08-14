@@ -20,7 +20,15 @@ const STORAGE_PREFIX = "agsus-boas-vindas-v1:";
  * Também não é modal: ninguém precisa fechar uma caixa para começar a usar o
  * sistema. É uma faixa que informa e sai de cena.
  */
-export function PlatformWelcome({ personId, firstName }: { personId: string; firstName: string }) {
+/**
+ * Estado da recepção, exposto para a tela poder se ajustar a ele.
+ *
+ * A página precisa saber se a faixa está no ar: quando está, ela já cumprimenta
+ * pelo nome, e o bloco de identificação logo abaixo não pode cumprimentar de
+ * novo — "Boas-vindas, YASSURY" seguido de "Boa tarde, YASSURY" é a mesma
+ * saudação duas vezes, uma sob a outra.
+ */
+export function useWelcomeState(personId: string) {
   // Começa oculta e só aparece depois de consultar o armazenamento: renderizar
   // primeiro e esconder depois faria a faixa piscar para quem já a dispensou.
   const [visible, setVisible] = useState(false);
@@ -40,11 +48,15 @@ export function PlatformWelcome({ personId, firstName }: { personId: string; fir
     try {
       window.localStorage.setItem(`${STORAGE_PREFIX}${personId}`, new Date().toISOString());
     } catch {
-      // Sem armazenamento, a faixa volta na próxima visita. É o degradação
+      // Sem armazenamento, a faixa volta na próxima visita. É a degradação
       // aceitável: ela informa, não bloqueia.
     }
   }
 
+  return { visible, dismiss };
+}
+
+export function PlatformWelcome({ visible, onDismiss, firstName }: { visible: boolean; onDismiss: () => void; firstName: string }) {
   if (!visible) return null;
 
   return (
@@ -70,7 +82,7 @@ export function PlatformWelcome({ personId, firstName }: { personId: string; fir
         </div>
         <button
           type="button"
-          onClick={dismiss}
+          onClick={onDismiss}
           aria-label="Dispensar as boas-vindas"
           className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
         >
