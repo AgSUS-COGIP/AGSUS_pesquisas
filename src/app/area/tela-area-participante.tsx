@@ -8,6 +8,7 @@ import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformWelcome } from "@/components/platform-welcome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
@@ -108,6 +109,26 @@ export default function ParticipantAreaPage() {
     [catalog, priorityItem],
   );
 
+  /**
+   * Data do prazo mais próximo entre o que a pessoa ainda pode resolver.
+   *
+   * O indicador mostrava só a contagem de dias; sem a data, "15 dias" não diz
+   * até quando. Considera apenas pendente e em andamento — concluída, encerrada
+   * ou agendada não gera prazo a cumprir, que é a mesma regra usada por
+   * `summarizeSurveyCatalog` para contar os dias.
+   */
+  const nextDeadlineDate = useMemo(() => {
+    const abertos = catalog
+      .filter((item) => ["PENDING", "IN_PROGRESS"].includes(itemState(item)))
+      .map((item) => item.closesAt)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    const proximo = abertos[0];
+    return proximo
+      ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(proximo))
+      : null;
+  }, [catalog]);
+
   if (guard.state !== "granted") {
     return <PlatformGuardState guard={guard} title="painel institucional" unidentifiedTitle="Não foi possível abrir seu painel" />;
   }
@@ -122,7 +143,10 @@ export default function ParticipantAreaPage() {
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
   const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
-  const firstName = person.fullName.split(/\s+/)[0];
+  // `?? fullName` porque `split` é tipado como podendo não ter o índice 0 —
+  // nome com espaço no início devolveria vazio, e é melhor o nome inteiro que
+  // uma saudação sem ninguém.
+  const firstName = person.fullName.split(/\s+/).filter(Boolean)[0] ?? person.fullName;
 
   // A administração não tem atalho aqui: a central foi retirada da navegação e
   // cada módulo administrativo tem entrada própria no menu lateral.
@@ -153,12 +177,30 @@ export default function ParticipantAreaPage() {
     },
     {
       label: "Prazo mais próximo",
-      value: metrics.nextDeadlineDays === null ? "—" : metrics.nextDeadlineDays === 0 ? "hoje" : `${metrics.nextDeadlineDays}d`,
+      /*
+        Antes: "15d" com a legenda "1 avaliação aberta". Duas coisas erradas —
+        "15d" é abreviação de painel, não linguagem de quem responde, e a
+        legenda não dizia **até quando**. A pessoa lia "15 dias" e continuava
+        sem saber a data, que estava no cartão ao lado.
+
+        Agora o número fala por extenso e a legenda traz a data. "Hoje" e
+        "amanhã" ganham texto próprio: dizer "1 dia" a quem tem até amanhã é
+        pedir para alguém errar a conta.
+      */
+      value: metrics.nextDeadlineDays === null
+        ? "—"
+        : metrics.nextDeadlineDays === 0
+          ? "hoje"
+          : metrics.nextDeadlineDays === 1
+            ? "amanhã"
+            : `${metrics.nextDeadlineDays} dias`,
       description: metrics.actionable === 0
         ? "sem prazos em aberto"
-        : metrics.urgent > 0
-          ? urgentLabel
-          : `${metrics.actionable} ${metrics.actionable === 1 ? "avaliação aberta" : "avaliações abertas"}`,
+        : metrics.nextDeadlineDays === 0
+          ? "último dia para enviar"
+          : nextDeadlineDate
+            ? `até ${nextDeadlineDate}`
+            : urgentLabel,
       alert: metrics.urgent > 0,
     },
   ];
@@ -187,6 +229,8 @@ export default function ParticipantAreaPage() {
         de largura justamente na tela em que sobrava espaço.
       */}
       <div className="flex w-full flex-col gap-5">
+        {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
+        <PlatformWelcome personId={person.employeeNumber} firstName={firstName} />
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
