@@ -17,10 +17,10 @@ describe("platform modules", () => {
       PLATFORM_MODULE.HOME,
       "UNKNOWN",
       PLATFORM_MODULE.HOME,
-      PLATFORM_MODULE.RESULTS,
+      PLATFORM_MODULE.TEAM,
     ])).toEqual([
       PLATFORM_MODULE.HOME,
-      PLATFORM_MODULE.RESULTS,
+      PLATFORM_MODULE.TEAM,
     ]);
   });
 
@@ -46,7 +46,6 @@ describe("platform modules", () => {
     const modules = resolvePlatformModules({ roles: [PLATFORM_ROLE.ADMIN] });
     expect(modules).toEqual([...ADMIN_ROLE_MODULES]);
     expect(modules).toContain(PLATFORM_MODULE.DASHBOARDS);
-    expect(modules).toContain(PLATFORM_MODULE.RESULTS);
     expect(modules).toContain(PLATFORM_MODULE.ADMIN_SURVEYS);
     expect(modules).toContain(PLATFORM_MODULE.ADMIN_PARTICIPANTS);
     expect(modules).not.toContain(PLATFORM_MODULE.ADMIN_TEAMS);
