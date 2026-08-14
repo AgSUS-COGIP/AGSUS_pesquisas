@@ -8,7 +8,7 @@ import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
-import { PlatformWelcome } from "@/components/platform-welcome";
+import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
@@ -68,6 +68,9 @@ export default function ParticipantAreaPage() {
   const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
+  // A matrícula é como este projeto identifica a pessoa. Vazia antes da guarda
+  // liberar; o hook não consulta armazenamento nesse caso.
+  const welcome = useWelcomeState(granted ? guard.person.employeeNumber : "");
   const catalogQuery = useSurveyCatalog(granted);
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
@@ -230,7 +233,7 @@ export default function ParticipantAreaPage() {
       */}
       <div className="flex w-full flex-col gap-5">
         {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
-        <PlatformWelcome personId={person.employeeNumber} firstName={firstName} />
+        <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
@@ -239,13 +242,21 @@ export default function ParticipantAreaPage() {
         */}
         <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
           <article className="@container flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-            <div className="flex items-center gap-4">
-              <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
-              <div className="min-w-0">
-                <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
-                <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">{firstName}</h2>
+            {/*
+              A saudação sai enquanto a recepção estiver no ar: a faixa acima já
+              diz "Boas-vindas, {nome}", e repetir "Boa tarde, {nome}" logo
+              abaixo é a mesma saudação duas vezes, uma sob a outra. Dispensada a
+              faixa, ela volta — é ela que dá rosto à tela no uso do dia a dia.
+            */}
+            {!welcome.visible ? (
+              <div className="flex items-center gap-4">
+                <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-base" />
+                <div className="min-w-0">
+                  <p className="text-sm text-[var(--text-secondary)]">{salutation},</p>
+                  <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">{firstName}</h2>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/*
               Quatro colunas dependem da largura do **cartão**, não da janela —
