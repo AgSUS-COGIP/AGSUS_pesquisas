@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FullPageState } from "@/components/full-page-state";
 import { PlatformSkeleton } from "@/components/platform-shell";
+import { captureEnteringFlag } from "@/lib/entering-system";
 import type { PlatformGuardDecision } from "@/lib/platform-guard";
 
 type PlatformGuardStateProps = {
@@ -53,12 +54,10 @@ export function PlatformGuardState({
    */
   const [enteringSystem, setEnteringSystem] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("entrando") !== "1") return;
-    setEnteringSystem(true);
-    url.searchParams.delete("entrando");
-    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    // A leitura e a limpeza do endereço vivem em `@/lib/entering-system`, porque
+    // a recepção precisa do mesmo sinal. Quando cada um lia por conta própria,
+    // o primeiro a rodar apagava o parâmetro e o segundo nunca o via.
+    if (captureEnteringFlag()) setEnteringSystem(true);
   }, []);
 
   if (guard.state === "loading") {

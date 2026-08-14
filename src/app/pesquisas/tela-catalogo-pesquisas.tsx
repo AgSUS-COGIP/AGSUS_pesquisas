@@ -71,7 +71,7 @@ export default function SurveysPage() {
   const catalogLoading = catalogQuery.isLoading;
   // Matrícula: é como este projeto identifica a pessoa, e é a chave que faz a
   // recepção ser dispensada uma vez só, valendo para as duas telas de entrada.
-  const welcome = useWelcomeState(guard.state === "granted" ? guard.person.employeeNumber : "");
+  const welcome = useWelcomeState();
   const firstName = guard.state === "granted"
     ? guard.person.fullName.split(/\s+/).filter(Boolean)[0] ?? guard.person.fullName
     : "";
