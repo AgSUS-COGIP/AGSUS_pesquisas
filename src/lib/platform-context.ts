@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { type PlatformModule } from "@/lib/platform-modules";
 import { resolvePlatformGuard, type PlatformGuardDecision } from "@/lib/platform-guard";
+// O cliente Supabase permanece aqui apenas para `auth.getUser()`: sessão é
+// autenticação, não acesso a dados.
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { chamar, ErroDeApi } from "@/lib/api/requisicao";
+import { errorMessageFromUnknown } from "@/lib/observability";
 
 export type PlatformContext = {
   status: string;
@@ -45,33 +49,34 @@ let cachedAt = 0;
 let pendingContext: Promise<PlatformContext> | null = null;
 
 async function loadContextFromDatabase() {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_contexto_plataforma");
-  if (error) throw new Error(`Falha ao carregar permissões da plataforma: ${error.message}`);
-  return data as PlatformContext | null;
+  try {
+    return await chamar<PlatformContext | null>("/api/meu/contexto");
+  } catch (error) {
+    if (error instanceof ErroDeApi && error.exigeAutenticacao) throw new Error("AUTH_REQUIRED");
+    throw new Error(`Falha ao carregar permissões da plataforma: ${errorMessageFromUnknown(error)}`);
+  }
 }
 
 // A foto é acessório: falha de sincronização não pode impedir o acesso, então o
-// erro fica apenas em aviso. `AUTH_REQUIRED` é silenciado porque o fluxo
-// principal já vai tratá-lo redirecionando para /acesso.
+// erro fica apenas em aviso. Sessão expirada (401) é silenciada porque o fluxo
+// principal já vai tratá-la redirecionando para /acesso.
 async function syncGoogleAvatar() {
-  const supabase = createBrowserSupabaseClient();
-  const { error } = await supabase.rpc("sync_my_google_avatar");
-  if (error && !error.message.includes("AUTH_REQUIRED")) {
-    console.warn("Não foi possível sincronizar a foto da conta Google.", error.message);
+  try {
+    await chamar("/api/meu/avatar-google", { method: "POST" });
+  } catch (error) {
+    if (error instanceof ErroDeApi && error.exigeAutenticacao) return;
+    console.warn("Não foi possível sincronizar a foto da conta Google.", errorMessageFromUnknown(error));
   }
 }
 
 async function provisionInstitutionalAccess() {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("resolve_authenticated_person", {
-    target_employee_number: null,
-  });
-  if (error) throw new Error(`Falha ao registrar o acesso institucional: ${error.message}`);
-
-  const resolution = data as AccessResolution | null;
-  if (resolution?.status !== "OK") {
-    throw new Error(resolution?.message ?? "Não foi possível registrar o acesso institucional.");
+  try {
+    // A rota já traduz `status !== "OK"` em 409 com a mensagem do banco, então
+    // aqui basta deixar o erro subir.
+    await chamar<AccessResolution>("/api/meu/acesso-institucional", { method: "POST" });
+  } catch (error) {
+    if (error instanceof ErroDeApi && error.exigeAutenticacao) throw new Error("AUTH_REQUIRED");
+    throw new Error(`Falha ao registrar o acesso institucional: ${errorMessageFromUnknown(error)}`);
   }
 }
 

@@ -22,10 +22,10 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 |---|---|---|---|
 | `/admin` | `tela-central-admin.tsx` | qualquer `ADMIN_*` | — (cartões de navegação) |
 | `/admin/pesquisas` | `pesquisas/tela-admin-lista-pesquisas.tsx` | `ADMIN_SURVEYS` | `list_managed_surveys` |
-| `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `create_survey_draft` |
-| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `add_survey_section`, `update_survey_section`, `add_survey_question`, `update_survey_question`, `delete_survey_question`, `duplicate_survey_builder_item`, `reorder_survey_builder_item`, `move_survey_question_to_section`, `fc_excluir_pesquisa_rascunho` |
-| `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `get_survey_builder`, `get_application_visual_settings`, `update_application_visual_settings` |
-| `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `get_survey_operations`, `manage_survey_cycle` |
+| `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `POST /api/avaliacoes` → `create_survey_draft` |
+| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `/api/avaliacoes/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `DELETE /api/avaliacoes/[id]` |
+| `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `GET`/`PUT /api/avaliacoes/[id]/identidade-visual`; upload direto no storage `survey-assets` |
+| `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `GET`/`POST /api/avaliacoes/[id]/ciclo` → `get_survey_operations`, `manage_survey_cycle` |
 | `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
@@ -161,7 +161,7 @@ A marca resolvida é distribuída por `PlatformBrandingProvider` (ver [../../com
 ## Convenções específicas
 
 - Ação destrutiva ou irreversível pede confirmação por `await confirm({ … })` (`useConfirm()` de `@/components/confirmation-provider`), com `tone: "danger"` quando o efeito não se desfaz e texto que cita o objeto afetado.
-- Erros de RPC passam por um helper que percorre `message` → `details` → `hint` antes do texto genérico (ver `errorMessage()` em `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx`).
+- Erros de chamada passam por `errorMessageFromUnknown()` (`@/lib/observability`), que percorre `message` → `details` → `hint` antes do texto genérico. O `errorMessage()` local de `pesquisas/[surveyId]/operacao/` era uma cópia dessa mesma lógica e foi removido na migração das telas para as rotas REST.
 - Depois de mutação, recarregue o agregado do banco (`loadOperations()`, `loadTeam()`) em vez de tentar reconciliar estado local — o banco é a fonte da verdade. Em `/operacao` isso não é só convenção: sem botão de atualizar e sem revalidação automática, a recarga pós-mutação é o único momento em que a tela reencontra o banco depois de abrir.
 - Rótulos de sucesso ficam num mapa por ação, não concatenados em texto livre.
 

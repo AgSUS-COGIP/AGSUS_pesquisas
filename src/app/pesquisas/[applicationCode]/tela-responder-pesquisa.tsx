@@ -17,7 +17,14 @@ import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { buildSurveyAnswerPayload, isSurveyAnswerComplete, restoreSurveyAnswer, type StoredSurveyAnswer, type SurveyAnswerValue } from "@/lib/survey-runtime";
 import { buildSurveyRuleContext, normalizeSurveyRules, visibleSurveySections, type SurveyRule } from "@/lib/survey-conditional-logic";
 import { SurveyBanner } from "@/components/survey-banner";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  enviarSubmissao,
+  gravarResposta,
+  iniciarOuRetomarSubmissao,
+  obterFormulario,
+  obterRegrasDoCiclo,
+} from "@/lib/api/cliente-runtime";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; label: string; value: string };
@@ -80,30 +87,36 @@ export default function GenericSurveyPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const supabase = createBrowserSupabaseClient();
-        const [formResponse, submissionResponse, rulesResponse] = await Promise.all([
-          supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
-          supabase.rpc("start_or_resume_my_survey_submission", { target_application_code: applicationCode }),
-          supabase.rpc("fc_obter_regras_do_ciclo", { p_codigo_ciclo: applicationCode }),
+        // `allSettled`, e não `all`: as regras são a única das três chamadas
+        // cuja falha **não** impede responder, e como os clientes lançam, um
+        // `all` rejeitaria o conjunto inteiro por causa delas. Formulário e
+        // submissão continuam obrigatórios — a rejeição deles é relançada
+        // logo abaixo.
+        const [formResult, submissionResult, rulesResult] = await Promise.allSettled([
+          obterFormulario(applicationCode),
+          iniciarOuRetomarSubmissao(applicationCode),
+          obterRegrasDoCiclo(applicationCode),
         ]);
-        if (formResponse.error) throw formResponse.error;
-        if (submissionResponse.error) throw submissionResponse.error;
+        if (formResult.status === "rejected") throw formResult.reason;
+        if (submissionResult.status === "rejected") throw submissionResult.reason;
         // Falha ao ler as regras não impede responder: sem regra, o instrumento
         // aparece inteiro, que é como ele se comportava antes de existir lógica
         // condicional. Esconder por engano seria pior do que mostrar demais.
-        if (rulesResponse.error) console.warn("Lógica condicional indisponível:", rulesResponse.error.message);
-        if (!formResponse.data) throw new Error("A avaliação ainda não está publicada.");
+        if (rulesResult.status === "rejected") {
+          console.warn("Lógica condicional indisponível:", errorMessageFromUnknown(rulesResult.reason));
+        }
+        if (!formResult.value) throw new Error("A avaliação ainda não está publicada.");
 
         const restored: Answers = {};
-        const resolvedSubmission = submissionResponse.data as SubmissionContext;
+        const resolvedSubmission = submissionResult.value as SubmissionContext;
         Object.entries(resolvedSubmission.answers ?? {}).forEach(([questionId, value]) => {
           restored[questionId] = restoreSurveyAnswer(value);
         });
 
         if (!active) return;
         latestAnswers.current = restored;
-        setDefinition(formResponse.data as Definition);
-        setRules(rulesResponse.error ? [] : normalizeSurveyRules(rulesResponse.data));
+        setDefinition(formResult.value as Definition);
+        setRules(rulesResult.status === "fulfilled" ? normalizeSurveyRules(rulesResult.value) : []);
         setSubmission(resolvedSubmission);
         setAnswers(restored);
       } catch (loadError) {
@@ -162,13 +175,20 @@ export default function GenericSurveyPage() {
     setPendingSaves((current) => current + 1);
 
     const operation = async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { error: saveError } = await supabase.rpc("save_my_survey_answer", {
-        target_submission_id: submissionId,
-        target_question_id: question.id,
-        ...buildSurveyAnswerPayload(question.type, value),
+      // `buildSurveyAnswerPayload` devolve as chaves no formato do banco
+      // (`target_text`, `target_number`, …); o contrato da rota usa os nomes do
+      // domínio, então a conversão acontece aqui.
+      const payload = buildSurveyAnswerPayload(question.type, value);
+      await gravarResposta(submissionId, {
+        questionId: question.id,
+        optionIds: payload.target_option_ids,
+        text: payload.target_text,
+        number: payload.target_number,
+        boolean: payload.target_boolean,
+        date: payload.target_date,
+        datetime: payload.target_datetime,
+        json: payload.target_json,
       });
-      if (saveError) throw saveError;
     };
 
     saveQueue.current = saveQueue.current
@@ -260,12 +280,8 @@ export default function GenericSurveyPage() {
     setSubmitting(true);
     try {
       await flushPendingSaves();
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: submitError } = await supabase.rpc("submit_my_survey_submission", {
-        target_submission_id: submission.submission.id,
-      });
-      if (submitError) throw submitError;
-      const submittedAt = (data as { submittedAt?: string } | null)?.submittedAt ?? new Date().toISOString();
+      const data = await enviarSubmissao(submission.submission.id);
+      const submittedAt = data?.submittedAt ?? new Date().toISOString();
       setSubmission((current) => current ? {
         ...current,
         canEdit: false,

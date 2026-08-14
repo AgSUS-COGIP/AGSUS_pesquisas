@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { obterPainelDoCiclo } from "@/lib/api/cliente-paineis";
 
 type DashboardOption = { id: string; label: string; value: string; count: number };
 type TextResponse = { text: string; submittedAt: string | null };
@@ -58,12 +58,7 @@ type DashboardData = {
 };
 
 async function fetchDashboard(applicationCode: string) {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_painel_pesquisa", {
-    target_application_code: applicationCode,
-  });
-  if (error) throw error;
-  return data as DashboardData;
+  return await obterPainelDoCiclo(applicationCode) as DashboardData;
 }
 
 function formatDate(value: string | null) {

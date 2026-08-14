@@ -56,35 +56,32 @@ import {
   type SupportedQuestionType,
   type SurveyOption,
 } from "@/lib/survey-builder";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import { excluirAvaliacao } from "@/lib/api/cliente";
+import {
+  atualizarPergunta,
+  atualizarSecao,
+  criarPergunta,
+  criarSecao,
+  duplicarItemDoConstrutor,
+  excluirPergunta,
+  moverPergunta,
+  obterConstrutor,
+  reordenarItemDoConstrutor,
+} from "@/lib/api/cliente-construtor";
+import type {
+  ConstrutorAvaliacao,
+  PerguntaConstrutor,
+  SecaoConstrutor,
+} from "@/lib/api/contratos-construtor";
 
-type Question = {
-  id: string;
-  code: string;
-  title: string;
-  description: string | null;
-  questionType: string;
-  required: boolean;
-  position: number;
-  options: SurveyOption[];
-};
-
-type Section = {
-  id: string;
-  code: string;
-  title: string;
-  description: string | null;
-  position: number;
-  questions: Question[];
-};
-
-type BuilderData = {
-  status: string;
-  survey: { id: string; code: string; name: string; description: string | null; status: string };
-  version: { id: string; number: number; status: string };
-  application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null };
-  sections: Section[];
-};
+// A estrutura do formulário agora vem do contrato da API, e não de uma cópia
+// local. O mesmo formato estava declarado aqui e na tela de identidade visual,
+// que conhecia só `application` e `survey.name` — as duas divergiam em silêncio
+// porque cada uma copiava do retorno da RPC apenas o que ia usar.
+type Question = PerguntaConstrutor;
+type Section = SecaoConstrutor;
+type BuilderData = ConstrutorAvaliacao;
 
 type SectionEditor = {
   mode: "create" | "edit";
@@ -181,16 +178,9 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     if (showLoader) setDataLoading(true);
     setLoadError("");
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: builderError } = await supabase.rpc("get_survey_builder", {
-        target_survey_id: surveyId,
-      });
-      if (builderError) throw builderError;
-      setBuilder(data as BuilderData);
+      setBuilder(await obterConstrutor(surveyId));
     } catch (loadBuilderError) {
-      const message = loadBuilderError instanceof Error
-        ? loadBuilderError.message
-        : "Não foi possível carregar o construtor.";
+      const message = errorMessageFromUnknown(loadBuilderError);
       setLoadError(message);
       toast.error(message);
     } finally {
@@ -326,28 +316,25 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
 
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const rpc = sectionEditor.mode === "create" ? "add_survey_section" : "update_survey_section";
-      const args = sectionEditor.mode === "create"
-        ? {
-            target_survey_id: surveyId,
-            section_title: sectionEditor.title,
-            section_description: sectionEditor.description || null,
-          }
-        : {
-            target_section_id: sectionEditor.sectionId,
-            section_title: sectionEditor.title,
-            section_description: sectionEditor.description || null,
-          };
-      const { error: sectionError } = await supabase.rpc(rpc, args);
-      if (sectionError) throw sectionError;
+      // Criar e editar são recursos distintos no REST — a coleção e o item —,
+      // então a escolha entre eles é a chamada, não um par de nomes de RPC e um
+      // objeto de argumentos montado condicionalmente.
+      const entrada = {
+        title: sectionEditor.title,
+        description: sectionEditor.description || null,
+      };
+      if (sectionEditor.mode === "create" || !sectionEditor.sectionId) {
+        await criarSecao(surveyId, entrada);
+      } else {
+        await atualizarSecao(surveyId, sectionEditor.sectionId, entrada);
+      }
 
       toast.success(sectionEditor.mode === "create" ? "Seção adicionada." : "Seção atualizada.");
       setSectionEditor(null);
       setSectionErrors([]);
       await loadBuilder(false);
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a seção.";
+      const message = errorMessageFromUnknown(saveError);
       setSectionErrors([message]);
       toast.error(message);
     } finally {
@@ -368,34 +355,27 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     );
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const sharedArgs = {
-        question_title: questionEditor.title,
-        question_description: questionEditor.description || "",
-        question_type: questionEditor.questionType,
-        is_required: questionEditor.required,
-        question_options: options,
+      const conteudo = {
+        title: questionEditor.title,
+        description: questionEditor.description || "",
+        questionType: questionEditor.questionType,
+        required: questionEditor.required,
+        options,
       };
-      const rpc = questionEditor.mode === "create" ? "add_survey_question" : "update_survey_question";
-      const args = questionEditor.mode === "create"
-        ? {
-            target_survey_id: surveyId,
-            target_section_id: questionEditor.sectionId,
-            ...sharedArgs,
-          }
-        : {
-            target_question_id: questionEditor.questionId,
-            ...sharedArgs,
-          };
-      const { error: questionError } = await supabase.rpc(rpc, args);
-      if (questionError) throw questionError;
+      // A seção só aparece na criação: ao editar, a pergunta já pertence a uma,
+      // e trocá-la é a operação de mover — outro recurso, outro verbo.
+      if (questionEditor.mode === "create" || !questionEditor.questionId) {
+        await criarPergunta(surveyId, { sectionId: questionEditor.sectionId, ...conteudo });
+      } else {
+        await atualizarPergunta(surveyId, questionEditor.questionId, conteudo);
+      }
 
       toast.success(questionEditor.mode === "create" ? "Pergunta adicionada." : "Pergunta atualizada.");
       setQuestionEditor(null);
       setQuestionErrors([]);
       await loadBuilder(false);
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a pergunta.";
+      const message = errorMessageFromUnknown(saveError);
       setQuestionErrors([message]);
       toast.error(message);
     } finally {
@@ -407,16 +387,12 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     if (!deleteTarget) return;
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: deleteError } = await supabase.rpc("delete_survey_question", {
-        target_question_id: deleteTarget.id,
-      });
-      if (deleteError) throw deleteError;
+      await excluirPergunta(surveyId, deleteTarget.id);
       toast.success("Pergunta excluída.");
       setDeleteTarget(null);
       await loadBuilder(false);
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a pergunta.");
+      toast.error(errorMessageFromUnknown(deleteError));
     } finally {
       setWorking(false);
     }
@@ -426,11 +402,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     if (working) return;
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: deleteError } = await supabase.rpc("fc_excluir_pesquisa_rascunho", {
-        p_pesquisa: surveyId,
-      });
-      if (deleteError) throw deleteError;
+      await excluirAvaliacao(surveyId);
       toast.success("Avaliação excluída.");
       setSurveyDeleteOpen(false);
       // A tela deixa de existir depois da navegação, mas `working` é liberado
@@ -439,8 +411,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       router.push("/admin/pesquisas");
     } catch (deleteError) {
       // O banco recusa avaliação publicada ou com respostas, e a razão vem na
-      // própria mensagem — é ela que explica ao operador por que não deu.
-      toast.error(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir a avaliação.");
+      // própria mensagem — é ela que explica ao operador por que não deu. A
+      // rota preserva essa mensagem em 409, distinta do 403 de quem não é
+      // administrador.
+      toast.error(errorMessageFromUnknown(deleteError));
     } finally {
       setWorking(false);
     }
@@ -474,25 +448,17 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
 
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: moveError } = await supabase.rpc(
-        "move_survey_question_to_section",
-        {
-          target_question_id: questionMoveEditor.questionId,
-          target_section_id: questionMoveEditor.targetSectionId,
-        },
+      await moverPergunta(
+        surveyId,
+        questionMoveEditor.questionId,
+        questionMoveEditor.targetSectionId,
       );
-      if (moveError) throw moveError;
 
       toast.success("Pergunta movida para a nova seção.");
       setQuestionMoveEditor(null);
       await loadBuilder(false);
     } catch (moveError) {
-      toast.error(
-        moveError instanceof Error
-          ? moveError.message
-          : "Não foi possível mover a pergunta entre seções.",
-      );
+      toast.error(errorMessageFromUnknown(moveError));
     } finally {
       setWorking(false);
     }
@@ -514,15 +480,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     const key = operationKey("DUPLICATE", itemType, itemId);
     setItemOperation(key);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: duplicateError } = await supabase.rpc(
-        "duplicate_survey_builder_item",
-        {
-          target_item_type: itemType,
-          target_item_id: itemId,
-        },
-      );
-      if (duplicateError) throw duplicateError;
+      await duplicarItemDoConstrutor(surveyId, itemType, itemId);
 
       toast.success(
         itemType === "SECTION"
@@ -531,11 +489,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       );
       await loadBuilder(false);
     } catch (duplicateError) {
-      toast.error(
-        duplicateError instanceof Error
-          ? duplicateError.message
-          : "Não foi possível duplicar o item.",
-      );
+      toast.error(errorMessageFromUnknown(duplicateError));
     } finally {
       setItemOperation(null);
     }
@@ -549,27 +503,14 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     const key = operationKey("MOVE", itemType, itemId, direction);
     setItemOperation(key);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: moveError } = await supabase.rpc(
-        "reorder_survey_builder_item",
-        {
-          target_item_type: itemType,
-          target_item_id: itemId,
-          target_direction: direction,
-        },
-      );
-      if (moveError) throw moveError;
+      await reordenarItemDoConstrutor(surveyId, itemType, itemId, direction);
 
       toast.success(
         `${itemType === "SECTION" ? "Seção" : "Pergunta"} movida para ${direction === "UP" ? "cima" : "baixo"}.`,
       );
       await loadBuilder(false);
     } catch (moveError) {
-      toast.error(
-        moveError instanceof Error
-          ? moveError.message
-          : "Não foi possível reordenar o item.",
-      );
+      toast.error(errorMessageFromUnknown(moveError));
     } finally {
       setItemOperation(null);
     }

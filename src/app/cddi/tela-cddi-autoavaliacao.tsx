@@ -13,7 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
+// O cliente Supabase permanece na tela apenas para `auth.getUser()`: sessão é
+// autenticação, não acesso a dados.
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  enviarSubmissaoCddi,
+  gravarRespostaCddi,
+  iniciarOuRetomarSubmissaoCddi,
+  obterCicloCddiVigente,
+  obterFormulario,
+  obterIdentidadeCddi,
+} from "@/lib/api/cliente-runtime";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
@@ -113,33 +123,26 @@ export default function CddiFormPage() {
         const requestedCycle = new URLSearchParams(window.location.search).get("ciclo");
         let applicationCode = requestedCycle?.trim() || "";
         if (!applicationCode) {
-          const { data: cycleData, error: cycleError } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
-          if (cycleError) throw cycleError;
-          const cycle = cycleData as { code?: string } | null;
-          if (!cycle?.code) {
-            throw new Error("Você ainda não faz parte de um ciclo do CDDI. Procure a administração se acredita que isso é um engano.");
-          }
-          applicationCode = cycle.code;
+          // Quem não participa de ciclo algum recebe 404 com a mensagem de
+          // orientação vinda da rota, então basta deixar o erro subir.
+          applicationCode = (await obterCicloCddiVigente()).code;
         }
 
         const [formResponse, submissionResponse, identityResponse] = await Promise.all([
-          supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
-          supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: applicationCode, target_submission_type: "AUTO", target_subject_person_id: null }),
-          supabase.rpc("get_my_cddi_identity", { target_application_code: applicationCode }),
+          obterFormulario(applicationCode),
+          iniciarOuRetomarSubmissaoCddi({ applicationCode, submissionType: "AUTO" }),
+          obterIdentidadeCddi(applicationCode),
         ]);
-        if (formResponse.error) throw formResponse.error;
-        if (submissionResponse.error) throw submissionResponse.error;
-        if (identityResponse.error) throw identityResponse.error;
-        const context = submissionResponse.data as SubmissionContext;
+        const context = submissionResponse as SubmissionContext;
         const restored: Answers = {};
         Object.entries(context.answers ?? {}).forEach(([questionId, answer]) => {
           const value = answer.answerText ?? answer.optionValue ?? (answer.answerNumber != null ? String(answer.answerNumber) : "");
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
-        const rawDefinition = formResponse.data as FormDefinition;
+        const rawDefinition = formResponse as FormDefinition;
         setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "AUTO") });
         setSubmission(context);
-        setIdentity(identityResponse.data as IdentityContext);
+        setIdentity(identityResponse as IdentityContext);
         latestAnswers.current = restored;
         setAnswers(restored);
         setSavedAt(context.submission?.updatedAt ?? null);
@@ -176,10 +179,12 @@ export default function CddiFormPage() {
     if (!canEdit || !submission?.submission?.id) return Promise.resolve();
     const submissionId = submission.submission.id;
     return saveQueue.enqueue(async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("save_my_cddi_answer", { target_submission_id: submissionId, target_question_id: question.id, target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null, target_text: question.type === "SCALE" ? null : answer.value });
-      if (error) throw new Error(errorMessageFromUnknown(error));
-      setSavedAt((data as { savedAt?: string } | null)?.savedAt ?? new Date().toISOString());
+      const data = await gravarRespostaCddi(submissionId, {
+        questionId: question.id,
+        optionId: question.type === "SCALE" ? answer.optionId ?? null : null,
+        text: question.type === "SCALE" ? null : answer.value,
+      });
+      setSavedAt(data?.savedAt ?? new Date().toISOString());
     }).catch((error) => {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
@@ -280,10 +285,7 @@ export default function CddiFormPage() {
     setSubmitting(true);
     try {
       await flushPendingSaves();
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("submit_my_cddi_submission", { target_submission_id: submission.submission.id });
-      if (error) throw new Error(errorMessageFromUnknown(error));
-      const result = data as { submittedAt?: string; result?: number } | null;
+      const result = await enviarSubmissaoCddi(submission.submission.id);
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessageType("success");
       setMessage("Autoavaliação enviada com sucesso.");

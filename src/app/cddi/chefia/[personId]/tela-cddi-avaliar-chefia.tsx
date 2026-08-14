@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
 import { useParams } from "next/navigation";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  enviarSubmissaoCddi,
+  gravarRespostaCddi,
+  iniciarOuRetomarSubmissaoCddi,
+  listarCiclosDeLideranca,
+  obterFormulario,
+  obterMinhaEquipe,
+} from "@/lib/api/cliente-runtime";
 import { useConfirm } from "@/components/confirmation-provider";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
@@ -70,7 +77,6 @@ export default function LeaderEvaluationPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const supabase = createBrowserSupabaseClient();
         /*
          * A tela Minha equipe informa o ciclo escolhido por query string. Sem o
          * parâmetro, o ciclo vinha escrito no código (`CDDI-2026`) — o que
@@ -85,31 +91,30 @@ export default function LeaderEvaluationPage() {
         const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
         let applicationCode = cycleFromQuery || "";
         if (!applicationCode) {
-          const { data: cycleData, error: cycleError } = await supabase.rpc("fc_listar_ciclos_lideranca");
-          if (cycleError) throw cycleError;
-          const cycles = (Array.isArray(cycleData) ? cycleData : []) as Array<{ code?: string }>;
+          const cycles = await listarCiclosDeLideranca();
           if (!cycles[0]?.code) {
             throw new Error("Você não tem vínculo de liderança em nenhum ciclo do CDDI.");
           }
           applicationCode = cycles[0].code;
         }
         const [formResponse, submissionResponse, teamResponse] = await Promise.all([
-          supabase.rpc("get_public_survey_form", { target_application_code: applicationCode }),
-          supabase.rpc("start_or_resume_my_cddi_submission", { target_application_code: applicationCode, target_submission_type: "CHEFIA", target_subject_person_id: personId }),
-          supabase.rpc("fc_obter_minha_equipe", { target_application_code: applicationCode }),
+          obterFormulario(applicationCode),
+          iniciarOuRetomarSubmissaoCddi({
+            applicationCode,
+            submissionType: "CHEFIA",
+            subjectPersonId: personId,
+          }),
+          obterMinhaEquipe(applicationCode),
         ]);
-        if (formResponse.error) throw formResponse.error;
-        if (submissionResponse.error) throw submissionResponse.error;
-        if (teamResponse.error) throw teamResponse.error;
-        const selected = ((teamResponse.data as { members?: Member[] })?.members ?? []).find((item) => item.personId === personId);
+        const selected = ((teamResponse as { members?: Member[] })?.members ?? []).find((item) => item.personId === personId);
         if (!selected) throw new Error("A pessoa não está vinculada à sua equipe neste ciclo.");
-        const context = submissionResponse.data as SubmissionContext;
+        const context = submissionResponse as SubmissionContext;
         const restored: Answers = {};
         Object.entries(context.answers ?? {}).forEach(([questionId, answer]) => {
           const value = answer.answerText ?? answer.optionValue ?? (answer.answerNumber != null ? String(answer.answerNumber) : "");
           if (value !== "") restored[questionId] = { value, optionId: answer.optionId ?? undefined };
         });
-        const rawDefinition = formResponse.data as FormDefinition;
+        const rawDefinition = formResponse as FormDefinition;
         setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "CHEFIA") });
         setSubmission(context);
         setMember(selected);
@@ -137,14 +142,11 @@ export default function LeaderEvaluationPage() {
     if (!canEdit || !submission?.submission?.id) return Promise.resolve();
     const submissionId = submission.submission.id;
     return saveQueue.enqueue(async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("save_my_cddi_answer", {
-        target_submission_id: submissionId,
-        target_question_id: question.id,
-        target_option_id: question.type === "SCALE" ? answer.optionId ?? null : null,
-        target_text: question.type === "SCALE" ? null : answer.value,
+      await gravarRespostaCddi(submissionId, {
+        questionId: question.id,
+        optionId: question.type === "SCALE" ? answer.optionId ?? null : null,
+        text: question.type === "SCALE" ? null : answer.value,
       });
-      if (error) throw new Error(errorMessageFromUnknown(error));
     }).catch((error) => {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
       throw error;
@@ -211,10 +213,7 @@ export default function LeaderEvaluationPage() {
     setSubmitting(true);
     try {
       await flushPendingSaves();
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("submit_my_cddi_submission", { target_submission_id: submission.submission.id });
-      if (error) throw new Error(errorMessageFromUnknown(error));
-      const result = data as { submittedAt?: string; result?: number } | null;
+      const result = await enviarSubmissaoCddi(submission.submission.id);
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
       setMessage("Avaliação da chefia enviada com sucesso.");
       setCelebrate(true);

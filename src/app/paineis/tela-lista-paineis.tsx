@@ -11,24 +11,10 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { listarAvaliacoes } from "@/lib/api/cliente";
+import type { AvaliacaoGerenciada } from "@/lib/api/contratos";
 
-type ManagedSurvey = {
-  surveyId: string;
-  code: string;
-  name: string;
-  description: string | null;
-  status: string;
-  applicationId: string | null;
-  applicationCode: string | null;
-  applicationName: string | null;
-  applicationStatus: string | null;
-  opensAt: string | null;
-  closesAt: string | null;
-  sections: number;
-  questions: number;
-  updatedAt: string;
-};
+type ManagedSurvey = AvaliacaoGerenciada;
 
 function formatDate(value: string | null) {
   if (!value) return "Sem data definida";
@@ -41,10 +27,7 @@ function isCddiSurvey(survey: ManagedSurvey) {
 }
 
 async function fetchManagedSurveys() {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("list_managed_surveys");
-  if (error) throw error;
-  return (data ?? []) as ManagedSurvey[];
+  return listarAvaliacoes();
 }
 
 export default function DashboardsPage() {
