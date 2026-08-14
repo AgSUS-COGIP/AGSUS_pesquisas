@@ -32,8 +32,12 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelada",
 };
 
-function dateLabel(value: string | null) {
-  if (!value) return "não enviada";
+/**
+ * Só formata a data. A ausência de envio é decidida por quem monta a frase —
+ * devolver "não enviada" daqui foi o que produziu "enviada em não enviada":
+ * o formatador respondia a uma pergunta que não era a dele.
+ */
+function dateLabel(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
 }
 
@@ -262,7 +266,9 @@ export default function AdminRespostasPage() {
                           {item.employeeNumber ? `Matrícula ${item.employeeNumber}` : "sem matrícula"}
                           {item.subjectName ? ` · avaliando ${item.subjectName}` : ""}
                           {" · "}{item.answers} {item.answers === 1 ? "resposta" : "respostas"}
-                          {" · "}enviada em {dateLabel(item.submittedAt)}
+                          {/* A frase inteira depende do envio: "enviada em" +
+                              "não enviada" produzia "enviada em não enviada". */}
+                          {" · "}{item.submittedAt ? `enviada em ${dateLabel(item.submittedAt)}` : "ainda não enviada"}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
