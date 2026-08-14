@@ -66,8 +66,8 @@ Mapa perfil → módulo em `role_module_permissions` e em `fc_obter_contexto_pla
 
 | Perfil | Módulos |
 |---|---|
-| `ADMINISTRATOR` | todos os 10 |
-| `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
+| `ADMINISTRATOR` | todos os 9 |
+| `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
 | `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
 | `RESPONDENT` | `SURVEYS` |
 

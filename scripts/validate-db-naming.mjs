@@ -135,6 +135,14 @@ const LEGACY_RESTORED_OBJECTS = {
   // meia dúzia de RPCs do runtime — trocá-la por uma `fc_*` exigiria redefinir
   // todas elas na mesma migration. A função nova do arquivo
   // (fc_abrir_ciclos_agendados) segue o padrão e não consta aqui.
+  // Remoção do módulo RESULTS. `fc_obter_contexto_plataforma` já segue o padrão
+  // institucional; o que a dispensa aqui é só o tamanho — são 31 caracteres,
+  // um acima do limite. O nome foi escolhido em 20260807150000 e é chamado por
+  // todo bundle publicado, então encurtá-lo agora derrubaria a plataforma
+  // inteira: é o contrato de autorização de toda tela autenticada.
+  "supabase/migrations/20260814110000_remover_modulo_resultados.sql": {
+    função: new Set(["fc_obter_contexto_plataforma"]),
+  },
   "supabase/migrations/20260814100000_abrir_ciclos_agendados.sql": {
     função: new Set([
       "application_accepts_responses",

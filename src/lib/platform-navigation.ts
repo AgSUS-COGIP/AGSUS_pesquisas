@@ -34,7 +34,6 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
     title: "Atuação",
     items: [
       { href: "/equipe", label: "Minha equipe", description: "Acompanhar pessoas e avaliações", icon: "team", module: PLATFORM_MODULE.TEAM },
-      { href: "/resultados", label: "Resultados", description: "Consultar devolutivas e indicadores", icon: "results", module: PLATFORM_MODULE.RESULTS },
     ],
   },
   {

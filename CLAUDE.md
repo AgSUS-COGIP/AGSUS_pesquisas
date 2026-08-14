@@ -64,14 +64,14 @@ página ("use client")
 
 ## Mapa de módulos e perfis
 
-Módulos possíveis: `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS`, `ADMIN_IMPORT`.
+Módulos possíveis: `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS`, `ADMIN_IMPORT`.
 
 O modelo tem **quatro perfis mutuamente exclusivos** e o acesso é determinado **exclusivamente** por eles: não existe exceção de módulo por pessoa. A exclusividade é garantida pelo banco (índice `in_perfil_unico_vigente`), não por convenção — uma pessoa não consegue ter dois perfis vigentes. Os códigos internos do banco são legados e foram preservados de propósito (políticas de RLS e RPCs os referenciam); use sempre as constantes de `src/lib/platform-roles.ts` no frontend.
 
 | Perfil | Código interno | Módulos |
 |---|---|---|
-| Superadmin | `ADMINISTRATOR` | todos os 10 |
-| Admin | `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
+| Superadmin | `ADMINISTRATOR` | todos os 9 |
+| Admin | `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
 | Avaliador | `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
 | Participante | `RESPONDENT` (ou nenhum papel) | `SURVEYS` |
 

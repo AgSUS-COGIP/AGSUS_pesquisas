@@ -20,7 +20,6 @@ const shortcuts = [
   { key: "1", href: "/area", module: "HOME" },
   { key: "2", href: "/pesquisas", module: "SURVEYS" },
   { key: "3", href: "/equipe", module: "TEAM" },
-  { key: "4", href: "/resultados", module: "RESULTS" },
   { key: "a", href: "/admin", module: "ADMIN_SURVEYS" },
 ] as const;
 
