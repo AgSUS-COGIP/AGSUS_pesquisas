@@ -35,7 +35,7 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 |---|---|---|
 | `client.ts` | componentes de cliente | publicável, singleton, PKCE com `appendPkceFlowIdToRedirects` |
 | `server.ts` | Server Components e Route Handlers com sessão | publicável, cookies via `next/headers` |
-| `proxy.ts` | apenas `proxy.ts` da raiz | publicável, reescreve cookies na resposta |
+| `proxy.ts` | apenas `src/proxy.ts` | publicável, reescreve cookies na resposta |
 | `admin.ts` | **apenas** `src/app/api/**` | **secreta — ignora RLS** |
 
 ### Domínio

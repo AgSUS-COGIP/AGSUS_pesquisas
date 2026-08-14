@@ -6,7 +6,7 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 
 ## Responsabilidades
 
-- Autorizar cada requisição pelo seu próprio mecanismo (mesma origem ou rota pública deliberada).
+- Autorizar cada requisição pelo mecanismo que a classe dela pede — ver **Duas classes de rota**, abaixo.
 - Nunca vazar detalhe interno na resposta — mensagens são curtas e em português; o diagnóstico completo vai para `console.error`.
 - Sanitizar tudo que vem do cliente antes de persistir.
 
@@ -18,6 +18,14 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
+
+## Autorização: onde ela realmente mora
+
+**A administração desta plataforma não passa por rota de API.** As telas de `/admin` chamam RPCs direto do navegador (`supabase.rpc(...)`), e a autorização vive dentro de cada função — `can_manage_surveys()` ou `is_platform_administrator()`, conferidas pelo banco. Não há guard de API para módulo administrativo porque não há rota administrativa: a defesa equivalente é a checagem dentro da RPC.
+
+Cada rota se defende pelo mecanismo que a sua natureza permite: `/api/observability/errors` verifica mesma origem e limita o corpo a 16 KB, porque **não pode** exigir sessão — `ClientErrorReporter` é montado em toda página, inclusive `/acesso`, que é anônima, e exigir autenticação ali cegaria a instrumentação no erro que impede alguém de entrar. Por isso ela consta de `PUBLIC_PATHS`.
+
+**O middleware é a camada anterior, e falha em silêncio.** `src/proxy.ts` precisa ficar ao lado de `app/` — como o app é `src/app`, o local é `src/`. Fora daí o Next 16 não o carrega e nenhuma guarda existe, sem erro algum: as páginas respondem `200` e os cabeçalhos de segurança somem. Esteve assim até 14/08/2026. O procedimento de verificação está no [README](../../../README.md).
 
 ## Fluxo interno
 
@@ -85,5 +93,5 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição.
 - `createAdminSupabaseClient()` lança `AdminSupabaseConfigurationError` se faltar URL ou chave; aceita `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` (nome moderno tem precedência).
 - `/auth/confirm` fixa `ALLOWED_DOMAIN = "agenciasus.org.br"` no código, enquanto a camada SQL aceita a lista de `ALLOWED_INSTITUTIONAL_DOMAINS`. Uma conta `@agsus.org.br` passaria no banco e seria rejeitada aqui.
-- `isSameOrigin()` aceita requisição sem header `Origin` — exigido por `fetch(keepalive)` durante o descarregamento da página.
+- **`isSameOrigin()` aceita requisição sem header `Origin`** — exigido por `fetch(keepalive)` durante o descarregamento da página. A consequência é que a checagem filtra o navegador de terceiros, não o cliente que simplesmente omite o header: ela nunca pode ser a única defesa de rota que grava. Em `/api/observability/errors` a cota e o escopo mínimo no banco (`tl_erro_aplicacao` sem leitura para `authenticated`) é que completam a proteção.
 - `/api/background/*` é rota pública que consome um serviço externo (Unsplash) e existe apenas para o plano de fundo da tela de login.
