@@ -4,7 +4,7 @@
 
 Concentrar tudo que não é apresentação: identidade e permissões, fábricas de cliente Supabase e **funções puras** que carregam a parte testável do domínio.
 
-É a camada mais testada do projeto — 18 arquivos de teste, 85 casos.
+É a camada mais testada do projeto.
 
 ## Responsabilidades
 
@@ -50,8 +50,6 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 | `survey-conditional-logic.ts` | `normalizeSurveyRules()`, `buildSurveyRuleContext()`, `isQuestionVisible()`, `isSectionVisible()`, `visibleSurveySections()`, tipos `SurveyRule`, `SurveyRuleCondition`, `SurveyRuleOperator` |
 | `cddi-question-applicability.ts` | `isCddiQuestionVisible()`, `visibleCddiSections()` |
 | `platform-branding.ts` | `PlatformBranding`, `DEFAULT_PLATFORM_BRANDING`, `normalizePlatformBranding()`, `platformBrandingTitle()` |
-| `admin-import-contract.ts` | `adminImportRequestSchema`, `parseAdminImportRequest()`, `formatAdminImportValidationErrors()`, `MAX_IMPORT_ROWS_PER_REQUEST`, `MAX_IMPORT_TOTAL_ROWS`, tipos `AdminImportRequest`, `ParticipantImportRow` |
-| `people-import.ts` | `parsePeopleImportRows()`, `summarizePeopleImport()`, tipos `PeopleImportRow`, `PeopleImportSummary` |
 | `observability.ts` | `reportApplicationError()`, `sanitizeObservabilityText()`, `errorMessageFromUnknown()`, `createErrorReference()` |
 | `reliable-save-queue.ts` | classe `ReliableSaveQueue` |
 | `utils.ts` | `cn()` — `twMerge(clsx(...))` |
@@ -117,20 +115,6 @@ RESPONDENT     → SURVEYS
 
 Papel desconhecido (`TECHNICAL_TEAM`, `AUDITOR` e outros já removidos) não concede nada: cai no piso de Participante. O rótulo exibido (`user.profileLabel`) é `PLATFORM_ROLE_LABELS` aplicado a esse mesmo perfil efetivo — uma resolução só, sem ordem própria.
 
-### `parsePeopleImportRows()` — duas passagens
-
-**Passagem 1 — por linha:**
-- Cabeçalhos resolvidos por alias: `normalizeToken()` remove acentos, força maiúsculas e reduz separadores a espaço, então `NU_MATRICULA`, `Matrícula` e `matricula` colidem no mesmo token.
-- `detectSourceFormat()` distingue `CDDI_BASE_COMPILADO` de `STANDARD_PEOPLE_BASE` pelos cabeçalhos presentes.
-- `normalizeDate()` aceita `DD/MM/AAAA`, ISO e dois formatos que o SheetJS produz ao reinterpretar CSV como padrão norte-americano (`M/D/AA` e `M/D/AAAA`). Ano de dois dígitos: `≥ 70` → 1900+, senão 2000+.
-- Ausência de matrícula ou nome é **erro** (bloqueia a linha); problema de e-mail, e-mail de gestor ou data é **aviso** (preserva a pessoa).
-- `rowNumber` é `index + 2` porque a linha 1 da planilha é o cabeçalho.
-
-**Passagem 2 — entre linhas:**
-- Matrícula repetida: a **primeira** ocorrência recebe aviso, as seguintes recebem erro. Assim uma linha é importada e o restante é rejeitado, sem perder o registro.
-- Contagem de e-mails considera **matrículas distintas** (`uniqueEmployeesForEmail`), não linhas — duplicata de matrícula não infla a contagem de e-mail.
-- `emailEligibleForAccess` só é `true` com e-mail válido, **único entre matrículas** e linha sem erro. É a tradução em código da decisão de [docs/auditoria-base-cddi-2026.md](../../docs/auditoria-base-cddi-2026.md).
-
 ### `ReliableSaveQueue`
 
 Serializa gravações encadeando `tail`. `enqueue()` devolve a promise da operação (para o chamador tratar erro) e mantém `tail` sempre resolvida, de modo que uma falha não trava a fila. `getSnapshot()` deriva `SAVING`/`ERROR`/`IDLE` de `pending` e `lastError`; `subscribe()` emite imediatamente ao assinar. `flush()` aguarda a fila e relança o último erro.
@@ -151,11 +135,10 @@ Deduplicação por impressão digital (`type|route|message|httpStatus`) com jane
 - **`survey-cycle-period.ts` antecipa as regras de período do banco**, sem substituí-las: `create_survey_draft` e `manage_survey_cycle` revalidam tudo. Trabalha em hora local, no formato de `datetime-local` — `new Date("…T14:30")` sem sufixo `Z` também é lido como hora local, então os dois lados da comparação usam o mesmo referencial e o resultado bate com o que o operador vê. Campo vazio **não** é erro (o período é opcional na criação); quem decide obrigatoriedade é a tela. A tolerância de um minuto espelha o `interval '1 minute'` do banco e evita que escolher "agora" falhe pelos segundos até a gravação. `publishBlockedMessage()` é o aviso que barra a publicação de rascunho cujo período envelheceu. `opensInFuture()` decide, na tela de propriedades, se gravar o período **agenda** a abertura ou apenas guarda as datas — usa a mesma tolerância, para que "válido como futuro" e "válido como abertura" não discordem na fronteira; abertura marcada para "agora" é período válido mas não é agendamento, e quem quer isso tem "Abrir agora".
 - **`isCddiQuestionVisible()`** esconde toda pergunta `PERSON` (a chefia é vínculo institucional, gravado por `set_my_cddi_leader`, não campo do formulário) e respeita `validation.allowed_submission_types`. Lista ausente ou vazia significa "vale para os dois tipos".
 - **`normalizePlatformBranding()`** exige cor no formato `#RRGGBB` e degrada campo a campo para `DEFAULT_PLATFORM_BRANDING` — marca corrompida no banco nunca deixa a casca sem logotipo ou sem nome.
-- **`admin-import-contract.ts` é a fonte única do formato da importação**, compartilhada entre a tela, a rota de API e o teste. Limite de 250 linhas por requisição e 50.000 no total.
 
 ## Dependências
 
-Externas: `@supabase/ssr`, `@supabase/supabase-js`, `clsx`, `tailwind-merge`, `zod` (só em `admin-import-contract.ts`), `react` (só em `platform-context.ts`), `next/headers` e `next/server` (só nos clientes de servidor/proxy).
+Externas: `@supabase/ssr`, `@supabase/supabase-js`, `clsx`, `tailwind-merge`, `react` (só em `platform-context.ts`), `next/headers` e `next/server` (só nos clientes de servidor/proxy).
 
 Internas: apenas entre arquivos deste módulo. `platform-navigation.ts` importa o **tipo** `PlatformIconName` de `@/components/platform-icons` — única dependência para fora, deliberada e sem custo em runtime.
 
@@ -176,4 +159,3 @@ Internas: apenas entre arquivos deste módulo. `platform-navigation.ts` importa 
 - `server.ts` engole a falha de escrita de cookie em `try/catch` porque Server Components não podem escrever cookies — o proxy mantém a sessão. Não "corrija" removendo o catch.
 - `platform-navigation.ts` é a **única** fonte do menu. Nova rota no menu = nova entrada aqui, com `module` associado, senão ela aparece para todos.
 - `survey-catalog.ts` e `reliable-save-queue.ts` saíram do limbo: `/area` e `/pesquisas` consomem o catálogo (pelo hook `@/hooks/use-survey-catalog`) e as duas jornadas do CDDI usam `ReliableSaveQueue`. O runtime genérico (`/pesquisas/[applicationCode]`) ainda serializa gravações com um `useRef<Promise>` próprio — é a última duplicação viva desse par. Ver melhorias no [README](../../README.md).
-- `people-import.ts` compara warnings por **string literal** (`row.warnings.includes("E-mail institucional não informado")`), e `src/app/api/admin/import-participants/route.ts` depende dos mesmos literais para derivar `data_import_issues`. Alterar um texto exige alterar o outro.

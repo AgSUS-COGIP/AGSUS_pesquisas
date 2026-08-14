@@ -2,11 +2,11 @@
 
 ## Objetivo
 
-Executar as operações que **não podem** acontecer no navegador: uso da chave de serviço do Supabase, verificação de papel administrativo pela sessão institucional, gravação de observabilidade sem sessão do usuário e diagnóstico de configuração.
+Executar as operações que **não podem** acontecer no navegador: uso da chave de serviço do Supabase, gravação de observabilidade sem sessão do usuário, diagnóstico de configuração e o callback OAuth.
 
 ## Responsabilidades
 
-- Autorizar cada requisição pelo seu próprio mecanismo (sessão institucional + papel, mesma origem, ou rota pública deliberada).
+- Autorizar cada requisição pelo seu próprio mecanismo (mesma origem ou rota pública deliberada).
 - Nunca vazar detalhe interno na resposta — mensagens são curtas e em português; o diagnóstico completo vai para `console.error`.
 - Sanitizar tudo que vem do cliente antes de persistir.
 
@@ -16,7 +16,6 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 |---|---|---|---|---|
 | `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica se as variáveis públicas e administrativas do Supabase existem. `200 ok` ou `503 degraded` com `missingConfiguration`. |
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. |
-| `/api/admin/import-participants` | `POST` | Node | sessão institucional + perfil Superadmin | Sincroniza a base institucional de pessoas em lotes. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
@@ -35,31 +34,6 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 ```
 
 `pkceExchangeOptions(flowId)` devolve `undefined` quando `sb_flow_id` está ausente, preservando compatibilidade com callbacks emitidos antes do parâmetro existir. Um `flowId` explícito e inválido **não** cai em fallback — é repassado, para que a troca falhe em vez de usar o verificador errado.
-
-### `/api/admin/import-participants` — sincronização da base
-
-```text
-1. resolveAuthorizedActor(): cliente por cookie → auth.getUser()
-   → fc_obter_contexto_plataforma(); exige status OK, person.id e perfil
-     Superadmin (PLATFORM_ROLE.SUPER_ADMIN) — ADMIN_IMPORT não é do Admin
-   sem ator autorizado → 403
-2. parseAdminImportRequest(): esquema zod de @/lib/admin-import-contract
-   valida cada linha; erro → 400 com details de
-   formatAdminImportValidationErrors()
-3. isFirstChunk → insere data_import_batches (status RUNNING, executed_by = ator)
-4. sync_people_base_rows(p_rows, p_batch_id)       base mestra
-5. sync_cddi_manager_rows(p_rows, p_batch_id)      vínculos de gestor
-   falha em 4 ou 5 → markBatchFailed() grava FAILED com failure_stage,
-   failure_message e failed_by, filtrando por executed_by = ator
-6. deriva data_import_issues a partir dos warnings de cada linha
-7. isLastChunk → fecha COMPLETED ou COMPLETED_WITH_WARNINGS
-```
-
-A autorização é **por sessão**, não por segredo compartilhado: nada de valor circula pelo navegador e o lote fica atribuído a `executed_by`. Os limites de tamanho (`MAX_IMPORT_ROWS_PER_REQUEST = 250`, `MAX_IMPORT_TOTAL_ROWS = 50.000`) vivem no contrato, compartilhados com o teste.
-
-Códigos de pendência gerados: `MISSING_EMAIL`, `INVALID_EMAIL`, `DUPLICATE_EMAIL`, `INVALID_MANAGER_EMAIL`, `INVALID_ADMISSION_DATE` — todos com `severity: "WARNING"`, porque a pessoa é preservada mesmo sem identidade de acesso.
-
-`surveyAssignmentsCreated: 0` e `survey_assignment: false` no retorno e nos metadados registram, explicitamente, que a importação não vincula ninguém a pesquisa.
 
 ### `/api/observability/errors` — coleta de erros
 
@@ -96,15 +70,14 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 ## Dependências
 
 - [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui.**
-- [@/lib/supabase/server](../../lib/CLAUDE.md) — cliente por cookie, usado pelo callback OAuth e pela autorização da importação.
+- [@/lib/supabase/server](../../lib/CLAUDE.md) — cliente por cookie, usado pelo callback OAuth.
 - [@/lib/auth-callback](../../lib/CLAUDE.md) — `safeAuthNext()`, `pkceExchangeOptions()`.
-- [@/lib/admin-import-contract](../../lib/CLAUDE.md) — esquema `zod` do corpo da importação, limites e formatação de erros.
 
 ## Convenções específicas
 
-- Todas as respostas de mutação levam `Cache-Control: no-store` e `X-Content-Type-Options: nosniff` (`securityHeaders()` na rota de importação).
+- Toda resposta de mutação leva `Cache-Control: no-store` e `X-Content-Type-Options: nosniff`.
 - Códigos de status são semânticos: `400` payload inválido, `403` sessão sem papel administrativo ou origem não autorizada, `413` excede limite, `500` falha ao gravar, `502` origem externa indisponível, `503` configuração ausente.
-- Nunca devolver `error.message` bruto do banco ao cliente quando puder revelar estrutura interna. A rota de importação devolve mensagens fixas por etapa (`"Falha ao sincronizar a base de pessoas."`, `"Falha ao sincronizar vínculos de liderança."`) e guarda o diagnóstico em `data_import_batches.metadata.failure_message`. A única exceção é a abertura do lote, que repassa a mensagem do banco.
+- Nunca devolver `error.message` bruto do banco ao cliente quando puder revelar estrutura interna: mensagem curta na resposta, diagnóstico completo em `console.error`.
 - Handler não confia em nada do cliente: valida tamanho, faixa, tipo e formato antes de usar.
 
 ## Pontos de atenção
@@ -113,6 +86,4 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - `createAdminSupabaseClient()` lança `AdminSupabaseConfigurationError` se faltar URL ou chave; aceita `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` (nome moderno tem precedência).
 - `/auth/confirm` fixa `ALLOWED_DOMAIN = "agenciasus.org.br"` no código, enquanto a camada SQL aceita a lista de `ALLOWED_INSTITUTIONAL_DOMAINS`. Uma conta `@agsus.org.br` passaria no banco e seria rejeitada aqui.
 - `isSameOrigin()` aceita requisição sem header `Origin` — exigido por `fetch(keepalive)` durante o descarregamento da página.
-- A rota de importação valida o corpo linha por linha com `zod` ([@/lib/admin-import-contract](../../lib/admin-import-contract.ts)). Alterar o formato enviado por `/admin/importacao` exige alterar o esquema, senão o lote é rejeitado com `400`.
-- `markBatchFailed()` e as consultas de lote filtram por `executed_by = ator`: um administrador não interfere no lote de outro.
 - `/api/background/*` é rota pública que consome um serviço externo (Unsplash) e existe apenas para o plano de fundo da tela de login.

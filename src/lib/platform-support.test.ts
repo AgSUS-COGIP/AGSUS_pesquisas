@@ -35,8 +35,11 @@ describe("isSuperAdminOnlyRoute", () => {
     expect(isSuperAdminOnlyRoute("/admin/equipes")).toBe(true);
     expect(isSuperAdminOnlyRoute("/admin/acessos")).toBe(true);
     expect(isSuperAdminOnlyRoute("/admin/configuracoes")).toBe(true);
-    expect(isSuperAdminOnlyRoute("/admin/importacao")).toBe(true);
     expect(isSuperAdminOnlyRoute("/admin/equipes/123")).toBe(true);
+  });
+
+  it("não reconhece a rota de importação, que deixou de existir", () => {
+    expect(isSuperAdminOnlyRoute("/admin/importacao")).toBe(false);
   });
 
   it("não casa com prefixo parcial nem com as demais rotas", () => {

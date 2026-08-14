@@ -57,7 +57,6 @@ const SUPER_ADMIN_ONLY_ROUTES = Object.freeze([
   "/admin/equipes",
   "/admin/acessos",
   "/admin/configuracoes",
-  "/admin/importacao",
 ]);
 
 /**

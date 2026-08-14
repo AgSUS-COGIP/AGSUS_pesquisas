@@ -167,7 +167,7 @@ Cada `tela-*.tsx` exporta apenas o componente padrão, e o `page.tsx` da mesma p
 - Toda página que usa hooks precisa de `"use client"` na primeira linha.
 - Guarde a rota **e** confie na RLS: a guarda de módulo é usabilidade, não segurança. A autorização real está no banco.
 - `/cddi` fixa `"CDDI-2026"` como código de aplicação em todas as chamadas; `/cddi/chefia/[personId]` usa o mesmo padrão, mas aceita outro ciclo por `?ciclo=` (é assim que `/equipe` propaga o ciclo selecionado). Um novo ciclo exige revisar essas constantes.
-- `/cddi` e `/admin/importacao` **não** usam `PlatformShell` — têm layout próprio de página inteira.
+- `/cddi` **não** usa `PlatformShell` — tem layout próprio de página inteira.
 - Não pré-busque dados antes de `context.person` existir: sem sessão resolvida a RPC falha por `AUTH_REQUIRED`.
 - Arquivos grandes (`admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx`, `paineis/cddi/tela-painel-cddi.tsx`) concentram muito JSX em poucas linhas; ao editar, mantenha a formatação existente para não gerar diff desnecessário.
 - Ao criar uma rota nova, crie os **dois** arquivos: a `tela-*.tsx` com o componente e o `page.tsx` de uma linha que a re-exporta. Só `page.tsx` não basta para o nome ser descritivo; só `tela-*.tsx` não cria rota alguma.
