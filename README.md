@@ -68,7 +68,7 @@ Três decisões estruturantes explicam quase todo o código:
 │  Views institucionais DB_PESQUISAS│   └─────────────────────────────┘
 └──────────────────────────────────┘
                 ▲
-                │ proxy.ts (Next.js middleware) — sessão + guarda de rota
+                │ src/proxy.ts (Next.js middleware) — sessão + guarda de rota
                 └───────────────────────────────────────────────────────
 ```
 
@@ -76,7 +76,7 @@ Três decisões estruturantes explicam quase todo o código:
 
 | Camada | Localização | Responsabilidade |
 |---|---|---|
-| Proxy de borda | [proxy.ts](proxy.ts), [src/lib/supabase/proxy.ts](src/lib/supabase/proxy.ts) | Renova a sessão, redireciona anônimos para `/acesso`, aplica cabeçalhos de segurança. |
+| Proxy de borda | [src/proxy.ts](src/proxy.ts), [src/lib/supabase/proxy.ts](src/lib/supabase/proxy.ts) | Renova a sessão, redireciona anônimos para `/acesso`, aplica cabeçalhos de segurança. |
 | Rotas e telas | [src/app/](src/app/) | Uma pasta por jornada. Componentes de cliente que orquestram RPCs. |
 | Casca e design system | [src/components/](src/components/) | `PlatformShell`, primitivos acessíveis em `ui/`, blocos administrativos. |
 | Domínio no cliente | [src/lib/](src/lib/) | Funções puras testáveis (validação, ordenação, normalização) e clientes Supabase. |
@@ -90,7 +90,7 @@ Três decisões estruturantes explicam quase todo o código:
 agsus-pesquisas/
 ├── CLAUDE.md                     # Visão geral para sessões de IA (índice de módulos)
 ├── README.md                     # Este documento
-├── proxy.ts                      # Middleware do Next.js (nome exigido pelo Next 16)
+├── src/proxy.ts                  # Middleware do Next.js (nome e local exigidos pelo Next 16)
 ├── next.config.ts                # React Strict Mode, hosts de imagem permitidos
 ├── vercel.json                   # Deploy automático apenas a partir de main
 ├── eslint.config.mjs             # next/core-web-vitals + next/typescript
@@ -274,6 +274,58 @@ npx vitest run src/lib/survey-cycle-period.test.ts   # arquivo específico
 
 **CI.** [.github/workflows/validate.yml](.github/workflows/validate.yml) executa dois jobs: *Application validation* (`db:migrations` → `db:naming` → `test` → `typecheck` → `lint` → `build`) e *Supabase migrations and RLS* (`supabase db reset` → `supabase test db`).
 
+### Rotas de API — verificação manual
+
+Os testes automatizados cobrem só funções puras: **nenhuma rota de API é exercitada por `npm test`**. A verificação delas é manual, com o servidor de desenvolvimento no ar (`npm run dev`).
+
+A tabela abaixo é o resultado real da última execução, não o comportamento presumido.
+
+| Rota | Método | Cenário | Esperado |
+|---|---|---|---|
+| `/api/health` | `GET` | sem sessão | `200` · `{"status":"ok"}` — `503` se faltar variável |
+| `/api/background/0` | `GET` | índice válido (0–5) | `200` · imagem, com cache longo |
+| `/api/background/99` | `GET` | índice fora da faixa | `404` · `Imagem inválida.` |
+| `/api/background/abc` | `GET` | índice não numérico | `404` · `Imagem inválida.` |
+| `/api/observability/errors` | `GET` | método não suportado | `405` |
+| `/api/observability/errors` | `POST` | corpo válido | `202` · `{"reference":…}` |
+| `/api/observability/errors` | `POST` | `Origin` de outro host | `403` · `Origem não autorizada.` |
+| `/api/observability/errors` | `POST` | `type` fora do catálogo | `400` · `Relatório inválido.` |
+| `/api/observability/errors` | `POST` | `reference` ausente | `400` · `Relatório inválido.` |
+| `/api/observability/errors` | `POST` | corpo acima de 16 KB | `413` · `Conteúdo excede o limite permitido.` |
+
+```bash
+# saúde e proxy de imagens
+curl -i http://localhost:3000/api/health
+curl -o /dev/null -w "%{http_code} %{content_type}
+" http://localhost:3000/api/background/0
+curl -i http://localhost:3000/api/background/99
+
+# coleta de erros: caminho feliz, origem externa e payload inválido
+curl -i -X POST http://localhost:3000/api/observability/errors   -H "content-type: application/json"   -d '{"reference":"teste-1","route":"/teste","type":"CLIENTE","message":"erro de teste"}'
+
+curl -i -X POST http://localhost:3000/api/observability/errors   -H "content-type: application/json" -H "origin: https://exemplo-externo.test"   -d '{"reference":"teste-2","route":"/teste","type":"CLIENTE","message":"m"}'
+
+```
+
+### Guarda de rota — verificação manual
+
+O middleware ([src/proxy.ts](src/proxy.ts)) é a primeira camada de acesso, e **falha em silêncio quando não é carregado**: as páginas continuam respondendo, só que sem guarda e sem cabeçalhos. Vale conferir depois de mexer em rota, em `PUBLIC_PATHS` ou na localização do arquivo.
+
+| Requisição | Esperado |
+|---|---|
+| `/area`, `/pesquisas`, `/paineis`, `/admin/**` sem sessão | `307` → `/acesso?next=…` |
+| `/acesso`, `/api/health`, `/api/background/*` sem sessão | `200` |
+| `/api/observability/errors` sem sessão | `202` — anônima por desenho |
+| qualquer resposta | `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` |
+
+```bash
+curl -o /dev/null -w "%{http_code} -> %{redirect_url}
+" http://localhost:3000/admin/configuracoes
+curl -sD - -o /dev/null http://localhost:3000/acesso | grep -iE "x-frame-options|permissions-policy"
+```
+
+**Ausência dos cabeçalhos é o sintoma de que o middleware não está ativo** — foi assim que se descobriu que `proxy.ts` estava na raiz do projeto, onde o Next 16 não o procura.
+
 ## Depuração
 
 - **Erros de aplicação** são capturados por `ClientErrorReporter` (erros globais e promises rejeitadas), `error.tsx` (rota) e `global-error.tsx` (layout raiz). Cada falha ganha uma **referência técnica** exibida na tela e persistida em `tl_erro_aplicacao` via `POST /api/observability/errors`. Busque pela referência no banco para achar o registro.
@@ -287,7 +339,7 @@ npx vitest run src/lib/survey-cycle-period.test.ts   # arquivo específico
 
 ### Inicialização
 
-1. `proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
+1. `src/proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
 2. `src/app/layout.tsx` injeta dois scripts `beforeInteractive` que leem `localStorage` e aplicam tema e estado da sidebar **antes** da primeira pintura, evitando flash.
 3. `AppProviders` monta `QueryClientProvider`, `PlatformBrandingProvider` (marca institucional, com cache em `localStorage` para não piscar o padrão), `ConfirmationProvider` (diálogo de confirmação disponível a qualquer tela), `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
 4. A página chama `usePlatformGuard(módulo?)`, que por baixo usa `usePlatformContext()` e executa `fc_obter_contexto_plataforma()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
@@ -379,7 +431,7 @@ app/**            →  components/**  →  components/ui/**
 
 app/api/**        →  lib/supabase/admin   (service role, nunca no cliente)
                   →  lib/supabase/server  (sessão do administrador → papel)
-proxy.ts          →  lib/supabase/proxy
+src/proxy.ts      →  lib/supabase/proxy
 ```
 
 Regras respeitadas em todo o código:
@@ -393,7 +445,7 @@ Regras respeitadas em todo o código:
 
 | Entrada | Arquivo | Observação |
 |---|---|---|
-| Middleware | [proxy.ts](proxy.ts) | Next.js 16 renomeou `middleware.ts` → `proxy.ts`. |
+| Middleware | [src/proxy.ts](src/proxy.ts) | Next.js 16 renomeou `middleware.ts` → `proxy.ts`. O arquivo precisa ficar **ao lado de `app/`** — como o app é `src/app`, o local é `src/`, não a raiz. Fora daí o Next não o carrega, e a guarda deixa de existir sem nenhum aviso. |
 | Layout raiz | [src/app/layout.tsx](src/app/layout.tsx) | Metadados, viewport, bootstrap de preferências. |
 | Rota `/` | [src/app/page.tsx](src/app/page.tsx) | Redireciona para `/acesso`. |
 | Callback OAuth | [src/app/auth/confirm/route.ts](src/app/auth/confirm/route.ts) | Troca código por sessão e valida o domínio. |
