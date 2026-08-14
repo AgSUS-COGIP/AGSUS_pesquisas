@@ -159,11 +159,11 @@ agsus-pesquisas/
 
 ## Dependências
 
-**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (sem consumidor desde a remoção da tela de importação).
+**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts).
 
 **Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
 
-> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`. `@tanstack/react-table` só é importado por um componente sem consumidores, e `xlsx` não é mais importado por ninguém. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
+> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`. `@tanstack/react-table` continua declarado sem nenhum importador — o componente que o usava foi removido. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
 
 ## Variáveis de ambiente
 
