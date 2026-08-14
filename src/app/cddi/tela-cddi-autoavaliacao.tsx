@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
+import { usePlatformGuard } from "@/lib/platform-context";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
@@ -70,6 +72,18 @@ function IdentityField({ label, value }: { label: string; value: string }) {
 
 export default function CddiFormPage() {
   const confirm = useConfirm();
+  /*
+    A guarda de acesso da rota é da moldura (`CddiPlatformFrame`); aqui ela é
+    lida só para saber se esta pessoa tem equipe. O atalho "Avaliar minha
+    equipe" era renderizado sem condição, então quem só participa via o cartão,
+    clicava e caía na tela de acesso restrito — a rota `/equipe` exige o módulo
+    `TEAM`, que o perfil Participante não tem.
+
+    `/area` já decidia o mesmo atalho por `modules.includes(TEAM)`. A regra
+    passa a ser a mesma nas duas telas.
+  */
+  const guard = usePlatformGuard();
+  const podeAvaliarEquipe = guard.state === "granted" && guard.modules.includes(PLATFORM_MODULE.TEAM);
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [identity, setIdentity] = useState<IdentityContext | null>(null);
@@ -365,10 +379,18 @@ export default function CddiFormPage() {
 
           <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
             <div>
-              <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>Escolha o que fazer agora</h2>
-              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">Quem tem equipe pode responder a própria autoavaliação e avaliar as pessoas vinculadas.</p>
+              <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>
+                {podeAvaliarEquipe ? "Escolha o que fazer agora" : "Sua avaliação neste ciclo"}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
+                {podeAvaliarEquipe
+                  ? "Responda a própria autoavaliação e avalie as pessoas vinculadas a você."
+                  : "Avalie suas próprias competências neste ciclo. As respostas são salvas automaticamente."}
+              </p>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {/* Uma coluna quando só existe uma escolha: a grade de dois deixava
+                metade da faixa vazia para quem não avalia equipe. */}
+            <div className={`mt-4 grid gap-3 ${podeAvaliarEquipe ? "md:grid-cols-2" : ""}`}>
               <button
                 type="button"
                 onClick={() => { setScreen("auto"); setStep(0); }}
@@ -378,14 +400,16 @@ export default function CddiFormPage() {
                 <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Responder minha autoavaliação</strong>
                 <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Avalie suas próprias competências neste ciclo.</span>
               </button>
-              <Link
-                href="/equipe"
-                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
-              >
-                <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
-                <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
-                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
-              </Link>
+              {podeAvaliarEquipe ? (
+                <Link
+                  href="/equipe"
+                  className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                >
+                  <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+                  <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
+                  <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
+                </Link>
+              ) : null}
             </div>
           </section>
         </div>
