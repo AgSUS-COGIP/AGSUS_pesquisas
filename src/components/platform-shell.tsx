@@ -312,15 +312,23 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
               )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 {/*
-                  Os dois truncavam ao mesmo tempo, e em tela estreita o
-                  cabeçalho virava "ADMINISTRAÇÃO ·… / Ciclo de Devolutivas e
-                  Desenvol…" — as duas metades cortadas, nenhuma informação
-                  inteira. O título é o que identifica a página; o contexto é
-                  quem cede. Abaixo de `sm` ele desaparece e o título fica com a
-                  largura toda; a partir dali volta, limitado a um terço, para
-                  encolher antes do título.
+                  Regra: **um** dos dois trunca, nunca os dois.
+
+                  Antes ambos tinham `truncate` e encolhiam juntos — em tela
+                  estreita o cabeçalho virava "ADMINISTRAÇÃO ·… / Ciclo de
+                  Devolutivas e Desenvol…", as duas metades cortadas e nenhuma
+                  informação inteira. A primeira tentativa de correção limitou o
+                  contexto a um terço da linha, e isso o cortava mesmo **sobrando
+                  espaço**: "Ambiente institucional" precisa de 200px, recebia 97
+                  numa linha de 294 e virava "AMBIENT…".
+
+                  O contexto é um rótulo curto, autoral e fixo por rota, então
+                  não encolhe (`shrink-0`) nem quebra (`whitespace-nowrap`). Quem
+                  absorve a pressão é o título, que é o texto variável e o único
+                  com motivo para truncar. Abaixo de `sm` o contexto some, e o
+                  título fica com a linha inteira.
                 */}
-                {eyebrow ? <p className="hidden max-w-[33%] shrink truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
+                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
                 {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
                 <h1 className="min-w-0 truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
