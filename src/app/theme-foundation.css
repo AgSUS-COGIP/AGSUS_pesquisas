@@ -23,13 +23,6 @@
   --status-danger-bg: #fff0f0;
   --status-danger-border: #efaaaa;
   --status-danger-text: #a12121;
-  /*
-    Fundo de ação que abre uma escolha destrutiva sem executá-la — hoje só
-    "Interromper avaliação", que oferece pausar ou finalizar. Mais claro que o
-    vermelho de ação irreversível, para não igualar as duas coisas, e ainda com
-    branco legível por cima.
-  */
-  --status-danger-soft-solid: #e13b3b;
 }
 
 html[data-agsus-theme="dark"] {
@@ -57,9 +50,6 @@ html[data-agsus-theme="dark"] {
   --status-danger-bg: rgba(185, 28, 28, .2);
   --status-danger-border: #a94444;
   --status-danger-text: #ffc2c2;
-  /* Sobre superfície escura o mesmo vermelho vibra demais e puxa a atenção
-     acima da ação primária da tela. Um tom abaixo mantém a hierarquia. */
-  --status-danger-soft-solid: #c23333;
   scrollbar-color: var(--border-strong) var(--surface-page);
 }
 

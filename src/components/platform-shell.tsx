@@ -284,9 +284,18 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                 </button>
               )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
-                {eyebrow ? <p className="truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:text-xs">{eyebrow}</p> : null}
-                {eyebrow ? <span className="text-[var(--border-strong)]" aria-hidden="true">/</span> : null}
-                <h1 className="truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
+                {/*
+                  Os dois truncavam ao mesmo tempo, e em tela estreita o
+                  cabeçalho virava "ADMINISTRAÇÃO ·… / Ciclo de Devolutivas e
+                  Desenvol…" — as duas metades cortadas, nenhuma informação
+                  inteira. O título é o que identifica a página; o contexto é
+                  quem cede. Abaixo de `sm` ele desaparece e o título fica com a
+                  largura toda; a partir dali volta, limitado a um terço, para
+                  encolher antes do título.
+                */}
+                {eyebrow ? <p className="hidden max-w-[33%] shrink truncate text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
+                {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
+                <h1 className="min-w-0 truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
