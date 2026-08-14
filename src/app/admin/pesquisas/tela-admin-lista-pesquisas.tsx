@@ -19,6 +19,12 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
+/** Modelo da galeria, devolvido por `fc_listar_modelos_avaliacao`. */
+type SurveyTemplate = {
+  surveyId: string; code: string; name: string; description: string | null;
+  category: string; sections: number; questions: number;
+};
+
 type ManagedSurvey = {
   surveyId: string; code: string; name: string; description: string | null; status: string;
   archivedAt: string | null;
@@ -101,6 +107,7 @@ export default function AdminSurveysPage() {
   const [cloningId, setCloningId] = useState<string | null>(null);
   const [archiveActionId, setArchiveActionId] = useState<string | null>(null);
   const [showingArchived, setShowingArchived] = useState(false);
+  const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const granted = guard.state === "granted";
 
   /**
@@ -150,20 +157,40 @@ export default function AdminSurveysPage() {
       confirmLabel: "Duplicar avaliação",
     });
     if (!confirmed) return;
+    await runClone(survey.surveyId, null);
+  }
 
-    setCloningId(survey.surveyId);
+  /**
+   * Usar um modelo **é** duplicar — mesma RPC, mesmo remapeamento de regras.
+   *
+   * A galeria não ganhou mecanismo de cópia próprio de propósito: um segundo
+   * caminho para a mesma operação divergiria do primeiro na primeira correção.
+   * O clone nasce fora da galeria, porque `st_modelo` não é copiado.
+   */
+  async function startFromTemplate(template: SurveyTemplate) {
+    const confirmed = await confirm({
+      title: `Criar avaliação a partir de "${template.name}"?`,
+      description: `Uma avaliação nova nasce em rascunho com as ${template.questions} perguntas do modelo, pronta para você ajustar o texto e configurar o ciclo. O modelo continua intacto na galeria.`,
+      confirmLabel: "Usar este modelo",
+    });
+    if (!confirmed) return;
+    await runClone(template.surveyId, template.name.replace(/^Modelo\s*[—-]\s*/i, ""));
+  }
+
+  async function runClone(surveyId: string, name: string | null) {
+    setCloningId(surveyId);
     try {
       const supabase = createBrowserSupabaseClient();
       const { data, error: cloneError } = await supabase.rpc("fc_clonar_pesquisa", {
-        p_pesquisa: survey.surveyId,
-        p_nome: null,
+        p_pesquisa: surveyId,
+        p_nome: name,
         p_codigo: null,
       });
       if (cloneError) throw cloneError;
 
       const result = data as { surveyId: string; code: string; questions: number } | null;
       if (!result?.surveyId) throw new Error("A cópia não foi criada.");
-      toast.success(`Cópia criada como ${result.code}, com ${result.questions} ${result.questions === 1 ? "pergunta" : "perguntas"}.`);
+      toast.success(`Criada como ${result.code}, com ${result.questions} ${result.questions === 1 ? "pergunta" : "perguntas"}.`);
       router.push(`/admin/pesquisas/${result.surveyId}`);
     } catch (cloneError) {
       toast.error(errorMessageFromUnknown(cloneError));
@@ -212,6 +239,28 @@ export default function AdminSurveysPage() {
     if (!granted) return;
     void loadSurveys(showingArchived);
   }, [granted, showingArchived, loadSurveys]);
+
+  // A galeria de modelos é acessório e **independe da visão escolhida**: fica
+  // num efeito próprio, carregado uma vez quando a guarda libera, em vez de ser
+  // rebuscada a cada alternância entre ativas e arquivadas.
+  //
+  // Falha dela não derruba o catálogo: num ambiente sem a migration de modelos
+  // a RPC não existe (404), e a galeria apenas não aparece.
+  useEffect(() => {
+    if (!granted) return;
+    let active = true;
+    void (async () => {
+      const supabase = createBrowserSupabaseClient();
+      const { data, error: templateError } = await supabase.rpc("fc_listar_modelos_avaliacao");
+      if (!active) return;
+      if (templateError) {
+        console.warn("Galeria de modelos indisponível:", templateError.message);
+        return;
+      }
+      setTemplates(Array.isArray(data) ? data as SurveyTemplate[] : []);
+    })();
+    return () => { active = false; };
+  }, [granted]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -278,6 +327,50 @@ export default function AdminSurveysPage() {
         </section>
       )}
 
+      {/*
+        Galeria antes do catálogo: quem chega para criar uma avaliação decide
+        primeiro se parte de um modelo ou do zero. Depois do catálogo, ela
+        chegaria tarde demais para essa escolha.
+      */}
+      {templates.length > 0 && (
+        <section aria-label="Modelos de avaliação" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Comece a partir de um modelo</p>
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Galeria de modelos</h3>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
+                Instrumentos prontos para adaptar. Usar um modelo cria uma avaliação nova em rascunho — o modelo continua intacto.
+              </p>
+            </div>
+          </div>
+
+          <ul className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {templates.map((template) => (
+              <li key={template.surveyId}>
+                <article className="flex h-full flex-col rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                  <Badge variant="info" className="w-fit">{template.category}</Badge>
+                  <strong className="mt-3 block text-base font-semibold leading-snug text-[var(--text-primary)]">{template.name}</strong>
+                  <p className="mt-2 line-clamp-3 flex-1 text-sm leading-6 text-[var(--text-secondary)]">{template.description}</p>
+                  <p className="mt-3 text-xs text-[var(--text-muted)]">
+                    {template.sections} {template.sections === 1 ? "seção" : "seções"} · {template.questions} {template.questions === 1 ? "pergunta" : "perguntas"}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    className="mt-3 w-full justify-center"
+                    onClick={() => void startFromTemplate(template)}
+                    disabled={cloningId === template.surveyId}
+                  >
+                    {cloningId === template.surveyId
+                      ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Criando...</>
+                      : <><CopyPlus className="h-4 w-4" aria-hidden="true" />Usar este modelo</>}
+                  </Button>
+                </article>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-label="Catálogo de avaliações" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -300,7 +393,7 @@ export default function AdminSurveysPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar por código, nome ou ciclo"
-                className="min-h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] py-2 pl-10 pr-10 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15"
+                className="search-sem-limpar-nativo min-h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] py-2 pl-10 pr-10 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15"
               />
               {searching && (
                 <button

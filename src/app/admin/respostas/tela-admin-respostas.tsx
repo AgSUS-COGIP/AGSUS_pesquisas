@@ -203,7 +203,7 @@ export default function AdminRespostasPage() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Nome, matrícula ou e-mail"
-                  className="h-11 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] pl-10 pr-10 text-sm text-[var(--text-primary)]"
+                  className="search-sem-limpar-nativo h-11 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] pl-10 pr-10 text-sm text-[var(--text-primary)]"
                 />
                 {search ? (
                   <button

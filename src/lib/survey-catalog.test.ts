@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deadlineStatus } from "./deadline";
 import {
   selectPrioritySurvey,
   summarizeSurveyCatalog,
@@ -119,6 +120,24 @@ describe("summarizeSurveyCatalog", () => {
       item({ applicationId: "perto", closesAt: "2026-08-12T12:00:00Z" }),
     ], now);
     expect(summary.nextDeadlineDays).toBe(2);
+  });
+
+  /*
+   * Regressão de um defeito real: a Visão geral tinha uma segunda contagem de
+   * dias, que arredondava a diferença em horas para cima em vez de contar dias
+   * de calendário. Para o mesmo encerramento, a faixa de métricas mostrava "16d"
+   * e o cartão ao lado dizia "faltam 17 dias".
+   *
+   * O teste amarra as duas leituras à mesma fonte. Se alguém reintroduzir um
+   * cálculo paralelo, o número deixa de bater aqui.
+   */
+  it("usa a mesma contagem de dias que deadlineStatus, para os dois números concordarem", () => {
+    const closesAt = "2026-08-29T20:09:00Z";
+    const summary = summarizeSurveyCatalog([item({ applicationId: "cddi", closesAt })], now);
+    const status = deadlineStatus(closesAt, now);
+
+    expect(status.state).toBe("counting");
+    expect(summary.nextDeadlineDays).toBe(status.state === "counting" ? status.days : null);
   });
 });
 

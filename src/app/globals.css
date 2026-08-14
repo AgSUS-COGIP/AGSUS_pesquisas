@@ -241,3 +241,20 @@ html[data-agsus-theme="dark"] .divide-slate-200 > :not([hidden]) ~ :not([hidden]
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 @media print { body { background: white; } nav, aside, button, [data-print-hidden="true"] { display: none !important; } }
+
+/*
+ * Campo de busca com botão de limpar próprio.
+ *
+ * `input[type="search"]` desenha um "×" nativo no Chrome e no Safari. Nas telas
+ * que já oferecem o próprio botão de limpar, apareciam **dois** × lado a lado,
+ * e o nativo nem respeita o tema nem tem rótulo acessível.
+ *
+ * A regra é opt-in por classe, e não global no `type="search"`: onde não existe
+ * botão próprio, o nativo continua sendo a única forma rápida de limpar o campo
+ * — removê-lo ali pioraria a tela em vez de arrumar.
+ */
+.search-sem-limpar-nativo::-webkit-search-cancel-button,
+.search-sem-limpar-nativo::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
