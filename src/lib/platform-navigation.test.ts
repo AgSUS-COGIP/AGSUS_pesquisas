@@ -14,10 +14,10 @@ function menuFor(role: string) {
 
 describe("platform navigation", () => {
   it("shows only modules granted to the user", () => {
-    const groups = navigationGroupsForModules(["HOME", "RESULTS"]);
+    const groups = navigationGroupsForModules(["HOME", "TEAM"]);
     expect(groups.flatMap((group) => group.items.map((item) => item.href))).toEqual([
       "/area",
-      "/resultados",
+      "/equipe",
     ]);
   });
 
@@ -55,7 +55,6 @@ describe("platform navigation", () => {
       "/pesquisas",
       "/paineis",
       "/equipe",
-      "/resultados",
       "/admin/pesquisas",
       "/admin/participantes",
     ]);

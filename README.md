@@ -33,9 +33,9 @@ A plataforma entrega cinco capacidades integradas:
 
 1. **Identidade e acesso institucional** — login Google restrito ao domínio corporativo, vinculação automática da conta a um cadastro em `people`.
 2. **Gestão de pesquisas, versões e ciclos** — construtor de formulários, versionamento e máquina de estados do ciclo de aplicação.
-3. **Definição de público, perfis e hierarquias** — participantes por aplicação, vínculos de liderança e quatro perfis globais **mutuamente exclusivos**: **Participante** (somente o módulo Pesquisas), **Avaliador** (Visão Geral, Pesquisas e Minha Equipe — participa das pesquisas e avalia sua equipe), **Admin** (Visão Geral, Pesquisas, Painéis, Minha Equipe, Resultados, Pesquisas e Ciclos, e Participantes) e **Superadmin** (acesso irrestrito a todos os módulos, incluindo gestão de usuários, perfis e dados institucionais). O acesso é determinado exclusivamente pelo perfil — não há exceção de módulo por pessoa. Os códigos internos no banco (`ADMINISTRATOR`, `SURVEY_MANAGER`, `LEADER`, `RESPONDENT`) são legados preservados por compatibilidade com RLS e RPCs — o frontend usa as constantes de [src/lib/platform-roles.ts](src/lib/platform-roles.ts).
+3. **Definição de público, perfis e hierarquias** — participantes por aplicação, vínculos de liderança e quatro perfis globais **mutuamente exclusivos**: **Participante** (somente o módulo Pesquisas), **Avaliador** (Visão Geral, Pesquisas e Minha Equipe — participa das pesquisas e avalia sua equipe), **Admin** (Visão Geral, Pesquisas, Painéis, Minha Equipe, Pesquisas e Ciclos, e Participantes) e **Superadmin** (acesso irrestrito a todos os módulos, incluindo gestão de usuários, perfis e dados institucionais). O acesso é determinado exclusivamente pelo perfil — não há exceção de módulo por pessoa. Os códigos internos no banco (`ADMINISTRATOR`, `SURVEY_MANAGER`, `LEADER`, `RESPONDENT`) são legados preservados por compatibilidade com RLS e RPCs — o frontend usa as constantes de [src/lib/platform-roles.ts](src/lib/platform-roles.ts).
 4. **Experiência segura de resposta** — formulários com autossalvamento, rascunho, validação por etapa e envio definitivo.
-5. **Resultados, painéis e auditoria** — indicadores por instrumento, painel específico do CDDI, trilha de eventos.
+5. **Painéis e auditoria** — indicadores por instrumento, painel específico do CDDI, trilha de eventos.
 
 Três decisões estruturantes explicam quase todo o código:
 
@@ -159,11 +159,11 @@ agsus-pesquisas/
 
 ## Dependências
 
-**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts), `xlsx` (sem consumidor desde a remoção da tela de importação).
+**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts).
 
 **Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
 
-> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`. `@tanstack/react-table` só é importado por um componente sem consumidores, e `xlsx` não é mais importado por ninguém. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
+> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`. `@tanstack/react-table` continua declarado sem nenhum importador — o componente que o usava foi removido. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
 
 ## Variáveis de ambiente
 
