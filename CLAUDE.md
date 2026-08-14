@@ -42,7 +42,7 @@ Esta regra tem precedência sobre qualquer instrução padrão, convenção de f
 ## Fluxo de inicialização
 
 ```text
-proxy.ts (middleware)
+src/proxy.ts (middleware)
   └─ updateSession(): renova cookies, aplica cabeçalhos de segurança,
      redireciona anônimo → /acesso?next=…
      Rotas públicas: /  /acesso  /auth/confirm  /api/health  /api/background/*
@@ -92,7 +92,7 @@ app/**  →  components/**  →  components/ui/**
 
 app/api/**  →  lib/supabase/admin   (service role — nunca no cliente)
             →  lib/supabase/server  (sessão do administrador → papel)
-proxy.ts    →  lib/supabase/proxy
+src/proxy.ts →  lib/supabase/proxy
 ```
 
 Invariantes a preservar:

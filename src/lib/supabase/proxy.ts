@@ -3,7 +3,20 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Única lista de rotas acessíveis sem sessão. Tudo o que não estiver aqui exige
 // autenticação — o padrão é fechado, de modo que uma rota nova nasce protegida.
-const PUBLIC_PATHS = new Set(["/", "/acesso", "/auth/confirm", "/api/health"]);
+//
+// `/api/observability/errors` está aqui por necessidade, não por descuido:
+// `ClientErrorReporter` é montado em toda página, inclusive `/acesso`, que é
+// anônima. Sem esta entrada, o relatório do erro que impede alguém de entrar
+// seria redirecionado para a própria tela de login e nunca chegaria. A rota se
+// defende por outros meios — checagem de mesma origem e limite de 16 KB na
+// própria rota — e grava numa tabela sem leitura para `authenticated`.
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/acesso",
+  "/auth/confirm",
+  "/api/health",
+  "/api/observability/errors",
+]);
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/background/");
@@ -21,7 +34,7 @@ function addResponseHeaders(response: NextResponse) {
 /**
  * Renova a sessão Supabase a cada requisição e guarda as rotas privadas.
  *
- * Executada pelo middleware (`proxy.ts` na raiz). Três efeitos:
+ * Executada pelo middleware (`src/proxy.ts`). Três efeitos:
  * 1. atualiza os cookies de sessão, para que a sessão não expire durante o uso;
  * 2. redireciona anônimo em rota privada para `/acesso`, preservando o destino;
  * 3. aplica cabeçalhos de segurança em toda resposta.
