@@ -58,7 +58,7 @@ begin;
 -- Acentos corrompidos
 -- -------------------
 -- `list_admin_participant_applications` guardava as duas mensagens de erro com
--- dupla codificação (`permissÃ£o`), vindas de `20260812170000` — a única
+-- dupla codificação, vindas de `20260812170000` — a única
 -- migration do repositório com esse defeito, e a mesma origem do
 -- `SEM INFORMAÇÃO` corrompido já corrigido no painel do CDDI. Corrigido aqui
 -- porque a função está sendo reescrita de qualquer forma. As outras cinco RPCs
