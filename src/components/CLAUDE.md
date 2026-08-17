@@ -32,6 +32,7 @@ components/
 ├── external-image.tsx            next/image sem otimização, para host externo
 ├── person-avatar.tsx             foto do Google com fallback de ícone neutro
 ├── survey-banner.tsx             capa institucional com degradação
+├── anonymity-notice.tsx          o que um ciclo anônimo garante — e o que não garante
 ├── cddi-loading-state.tsx        skeleton do formulário CDDI
 ├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
 ├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
@@ -125,6 +126,14 @@ Ciclo `system → light → dark → system`. Grava em `localStorage` e escreve 
 Capa de uma pesquisa, com degradação **em cadeia de três níveis**: `src` (a capa configurada pela administração) → `fallbackSrc` (a arte institucional) → bloco com gradiente e `role="img"`. A capa nunca deixa buraco no layout, mesmo quando a URL configurada sai do ar.
 
 `src` vem de `resolveSurveyVisualIdentity()`, que devolve a capa personalizada do ciclo quando existe uma e o modo é `CUSTOM`. A administração configura imagem, texto alternativo, título e subtítulo (ver [../app/admin/CLAUDE.md](../app/admin/CLAUDE.md)).
+
+### `AnonymityNotice`
+
+Componente de servidor, sem estado. Duas variantes com públicos opostos: `admin` descreve o que se está ligando ao marcar "Avaliação anônima" em `/admin/pesquisas/nova`; `respondent` é a promessa exibida a quem responde, antes das perguntas.
+
+Todo o texto vem de [@/lib/anonymity](../lib/CLAUDE.md), e não das telas, **porque as duas frases precisam ser a mesma promessa** — se divergirem, uma das duas está mentindo para alguém.
+
+**As ressalvas ficam no mesmo bloco das garantias, nunca atrás de um "saiba mais".** Quem lê só a primeira metade entende "ninguém nunca saberá", o que é falso enquanto o rascunho existe: o bilhete de `tb_bilhete_anonimo` liga pessoa e submissão até o envio. A segunda ressalva é que `application_participants` continua registrando **que** a pessoa participou, com data — necessário para cobrar quem falta e impedir resposta em dobro.
 
 ### `CddiScrollBoundary`
 

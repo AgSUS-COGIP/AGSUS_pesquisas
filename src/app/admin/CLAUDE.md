@@ -69,6 +69,10 @@ Duas consequências que valem lembrar ao mexer nisso:
 
 **Criação em três etapas** (`/admin/pesquisas/nova`): Identificação → Ciclo e período → Revisão. As etapas 1 e 2 oferecem só **Cancelar** (vermelho claro) e **Prosseguir** (azul); as ações que gravam — **Criar rascunho** e **Publicar** — existem apenas na etapa de revisão, para que nenhuma etapa intermediária pareça capaz de concluir a criação. `goToNextStep()` valida só os campos da etapa atual (`STEPS[step].fields`): exigir o formulário inteiro impediria sair da primeira etapa por causa de campos ainda não exibidos.
 
+**A opção "Avaliação anônima" voltou a existir.** Ela esteve indisponível enquanto o anonimato não era estrutural — a submissão guardava quem respondeu, e a administração conseguia reidentificar. `20260813220000_anonimato_estrutural.sql` mudou isso: o vínculo entre pessoa e submissão passa a ser destruído no envio. O aviso "o modo anônimo está indisponível" sobreviveu à migration e passou a negar um recurso que existe; o banco aceitava `p_anonymous` e a rota REST já o repassava — só a caixa faltava.
+
+O bloco `AnonymityNotice` fica **sempre visível**, e não só quando a caixa está marcada: a irreversibilidade (`tba_ciclo_anonimo` recusa ligar ou desligar depois da primeira resposta) precisa ser lida antes da decisão, não depois dela.
+
 **"Publicar" na criação não publica.** Uma avaliação nasce só com a seção `Introdução`, sem perguntas, e `PUBLISH` exige estrutura — o banco recusaria. O botão cria o rascunho e leva ao construtor com o aviso de que faltam perguntas; a publicação efetiva continua em `/operacao`.
 
 Regras aplicadas pelo banco e refletidas na interface:

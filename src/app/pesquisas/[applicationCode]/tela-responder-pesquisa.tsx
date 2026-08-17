@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { AnonymityNotice } from "@/components/anonymity-notice";
 import { CompletionCelebration } from "@/components/completion-celebration";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -40,6 +41,10 @@ type Definition = {
 };
 type SubmissionContext = {
   canEdit: boolean;
+  // O ciclo anônimo já vinha no retorno de `start_or_resume_my_survey_submission`
+  // desde `20260813220000`; era a tela que não lia o campo, e por isso quem
+  // respondia não sabia que estava num ciclo anônimo.
+  anonymous?: boolean;
   submission: { id: string; status: string; submittedAt: string | null } | null;
   answers: Record<string, StoredSurveyAnswer>;
 };
@@ -161,6 +166,7 @@ export default function GenericSurveyPage() {
   const progress = requiredQuestions.length ? Math.round((answeredRequired / requiredQuestions.length) * 100) : 100;
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
+  const anonymous = submission?.anonymous === true;
   const saving = pendingSaves > 0;
 
   /**
@@ -276,7 +282,16 @@ export default function GenericSurveyPage() {
       toast.warning("Ainda existem perguntas obrigatórias sem resposta.");
       return;
     }
-    if (!(await confirm({ title: "Enviar avaliação definitivamente?", description: "Depois do envio, as respostas não poderão mais ser alteradas.", confirmLabel: "Enviar avaliação" }))) return;
+    // Num ciclo anônimo o envio faz duas coisas irreversíveis ao mesmo tempo:
+    // fecha a edição e destrói o vínculo entre a pessoa e a submissão. A
+    // segunda é a razão de não haver como reabrir, e precisa estar dita aqui.
+    if (!(await confirm({
+      title: "Enviar avaliação definitivamente?",
+      description: anonymous
+        ? "Depois do envio, as respostas não poderão mais ser alteradas — nem por você, nem pela administração: o vínculo entre você e elas deixa de existir."
+        : "Depois do envio, as respostas não poderão mais ser alteradas.",
+      confirmLabel: "Enviar avaliação",
+    }))) return;
 
     setSubmitting(true);
     try {
@@ -350,11 +365,17 @@ export default function GenericSurveyPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={periodOpen ? "success" : "neutral"}>{periodOpen ? "Período aberto" : "Período encerrado"}</Badge>
+              {anonymous && <Badge variant="info"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />Anônima</Badge>}
               {isSubmitted && <Badge variant="info"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Enviada</Badge>}
             </div>
           </div>
           <div className="h-1 bg-[linear-gradient(90deg,#003b70,#0b8f58,#f2b705,#d92d3a,#00a8d6)]" aria-hidden="true" />
         </section>
+
+        {/* Antes das perguntas, e não junto ao botão de enviar: a promessa muda
+            o que a pessoa se sente à vontade para escrever, então precisa ser
+            lida antes de ela começar a escrever. */}
+        {anonymous && <AnonymityNotice variant="respondent" />}
 
         {!canEdit && (
           <p role="status" className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
