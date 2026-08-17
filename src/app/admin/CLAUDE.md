@@ -23,7 +23,7 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin` | `tela-central-admin.tsx` | qualquer `ADMIN_*` | — (cartões de navegação) |
 | `/admin/pesquisas` | `pesquisas/tela-admin-lista-pesquisas.tsx` | `ADMIN_SURVEYS` | `list_managed_surveys` |
 | `/admin/pesquisas/nova` | `pesquisas/nova/tela-admin-nova-pesquisa.tsx` | `ADMIN_SURVEYS` | `POST /api/avaliacoes` → `create_survey_draft` |
-| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `/api/avaliacoes/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `DELETE /api/avaliacoes/[id]` |
+| `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `/api/avaliacoes/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `DELETE /api/avaliacoes/[id]` |
 | `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `GET`/`PUT /api/avaliacoes/[id]/identidade-visual`; upload direto no storage `survey-assets` |
 | `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `GET`/`POST /api/avaliacoes/[id]/ciclo` → `get_survey_operations`, `manage_survey_cycle` |
 | `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
@@ -110,6 +110,16 @@ Validação no cliente por `@/lib/survey-builder` **antes** de chamar a RPC (o b
 - `hasUnsavedChanges()` compara assinaturas para avisar antes de descartar edição.
 
 **Só estrutura em rascunho é editável.** `enforce_draft_survey_structure` (trigger) impede alteração após a publicação.
+
+#### Lógica condicional
+
+Cada seção e cada pergunta ganharam o botão **Regra**, que abre `SurveyRuleEditor` — componente próprio, e não mais um diálogo nesta tela, que já passava de mil linhas com cinco deles. O alvo tem no máximo **uma** regra (índice `in_regra_condicional_alvo`), então o editor sempre substitui, nunca acumula: por isso a rota é `PUT /api/avaliacoes/[id]/regras` e não `POST`.
+
+O **resumo em português** aparece sob o título do alvo mesmo em versão publicada. Editar exige rascunho, mas a regra continua valendo para quem responde — esconder a informação porque ela ficou imutável deixaria o operador sem entender por que uma pergunta não aparece.
+
+**Dependência circular não é verificada na tela.** Quem percorre o grafo é `fc_regra_gera_ciclo()`, no banco, resolvendo seção → perguntas da seção. Reimplementar a travessia criaria um segundo algoritmo para a mesma decisão — o erro que [../../lib/CLAUDE.md](../../lib/CLAUDE.md) documenta entre avaliador do cliente e do banco. A recusa chega como toast, e o editor **fica aberto** para correção. A tela valida só o que é local e inequívoco (`ruleDraftErrors()`): operador que compara alternativa exige a alternativa, operador numérico exige número, pergunta não condiciona a si mesma, e pergunta de dentro da seção não decide se a seção aparece.
+
+**Confirmar exclusão exige fechar o editor antes.** `SurveyRuleEditor` usa o `Dialog` de `ui/dialog.tsx`, que é `<dialog>` nativo e vive na camada superior do navegador; o diálogo de `useConfirm()` é uma camada comum e ficaria **atrás dele — presente no DOM, invisível e inalcançável**. `removeRule()` fecha o editor, guarda o rascunho e o devolve intacto a quem desistir. Vale para qualquer `confirm()` chamado de dentro desses diálogos.
 
 **Excluir formulário** (`fc_excluir_pesquisa_rascunho`) fica numa seção destrutiva ao **fim** da página do construtor, apenas enquanto a versão é `DRAFT`, e confirma em diálogo que nomeia o formulário. A RPC recusa avaliação já publicada (a estrutura é referência histórica de quem respondeu) ou com qualquer submissão gravada, e a razão vem na própria mensagem de erro. Registra `SURVEY_DELETED` em `audit_events` **antes** do delete, com `application_id` nulo — a coluna referencia `survey_applications` com `on delete set null`, então o identificador do ciclo fica preservado em `metadata`.
 

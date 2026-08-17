@@ -8,6 +8,8 @@ import type {
   OperacaoCiclo,
   PerguntaAtualizacaoEntrada,
   PerguntaEntrada,
+  RegraCondicional,
+  RegraEntrada,
   SecaoEntrada,
   TipoItemConstrutor,
 } from "./contratos-construtor";
@@ -124,4 +126,27 @@ export function executarAcaoDoCiclo(avaliacaoId: string, entrada: AcaoCicloEntra
     method: "POST",
     body: JSON.stringify(entrada),
   });
+}
+
+/** Regras condicionais já gravadas na versão do instrumento. */
+export function listarRegrasCondicionais(avaliacaoId: string, versaoId: string) {
+  return chamar<RegraCondicional[]>(
+    `/api/avaliacoes/${avaliacaoId}/regras?versao=${encodeURIComponent(versaoId)}`,
+  );
+}
+
+/** Substitui a regra vigente do alvo — cada alvo tem no máximo uma. */
+export function salvarRegraCondicional(avaliacaoId: string, entrada: RegraEntrada) {
+  return chamar<{ status: string; ruleId: string; conditions: number }>(
+    `/api/avaliacoes/${avaliacaoId}/regras`,
+    { method: "PUT", body: JSON.stringify(entrada) },
+  );
+}
+
+/** Remove a regra do alvo; sem regra, o alvo aparece sempre. */
+export function excluirRegraCondicional(avaliacaoId: string, alvoId: string) {
+  return chamar<{ status: string }>(
+    `/api/avaliacoes/${avaliacaoId}/regras?alvo=${encodeURIComponent(alvoId)}`,
+    { method: "DELETE" },
+  );
 }
