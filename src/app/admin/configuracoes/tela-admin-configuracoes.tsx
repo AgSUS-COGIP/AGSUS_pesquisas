@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
   Check,
+  CheckCircle2,
   ImagePlus,
   CircleDot,
   LayoutGrid,
@@ -14,6 +15,7 @@ import {
   Search,
   SlidersHorizontal,
   SwatchBook,
+  TriangleAlert,
   Type,
   UserCog,
   X,
@@ -42,7 +44,13 @@ import {
   DataTableState,
 } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/form-controls";
-import { needsLightForeground } from "@/lib/color-contrast";
+import {
+  contrastRatio,
+  DARK_FOREGROUND,
+  LIGHT_FOREGROUND,
+  needsLightForeground,
+  WCAG_AA_NORMAL_TEXT,
+} from "@/lib/color-contrast";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
@@ -92,6 +100,16 @@ const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] 
   { id: "access", label: "Acessos", icon: UserCog },
 ];
 // Acento superior de cada seção — sempre por token, nunca hexadecimal literal.
+/**
+ * Teto de pessoas devolvido por `list_access_workspace`.
+ *
+ * O número está fixo no SQL da RPC (`limit 100`) e não vem no retorno, então
+ * precisa ser espelhado aqui para a tela conseguir dizer que a lista foi
+ * cortada. **Se o limite mudar na migration, mude aqui junto** — divergir faz o
+ * aviso sumir cedo demais ou aparecer sem motivo.
+ */
+const LIMITE_DE_PESSOAS = 100;
+
 const SECTION_ACCENT: Record<SectionId, string> = {
   brand: "var(--brand-solid)",
   appearance: "var(--brand-secondary)",
@@ -174,6 +192,21 @@ export default function PlatformSettingsPage() {
    */
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const accessPanelIsDark = needsLightForeground(branding.accessPanelColor);
+
+  /*
+   * Contraste do texto que a tela de acesso realmente vai usar sobre esta cor.
+   *
+   * Mede o par escolhido pela regra, e não o melhor par possível: é o número
+   * que a pessoa vai ver na tela, não o que ela veria se a regra fosse outra.
+   * Painel branco não precisa de aviso — é o padrão institucional.
+   */
+  const contrastePainel = branding.accessPanelColor
+    ? contrastRatio(
+        accessPanelIsDark ? LIGHT_FOREGROUND : DARK_FOREGROUND,
+        branding.accessPanelColor,
+      )
+    : null;
+  const contrastePainelAprovado = (contrastePainel ?? 0) >= WCAG_AA_NORMAL_TEXT;
 
   /*
    * Galeria das artes já enviadas.
@@ -564,7 +597,13 @@ export default function PlatformSettingsPage() {
                   <div className="border-t border-[var(--border-subtle)] pt-6">
                     <p className="section-eyebrow">Fundo da tela de acesso</p>
                     <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                      Imagem exibida ao lado do formulário de entrada. Use para acompanhar campanhas institucionais. JPG, PNG ou WEBP, até 2 MB.
+                      {/* Dizia "ao lado do formulário", o que descrevia o
+                          layout de duas colunas que a tela de acesso deixou de
+                          ter: a arte agora cobre a janela inteira e o cartão
+                          flutua sobre ela. Texto de interface que descreve
+                          layout precisa mudar junto com o layout, senão orienta
+                          para uma tela que não existe mais. */}
+                      Imagem de fundo da tela de acesso, exibida em tela cheia com o formulário sobreposto. Use para acompanhar campanhas institucionais. Prefira arte 16:9 e evite texto importante no terço esquerdo, onde fica o formulário. JPG, PNG ou WEBP, até 2 MB.
                     </p>
 
                     <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -682,8 +721,23 @@ export default function PlatformSettingsPage() {
                     */}
                     <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
                       <p className="text-sm font-semibold text-[var(--text-primary)]">Cor do painel do formulário</p>
+                      {/*
+                        A frase anterior dizia que texto e botão "se ajustam
+                        sozinhos para continuar legíveis". A primeira metade é
+                        verdade — o contraste é derivado da cor. A segunda não:
+                        a regra escolhe entre texto claro e escuro por limiar de
+                        luminância, e há cores em que a opção escolhida não
+                        atinge o mínimo da WCAG. O lilás `#ba93ef`, em uso hoje,
+                        é uma delas: 2,47 contra os 4,5 exigidos.
+
+                        Prometer legibilidade automática fazia a tela mentir
+                        justamente para quem depende dela. Agora ela informa o
+                        número e avisa quando a escolha reprova — a decisão
+                        continua sendo de quem configura, mas deixa de ser às
+                        cegas.
+                      */}
                       <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                        O texto e o botão se ajustam sozinhos para continuar legíveis sobre a cor escolhida.
+                        O texto e o botão alternam entre claro e escuro conforme a cor escolhida. Confira o contraste abaixo antes de salvar.
                       </p>
 
                       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -736,6 +790,39 @@ export default function PlatformSettingsPage() {
                           </button>
                         ) : null}
                       </div>
+
+                      {/*
+                        O aviso de contraste que `WCAG_AA_NORMAL_TEXT` existia
+                        para alimentar desde que foi criado — e que nenhuma tela
+                        consumia. A constante estava documentada em
+                        `color-contrast.ts` como sendo "para a tela de
+                        configuração avisar quando a combinação escolhida fica
+                        abaixo do mínimo legível", e a tela nunca avisou.
+
+                        `role="status"` e não `alert`: o número muda a cada
+                        ajuste do seletor, e `alert` interromperia o leitor de
+                        tela a cada passo do arrasta-cor.
+                      */}
+                      {contrastePainel !== null && (
+                        <p
+                          role="status"
+                          className={`mt-3 flex items-start gap-2 rounded-lg p-3 text-xs leading-5 ${
+                            contrastePainelAprovado
+                              ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                              : "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
+                          }`}
+                        >
+                          {contrastePainelAprovado
+                            ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                            : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+                          <span>
+                            Contraste do texto sobre esta cor: <strong className="font-bold">{contrastePainel.toFixed(2)}</strong>.{" "}
+                            {contrastePainelAprovado
+                              ? `Atinge o mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA.`
+                              : `Abaixo do mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA — quem tem baixa visão pode não conseguir ler. Uma cor mais escura resolve sem mudar o tom.`}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -799,6 +886,33 @@ export default function PlatformSettingsPage() {
                   </Button>
                 </form>
               </div>
+
+              {/*
+                Corte silencioso é o defeito que mais engana nesta tela.
+
+                `list_access_workspace` devolve no máximo 100 pessoas, e a base
+                tem mais de mil. A listagem inicial mostrava exatamente 100 sem
+                dizer nada: quem rolasse até o fim concluiria que aquilo era
+                todo o quadro, e quem procurasse alguém de nome no fim do
+                alfabeto acharia que a pessoa não está cadastrada.
+
+                A busca **vai ao banco** e alcança todas — o problema nunca foi
+                a busca, foi a lista parecer completa. Por isso o aviso só
+                aparece quando o resultado bate no teto, e nomeia a saída.
+
+                Não dá para dizer "100 de 1029" sem mexer na RPC, que não
+                devolve total. Dizer o que falta sem saber quanto falta é menos
+                preciso e igualmente honesto — e não custa uma migration.
+              */}
+              {(workspace?.people?.length ?? 0) >= LIMITE_DE_PESSOAS && (
+                <p role="status" className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--status-info-bg)] p-3 text-xs leading-5 text-[var(--status-info-text)]">
+                  <Search className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>
+                    Mostrando as {LIMITE_DE_PESSOAS} primeiras pessoas — a base tem mais.
+                    Use a busca acima para encontrar quem não aparece nesta lista; ela consulta o cadastro inteiro.
+                  </span>
+                </p>
+              )}
 
               <DataTableContainer className="mt-5 min-w-0 border-0 shadow-none" aria-label="Pessoas e perfis da plataforma">
                 {fetching && !workspace ? (
