@@ -28,8 +28,29 @@ export function relativeLuminance(hex: string): number | null {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
+/** Texto claro e texto escuro que a plataforma usa sobre painel colorido. */
+export const LIGHT_FOREGROUND = "#ffffff";
+export const DARK_FOREGROUND = "#003b70";
+
 /**
  * Indica se uma cor exige texto claro por cima.
+ *
+ * Decide por **limiar de luminância**, e não comparando o contraste real das
+ * duas opções. É uma escolha de produto, tomada com o número na mesa, e vale a
+ * pena deixar registrado o que ela custa — porque uma leitura desatenta faria
+ * isso parecer um descuido a "corrigir".
+ *
+ * Em 17/08/2026 esta função chegou a comparar os dois contrastes e escolher o
+ * maior. Sobre o lilás `#ba93ef` configurado na tela de acesso, isso trocava o
+ * texto branco pelo azul institucional — tecnicamente melhor (4,88 contra 2,47,
+ * e a WCAG AA exige 4,5), e visualmente pior no julgamento de quem responde
+ * pela identidade da plataforma. O comportamento anterior foi restabelecido.
+ *
+ * **A consequência é real: no lilás claro atual, o texto branco fica em 2,47 e
+ * não atinge o mínimo da WCAG AA.** Isso não se conserta aqui — o lugar certo é
+ * a cor do painel. Um lilás mais fundo entrega a mesma aparência e passa:
+ * `#9333ea` dá 5,38, `#7c3aed` dá 5,70, `#7e22ce` dá 6,98. Trocar a cor em
+ * /admin/configuracoes resolve sem mexer em código.
  *
  * O corte em 0,45 (e não 0,5) é deliberado: entre dois fundos de luminância
  * parecida, errar para o lado do texto escuro costuma ser mais legível do que

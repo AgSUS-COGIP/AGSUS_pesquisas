@@ -26,7 +26,7 @@ import {
   PLATFORM_SIDEBAR_STORAGE_KEY,
 } from "@/lib/platform-sidebar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import type { PlatformBranding } from "@/lib/platform-branding";
+import { platformBrandingTitle, type PlatformBranding } from "@/lib/platform-branding";
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
@@ -55,7 +55,9 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
   return (
     <Link
       href="/area"
-      aria-label="AgSUS Avaliações — ir para a visão geral"
+      // O rótulo acompanha a marca configurada: fixá-lo faria o leitor de tela
+      // anunciar um nome que a tela ao lado já não usa.
+      aria-label={`${platformBrandingTitle(branding)} — ir para a visão geral`}
       className={`flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${compact && !mobile ? "justify-center" : ""}`}
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200/80 bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">

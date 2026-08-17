@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   contrastRatio,
+  DARK_FOREGROUND,
+  LIGHT_FOREGROUND,
   needsLightForeground,
   relativeLuminance,
   WCAG_AA_NORMAL_TEXT,
@@ -41,6 +43,30 @@ describe("needsLightForeground", () => {
   it("mantém texto escuro sobre fundo claro", () => {
     expect(needsLightForeground("#ffffff")).toBe(false);
     expect(needsLightForeground("#d8b4fe")).toBe(false);
+  });
+
+  /*
+   * O lilás configurado na tela de acesso, e o caso em que a regra por limiar
+   * escolhe o texto de MENOR contraste. Está aqui de propósito: é uma decisão
+   * de produto tomada com o número na mesa, e sem este teste ela pareceria
+   * descuido para quem chegasse depois e "consertasse".
+   */
+  it("pede texto claro no lilás do painel, mesmo com o escuro contrastando mais", () => {
+    expect(needsLightForeground("#ba93ef")).toBe(true);
+
+    const claro = contrastRatio(LIGHT_FOREGROUND, "#ba93ef")!;
+    const escuro = contrastRatio(DARK_FOREGROUND, "#ba93ef")!;
+    expect(escuro).toBeGreaterThan(claro);
+    expect(claro).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it("o remédio é a cor do painel, não a regra: lilás mais fundo passa com texto claro", () => {
+    // Trocar a cor em /admin/configuracoes entrega a mesma aparência e atinge o
+    // mínimo da WCAG AA, sem mexer em código.
+    for (const lilas of ["#9333ea", "#7c3aed", "#7e22ce"]) {
+      expect(needsLightForeground(lilas)).toBe(true);
+      expect(contrastRatio(LIGHT_FOREGROUND, lilas)!).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    }
   });
 
   /*
