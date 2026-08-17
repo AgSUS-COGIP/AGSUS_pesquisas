@@ -16,6 +16,7 @@ Impedir que migrations fora do padrão institucional cheguem à `main`. São scr
 |---|---|---|
 | `validate-migrations.mjs` | `npm run db:migrations` | **Todas** as migrations do diretório |
 | `validate-db-naming.mjs` | `npm run db:naming` | Apenas migrations diferentes de `origin/main` |
+| `validate-rpc-contracts.mjs` + `dump-rpc-signatures.sql` | `npm run db:rpc` | Toda chamada `supabase.rpc(...)` de `src/`, contra o banco reconstruído |
 
 ## Fluxo interno
 
@@ -45,6 +46,32 @@ Em falha, define `process.exitCode = 1` (não usa `process.exit`, para permitir 
    prefixo dispensado se LEGACY_RESTORED_OBJECTS cobrir (arquivo, tipo, nome)
 5. erros → lista + "Consulte docs/database-naming-standard.md" + exit 1
 ```
+
+### `validate-rpc-contracts.mjs` — a única porta que atravessa as duas camadas
+
+```text
+1. RPC_SIGNATURES ausente → avisa e sai com 0 (a porta real é o CI)
+2. varre src/**/*.ts(x) atrás de `.rpc(`
+   classificar(): marca cada caractere como código, texto ou comentário
+   → `.rpc(` dentro de string ou comentário não conta
+   → vírgula e parêntese dentro de texto não quebram a contagem de argumentos
+3. resolve o nome: literal, ou `const x = cond ? "a" : "b"`
+   resolve os argumentos: literal de objeto, ternário de objetos, const local,
+   espalhamento (`...outroObjeto`) de const local
+4. confronta com pg_proc: a função existe? o conjunto de argumentos resolve
+   alguma sobrecarga? `authenticated` tem EXECUTE?
+5. o que não conseguiu ler, imprime
+```
+
+**Por que ela vive no job `database` e não no `application`.** Só depois de `supabase db reset` existe o esquema real que as migrations produzem. Comparar contra um retrato versionado seria comparar contra um arquivo que envelhece sozinho — exatamente o problema que a porta existe para evitar. E escrever um parser de SQL nosso obrigaria a reimplementar `create or replace`, `drop` e resolução de sobrecarga para chegar ao mesmo lugar que o PostgreSQL já calculou.
+
+**Três falhas, um erro só.** O PostgREST devolve `Could not find the function … in the schema cache` tanto para função inexistente quanto para nome de argumento divergente — ele resolve a chamada pelo conjunto de argumentos nomeados. Por isso os dois são cobrados aqui, junto com a terceira variante, que dá 403 em vez de 404: a função existe e `authenticated` não tem `EXECUTE`. Nenhuma das três aparece em `typecheck`, `lint`, `test` ou `build`; o acoplamento é por string, e nenhuma dessas ferramentas lê SQL. Foi assim que a plataforma caiu em 10/08/2026.
+
+**O que ela não lê, ela declara.** Chamada cujos argumentos vêm do retorno de uma função (`...buildSurveyAnswerPayload(...)`) não é resolvível estaticamente. Nesse caso o **nome** continua sendo conferido — é ele a falha de 10/08 — e a chamada aparece na lista "não verificáveis" da saída, com o total repetido no resumo final. Silêncio ali leria como cobertura; a lista é o que impede isso.
+
+Literal de expressão regular **não** é tratado: `/` sempre conta como divisão. Uma regex contendo aspas abriria uma string fantasma, e o arquivo terminaria com o estado aberto — é o que a checagem `integro` detecta, e o arquivo inteiro vira "não verificável" em vez de gerar acusação falsa.
+
+**Ramos são pareados na ordem, não em produto cartesiano.** Duas chamadas do construtor escolhem função e argumentos pela mesma condição (`const rpc = modo === "create" ? "add_survey_section" : "update_survey_section"`). Cruzar todos com todos acusaria `add_survey_section` de receber os argumentos de `update_survey_section`, combinação que nenhuma execução monta.
 
 #### `LEGACY_RESTORED_OBJECTS` — a única exceção ao prefixo
 
@@ -88,6 +115,15 @@ Nenhuma. São executáveis de linha de comando, não módulos importáveis.
 | Variável | Padrão | Efeito |
 |---|---|---|
 | `DB_NAMING_BASE` | `origin/main` | Referência de comparação do `git diff`. |
+| `RPC_SIGNATURES` | — | Caminho do JSON de assinaturas. Ausente, `db:rpc` avisa e sai com sucesso. |
+
+Para rodar `db:rpc` localmente contra um Supabase local já iniciado:
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -t -A \
+  -f scripts/dump-rpc-signatures.sql > /tmp/rpc-signatures.json
+RPC_SIGNATURES=/tmp/rpc-signatures.json npm run db:rpc
+```
 
 Para validar contra outra base:
 
@@ -118,13 +154,17 @@ Somente builtins do Node: `node:child_process` (`execFileSync`), `node:fs`, `nod
 
 ## Integração com CI
 
-[.github/workflows/validate.yml](../.github/workflows/validate.yml), job *Application validation*, nesta ordem:
+[.github/workflows/validate.yml](../.github/workflows/validate.yml), dois jobs:
 
 ```text
-npm ci → db:migrations → db:naming → test → typecheck → lint → build
+Application validation
+  npm ci → db:migrations → db:naming → test → typecheck → lint → build
+
+Supabase migrations and RLS
+  supabase start → db reset → test db → dump-rpc-signatures.sql | db:rpc
 ```
 
-Os gates de banco vêm primeiro porque são os mais baratos e detectam a classe de erro mais custosa de reverter.
+Os gates de banco vêm primeiro porque são os mais baratos e detectam a classe de erro mais custosa de reverter. A porta de RPC fecha o segundo job porque depende do esquema que `db reset` acabou de construir.
 
 ## Pontos de atenção
 
