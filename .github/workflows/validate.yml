@@ -128,6 +128,28 @@ jobs:
       - name: Database and RLS tests
         run: supabase test db
 
+      # A única porta que confere frontend contra banco. Ela mora aqui, e não no
+      # job `application`, porque só aqui existe o esquema real reconstruído a
+      # partir das migrations — comparar contra um retrato versionado seria
+      # comparar contra algo que envelhece sozinho.
+      - name: Validate RPC contracts against the rebuilt schema
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null || {
+            echo "psql não está disponível no runner; sem ele não há como ler as assinaturas." >&2
+            exit 1
+          }
+          # `supabase/config.toml` não é versionado: o `init` do passo anterior o
+          # cria com as portas padrão, então 54322 é o banco local desta execução.
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            --no-psqlrc --quiet --tuples-only --no-align \
+            --file scripts/dump-rpc-signatures.sql > /tmp/rpc-signatures.json
+          test -s /tmp/rpc-signatures.json || {
+            echo "A consulta de assinaturas não devolveu nada." >&2
+            exit 1
+          }
+          RPC_SIGNATURES=/tmp/rpc-signatures.json node scripts/validate-rpc-contracts.mjs
+
       # Sem a guarda, a limpeza também falha com 127 quando a CLI não instalou, e
       # o erro real fica atrás de dois erros que só são consequência dele.
       - name: Stop local Supabase
