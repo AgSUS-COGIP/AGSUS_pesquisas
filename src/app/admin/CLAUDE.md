@@ -125,6 +125,10 @@ Três blocos independentes na mesma página:
 
 **Regra da arquitetura:** a base mestra de pessoas e o público de uma pesquisa são decisões separadas. A importação atualiza só a base; vincular alguém a um ciclo é ato explícito do administrador.
 
+**Seletor não oferece ciclo de avaliação arquivada nem ciclo cancelado** (`20260817120000_seletores_respeitam_arquivamento.sql`). `CANCEL` arquiva a avaliação (`surveys.dt_arquivamento`) e `list_managed_surveys` já respeitava isso, mas `list_admin_participant_applications` **não fazia join com `public.surveys`** — não tinha como saber. Como ela ordena por `code` e os três componentes fazem `setApplicationId(rows[0]?.id)`, um ciclo cancelado de código anterior no alfabeto virava a **seleção padrão** de `/admin/participantes` e `/admin/equipes`; foi o que aconteceu com `BOMDIA-1`. E não sairia sozinho: `fc_expirar_pesquisas_arq` preserva arquivada que já teve versão publicada. A mesma regra passou a valer em `fc_listar_ciclos_lideranca` e em `fc_obter_ciclo_cddi_vigente` — "vigente" não pode ser cancelado.
+
+`fc_listar_ciclos_pesquisa` ficou **de fora de propósito**: alimenta o painel e `/admin/respostas`, superfícies de leitura sobre uma avaliação já escolhida. Esconder ciclo cancelado ali esconderia respostas coletadas antes do cancelamento. Ao criar seletor novo, a pergunta é "esta tela **age** sobre o ciclo?" — se sim, filtre; se só lê, não.
+
 ### Identidade da plataforma (`/admin/configuracoes`)
 
 ```text
