@@ -37,7 +37,7 @@ Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recur
 | Recurso | Rotas | Cliente |
 |---|---|---|
 | Avaliações | `/api/avaliacoes`, `/api/avaliacoes/[id]`, `…/copia` | `cliente.ts` |
-| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/identidade-visual`, `…/ciclo` | `cliente-construtor.ts` |
+| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo` | `cliente-construtor.ts` |
 | Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
 | Equipe | `/api/equipe`, `…/ciclos`, `…/candidatos`, `…/membros` | `cliente-pessoas.ts` |
 | Jornada de resposta | `/api/formularios/[codigo]`, `/api/submissoes/**`, `/api/ciclos/[codigo]/regras`, `/api/meu/**` | `cliente-runtime.ts` |

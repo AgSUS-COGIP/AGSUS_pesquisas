@@ -6,6 +6,8 @@
  * erro (`ErroApi`) é único e mora em `contratos.ts`.
  */
 
+import type { SurveyRuleOperator } from "@/lib/survey-conditional-logic";
+
 /**
  * Alternativa de uma pergunta.
  *
@@ -175,4 +177,52 @@ export type AcaoCicloEntrada = {
   action: string;
   opensAt?: string | null;
   closesAt?: string | null;
+};
+
+/**
+ * Regra condicional de exibição, no formato de `fc_listar_regras_condicionais`.
+ *
+ * Os tipos de operador, condição e alvo vêm de `@/lib/survey-conditional-logic`
+ * de propósito: é o mesmo vocabulário que o runtime avalia. Duas definições do
+ * mesmo conjunto de operadores divergiriam em silêncio.
+ */
+export type RegraCondicional = {
+  ruleId: string;
+  targetType: "QUESTION" | "SECTION";
+  targetId: string;
+  action: "SHOW" | "HIDE";
+  connector: "ALL" | "ANY";
+  description: string | null;
+  conditions: Array<{
+    conditionId?: string;
+    // `SurveyRuleOperator` e não `string`: `ck_tb_condicao_regra_operador`
+    // restringe a coluna aos nove valores do tipo, então declarar mais largo
+    // aqui obrigaria toda tela a estreitar por conta própria.
+    operator: SurveyRuleOperator;
+    questionId: string;
+    optionId: string | null;
+    value: string | null;
+  }>;
+};
+
+/**
+ * Corpo de `PUT /api/avaliacoes/[id]/regras`.
+ *
+ * `PUT` e não `POST`: `fc_salvar_regra_condicional` substitui em bloco a regra
+ * vigente do alvo — o alvo tem no máximo uma regra, garantida pelo índice
+ * `in_regra_condicional_alvo`. O recurso é a regra **daquele alvo**, e gravar
+ * duas vezes seguidas o mesmo corpo dá o mesmo resultado.
+ */
+export type RegraEntrada = {
+  targetType: "QUESTION" | "SECTION";
+  targetId: string;
+  action: "SHOW" | "HIDE";
+  connector: "ALL" | "ANY";
+  description?: string | null;
+  conditions: Array<{
+    questionId: string;
+    operator: string;
+    optionId?: string | null;
+    value?: string | null;
+  }>;
 };

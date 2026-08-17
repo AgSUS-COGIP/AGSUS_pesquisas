@@ -33,6 +33,7 @@ components/
 ├── person-avatar.tsx             foto do Google com fallback de ícone neutro
 ├── survey-banner.tsx             capa institucional com degradação
 ├── anonymity-notice.tsx          o que um ciclo anônimo garante — e o que não garante
+├── survey-rule-editor.tsx        regra condicional de uma pergunta ou seção
 ├── cddi-loading-state.tsx        skeleton do formulário CDDI
 ├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
 ├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
@@ -180,6 +181,7 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 ## Pontos de atenção
 
 - **Dois `Dialog` diferentes.** `ui/overlay-panel.tsx` (focus trap manual, aceita `footer`) e `ui/dialog.tsx` (`<dialog>` nativo, aceita `eyebrow`). Confira o caminho do import.
+- **`useConfirm()` não aparece por cima de um `<dialog>` nativo.** O `<dialog>` de `ui/dialog.tsx` vive na camada superior do navegador; o diálogo do `ConfirmationProvider` é uma camada comum e fica **atrás** dele — presente no DOM, invisível e inalcançável, sem erro nenhum no console. Quem precisa confirmar a partir de um desses diálogos tem de fechá-lo antes e reabri-lo se a pessoa desistir; `removeRule()` em `tela-admin-construtor-pesquisa.tsx` é o exemplo.
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.

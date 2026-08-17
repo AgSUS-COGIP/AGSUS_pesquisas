@@ -17,6 +17,7 @@ import {
   Copy,
   FileText,
   FolderInput,
+  GitBranch,
   Hash,
   Loader2,
   Pencil,
@@ -67,14 +68,27 @@ import {
   duplicarItemDoConstrutor,
   excluirPergunta,
   moverPergunta,
+  excluirRegraCondicional,
+  listarRegrasCondicionais,
   obterConstrutor,
   reordenarItemDoConstrutor,
+  salvarRegraCondicional,
 } from "@/lib/api/cliente-construtor";
 import type {
   ConstrutorAvaliacao,
   PerguntaConstrutor,
+  RegraCondicional,
   SecaoConstrutor,
 } from "@/lib/api/contratos-construtor";
+import { SurveyRuleEditor } from "@/components/survey-rule-editor";
+import type { SurveyRuleCondition } from "@/lib/survey-conditional-logic";
+import {
+  emptyRuleDraft,
+  normalizeCondition,
+  ruleSummary,
+  type RuleDraft,
+  type RuleQuestionRef,
+} from "@/lib/survey-rule-builder";
 
 // A estrutura do formulário agora vem do contrato da API, e não de uma cópia
 // local. O mesmo formato estava declarado aqui e na tela de identidade visual,
@@ -174,12 +188,27 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [surveyDeleteOpen, setSurveyDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [itemOperation, setItemOperation] = useState<string | null>(null);
+  const [rules, setRules] = useState<RegraCondicional[]>([]);
+  const [ruleDraft, setRuleDraft] = useState<RuleDraft | null>(null);
+  const [ruleTargetLabel, setRuleTargetLabel] = useState("");
 
   const loadBuilder = useCallback(async (showLoader = true) => {
     if (showLoader) setDataLoading(true);
     setLoadError("");
     try {
-      setBuilder(await obterConstrutor(surveyId));
+      const estrutura = await obterConstrutor(surveyId);
+      setBuilder(estrutura);
+
+      // As regras vêm depois, e a falha delas não derruba o construtor: sem
+      // regra o instrumento aparece inteiro, que é como ele se comportava antes
+      // de existir lógica condicional. Deixar de editar seções e perguntas
+      // porque a lista de regras falhou seria desproporcional.
+      try {
+        setRules(await listarRegrasCondicionais(surveyId, estrutura.version.id));
+      } catch (rulesError) {
+        setRules([]);
+        toast.error(errorMessageFromUnknown(rulesError));
+      }
     } catch (loadBuilderError) {
       const message = errorMessageFromUnknown(loadBuilderError);
       setLoadError(message);
@@ -198,6 +227,104 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     [builder],
   );
   const isDraft = builder?.version.status === "DRAFT";
+
+  /** Todas as perguntas da versão, achatadas — é o universo de origens possíveis. */
+  const ruleQuestions = useMemo<RuleQuestionRef[]>(
+    () =>
+      builder?.sections.flatMap((section) =>
+        section.questions.map((question) => ({
+          id: question.id,
+          title: question.title,
+          sectionId: section.id,
+          options: question.options,
+        })),
+      ) ?? [],
+    [builder],
+  );
+
+  /** Regra vigente por alvo. O banco garante no máximo uma. */
+  const rulesByTarget = useMemo(
+    () => new Map(rules.map((rule) => [rule.targetId, rule])),
+    [rules],
+  );
+
+  function openRuleEditor(targetType: "QUESTION" | "SECTION", targetId: string, label: string) {
+    const saved = rulesByTarget.get(targetId);
+    setRuleTargetLabel(label);
+    setRuleDraft(
+      saved
+        ? {
+            targetType: saved.targetType,
+            targetId: saved.targetId,
+            action: saved.action,
+            connector: saved.connector,
+            description: saved.description ?? "",
+            conditions: saved.conditions.map((condition) => ({
+              questionId: condition.questionId,
+              operator: condition.operator as SurveyRuleCondition["operator"],
+              optionId: condition.optionId,
+              value: condition.value,
+            })),
+          }
+        : emptyRuleDraft(targetType, targetId),
+    );
+  }
+
+  async function saveRule(draft: RuleDraft) {
+    setWorking(true);
+    try {
+      await salvarRegraCondicional(surveyId, {
+        targetType: draft.targetType,
+        targetId: draft.targetId,
+        action: draft.action,
+        connector: draft.connector,
+        description: draft.description || null,
+        conditions: draft.conditions.map(normalizeCondition),
+      });
+      toast.success("Regra salva.");
+      setRuleDraft(null);
+      await loadBuilder(false);
+    } catch (saveRuleError) {
+      // Dependência circular chega por aqui: quem percorre o grafo é
+      // `fc_regra_gera_ciclo()`, e a mensagem dele já explica o problema.
+      toast.error(errorMessageFromUnknown(saveRuleError));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function removeRule(targetId: string) {
+    // O editor precisa fechar **antes** de confirmar. Ele é um `<dialog>`
+    // nativo, que o navegador coloca na camada superior; o diálogo de
+    // `useConfirm()` é uma camada comum e ficaria atrás dele — presente no DOM,
+    // invisível e inalcançável. É a armadilha dos dois `Dialog` descrita em
+    // `src/components/CLAUDE.md`. Guardamos o rascunho para devolvê-lo intacto
+    // a quem desistir, inclusive com as alterações ainda não salvas.
+    const rascunho = ruleDraft;
+    setRuleDraft(null);
+
+    if (!(await confirm({
+      title: "Remover a regra deste item?",
+      description: "Sem regra, ele volta a aparecer sempre para quem responde.",
+      confirmLabel: "Remover regra",
+      tone: "danger",
+    }))) {
+      setRuleDraft(rascunho);
+      return;
+    }
+
+    setWorking(true);
+    try {
+      await excluirRegraCondicional(surveyId, targetId);
+      toast.success("Regra removida.");
+      setRuleDraft(null);
+      await loadBuilder(false);
+    } catch (removeRuleError) {
+      toast.error(errorMessageFromUnknown(removeRuleError));
+    } finally {
+      setWorking(false);
+    }
+  }
   const sectionHasUnsavedChanges = Boolean(
     sectionEditor &&
       hasUnsavedChanges(
@@ -667,6 +794,12 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                           <p className="mt-1 text-sm leading-6 text-slate-500">
                             {section.description || "Sem descrição."}
                           </p>
+                          {rulesByTarget.has(section.id) && (
+                            <p className="mt-2 flex items-start gap-2 text-xs font-semibold leading-5 text-[var(--brand-secondary)]">
+                              <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                              {ruleSummary(rulesByTarget.get(section.id)!, ruleQuestions)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       {isDraft && (
@@ -741,6 +874,16 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                             Editar seção
                           </Button>
                           <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={mutationDisabled}
+                            aria-label={`Lógica condicional da seção ${section.title}`}
+                            onClick={() => openRuleEditor("SECTION", section.id, section.title)}
+                          >
+                            <GitBranch className="h-4 w-4" aria-hidden="true" />{" "}
+                            {rulesByTarget.has(section.id) ? "Editar regra" : "Regra"}
+                          </Button>
+                          <Button
                             size="sm"
                             disabled={mutationDisabled}
                             onClick={() => openNewQuestion(section.id)}
@@ -799,6 +942,18 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                         )}
                                       </span>
                                     </div>
+                                    {/* O resumo aparece mesmo em versão
+                                        publicada: a regra continua valendo para
+                                        quem responde, e esconder a informação
+                                        porque ela não é mais editável deixaria o
+                                        operador sem saber por que uma pergunta
+                                        não aparece. */}
+                                    {rulesByTarget.has(question.id) && (
+                                      <p className="mt-2 flex items-start gap-2 text-xs font-semibold leading-5 text-[var(--brand-secondary)]">
+                                        <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                        {ruleSummary(rulesByTarget.get(question.id)!, ruleQuestions)}
+                                      </p>
+                                    )}
                                     {question.description && (
                                       <p className="mt-2 text-sm leading-6 text-slate-500">
                                         {question.description}
@@ -925,6 +1080,26 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                           aria-hidden="true"
                                         />
                                         Mover
+                                      </Button>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={mutationDisabled}
+                                        aria-label={`Lógica condicional da pergunta ${question.title}`}
+                                        title="Quando esta pergunta aparece"
+                                        onClick={() =>
+                                          openRuleEditor(
+                                            "QUESTION",
+                                            question.id,
+                                            question.title,
+                                          )
+                                        }
+                                      >
+                                        <GitBranch
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                        {rulesByTarget.has(question.id) ? "Editar regra" : "Regra"}
                                       </Button>
                                       <Button
                                         variant="secondary"
@@ -1275,6 +1450,18 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
           </div>
         )}
       </Dialog>
+
+      <SurveyRuleEditor
+        draft={ruleDraft}
+        onDraftChange={setRuleDraft}
+        targetLabel={ruleTargetLabel}
+        questions={ruleQuestions}
+        hasSavedRule={Boolean(ruleDraft && rulesByTarget.has(ruleDraft.targetId))}
+        working={working}
+        onClose={() => setRuleDraft(null)}
+        onSave={(draft) => void saveRule(draft)}
+        onDelete={() => { if (ruleDraft) void removeRule(ruleDraft.targetId); }}
+      />
     </PlatformShell>
   );
 }
