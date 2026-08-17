@@ -13,37 +13,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { obterIdentidadeVisual, salvarIdentidadeVisual } from "@/lib/api/cliente-construtor";
+import type { IdentidadeVisual as VisualIdentity } from "@/lib/api/contratos-construtor";
 import { DEFAULT_CDDI_VISUAL_IDENTITY } from "@/lib/survey-visual-identity";
 import { cn } from "@/lib/utils";
 
-type BuilderData = {
-  application: {
-    id: string;
-    code: string;
-    name: string;
-  };
-  survey: {
-    name: string;
-  };
-};
-
 /**
- * Capa e textos de abertura de um ciclo.
+ * A aplicação (ciclo) a que a capa pertence.
  *
- * `themeVariant: "CUSTOM"` é o que faz a imagem enviada valer — voltar a
- * `INSTITUTIONAL` restaura a arte padrão sem apagar a URL já gravada, então o
- * operador alterna entre as duas sem perder o ajuste anterior. `bannerPath` é o
- * caminho no bucket `survey-assets`; a RPC exige que ele apareça na URL e
- * pertença a esta aplicação.
+ * A tela não carrega mais o construtor inteiro para chegar até aqui: ela pedia
+ * `get_survey_builder` — seções, perguntas e alternativas — só para extrair
+ * `application.id`, que era o argumento das duas RPCs de capa. Essa tradução
+ * passou para a rota, que devolve o identificador junto do que a tela de fato
+ * exibe: o código e o nome do ciclo.
  */
-type VisualIdentity = {
-  bannerUrl: string | null;
-  bannerPath: string | null;
-  bannerAlt: string | null;
-  heroTitle: string | null;
-  heroSubtitle: string | null;
-  themeVariant: "INSTITUTIONAL" | "CUSTOM";
+type ApplicationSummary = {
+  id: string;
+  code: string;
+  name: string;
 };
 
 const EMPTY_VISUAL: VisualIdentity = {
@@ -59,7 +48,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   const { surveyId } = use(params);
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
-  const [builder, setBuilder] = useState<BuilderData | null>(null);
+  const [application, setApplication] = useState<ApplicationSummary | null>(null);
   const [visual, setVisual] = useState<VisualIdentity>(EMPTY_VISUAL);
   const [dataLoading, setDataLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,37 +56,35 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
 
   useEffect(() => {
     if (!granted) return;
+    let active = true;
     const load = async () => {
       setDataLoading(true);
       try {
-        const supabase = createBrowserSupabaseClient();
-        const { data: builderData, error: builderError } = await supabase.rpc("get_survey_builder", {
-          target_survey_id: surveyId,
+        // Uma chamada onde havia duas encadeadas: a rota resolve o ciclo da
+        // avaliação antes de ler a capa, e devolve os dois juntos.
+        const dados = await obterIdentidadeVisual(surveyId);
+        if (!active) return;
+        setApplication({
+          id: dados.applicationId,
+          code: dados.applicationCode,
+          name: dados.applicationName,
         });
-        if (builderError) throw builderError;
-        const nextBuilder = builderData as BuilderData;
-        setBuilder(nextBuilder);
-
-        const { data: settingsData, error: settingsError } = await supabase.rpc(
-          "get_application_visual_settings",
-          { target_application_id: nextBuilder.application.id },
-        );
-        if (settingsError) throw settingsError;
-        const payload = settingsData as { visualIdentity?: Partial<VisualIdentity> };
-        setVisual({ ...EMPTY_VISUAL, ...(payload.visualIdentity ?? {}) });
+        setVisual({ ...EMPTY_VISUAL, ...(dados.visualIdentity ?? {}) });
       } catch (loadError) {
-        toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar a identidade visual.");
+        if (!active) return;
+        toast.error(errorMessageFromUnknown(loadError));
       } finally {
-        setDataLoading(false);
+        if (active) setDataLoading(false);
       }
     };
     void load();
+    return () => { active = false; };
   }, [granted, surveyId]);
 
   async function uploadBanner(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !builder) return;
+    if (!file || !application) return;
     if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
       toast.error("Use uma imagem JPG, PNG ou WEBP.");
       return;
@@ -109,11 +96,16 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
 
     setUploading(true);
     try {
+      // O envio da imagem continua indo direto ao storage do Supabase, e não
+      // por uma rota: é upload binário autenticado por cookie, com as políticas
+      // do bucket como autoridade. Passá-lo por um Route Handler só faria o
+      // arquivo trafegar duas vezes. O que virou REST foi a **gravação da
+      // identidade**, que é onde estava a regra de negócio.
       const supabase = createBrowserSupabaseClient();
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
       // O caminho precisa começar pelo id da aplicação: é o que a RPC e as
       // políticas do bucket exigem para amarrar a imagem a este ciclo.
-      const path = `${builder.application.id}/banner.${extension}`;
+      const path = `${application.id}/banner.${extension}`;
       const { error: uploadError } = await supabase.storage
         .from("survey-assets")
         .upload(path, file, {
@@ -132,14 +124,14 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
       }));
       toast.success("Imagem enviada. Salve as alterações para publicá-la no instrumento.");
     } catch (uploadError) {
-      toast.error(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a imagem.");
+      toast.error(errorMessageFromUnknown(uploadError));
     } finally {
       setUploading(false);
     }
   }
 
   async function save() {
-    if (!builder) return;
+    if (!application) return;
     // As três checagens espelham as validações da RPC, para que o operador leia o
     // motivo no formulário em vez de receber a exceção do banco.
     if (visual.themeVariant === "CUSTOM" && (!visual.bannerUrl?.trim() || !visual.bannerPath?.trim())) {
@@ -152,20 +144,10 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
     }
     setSaving(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: saveError } = await supabase.rpc("update_application_visual_settings", {
-        target_application_id: builder.application.id,
-        banner_url: visual.bannerUrl,
-        banner_path: visual.bannerPath,
-        banner_alt: visual.bannerAlt,
-        hero_title: visual.heroTitle,
-        hero_subtitle: visual.heroSubtitle,
-        theme_variant: visual.themeVariant,
-      });
-      if (saveError) throw saveError;
+      await salvarIdentidadeVisual(surveyId, visual);
       toast.success("Identidade visual atualizada.");
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : "Não foi possível salvar a identidade visual.");
+      toast.error(errorMessageFromUnknown(saveError));
     } finally {
       setSaving(false);
     }
@@ -203,7 +185,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           </Link>
         </nav>
 
-        {dataLoading || !builder ? (
+        {dataLoading || !application ? (
           <div className="space-y-6" aria-live="polite" aria-busy="true">
             <span className="sr-only">Carregando as configurações visuais.</span>
             <Skeleton className="h-24 w-full rounded-2xl" />
@@ -215,7 +197,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
         ) : (
           <>
             <PageHeader
-              eyebrow={builder.application.code}
+              eyebrow={application.code}
               title="Identidade visual do instrumento"
               description="Defina a imagem de capa e os textos exibidos no início da avaliação, edital ou ciclo."
             />
@@ -281,7 +263,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                     value={visual.heroTitle ?? ""}
                     maxLength={160}
                     onChange={(event) => setVisual((current) => ({ ...current, heroTitle: event.target.value }))}
-                    placeholder={builder.application.name}
+                    placeholder={application.name}
                     hint="Deixe em branco para usar o nome do ciclo."
                   />
 
@@ -335,9 +317,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
                       className="aspect-[4/1] w-full object-cover"
                     />
                     <div className="border-t-[5px] border-[var(--cddi-rule)] p-6">
-                      <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">{builder.application.code}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">{application.code}</p>
                       <h3 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--cddi-ink)]">
-                        {visual.heroTitle?.trim() || builder.application.name}
+                        {visual.heroTitle?.trim() || application.name}
                       </h3>
                       <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">
                         {visual.heroSubtitle?.trim() || "Texto de apresentação do instrumento configurado pela administração."}

@@ -23,7 +23,8 @@ import { FullPageState } from "@/components/full-page-state";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { obterPainelCddi } from "@/lib/api/cliente-paineis";
+import { listarCiclosDaPesquisa } from "@/lib/api/cliente-pessoas";
 import { BarSeries, ProgressMeter, RadarChart } from "@/components/platform-charts";
 import { average as avg, groupEventsByDay } from "@/lib/chart-data";
 
@@ -128,12 +129,6 @@ function statusFilterLabel(value: string) {
   return "";
 }
 
-/** Ciclo listado por `fc_listar_ciclos_pesquisa`. */
-type CycleOption = {
-  applicationId: string; code: string; name: string; status: string;
-  opensAt: string | null; closesAt: string | null; participants: number;
-};
-
 export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [showFilters, setShowFilters] = useState(false);
@@ -165,12 +160,7 @@ export default function CddiMonitoringPage() {
   const cycles = useQuery({
     queryKey: ["cddi-cycles", granted ? guard.person.id : null],
     enabled: granted,
-    queryFn: async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: rpcError } = await supabase.rpc("fc_listar_ciclos_pesquisa", { p_codigo_pesquisa: "CDDI" });
-      if (rpcError) throw rpcError;
-      return (Array.isArray(data) ? data : []) as CycleOption[];
-    },
+    queryFn: () => listarCiclosDaPesquisa("CDDI"),
   });
 
   // Enquanto a lista não chega, `cycleCode` está vazio e o primeiro da lista
@@ -181,14 +171,7 @@ export default function CddiMonitoringPage() {
   const dashboard = useQuery({
     queryKey: ["cddi-monitoring", granted ? guard.person.id : null, resolvedCycle],
     enabled: granted && Boolean(resolvedCycle),
-    queryFn: async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: rpcError } = await supabase.rpc("get_cddi_monitoring_dashboard", {
-        target_application_code: resolvedCycle,
-      });
-      if (rpcError) throw rpcError;
-      return data as DashboardPayload;
-    },
+    queryFn: async () => await obterPainelCddi(resolvedCycle) as DashboardPayload,
   });
 
   useEffect(() => {

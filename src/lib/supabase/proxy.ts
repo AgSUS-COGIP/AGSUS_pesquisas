@@ -22,6 +22,18 @@ function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/background/");
 }
 
+// Rota de API responde em JSON, inclusive quando recusa.
+//
+// Redirecionar `/api/**` para `/acesso` produz um defeito difícil de ler: o
+// `fetch` do navegador **segue** o redirect sozinho, a resposta chega como 200
+// com o HTML da tela de login, e `response.json()` falha com "Unexpected token
+// '<'" — mensagem que não menciona sessão expirada em lugar nenhum. Com 401 a
+// tela distingue sessão perdida de falha de servidor e manda a pessoa entrar
+// de novo.
+function isApiPath(pathname: string) {
+  return pathname.startsWith("/api/");
+}
+
 function addResponseHeaders(response: NextResponse) {
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -78,6 +90,13 @@ export async function updateSession(request: NextRequest) {
   const authenticated = Boolean(data.user) && !error;
 
   if (!authenticated && !publicPath) {
+    if (isApiPath(request.nextUrl.pathname)) {
+      return addResponseHeaders(NextResponse.json(
+        { mensagem: "Sua sessão expirou. Entre novamente para continuar." },
+        { status: 401 },
+      ));
+    }
+
     const destination = request.nextUrl.clone();
     destination.pathname = "/acesso";
     destination.search = "";

@@ -49,6 +49,13 @@ import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
 import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  atualizarMarcaDaPlataforma,
+  definirCorDoPainelDeAcesso,
+  definirFundoDeAcesso,
+  definirPerfilDaPessoa,
+  obterAreaDeAcessos,
+} from "@/lib/api/cliente-pessoas";
 
 const schema = z.object({
   organizationName: z.string().trim().min(1, "Informe o nome da organização.").max(60),
@@ -144,10 +151,7 @@ export default function PlatformSettingsPage() {
   const loadPeople = useCallback(async (term = "") => {
     setFetching(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: rpcError } = await supabase.rpc("list_access_workspace", { search_term: term });
-      if (rpcError) throw rpcError;
-      setWorkspace(data as Workspace);
+      setWorkspace(await obterAreaDeAcessos({ busca: term }));
     } catch (loadError) {
       toast.error(errorMessageFromUnknown(loadError) || "Não foi possível carregar os acessos.");
     } finally {
@@ -219,9 +223,7 @@ export default function PlatformSettingsPage() {
   const applyGalleryImage = useCallback(async (item: { path: string; url: string }) => {
     setUploadingBackground(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("fc_definir_fundo_acesso", { p_url: item.url, p_caminho: item.path });
-      if (error) throw error;
+      await definirFundoDeAcesso(item.url, item.path);
       queryClient.setQueryData(platformBrandingQueryKey, {
         ...branding, accessBackgroundUrl: item.url, accessBackgroundPath: item.path,
       });
@@ -269,13 +271,12 @@ export default function PlatformSettingsPage() {
   /** Grava a cor do painel; `null` restaura o branco institucional. */
   const saveAccessPanelColor = useCallback(async (color: string | null) => {
     setUploadingBackground(true);
-    const supabase = createBrowserSupabaseClient();
     try {
       // Grava só a cor. A funcao anterior gravava os tres campos de uma vez,
       // entao reenviar a imagem a partir de um estado desatualizado apagava o
-      // fundo — foi o que aconteceu em producao.
-      const { error: saveError } = await supabase.rpc("fc_definir_cor_painel_acesso", { p_cor: color });
-      if (saveError) throw saveError;
+      // fundo — foi o que aconteceu em producao. A rota REST preserva essa
+      // separação: cor e fundo têm endereços próprios.
+      await definirCorDoPainelDeAcesso(color);
       queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessPanelColor: color });
       toast.success(color ? "Cor do painel atualizada." : "Painel branco restaurado.");
     } catch (saveError) {
@@ -307,11 +308,14 @@ export default function PlatformSettingsPage() {
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
 
-      const { error: saveError } = await supabase.rpc("fc_definir_fundo_acesso", {
-        p_url: publicUrl.publicUrl,
-        p_caminho: path,
-      });
-      if (saveError) {
+      // O envio ao storage continua sendo direto do navegador — Storage não é
+      // RPC, e a política do bucket é quem autoriza. Só a gravação da
+      // configuração passou para a rota REST, e o rollback segue valendo: se
+      // ela falhar, o arquivo recém-enviado sai do armazenamento, senão o
+      // storage acumularia imagens que nenhuma configuração aponta.
+      try {
+        await definirFundoDeAcesso(publicUrl.publicUrl, path);
+      } catch (saveError) {
         await supabase.storage.from("platform-assets").remove([path]);
         throw saveError;
       }
@@ -336,8 +340,7 @@ export default function PlatformSettingsPage() {
     setUploadingBackground(true);
     const supabase = createBrowserSupabaseClient();
     try {
-      const { error: saveError } = await supabase.rpc("fc_definir_fundo_acesso", { p_url: null, p_caminho: null });
-      if (saveError) throw saveError;
+      await definirFundoDeAcesso(null, null);
       // O arquivo antigo sai do storage só depois de a configuração deixar de
       // apontar para ele: na ordem inversa, uma falha na gravação deixaria a
       // tela apontando para imagem que não existe mais.
@@ -355,27 +358,17 @@ export default function PlatformSettingsPage() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const supabase = createBrowserSupabaseClient();
-      // O logotipo é identidade institucional fixa: a gravação sempre zera os
+      // O logotipo é identidade institucional fixa: a rota sempre zera os
       // campos de logo no banco, para nenhum upload antigo sobrescrever a marca.
-      const { data, error: saveError } = await supabase.rpc("fc_atualizar_marca_plataforma", {
-        no_organizacao_param: values.organizationName,
-        no_produto_param: values.productName,
-        tx_url_logotipo_param: null,
-        tx_caminho_param: null,
-        co_cor_principal_param: values.primaryColor,
-      });
-      if (saveError) throw saveError;
-
-      return normalizePlatformBranding(data);
+      // Por isso ele não faz parte do corpo enviado daqui.
+      return normalizePlatformBranding(await atualizarMarcaDaPlataforma(values));
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(platformBrandingQueryKey, updated);
       toast.success("Identidade da plataforma atualizada.");
     },
     onError: (saveError) => {
-      const message = saveError instanceof Error ? saveError.message : "Não foi possível salvar a identidade.";
-      toast.error(message);
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a identidade.");
     },
   });
 
@@ -409,12 +402,7 @@ export default function PlatformSettingsPage() {
 
     setChanging(`${person.personId}:${role.code}`);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: rpcError } = await supabase.rpc("fc_definir_perfil_pessoa", {
-        p_pessoa: person.personId,
-        p_perfil: role.code,
-      });
-      if (rpcError) throw rpcError;
+      await definirPerfilDaPessoa(person.personId, role.code);
 
       toast.success(`${person.fullName} agora tem o perfil ${role.name}.`);
       invalidatePlatformContext();

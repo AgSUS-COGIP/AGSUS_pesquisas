@@ -17,7 +17,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { duplicarAvaliacao, listarAvaliacoes, ErroDeApi } from "@/lib/api/cliente";
+import { executarAcaoDoCiclo } from "@/lib/api/cliente-construtor";
+import { listarModelosDeAvaliacao } from "@/lib/api/cliente-paineis";
+import type { AvaliacaoGerenciada } from "@/lib/api/contratos";
 
 /** Modelo da galeria, devolvido por `fc_listar_modelos_avaliacao`. */
 type SurveyTemplate = {
@@ -25,14 +28,7 @@ type SurveyTemplate = {
   category: string; sections: number; questions: number;
 };
 
-type ManagedSurvey = {
-  surveyId: string; code: string; name: string; description: string | null; status: string;
-  archivedAt: string | null;
-  versionNumber: number; versionStatus: string; applicationName: string | null;
-  applicationCode: string | null;
-  applicationStatus: string | null; opensAt: string | null; closesAt: string | null;
-  sections: number; questions: number;
-};
+type ManagedSurvey = AvaliacaoGerenciada;
 
 const ARCHIVE_RETENTION_DAYS = 30;
 
@@ -110,35 +106,22 @@ export default function AdminSurveysPage() {
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const granted = guard.state === "granted";
 
-  /**
-   * Carrega o catálogo na visão pedida.
-   *
-   * Cada visão tem **função própria**, e não um parâmetro na mesma função: o
-   * PostgREST resolve a função pelo conjunto de argumentos recebidos, então
-   * uma sobrecarga com argumento opcional tornaria ambígua a chamada sem
-   * argumento — a que todo bundle publicado faz. As duas devolvem o mesmo
-   * formato, por isso o cartão é o mesmo nas duas visões.
-   */
+  /** Carrega o catálogo na visão pedida — vigentes ou arquivadas. */
   const loadSurveys = useCallback(async (archivedView: boolean) => {
     setDataLoading(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: listError } = archivedView
-        ? await supabase.rpc("fc_listar_pesquisas_arq")
-        : await supabase.rpc("list_managed_surveys");
-      if (listError) throw listError;
-      setSurveys(Array.isArray(data) ? data as ManagedSurvey[] : []);
+      setSurveys(await listarAvaliacoes({ arquivadas: archivedView }));
     } catch (loadError) {
-      // A visão de arquivadas depende da migration de arquivamento. Enquanto
-      // ela não estiver aplicada, a RPC não existe (404) — a tela diz o que
-      // falta e volta para a visão que funciona, em vez de deixar o operador
-      // diante de um catálogo vazio sem explicação.
-      if (archivedView) {
+      // 501 é a migration de arquivamento não aplicada neste ambiente: a tela
+      // diz o que falta e volta para a visão que funciona, em vez de deixar o
+      // operador diante de um catálogo vazio sem explicação.
+      if (loadError instanceof ErroDeApi && loadError.indisponivelNoAmbiente && archivedView) {
         toast.error("As avaliações arquivadas ainda não estão disponíveis neste ambiente: a migration de arquivamento não foi aplicada ao banco.");
         setShowingArchived(false);
         return;
       }
-      toast.error(loadError instanceof Error ? loadError.message : "Não foi possível carregar as avaliações.");
+      if (archivedView) setShowingArchived(false);
+      toast.error(errorMessageFromUnknown(loadError));
     } finally { setDataLoading(false); }
   }, []);
 
@@ -180,15 +163,8 @@ export default function AdminSurveysPage() {
   async function runClone(surveyId: string, name: string | null) {
     setCloningId(surveyId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: cloneError } = await supabase.rpc("fc_clonar_pesquisa", {
-        p_pesquisa: surveyId,
-        p_nome: name,
-        p_codigo: null,
-      });
-      if (cloneError) throw cloneError;
-
-      const result = data as { surveyId: string; code: string; questions: number } | null;
+      const result = await duplicarAvaliacao(surveyId, { name }) as
+        { surveyId: string; code: string; questions: number } | null;
       if (!result?.surveyId) throw new Error("A cópia não foi criada.");
       toast.success(`Criada como ${result.code}, com ${result.questions} ${result.questions === 1 ? "pergunta" : "perguntas"}.`);
       router.push(`/admin/pesquisas/${result.surveyId}`);
@@ -218,12 +194,9 @@ export default function AdminSurveysPage() {
 
     setArchiveActionId(survey.surveyId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: actionError } = await supabase.rpc("manage_survey_cycle", {
-        target_survey_id: survey.surveyId,
-        target_action: archiving ? "ARCHIVE" : "UNARCHIVE",
+      await executarAcaoDoCiclo(survey.surveyId, {
+        action: archiving ? "ARCHIVE" : "UNARCHIVE",
       });
-      if (actionError) throw actionError;
       toast.success(archiving ? "Avaliação arquivada." : "Avaliação restaurada para o catálogo.");
       await loadSurveys(showingArchived);
     } catch (actionError) {
@@ -250,14 +223,12 @@ export default function AdminSurveysPage() {
     if (!granted) return;
     let active = true;
     void (async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: templateError } = await supabase.rpc("fc_listar_modelos_avaliacao");
-      if (!active) return;
-      if (templateError) {
-        console.warn("Galeria de modelos indisponível:", templateError.message);
-        return;
+      try {
+        const modelos = await listarModelosDeAvaliacao();
+        if (active) setTemplates(modelos as SurveyTemplate[]);
+      } catch (templateError) {
+        if (active) console.warn("Galeria de modelos indisponível:", errorMessageFromUnknown(templateError));
       }
-      setTemplates(Array.isArray(data) ? data as SurveyTemplate[] : []);
     })();
     return () => { active = false; };
   }, [granted]);

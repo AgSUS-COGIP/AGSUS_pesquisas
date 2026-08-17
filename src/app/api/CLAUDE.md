@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Executar as operações que **não podem** acontecer no navegador: uso da chave de serviço do Supabase, gravação de observabilidade sem sessão do usuário, diagnóstico de configuração e o callback OAuth.
+Expor o acesso ao banco como rotas REST e executar o que **não pode** acontecer no navegador: chave de serviço do Supabase, observabilidade sem sessão, diagnóstico de configuração e o callback OAuth.
 
 ## Responsabilidades
 
@@ -10,18 +10,47 @@ Executar as operações que **não podem** acontecer no navegador: uso da chave 
 - Nunca vazar detalhe interno na resposta — mensagens são curtas e em português; o diagnóstico completo vai para `console.error`.
 - Sanitizar tudo que vem do cliente antes de persistir.
 
-## Rotas
+## Regras que valem para toda rota de domínio
+
+Estas quatro decisões são **transversais**: valem para as ~50 rotas de domínio e por isso estão aqui, uma vez, em vez de repetidas no cabeçalho de cada arquivo. Um comentário local só se justifica quando a rota **foge** delas.
+
+1. **Sessão do usuário, nunca service role.** Toda rota de domínio usa `createServerSupabaseClient()` — chave publicável com o cookie de quem chamou. RLS e as checagens dentro das RPCs continuam valendo, então defeito na rota não vira vazamento. `createAdminSupabaseClient()` fica restrito a `/api/observability/errors`, que grava sem sessão por necessidade.
+2. **A regra de negócio não sobe para a rota.** O handler valida **forma** (campo presente, UUID bem formado) e chama a RPC. Período, escopo, papel, anonimato e integridade são revalidados pelo banco, que é a autoridade. Repetir a regra aqui criaria duas fontes que divergiriam na primeira correção.
+3. **Erro do Postgres vira status HTTP** por `respostaDeErro()` (`@/lib/api/resposta-http`), único tradutor. Em 4xx a mensagem do banco é repassada — as RPCs escrevem em português voltado ao operador; em 5xx não, porque pode carregar nome de coluna ou dado de outra pessoa.
+4. **Leitura que materializa estado não é cacheável.** `get_survey_operations`, `list_my_survey_catalog` e `get_public_survey_form` chamam `fc_abrir_ciclos_agendados()` antes de responder — a abertura de ciclo agendado é preguiçosa, já que o projeto não tem job agendado. As rotas que as expõem declaram `export const dynamic = "force-dynamic"`.
+
+## Rotas de infraestrutura
+
+Não seguem as regras acima — cada uma tem autorização própria, pelo motivo indicado.
 
 | Rota | Método | Runtime | Autorização | Finalidade |
 |---|---|---|---|---|
 | `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica se as variáveis públicas e administrativas do Supabase existem. `200 ok` ou `503 degraded` com `missingConfiguration`. |
-| `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. |
+| `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. **Única rota com service role.** |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
+## Rotas de domínio
+
+Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recurso; o cliente tipado de cada grupo está em `@/lib/api/`.
+
+| Recurso | Rotas | Cliente |
+|---|---|---|
+| Avaliações | `/api/avaliacoes`, `/api/avaliacoes/[id]`, `…/copia` | `cliente.ts` |
+| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/identidade-visual`, `…/ciclo` | `cliente-construtor.ts` |
+| Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
+| Equipe | `/api/equipe`, `…/ciclos`, `…/candidatos`, `…/membros` | `cliente-pessoas.ts` |
+| Jornada de resposta | `/api/formularios/[codigo]`, `/api/submissoes/**`, `/api/ciclos/[codigo]/regras`, `/api/meu/**` | `cliente-runtime.ts` |
+| CDDI | `/api/cddi/ciclo-vigente`, `…/identidade`, `…/submissoes/**` | `cliente-runtime.ts` |
+| Painéis | `/api/paineis/[codigo]`, `/api/paineis/cddi`, `/api/respostas/**`, `/api/modelos-avaliacao` | `cliente-paineis.ts` |
+
+**`/api/meu/…` é sempre relativo a quem chamou** e nunca recebe identificador de pessoa no caminho. Uma rota como `/api/pessoas/[id]/catalogo` precisaria verificar que `[id]` é o próprio chamador — verificação que se esquece. Aqui a identidade vem da sessão e não há parâmetro para forjar.
+
 ## Autorização: onde ela realmente mora
 
-**A administração desta plataforma não passa por rota de API.** As telas de `/admin` chamam RPCs direto do navegador (`supabase.rpc(...)`), e a autorização vive dentro de cada função — `can_manage_surveys()` ou `is_platform_administrator()`, conferidas pelo banco. Não há guard de API para módulo administrativo porque não há rota administrativa: a defesa equivalente é a checagem dentro da RPC.
+**A autorização não está na rota — está no banco.** As rotas de domínio autenticam como o usuário (regra 1 acima), então quem decide é `can_manage_surveys()`, `is_platform_administrator()` e a RLS de cada tabela. A rota é casca HTTP: não há guard de módulo aqui porque a checagem equivalente já roda dentro da RPC, e ela vale mesmo se o handler tiver defeito.
+
+Isso é deliberado. Autorizar por service role e um `if` em TypeScript tornaria cada rota um ponto onde uma checagem esquecida expõe dados sem segunda barreira — foi o que aconteceu em produção quando `list_managed_surveys` perdeu a verificação e passou a enumerar todas as avaliações para qualquer pessoa autenticada (corrigido em `20260814090000_arquivar_pesquisa.sql`).
 
 Cada rota se defende pelo mecanismo que a sua natureza permite: `/api/observability/errors` verifica mesma origem e limita o corpo a 16 KB, porque **não pode** exigir sessão — `ClientErrorReporter` é montado em toda página, inclusive `/acesso`, que é anônima, e exigir autenticação ali cegaria a instrumentação no erro que impede alguém de entrar. Por isso ela consta de `PUBLIC_PATHS`.
 
@@ -77,20 +106,24 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 ## Dependências
 
-- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui.**
-- [@/lib/supabase/server](../../lib/CLAUDE.md) — cliente por cookie, usado pelo callback OAuth.
+- [@/lib/supabase/server](../../lib/CLAUDE.md) — `createServerSupabaseClient()`, cliente por cookie. **É o cliente de toda rota de domínio.**
+- [@/lib/api/resposta-http](../../lib/CLAUDE.md) — `respostaDeErro()`, `respostaDeEntradaInvalida()`, `statusDoErroPostgres()`.
+- [@/lib/api/validacao](../../lib/CLAUDE.md) — `ehUuid()`.
+- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, e só por `/api/observability/errors` e `/api/health`.**
 - [@/lib/auth-callback](../../lib/CLAUDE.md) — `safeAuthNext()`, `pkceExchangeOptions()`.
 
 ## Convenções específicas
 
 - Toda resposta de mutação leva `Cache-Control: no-store` e `X-Content-Type-Options: nosniff`.
-- Códigos de status são semânticos: `400` payload inválido, `403` sessão sem papel administrativo ou origem não autorizada, `413` excede limite, `500` falha ao gravar, `502` origem externa indisponível, `503` configuração ausente.
+- Códigos de status são semânticos: `400` payload malformado, `401` sessão expirada, `403` sem permissão, `404` recurso inexistente, `409` estado que não permite a operação, `413` excede limite, `422` dado inválido, `500` falha interna, `501` migration não aplicada neste ambiente, `502` origem externa indisponível, `503` configuração ausente. A tradução do erro do Postgres é de `statusDoErroPostgres()`, testada em `resposta-http.test.ts`.
 - Nunca devolver `error.message` bruto do banco ao cliente quando puder revelar estrutura interna: mensagem curta na resposta, diagnóstico completo em `console.error`.
 - Handler não confia em nada do cliente: valida tamanho, faixa, tipo e formato antes de usar.
+- **Comentário no `route.ts` só para o que é específico daquela rota.** As quatro regras transversais estão neste arquivo; repeti-las no cabeçalho de cada handler cria cópias que divergem na primeira correção.
 
 ## Pontos de atenção
 
-- **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição.
+- **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição. **Rota de domínio não usa esse cliente** — trocar `createServerSupabaseClient()` por ele numa rota existente desliga a RLS daquele caminho sem que nada falhe visivelmente.
+- **Rota de API responde JSON, inclusive ao recusar.** O middleware devolve `401` em `/api/**` no lugar do redirecionamento para `/acesso`. Sem isso o `fetch` segue o redirect sozinho, a resposta chega `200` com o HTML do login e `response.json()` falha com `Unexpected token '<'` — mensagem que não menciona sessão expirada. A distinção está em `isApiPath()` (`@/lib/supabase/proxy`).
 - `createAdminSupabaseClient()` lança `AdminSupabaseConfigurationError` se faltar URL ou chave; aceita `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` (nome moderno tem precedência).
 - `/auth/confirm` fixa `ALLOWED_DOMAIN = "agenciasus.org.br"` no código, enquanto a camada SQL aceita a lista de `ALLOWED_INSTITUTIONAL_DOMAINS`. Uma conta `@agsus.org.br` passaria no banco e seria rejeitada aqui.
 - **`isSameOrigin()` aceita requisição sem header `Origin`** — exigido por `fetch(keepalive)` durante o descarregamento da página. A consequência é que a checagem filtra o navegador de terceiros, não o cliente que simplesmente omite o header: ela nunca pode ser a única defesa de rota que grava. Em `/api/observability/errors` a cota e o escopo mínimo no banco (`tl_erro_aplicacao` sem leitura para `authenticated`) é que completam a proteção.

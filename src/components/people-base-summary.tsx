@@ -3,19 +3,9 @@
 import { AlertTriangle, CheckCircle2, KeyRound, Loader2, Mail, RefreshCw, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
-type PeopleBaseSummary = {
-  totalPeople: number;
-  activePeople: number;
-  inactivePeople: number;
-  withInstitutionalEmail: number;
-  withoutInstitutionalEmail: number;
-  authenticatedPeople: number;
-  withChosenAvatar: number;
-  linkedToApplication: number;
-  availableToLink: number;
-};
+import { obterResumoDaBase } from "@/lib/api/cliente-pessoas";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import type { ResumoBasePessoas as PeopleBaseSummary } from "@/lib/api/contratos-pessoas";
 
 const emptySummary: PeopleBaseSummary = {
   totalPeople: 0,
@@ -36,14 +26,9 @@ export function PeopleBaseSummaryCard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("get_admin_people_base_summary", {
-        target_application_id: null,
-      });
-      if (error) throw error;
-      setSummary((data ?? emptySummary) as PeopleBaseSummary);
+      setSummary(await obterResumoDaBase() ?? emptySummary);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível consultar a base institucional.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível consultar a base institucional.");
     } finally {
       setLoading(false);
     }
