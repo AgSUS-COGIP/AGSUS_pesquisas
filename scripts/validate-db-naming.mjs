@@ -66,6 +66,18 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260817120000_seletores_respeitam_arquivamento.sql": {
     função: new Set(["list_admin_participant_applications"]),
   },
+  // Acentos das RPCs de participantes: a migration só reescreve o texto das
+  // mensagens, byte a byte. Renomear qualquer uma delas seria uma mudança de
+  // contrato escondida numa correção de encoding.
+  "supabase/migrations/20260817140000_corrigir_acentos_rpcs_participantes.sql": {
+    função: new Set([
+      "assign_admin_application_participant",
+      "create_and_assign_admin_participant",
+      "list_admin_application_participants",
+      "search_admin_people_for_application",
+      "set_admin_application_participant_status",
+    ]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria
