@@ -23,6 +23,19 @@ import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
  */
 const BACKGROUND_IMAGE = "/acesso-fundo.png";
 
+/**
+ * A palavra gravada dentro dos arquivos de assinatura do SIGAV.
+ *
+ * Não é o nome configurado da plataforma, e a diferença importa: `productName`
+ * vem do banco e pode ser trocado em `/admin/configuracoes`, enquanto isto está
+ * desenhado no SVG e só muda com arte nova. Serve de texto alternativo da
+ * imagem, que precisa descrever o que ela mostra.
+ *
+ * **Se a marca for redesenhada com outra palavra, mude aqui junto** — divergir
+ * faz a tela anunciar para leitor de tela um nome que ninguém vê.
+ */
+const NOME_DESENHADO_NA_ASSINATURA = "SIGAV";
+
 function accessErrorMessage(code: string | null) {
   if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br. Selecione sua conta institucional.";
   if (code === "oauth-invalido") return "A autenticação não foi concluída. Selecione novamente sua conta institucional.";
@@ -391,10 +404,28 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
               Sem isso, o "SIGAV" em azul institucional sumiria sobre painel
               escuro enquanto o "AgSUS" ao lado apareceria em branco, deixando
               metade da assinatura invisível.
+
+              **O texto alternativo descreve o desenho, não a configuração.**
+              Ele já usou `branding.productName`, e o resultado foi a tela dizer
+              duas coisas diferentes ao mesmo tempo: o SVG desenha "SIGAV" e o
+              nome configurado no banco era "Avaliações", então quem enxergava
+              lia SIGAV e quem usava leitor de tela ouvia Avaliações. Texto
+              alternativo existe para dar, a quem não vê a imagem, o mesmo que
+              ela mostra — e o que ela mostra está gravado no arquivo.
+
+              É a mesma regra que o lado da AgSUS já seguia: a cruz tem
+              `alt="AgSUS"` fixo, e é o texto ao lado dela que sai da marca
+              configurada.
+
+              A consequência é que a assinatura só vale enquanto o produto se
+              chamar SIGAV. Renomear exige arte nova — trocar o nome em
+              /admin/configuracoes não redesenha o SVG, e nenhum `alt` dinâmico
+              resolveria isso; apenas esconderia a divergência de quem não vê a
+              tela.
             */}
             <ExternalImage
               src={lightOnPanel ? "/sigav-assinatura-negativa.svg" : "/sigav-assinatura.svg"}
-              alt={branding.productName}
+              alt={NOME_DESENHADO_NA_ASSINATURA}
               width={300}
               height={96}
               priority
