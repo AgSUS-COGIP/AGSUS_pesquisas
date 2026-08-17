@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="sigav-marca-titulo">
+  <title id="sigav-marca-titulo">SIGAV</title>
+
+  <!--
+    Proposta de marca do SIGAV — rascunho para a comunicação da AgSUS avaliar.
+
+    ATENÇÃO: não use linhas de hífens para sublinhar título dentro deste
+    comentário. XML proíbe a sequência de dois hífens no miolo de um comentário,
+    e o navegador recusa o arquivo inteiro — a marca aparece como imagem
+    quebrada, sem erro no console. Foi o que aconteceu em 17/08/2026.
+
+    Construção. O "V" de SIGAV é também o sinal de conferido: é o gesto de quem avalia. Ele
+    reaproveita a gramática da cruz institucional — traço grosso, contorno com
+    vão interno e cantos arredondados —, de modo que as duas marcas fiquem lado
+    a lado sem parecer de famílias diferentes, que é o cuidado que o símbolo do
+    SIGEPSI teve com a mesma cruz.
+
+    O degradê vai do azul institucional ao verde: o azul é a AgSUS, o verde é o
+    ciclo concluído. Sobe da esquerda para a direita, no sentido da leitura.
+
+    Por que o vão interno. A cruz da AgSUS tem um filete branco correndo por dentro do traço. Repeti-lo
+    aqui é o que faz o parentesco ser reconhecível de longe. Ele desaparece
+    abaixo de 32px, e é por isso que existe a variante sólida em
+    `sigav-marca-compacta.svg`, para favicon.
+  -->
+
+  <defs>
+    <linearGradient id="sigav-degrade" x1="18" y1="70" x2="80" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#003b70" />
+      <stop offset="0.55" stop-color="#0b6fae" />
+      <stop offset="1" stop-color="#0b8f58" />
+    </linearGradient>
+  </defs>
+
+  <!-- Traço externo: o "V" cheio. -->
+  <path
+    d="M20 30 L42 68 L78 20"
+    fill="none"
+    stroke="url(#sigav-degrade)"
+    stroke-width="19"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Vão interno, o filete que cita a construção da cruz institucional. -->
+  <path
+    d="M20 30 L42 68 L78 20"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

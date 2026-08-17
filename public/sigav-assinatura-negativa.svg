@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 96" role="img" aria-labelledby="sigav-negativa-titulo">
+  <title id="sigav-negativa-titulo">SIGAV — Sistema Integrado de Gestão de Avaliações</title>
+
+  <!--
+    Versão negativa da assinatura, para painel escuro.
+
+    Mesma arte de `sigav-assinatura.svg`: mesma geometria, mesmo degradê no
+    símbolo, mesma tipografia e mesmo espacejamento. Muda só a cor da palavra,
+    que passa de azul institucional para branco.
+
+    Existe porque o azul `#003b70` da versão positiva some sobre fundo escuro.
+    Como o símbolo tem degradê próprio, não dá para resolver com filtro no CSS:
+    achatar tudo em branco apagaria a transição azul para verde, que é o que
+    distingue a marca. Duas versões é o que manuais de identidade fazem, e é
+    mais honesto do que recolorir uma marca aprovada em tempo de execução.
+
+    O filete claro que corre por dentro do traço permanece branco nas duas
+    versões: ele cita a construção da cruz da AgSUS, e é ele que sustenta a
+    leitura do símbolo sobre fundo escuro.
+
+    ATENÇÃO: não sublinhe título com linha de hifens neste comentário. XML
+    proíbe dois hifens seguidos no miolo de um comentário, e o navegador recusa
+    o arquivo inteiro, exibindo imagem quebrada sem erro no console.
+  -->
+
+  <defs>
+    <linearGradient id="sigav-negativa-degrade" x1="18" y1="66" x2="74" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4aa3e0" />
+      <stop offset="0.55" stop-color="#3fc3a4" />
+      <stop offset="1" stop-color="#5fd39a" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M20 34 L40 64 L72 24"
+    fill="none"
+    stroke="url(#sigav-negativa-degrade)"
+    stroke-width="17"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M20 34 L40 64 L72 24"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <text
+    x="98" y="58"
+    font-family="Geist, 'Segoe UI', system-ui, -apple-system, sans-serif"
+    font-size="42"
+    font-weight="700"
+    letter-spacing="1.5"
+    fill="#ffffff"
+  >SIGAV</text>
+</svg>

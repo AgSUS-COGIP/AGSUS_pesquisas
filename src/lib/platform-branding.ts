@@ -1,6 +1,20 @@
 export type PlatformBranding = {
   organizationName: string;
   productName: string;
+  /**
+   * O que a sigla do produto significa, por extenso.
+   *
+   * Sigla sozinha só comunica para quem já a conhece, e a tela de acesso é o
+   * primeiro contato de quem chega — no celular ela é a única identificação do
+   * sistema, porque a arte não é exibida ali.
+   *
+   * **Não vem do banco, e é dívida conhecida.** `productName` é configurável e
+   * esta linha não, então trocar a sigla em `/admin/configuracoes` deixa a
+   * expansão desatualizada. Levá-la para `tb_config_plataforma` exige um
+   * parâmetro novo em `fc_atualizar_marca_plataforma`, o que cria sobrecarga e
+   * pede a ordem de publicação descrita no CLAUDE.md da raiz.
+   */
+  productDescription: string;
   logoUrl: string;
   logoPath: string | null;
   /**
@@ -25,7 +39,8 @@ export type PlatformBranding = {
 
 export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   organizationName: "AgSUS",
-  productName: "Avaliações",
+  productName: "SIGAV",
+  productDescription: "Sistema Integrado de Gestão de Avaliações",
   logoUrl: "/agsus-logo.png",
   logoPath: null,
   accessBackgroundUrl: null,
@@ -52,6 +67,10 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
   return {
     organizationName: text(source.organizationName, DEFAULT_PLATFORM_BRANDING.organizationName).slice(0, 60),
     productName: text(source.productName, DEFAULT_PLATFORM_BRANDING.productName).slice(0, 60),
+    // A expansão ainda não existe no banco; `source` nunca a traz. Passa pelo
+    // normalizador mesmo assim para que o dia em que a coluna existir não exija
+    // caçar o ponto onde ela deveria ter entrado.
+    productDescription: text(source.productDescription, DEFAULT_PLATFORM_BRANDING.productDescription).slice(0, 120),
     // O logotipo é identidade institucional fixa: uploads antigos gravados no
     // banco são ignorados de propósito, para a marca oficial nunca ser
     // sobrescrita pela configuração.

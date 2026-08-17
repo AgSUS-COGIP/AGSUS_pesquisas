@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PLATFORM_BRANDING, platformBrandingTitle } from "./platform-branding";
 import { ADMIN_ROLE_MODULES } from "./platform-modules";
 import {
   isSuperAdminOnlyRoute,
@@ -9,9 +10,20 @@ import {
 
 describe("supportMailtoHref", () => {
   it("aponta para o canal institucional com assunto preenchido", () => {
+    // O assunto é derivado da marca, não escrito à mão: fixar o nome aqui faria
+    // este teste quebrar a cada renomeação do produto sem que nada estivesse
+    // errado — foi o que aconteceu ao adotar SIGAV.
     expect(supportMailtoHref()).toBe(
-      `mailto:${PLATFORM_SUPPORT_EMAIL}?subject=${encodeURIComponent("Suporte — AgSUS Avaliações")}`,
+      `mailto:${PLATFORM_SUPPORT_EMAIL}?subject=${encodeURIComponent(
+        `Suporte — ${platformBrandingTitle(DEFAULT_PLATFORM_BRANDING)}`,
+      )}`,
     );
+  });
+
+  it("nomeia o sistema no assunto, para o suporte saber de onde veio", () => {
+    // O que importa é o assunto **conter** o nome do produto; a montagem exata
+    // é detalhe. Sem esta afirmação, o teste acima passaria com assunto vazio.
+    expect(decodeURIComponent(supportMailtoHref())).toContain(DEFAULT_PLATFORM_BRANDING.productName);
   });
 
   it("codifica assunto personalizado", () => {
