@@ -60,6 +60,12 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260814170000_acelerar_painel_cddi.sql": {
     função: new Set(["get_cddi_monitoring_dashboard_internal"]),
   },
+  // Seletores passam a respeitar o arquivamento. Só `list_admin_participant_applications`
+  // precisa da dispensa — as outras duas funções da migration já nascem `fc_`.
+  // Renomeá-la quebraria as três telas que a chamam pelo nome no bundle publicado.
+  "supabase/migrations/20260817120000_seletores_respeitam_arquivamento.sql": {
+    função: new Set(["list_admin_participant_applications"]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria
