@@ -302,6 +302,15 @@ supabase stop --no-backup
 ## Pontos de atenção
 
 - **Nunca renomeie objeto legado diretamente.** Exige inventário de dependências, compatibilidade temporária, atualização de RPCs e frontend, testes de RLS/autossalvamento/envio/painéis, rollback documentado e aprovação do Data Owner.
+- **Ao aplicar SQL pela Management API, cuide do transporte do UTF-8.** O `Invoke-RestMethod` do Windows PowerShell 5.1 **destrói caractere não-ASCII no corpo da requisição**: um `í` sai do arquivo correto e chega ao banco como `U+FFFD`. O defeito é silencioso — a migration retorna sucesso, e só uma leitura por bytes o revela. Em 17/08/2026 sete migrations acentuadas entraram em produção assim, e a correção foi reaplicá-las por um cliente que serializa em UTF-8 (o `fetch` do Node serve). Confira depois de aplicar, sempre por bytes:
+  ```sql
+  select p.proname,
+         encode(convert_to(pg_get_functiondef(p.oid), 'UTF8'), 'hex') like '%efbfbd%' as destruido,
+         encode(convert_to(pg_get_functiondef(p.oid), 'UTF8'), 'hex') like '%c383c2%' as duplamente_codificado
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.prokind = 'f';
+  ```
+  Ler o texto na tela **não** serve para diagnosticar: o PowerShell também exibe acento correto como se estivesse corrompido, e os dois defeitos são distintos — `c383c2` é dupla codificação (o texto original ainda está lá, recuperável); `efbfbd` é perda, e a única saída é reaplicar a definição.
 - **Nunca aplique DDL manualmente em produção.** Toda mudança é migration revisada. Aplicar SQL direto no editor **não** registra nada em `supabase_migrations.schema_migrations`, e é assim que um banco passa a divergir do repositório sem sintoma — foi o que aconteceu em produção até 10/08/2026 (ver [../docs/operacao-permissoes.md](../docs/operacao-permissoes.md)). Se precisar aplicar um arquivo pelo editor, registre a versão depois com `insert into supabase_migrations.schema_migrations (version) values ('…') on conflict do nothing`.
 - **`drop function` em RPC consumida pelo frontend é mudança quebrante.** O bundle publicado chama a função pelo nome; removê-la antes de o frontend novo estar no ar derruba toda tela que dependa dela, com `Could not find the function … in the schema cache`. Publique o frontend primeiro, confirme, e só então remova — ou mantenha a antiga como ponte delegando à nova (`select public.fc_nova();`) e remova depois.
 - **Nunca comite credencial, token ou dado pessoal.** A base de pessoas é carregada por processo controlado.
