@@ -14,32 +14,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import { executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
+import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
 
-type Issue = {
-  id?: string;
-  code: string;
-  severity: "BLOCKING" | "WARNING";
-  category?: "STRUCTURE" | "CYCLE" | "PERIOD" | "AUDIENCE";
-  entityType?: string;
-  entityId?: string;
-  message: string;
-  action?: string;
-};
-type Operations = {
-  status: string;
-  survey: { id: string; code: string; name: string; status: string; description: string | null };
-  version: { id: string; number: number; status: string };
-  application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null; allowDrafts: boolean; accessMode?: string } | null;
-  metrics: { sections: number; questions: number; requiredQuestions: number; participants: number; draftSubmissions: number; submittedSubmissions: number };
-  issues: Issue[];
-  readyToPublish: boolean;
-  readyToOpen: boolean;
-};
-
-type SupabaseLikeError = { message?: string; details?: string; hint?: string };
+// O formato do agregado passou a vir do contrato da API, e não de uma cópia
+// local — é o mesmo retorno de `get_survey_operations` que a rota repassa.
+type Issue = PendenciaCiclo;
+type Operations = OperacaoCiclo;
 
 /**
  * Cada ação carrega, além do rótulo, a frase que explica **o que ela faz** e a
@@ -67,15 +51,6 @@ function toLocalInput(value: string | null | undefined) {
 function dateLabel(value: string | null | undefined) {
   if (!value) return "Não definido";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "object" && error) {
-    const candidate = error as SupabaseLikeError;
-    return candidate.message || candidate.details || candidate.hint || fallback;
-  }
-  return fallback;
 }
 
 /**
@@ -153,15 +128,12 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: operationError } = await supabase.rpc("get_survey_operations", { target_survey_id: surveyId });
-      if (operationError) throw operationError;
-      const next = data as Operations;
+      const next = await obterOperacaoDoCiclo(surveyId);
       setOperations(next);
       setOpensAt(toLocalInput(next.application?.opensAt));
       setClosesAt(toLocalInput(next.application?.closesAt));
     } catch (loadError) {
-      toast.error(errorMessage(loadError, "Não foi possível carregar a operação do ciclo."));
+      toast.error(errorMessageFromUnknown(loadError));
     } finally {
       setDataLoading(false);
     }
@@ -202,21 +174,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN" || action === "SCHEDULE";
     setWorking(action);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: actionError } = await supabase.rpc("manage_survey_cycle", {
-        target_survey_id: surveyId,
-        target_action: action,
-        target_opens_at: sendsPeriod && opensAt ? new Date(opensAt).toISOString() : null,
-        target_closes_at: sendsPeriod && closesAt ? new Date(closesAt).toISOString() : null,
+      await executarAcaoDoCiclo(surveyId, {
+        action,
+        // O período sai da tela já em ISO (UTC): o `datetime-local` é hora
+        // local, e a conversão precisa acontecer onde o fuso do operador é
+        // conhecido — no navegador. A rota repassa o valor sem reinterpretá-lo.
+        opensAt: sendsPeriod && opensAt ? new Date(opensAt).toISOString() : null,
+        closesAt: sendsPeriod && closesAt ? new Date(closesAt).toISOString() : null,
       });
-      if (actionError) throw actionError;
       const successLabels: Record<string, string> = {
         UPDATE_PERIOD: "Período atualizado.", PUBLISH: "Versão publicada.", SCHEDULE: "Abertura agendada. O ciclo abre sozinho na data marcada.", OPEN: "Ciclo aberto.", REOPEN: "Ciclo reaberto.", CLOSE: "Avaliação pausada.", CANCEL: "Avaliação finalizada e arquivada.",
       };
       toast.success(successLabels[action] ?? "Operação concluída.");
       await loadOperations();
     } catch (actionError) {
-      toast.error(errorMessage(actionError, "Não foi possível executar a operação."));
+      toast.error(errorMessageFromUnknown(actionError));
     } finally {
       setWorking(null);
     }

@@ -18,41 +18,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { errorMessageFromUnknown } from "@/lib/observability";
 import { cycleStatusLabel } from "@/lib/survey-status-labels";
+import {
+  incluirIntegrante,
+  listarCandidatosDaEquipe,
+  listarCiclosDeLideranca,
+  obterMinhaEquipe,
+  retirarIntegrante,
+} from "@/lib/api/cliente-pessoas";
+import type { CandidatoDaEquipe, IntegranteDaEquipe } from "@/lib/api/contratos-pessoas";
 
-type TeamMember = { linkId: string; personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null; status: string; validFrom: string; submissionStatus: string | null; submissionUpdatedAt: string | null };
-type Candidate = { personId: string; fullName: string; employeeNumber: string; institutionalEmail: string | null; jobTitle: string | null; unit: string | null; avatarUrl: string | null };
-type TeamWorkspace = { status: string; application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null }; members: TeamMember[]; total: number };
-type TeamCycle = { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null };
+// Formatos vindos do contrato da API, no lugar das declarações locais. A equipe
+// e o ciclo não precisam de apelido: chegam tipados pelo retorno das funções do
+// cliente, e as consultas do React Query os inferem.
+type TeamMember = IntegranteDaEquipe;
+type Candidate = CandidatoDaEquipe;
 type StatusFilter = "ALL" | "NOT_STARTED" | "DRAFT" | "SUBMITTED";
 type SortMode = "PRIORITY" | "NAME" | "UPDATED";
 
 const teamCyclesKey = ["team", "cycles"] as const;
 
-async function fetchTeamCycles() {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_ciclos_lideranca");
-  if (error) throw error;
-  return Array.isArray(data) ? data as TeamCycle[] : [];
-}
-
-async function fetchTeamWorkspace(applicationCode: string | null) {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_minha_equipe", { target_application_code: applicationCode });
-  if (error) throw error;
-  return data as TeamWorkspace;
-}
-
-async function fetchTeamCandidates(applicationId: string, searchTerm: string) {
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_pesquisar_equipe", {
-    target_application_id: applicationId,
-    search_term: searchTerm,
-  });
-  if (error) throw error;
-  return Array.isArray(data) ? data as Candidate[] : [];
-}
+// As três consultas passaram a chamar as rotas REST. A tela deixou de conhecer
+// nome de RPC e nome de parâmetro do banco: pede a equipe, os ciclos e os
+// candidatos, e o formato vem do contrato.
 
 function submissionLabel(status: string | null) {
   if (status === "SUBMITTED" || status === "VALIDATED") return "Avaliação enviada";
@@ -99,7 +88,7 @@ export default function TeamPage() {
   const deferredCandidateSearch = useDeferredValue(candidateSearch);
   const cyclesQuery = useQuery({
     queryKey: teamCyclesKey,
-    queryFn: fetchTeamCycles,
+    queryFn: listarCiclosDeLideranca,
     enabled: granted,
     staleTime: 60_000,
   });
@@ -111,14 +100,14 @@ export default function TeamPage() {
   const cyclesReady = cyclesQuery.isSuccess || cyclesQuery.isError;
   const teamQuery = useQuery({
     queryKey: ["team", "workspace", activeCycleCode],
-    queryFn: () => fetchTeamWorkspace(activeCycleCode),
+    queryFn: () => obterMinhaEquipe(activeCycleCode),
     enabled: granted && cyclesReady,
   });
   const workspace = teamQuery.data ?? null;
   const applicationId = workspace?.application.id ?? "";
   const candidateQuery = useQuery({
     queryKey: ["team", "candidates", applicationId, deferredCandidateSearch],
-    queryFn: () => fetchTeamCandidates(applicationId, deferredCandidateSearch),
+    queryFn: () => listarCandidatosDaEquipe(applicationId, deferredCandidateSearch),
     enabled: dialogOpen && Boolean(applicationId),
     staleTime: 30_000,
   });
@@ -146,15 +135,13 @@ export default function TeamPage() {
     if (!workspace?.application.id) return;
     setWorkingId(candidate.personId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: addError } = await supabase.rpc("add_person_to_my_team", { target_application_id: workspace.application.id, target_person_id: candidate.personId });
-      if (addError) throw addError;
+      await incluirIntegrante(workspace.application.id, candidate.personId);
       toast.success(`${candidate.fullName} foi incluído(a) na equipe.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["team", "workspace"] }),
         queryClient.invalidateQueries({ queryKey: ["team", "candidates"] }),
       ]);
-    } catch (addError) { toast.error(addError instanceof Error ? addError.message : "Não foi possível incluir a pessoa."); }
+    } catch (addError) { toast.error(errorMessageFromUnknown(addError) || "Não foi possível incluir a pessoa."); }
     finally { setWorkingId(null); }
   }
 
@@ -162,12 +149,10 @@ export default function TeamPage() {
     if (!(await confirm({ title: "Retirar integrante da equipe?", description: `${member.fullName} deixará de aparecer na sua equipe neste ciclo. O histórico será preservado.`, confirmLabel: "Retirar integrante", tone: "danger" }))) return;
     setWorkingId(member.linkId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error: removeError } = await supabase.rpc("remove_person_from_my_team", { target_link_id: member.linkId });
-      if (removeError) throw removeError;
+      await retirarIntegrante(member.linkId);
       toast.success(`${member.fullName} foi retirado(a) da equipe.`);
       await queryClient.invalidateQueries({ queryKey: ["team", "workspace"] });
-    } catch (removeError) { toast.error(removeError instanceof Error ? removeError.message : "Não foi possível retirar a pessoa."); }
+    } catch (removeError) { toast.error(errorMessageFromUnknown(removeError) || "Não foi possível retirar a pessoa."); }
     finally { setWorkingId(null); }
   }
 

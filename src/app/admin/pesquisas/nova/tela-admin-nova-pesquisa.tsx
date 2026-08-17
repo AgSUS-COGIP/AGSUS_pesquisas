@@ -13,7 +13,7 @@ import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { criarAvaliacao } from "@/lib/api/cliente";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -120,28 +120,28 @@ export default function NewSurveyPage() {
     }
 
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error: createError } = await supabase.rpc("create_survey_draft", {
-        p_code: values.code,
-        p_name: values.name,
-        p_description: values.description || "",
-        p_application_name: values.applicationName,
-        p_opens_at: values.opensAt ? new Date(values.opensAt).toISOString() : null,
-        p_closes_at: values.closesAt ? new Date(values.closesAt).toISOString() : null,
-        p_anonymous: values.anonymous,
-        p_allow_drafts: values.allowDrafts,
+      // As datas saem em ISO: o `datetime-local` é hora local, e a conversão
+      // precisa acontecer onde o fuso do operador é conhecido.
+      const criada = await criarAvaliacao({
+        code: values.code,
+        name: values.name,
+        description: values.description || "",
+        applicationName: values.applicationName,
+        opensAt: values.opensAt ? new Date(values.opensAt).toISOString() : null,
+        closesAt: values.closesAt ? new Date(values.closesAt).toISOString() : null,
+        anonymous: values.anonymous,
+        allowDrafts: values.allowDrafts,
       });
-      if (createError) throw createError;
-      const result = data as { code?: string; surveyId?: string } | null;
-      const code = result?.code ?? values.code.toUpperCase();
+      // O banco normaliza o código para maiúsculas; o valor digitado é reserva.
+      const code = criada?.code ?? values.code.toUpperCase();
 
       // Publicar exige estrutura, e a avaliação nasce só com a seção
       // "Introdução", sem perguntas — o banco recusaria o PUBLISH agora. Em vez
       // de prometer o que falharia, a ação leva ao construtor, onde a estrutura
       // é montada e a publicação acontece pela tela de operação do ciclo.
-      if (intent === "PUBLISH" && result?.surveyId) {
+      if (intent === "PUBLISH" && criada?.surveyId) {
         toast.success(`Avaliação ${code} criada. Adicione as perguntas para concluir a publicação.`);
-        router.push(`/admin/pesquisas/${result.surveyId}`);
+        router.push(`/admin/pesquisas/${criada.surveyId}`);
         return;
       }
 

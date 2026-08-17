@@ -10,7 +10,7 @@ Princípios e tokens em [../../docs/design-system.md](../../docs/design-system.m
 
 - Encapsular acessibilidade (foco visível, `aria-*`, focus trap, alvo de 44 px, `prefers-reduced-motion`) para que as páginas não reimplementem.
 - Manter estados visuais consistentes: carregando, vazio, erro, offline.
-- **`ui/` não conhece Supabase nem regra de negócio.** Componentes de negócio podem chamar RPCs.
+- **`ui/` não conhece Supabase nem regra de negócio.** Componentes de negócio consultam dados pelo cliente da API REST (`@/lib/api/cliente-*`), não por `supabase.rpc()`.
 
 ## Estrutura
 

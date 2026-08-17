@@ -4,58 +4,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { History, Loader2, RefreshCw, Save, Search, UserRoundCog, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  atualizarPessoa,
+  buscarPessoas,
+  definirVinculoDeLideranca,
+  listarAuditoriaDaPessoa,
+  listarCiclosDeParticipantes,
+  listarPessoasSemChefia,
+  listarVinculosDeLideranca,
+} from "@/lib/api/cliente-pessoas";
+import type {
+  AvaliacaoComParticipantes,
+  EventoAuditoriaPessoa,
+  PessoaAdministrativa,
+  PessoaSemChefia,
+  VinculoLideranca,
+} from "@/lib/api/contratos-pessoas";
 
-type Person = {
-  personId: string;
-  employeeNumber: string;
-  fullName: string;
-  institutionalEmail: string | null;
-  jobTitle: string | null;
-  costCenter: string | null;
-  workplace: string | null;
-  directorate: string | null;
-  organizationalUnit: string | null;
-  coordination: string | null;
-  employmentStatus: string;
-  active: boolean;
-  updatedAt: string;
-};
-
-type Application = {
-  id: string;
-  code: string;
-  name: string;
-  status: string;
-};
-
-type LeadershipLink = {
-  linkId: string;
-  applicationId: string;
-  leaderPersonId: string;
-  leaderName: string;
-  leaderEmployeeNumber: string;
-  subordinatePersonId: string;
-  subordinateName: string;
-  subordinateEmployeeNumber: string;
-  status: string;
-  validFrom: string;
-  validTo: string | null;
-  origin: string;
-};
-
+// Formatos vindos do contrato da API, no lugar das cópias que esta tela mantinha.
+type Person = PessoaAdministrativa;
+type Application = AvaliacaoComParticipantes;
+type LeadershipLink = VinculoLideranca;
 /** Participante do ciclo sem chefia vigente — fila de correção da administração. */
-type PendingPerson = {
-  personId: string;
-  fullName: string;
-  employeeNumber: string | null;
-  institutionalEmail: string | null;
-  jobTitle: string | null;
-  organizationalUnit: string | null;
-  managerName: string | null;
-  managerEmail: string | null;
-  managerResolution: string;
-};
+type PendingPerson = PessoaSemChefia;
 
 /** Traduz o motivo técnico da pendência para o que o operador precisa fazer. */
 const PENDING_REASON: Record<string, { label: string; hint: string }> = {
@@ -66,16 +37,7 @@ const PENDING_REASON: Record<string, { label: string; hint: string }> = {
   SEM_DADO: { label: "Fora da carga da base", hint: "Esta pessoa não constava da última importação da base institucional." },
 };
 
-type AuditEvent = {
-  eventId: number;
-  eventType: string;
-  actorPersonId: string | null;
-  actorName: string | null;
-  beforeData: Record<string, unknown> | null;
-  afterData: Record<string, unknown> | null;
-  justification: string | null;
-  createdAt: string;
-};
+type AuditEvent = EventoAuditoriaPessoa;
 
 type PersonForm = {
   fullName: string;
@@ -140,10 +102,7 @@ export function AdminPeopleTeamsManagement() {
   }, [selectedPerson?.personId]);
 
   const searchPeople = useCallback(async (term: string) => {
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("search_platform_admin_people", { target_search: term.trim(), target_limit: 80 });
-    if (error) throw error;
-    const rows = Array.isArray(data) ? data as Person[] : [];
+    const rows = await buscarPessoas({ busca: term.trim(), limite: 80 });
     setPeople(rows);
     if (selectedPersonIdRef.current) {
       const refreshed = rows.find((item) => item.personId === selectedPersonIdRef.current);
@@ -152,58 +111,46 @@ export function AdminPeopleTeamsManagement() {
   }, []);
 
   const loadApplications = useCallback(async () => {
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("list_admin_participant_applications");
-    if (error) throw error;
-    const rows = Array.isArray(data) ? data as Application[] : [];
+    const rows = await listarCiclosDeParticipantes();
     setApplications(rows);
     setApplicationId((current) => current || rows[0]?.id || "");
   }, []);
 
   const loadLinks = useCallback(async (targetApplicationId: string, term = "") => {
     if (!targetApplicationId) return;
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("list_platform_admin_leadership_links", { target_application_id: targetApplicationId, target_search: term.trim(), target_limit: 200 });
-    if (error) throw error;
-    setLinks(Array.isArray(data) ? data as LeadershipLink[] : []);
+    setLinks(await listarVinculosDeLideranca(targetApplicationId, { busca: term.trim(), limite: 200 }));
   }, []);
 
   const loadPending = useCallback(async (targetApplicationId: string) => {
     if (!targetApplicationId) return;
     setPendingLoading(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("fc_listar_pessoas_sem_chefia", { target_application_id: targetApplicationId, target_limit: 500 });
-      if (error) throw error;
-      setPending(Array.isArray(data) ? data as PendingPerson[] : []);
+      setPending(await listarPessoasSemChefia(targetApplicationId, { limite: 500 }));
     } finally {
       setPendingLoading(false);
     }
   }, []);
 
   async function loadAudit(personId: string) {
-    const supabase = createBrowserSupabaseClient();
-    const { data, error } = await supabase.rpc("list_platform_admin_person_audit", { target_person_id: personId, target_limit: 30 });
-    if (error) throw error;
-    setAudit(Array.isArray(data) ? data as AuditEvent[] : []);
+    setAudit(await listarAuditoriaDaPessoa(personId, { limite: 30 }));
   }
 
   useEffect(() => {
     void Promise.all([searchPeople(""), loadApplications()])
-      .catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível carregar a gestão institucional."))
+      .catch((error) => toast.error(errorMessageFromUnknown(error) || "Não foi possível carregar a gestão institucional."))
       .finally(() => setLoading(false));
   }, [loadApplications, searchPeople]);
 
   useEffect(() => {
     if (!applicationId) return;
-    void loadLinks(applicationId).catch((error) => toast.error(error.message));
+    void loadLinks(applicationId).catch((error) => toast.error(errorMessageFromUnknown(error)));
     // A mensagem do banco vai inteira para o toast: erro genérico esconderia a
     // causa real (coluna inexistente, função ausente, permissão negada).
     void loadPending(applicationId).catch((error) => toast.error(errorMessageFromUnknown(error) || "Não foi possível carregar as pendências de chefia."));
   }, [applicationId, loadLinks, loadPending]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => { void searchPeople(search).catch((error) => toast.error(error.message)); }, 300);
+    const timeout = window.setTimeout(() => { void searchPeople(search).catch((error) => toast.error(errorMessageFromUnknown(error))); }, 300);
     return () => window.clearTimeout(timeout);
   }, [search, searchPeople]);
 
@@ -240,26 +187,25 @@ export function AdminPeopleTeamsManagement() {
     if (!selectedPerson || !form) return;
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("update_platform_admin_person", {
-        target_person_id: selectedPerson.personId,
-        target_full_name: form.fullName,
-        target_institutional_email: form.institutionalEmail || null,
-        target_job_title: form.jobTitle || null,
-        target_cost_center: form.costCenter || null,
-        target_workplace: form.organizationalUnit || form.costCenter || null,
-        target_directorate: form.directorate || null,
-        target_organizational_unit: form.organizationalUnit || null,
-        target_coordination: form.coordination || null,
-        target_employment_status: form.employmentStatus,
-        target_active: form.active,
-        target_justification: form.justification,
+      await atualizarPessoa(selectedPerson.personId, {
+        fullName: form.fullName,
+        institutionalEmail: form.institutionalEmail || null,
+        jobTitle: form.jobTitle || null,
+        costCenter: form.costCenter || null,
+        // A tela não tem campo de local de trabalho: ele acompanha a unidade e,
+        // na falta dela, o centro de custo. Mantido como sempre foi.
+        workplace: form.organizationalUnit || form.costCenter || null,
+        directorate: form.directorate || null,
+        organizationalUnit: form.organizationalUnit || null,
+        coordination: form.coordination || null,
+        employmentStatus: form.employmentStatus,
+        active: form.active,
+        justification: form.justification,
       });
-      if (error) throw error;
       toast.success("Dados funcionais atualizados e auditados.");
       await Promise.all([searchPeople(search), loadAudit(selectedPerson.personId)]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a pessoa.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível atualizar a pessoa.");
     } finally { setWorking(false); }
   }
 
@@ -267,21 +213,19 @@ export function AdminPeopleTeamsManagement() {
     if (!applicationId || !subordinate || !leader) return;
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("set_platform_admin_leadership_link", {
-        target_application_id: applicationId,
-        target_subordinate_person_id: subordinate.personId,
-        target_leader_person_id: leader.personId,
-        target_justification: leadershipJustification,
+      await definirVinculoDeLideranca({
+        applicationId,
+        subordinatePersonId: subordinate.personId,
+        leaderPersonId: leader.personId,
+        justification: leadershipJustification,
       });
-      if (error) throw error;
       toast.success("Vínculo de liderança atualizado e auditado.");
       setSubordinate(null); setLeader(null); setSubordinateSearch(""); setLeaderSearch(""); setLeadershipJustification("");
       // A fila de pendências é recarregada junto: quem acabou de receber chefia
       // some da lista, e o contador reflete o trabalho que ainda resta.
       await Promise.all([loadLinks(applicationId), loadPending(applicationId)]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível corrigir o vínculo.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível corrigir o vínculo.");
     } finally { setWorking(false); }
   }
 
@@ -296,7 +240,7 @@ export function AdminPeopleTeamsManagement() {
     {tab === "people" ? <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4"><label className="relative block"><Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, matrícula, e-mail ou unidade" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label></div>
-        <div className="max-h-[42rem] divide-y divide-slate-100 overflow-y-auto">{people.map((person) => <button key={person.personId} type="button" onClick={() => { setSelectedPerson(person); setForm(personToForm(person)); void loadAudit(person.personId).catch((error) => toast.error(error.message)); }} className={`w-full p-4 text-left transition hover:bg-slate-50 ${selectedPerson?.personId === person.personId ? "bg-blue-50" : ""}`}><strong className="block truncate text-sm text-slate-900">{person.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${person.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{person.active ? "Ativo" : "Inativo"}</span></button>)}</div>
+        <div className="max-h-[42rem] divide-y divide-slate-100 overflow-y-auto">{people.map((person) => <button key={person.personId} type="button" onClick={() => { setSelectedPerson(person); setForm(personToForm(person)); void loadAudit(person.personId).catch((error) => toast.error(errorMessageFromUnknown(error))); }} className={`w-full p-4 text-left transition hover:bg-slate-50 ${selectedPerson?.personId === person.personId ? "bg-blue-50" : ""}`}><strong className="block truncate text-sm text-slate-900">{person.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${person.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{person.active ? "Ativo" : "Inativo"}</span></button>)}</div>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -339,7 +283,7 @@ export function AdminPeopleTeamsManagement() {
                 : ""}
             </p>
           </div>
-          <button type="button" onClick={() => void loadPending(applicationId).catch((error) => toast.error(error.message))} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-black text-[var(--text-primary)] hover:bg-[var(--surface-hover)]">
+          <button type="button" onClick={() => void loadPending(applicationId).catch((error) => toast.error(errorMessageFromUnknown(error)))} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-black text-[var(--text-primary)] hover:bg-[var(--surface-hover)]">
             <RefreshCw className="h-4 w-4" aria-hidden="true" />Atualizar
           </button>
         </div>

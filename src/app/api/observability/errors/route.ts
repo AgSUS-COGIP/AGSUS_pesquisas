@@ -16,11 +16,9 @@ function isSameOrigin(request: Request) {
 // Sanitização repetida no servidor, embora o cliente já a aplique: a rota é
 // pública para a mesma origem e não pode confiar no que recebe.
 //
-// Truncar antes de aplicar as regex (e não depois) limita o custo da
-// sanitização ao `maxLength` declarado, independente do tamanho real do
-// campo recebido — os padrões abaixo evitam classes de caracteres que se
-// sobrepõem (`[\w.-]+` seguido de `.`) para não sofrer backtracking
-// catastrófico (ReDoS) em entradas adversariais.
+// Truncar antes das regex (e não depois) limita o custo ao `maxLength`
+// declarado; os padrões evitam classes de caracteres que se sobrepõem para não
+// sofrer backtracking catastrófico (ReDoS) em entradas adversariais.
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value

@@ -1,0 +1,121 @@
+import { chamar } from "./requisicao";
+import type { RespostaEntrada, TipoSubmissaoCddi } from "./contratos-runtime";
+import type { SurveyCatalogItem } from "@/lib/survey-catalog";
+
+/**
+ * Cliente da jornada de resposta — o que o participante consome.
+ *
+ * As funções aqui são chamadas de dentro de filas de gravação serializadas
+ * (`ReliableSaveQueue` no CDDI, `useRef<Promise>` no runtime genérico), que
+ * dependem de a falha **lançar** para encadear o retry e marcar o estado de
+ * erro. Por isso nenhuma delas engole exceção: quem trata é a fila.
+ */
+
+/** Definição publicada do formulário, pelo código da aplicação. */
+export function obterFormulario(codigoAplicacao: string) {
+  return chamar<unknown>(`/api/formularios/${encodeURIComponent(codigoAplicacao)}`);
+}
+
+/** Regras de lógica condicional do ciclo. */
+export function obterRegrasDoCiclo(codigoCiclo: string) {
+  return chamar<unknown>(`/api/ciclos/${encodeURIComponent(codigoCiclo)}/regras`);
+}
+
+/** Inicia ou retoma a submissão da pessoa autenticada. */
+export function iniciarOuRetomarSubmissao(codigoAplicacao: string) {
+  return chamar<unknown>("/api/submissoes", {
+    method: "POST",
+    body: JSON.stringify({ applicationCode: codigoAplicacao }),
+  });
+}
+
+/**
+ * Grava a resposta de uma pergunta.
+ *
+ * Idempotente: a RPC faz upsert por (submissão, pergunta), então retransmissão
+ * de rede não duplica resposta.
+ */
+export function gravarResposta(submissaoId: string, resposta: RespostaEntrada) {
+  return chamar<unknown>(`/api/submissoes/${submissaoId}/respostas`, {
+    method: "PUT",
+    body: JSON.stringify(resposta),
+  });
+}
+
+/** Envia a submissão definitivamente. O banco cobra as obrigatórias visíveis. */
+export function enviarSubmissao(submissaoId: string) {
+  return chamar<{ submittedAt?: string }>(`/api/submissoes/${submissaoId}/envio`, {
+    method: "POST",
+  });
+}
+
+/** Catálogo de avaliações da pessoa autenticada. */
+export function listarMeuCatalogo() {
+  return chamar<SurveyCatalogItem[]>("/api/meu/catalogo");
+}
+
+// --- CDDI -------------------------------------------------------------------
+//
+// O CDDI tem funções próprias porque a submissão carrega tipo (autoavaliação ou
+// chefia) e, no segundo caso, a pessoa avaliada.
+
+/** Ciclo vigente do CDDI para a pessoa autenticada. */
+export function obterCicloCddiVigente() {
+  return chamar<{ code: string }>("/api/cddi/ciclo-vigente");
+}
+
+/** Identificação institucional no ciclo, incluindo a chefia vinculada. */
+export function obterIdentidadeCddi(codigoCiclo: string) {
+  return chamar<unknown>(`/api/cddi/identidade?ciclo=${encodeURIComponent(codigoCiclo)}`);
+}
+
+/** Inicia ou retoma uma submissão do CDDI. */
+export function iniciarOuRetomarSubmissaoCddi(entrada: {
+  applicationCode: string;
+  submissionType: TipoSubmissaoCddi;
+  subjectPersonId?: string | null;
+}) {
+  return chamar<unknown>("/api/cddi/submissoes", {
+    method: "POST",
+    body: JSON.stringify({
+      applicationCode: entrada.applicationCode,
+      submissionType: entrada.submissionType,
+      subjectPersonId: entrada.subjectPersonId ?? null,
+    }),
+  });
+}
+
+/** Grava a resposta de uma pergunta do CDDI (alternativa única ou texto). */
+export function gravarRespostaCddi(
+  submissaoId: string,
+  entrada: { questionId: string; optionId?: string | null; text?: string | null },
+) {
+  return chamar<{ savedAt?: string }>(`/api/cddi/submissoes/${submissaoId}/respostas`, {
+    method: "PUT",
+    body: JSON.stringify(entrada),
+  });
+}
+
+/** Envia uma submissão do CDDI definitivamente. */
+export function enviarSubmissaoCddi(submissaoId: string) {
+  return chamar<{ submittedAt?: string; result?: number }>(
+    `/api/cddi/submissoes/${submissaoId}/envio`,
+    { method: "POST" },
+  );
+}
+
+// As duas funções abaixo consomem rotas de `/api/equipe`, mas moram aqui porque
+// quem as chama é a jornada de avaliação de chefia: ela precisa do ciclo de
+// liderança para resolver o código da aplicação, e da equipe para confirmar que
+// a pessoa avaliada está mesmo vinculada.
+
+/** Ciclos em que a pessoa autenticada lidera equipe, do mais recente ao mais antigo. */
+export function listarCiclosDeLideranca() {
+  return chamar<Array<{ code?: string }>>("/api/equipe/ciclos");
+}
+
+/** Equipe da pessoa autenticada no ciclo informado. */
+export function obterMinhaEquipe(codigoCiclo?: string | null) {
+  const consulta = codigoCiclo ? `?ciclo=${encodeURIComponent(codigoCiclo)}` : "";
+  return chamar<unknown>(`/api/equipe${consulta}`);
+}

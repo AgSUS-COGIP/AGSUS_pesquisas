@@ -41,7 +41,7 @@ Três decisões estruturantes explicam quase todo o código:
 
 | Decisão | Consequência prática |
 |---|---|
-| **Toda lógica de negócio vive no PostgreSQL** | O frontend não faz `select`/`insert` direto em tabelas de negócio. Chama RPCs (`supabase.rpc(...)`) que validam identidade, papel, escopo e período antes de gravar. |
+| **Toda lógica de negócio vive no PostgreSQL** | O frontend não faz `select`/`insert` direto em tabelas de negócio. Consome a API REST em `/api/**`, e cada rota chama a RPC que valida identidade, papel, escopo e período antes de gravar. Mudança de regra é migration nova, não código React. |
 | **A matrícula é o identificador da pessoa, não o e-mail** | A base oficial contém e-mails repetidos entre matrículas distintas. Ver [docs/auditoria-base-cddi-2026.md](docs/auditoria-base-cddi-2026.md). |
 | **Autorização é resolvida em uma única chamada** | `fc_obter_contexto_plataforma()` devolve pessoa, papéis, módulos e participação. O resultado governa navegação, permissões e telas. |
 
@@ -52,37 +52,51 @@ Três decisões estruturantes explicam quase todo o código:
 │  Next.js App Router (React 19, componentes "use client")            │
 │    · PlatformShell ....... casca visual, navegação por módulo       │
 │    · usePlatformContext .. identidade e permissões (cache 2 min)    │
-│    · @supabase/ssr ....... cliente autenticado por cookie          │
-└───────────────┬─────────────────────────────────┬──────────────────┘
-                │ supabase.rpc(...)                │ fetch /api/...
-                │ (JWT do usuário, RLS ativa)      │ (rotas de servidor)
-                ▼                                  ▼
-┌─ Supabase / PostgreSQL ──────────┐   ┌─ Route Handlers (Node) ─────┐
-│  Tabelas + RLS por pessoa/papel  │   │  /api/admin/import-…        │
-│  RPCs SECURITY DEFINER           │   │    token + service role     │
-│    · contexto e acesso            │   │  /api/observability/errors  │
-│    · runtime de formulários       │   │    grava tl_erro_aplicacao  │
-│    · construtor e ciclo           │   │  /api/health                │
-│    · painéis e auditoria          │   │  /api/background/[id]       │
-│  Auth (Google OAuth, PKCE)        │   │  /auth/confirm  (callback)  │
-│  Views institucionais DB_PESQUISAS│   └─────────────────────────────┘
-└──────────────────────────────────┘
+│    · @/lib/api/cliente-* . chamadas tipadas à API REST             │
+│    · @supabase/ssr ....... apenas auth (login, sessão, logout)     │
+└───────────────────────────────┬────────────────────────────────────┘
+                                │ fetch /api/... (cookie de sessão)
+                                ▼
+┌─ Route Handlers (Node) ────────────────────────────────────────────┐
+│  ~50 rotas de domínio ....... createServerSupabaseClient()          │
+│    avaliacoes · pessoas · equipe · submissoes · cddi · paineis      │
+│    validam forma, traduzem erro do banco em status HTTP             │
+│  4 de infraestrutura ........ health · observability · background   │
+│                               /auth/confirm (callback OAuth)        │
+└───────────────────────────────┬────────────────────────────────────┘
+                                │ supabase.rpc(...)  — JWT do usuário
+                                ▼
+┌─ Supabase / PostgreSQL ────────────────────────────────────────────┐
+│  Tabelas + RLS por pessoa/papel .... última barreira de acesso      │
+│  RPCs SECURITY DEFINER ............. AS REGRAS DE NEGÓCIO           │
+│    identidade e permissões · runtime · construtor e ciclo           │
+│    painéis · anonimato estrutural · auditoria                       │
+│  Auth (Google OAuth, PKCE) · Views institucionais DB_PESQUISAS      │
+└────────────────────────────────────────────────────────────────────┘
                 ▲
                 │ src/proxy.ts (Next.js middleware) — sessão + guarda de rota
                 └───────────────────────────────────────────────────────
 ```
 
+**REST na borda, regra no banco.** O navegador fala HTTP com `/api/**`; a rota chama a RPC correspondente. As duas camadas não competem: a rota decide **formato** (campo presente, UUID válido, status de retorno), a RPC decide **permissão e regra** (quem pode, quando pode, o que é obrigatório, o que é auditado). Como as rotas autenticam com a sessão de quem chamou — e não com a chave de serviço —, a RLS continua valendo mesmo se uma rota tiver defeito.
+
+A consequência prática: **mudar regra de negócio continua exigindo migration**, não edição de TypeScript.
+
 **Camadas e responsabilidades**
 
 | Camada | Localização | Responsabilidade |
 |---|---|---|
-| Proxy de borda | [src/proxy.ts](src/proxy.ts), [src/lib/supabase/proxy.ts](src/lib/supabase/proxy.ts) | Renova a sessão, redireciona anônimos para `/acesso`, aplica cabeçalhos de segurança. |
-| Rotas e telas | [src/app/](src/app/) | Uma pasta por jornada. Componentes de cliente que orquestram RPCs. |
+| Proxy de borda | [src/proxy.ts](src/proxy.ts), [src/lib/supabase/proxy.ts](src/lib/supabase/proxy.ts) | Renova a sessão, redireciona anônimos para `/acesso`, responde `401` em `/api/**`, aplica cabeçalhos de segurança. |
+| Rotas e telas | [src/app/](src/app/) | Uma pasta por jornada. Componentes de cliente que consomem a API pelos clientes tipados. |
+| API REST | [src/app/api/](src/app/api/) | Casca HTTP sobre as RPCs. Convenções em [src/app/api/CLAUDE.md](src/app/api/CLAUDE.md). |
+| Contratos e clientes | [src/lib/api/](src/lib/api/) | `chamar()` e `ErroDeApi` (transporte), tradução de erro Postgres→HTTP, tipos e uma função por operação. |
 | Casca e design system | [src/components/](src/components/) | `PlatformShell`, primitivos acessíveis em `ui/`, blocos administrativos. |
 | Domínio no cliente | [src/lib/](src/lib/) | Funções puras testáveis (validação, ordenação, normalização) e clientes Supabase. |
-| Consultas cacheadas | [src/hooks/](src/hooks/) | Hooks que combinam React Query com RPCs — o que não é função pura nem componente. |
+| Consultas cacheadas | [src/hooks/](src/hooks/) | Hooks que combinam React Query com a API — o que não é função pura nem componente. |
 | Banco e regras | [supabase/migrations/](supabase/migrations/) | Esquema, RLS, RPCs, triggers, views institucionais. Fonte da verdade das regras. |
 | Qualidade | [scripts/](scripts/), [.github/workflows/validate.yml](.github/workflows/validate.yml) | Quality gates de nomenclatura, migrations, testes, lint, build e RLS. |
+
+**Exceção única:** [src/app/acesso/page.tsx](src/app/acesso/page.tsx) lê a marca institucional (logotipo, cores) direto do banco. É Server Component anônimo, renderizado antes de existir sessão — rotear por `/api` só somaria um salto de rede.
 
 ## Estrutura de diretórios
 
@@ -132,14 +146,30 @@ agsus-pesquisas/
     │   ├── perfil/               # Identidade visual e dados funcionais
     │   ├── admin/                # Central administrativa
     │   │   └── CLAUDE.md
-    │   └── api/                  # Route Handlers
-    │       └── CLAUDE.md
+    │   └── api/                  # API REST — uma pasta por recurso
+    │       ├── CLAUDE.md         # Regras transversais das rotas de domínio
+    │       ├── avaliacoes/       # Catálogo, construtor, ciclo, participantes
+    │       ├── pessoas/          # Base funcional, auditoria, lideranças
+    │       ├── equipe/           # Ciclos, integrantes, candidatos
+    │       ├── submissoes/       # Runtime genérico de resposta
+    │       ├── cddi/             # Jornada do CDDI
+    │       ├── paineis/          # Resultados e monitoramento
+    │       ├── plataforma/       # Marca e perfis de acesso
+    │       ├── meu/              # Relativo a quem chamou — sem id no caminho
+    │       ├── formularios/  ciclos/  respostas/  modelos-avaliacao/
+    │       └── health/  observability/  background/   # infraestrutura
     ├── components/
     │   ├── CLAUDE.md
     │   └── ui/                   # Primitivos do design system
-    ├── hooks/                    # Hooks de consulta (React Query + Supabase)
+    ├── hooks/                    # Hooks de consulta (React Query + API REST)
     └── lib/
         ├── CLAUDE.md
+        ├── api/                  # Cliente da API REST
+        │   ├── requisicao.ts     # chamar() e ErroDeApi — transporte único
+        │   ├── resposta-http.ts  # Erro do Postgres → status HTTP (usado pelas rotas)
+        │   ├── validacao.ts      # Validação de forma nas rotas
+        │   ├── contratos*.ts     # Formatos que trafegam, por domínio
+        │   └── cliente*.ts       # Uma função por operação, por domínio
         └── supabase/             # Fábricas de cliente (browser, server, admin, proxy)
 ```
 
@@ -278,7 +308,20 @@ npx vitest run src/lib/survey-cycle-period.test.ts   # arquivo específico
 
 Os testes automatizados cobrem só funções puras: **nenhuma rota de API é exercitada por `npm test`**. A verificação delas é manual, com o servidor de desenvolvimento no ar (`npm run dev`).
 
-A tabela abaixo é o resultado real da última execução, não o comportamento presumido.
+**Não há link clicável para testar as rotas de domínio, e isso é por desenho.** Elas autenticam pelo cookie de sessão institucional, então abrir `/api/pessoas` no navegador anônimo ou no `curl` devolve `401` — que é justamente o comportamento correto. Só há duas formas de exercitá-las de verdade:
+
+1. **Pelo navegador já autenticado** — entre em `/acesso`, faça login e abra a URL na mesma aba. O cookie viaja junto e a rota responde. É o caminho mais rápido para inspecionar o corpo de uma resposta.
+2. **Por `curl` com o cookie de sessão** — copie o cookie `sb-…-auth-token` das ferramentas de desenvolvedor (aba *Application* → *Cookies*) e passe em `--cookie`. Útil para reproduzir um cenário específico:
+
+```bash
+curl -i http://localhost:3000/api/avaliacoes   --cookie "sb-<ref>-auth-token=<valor copiado do navegador>"
+```
+
+O inventário completo das rotas, agrupado por recurso, está em [src/app/api/CLAUDE.md](src/app/api/CLAUDE.md). O cliente tipado que as consome está em [src/lib/api/](src/lib/api/) — em geral é dele que se deve chamar, não de `fetch` avulso.
+
+#### Cenários verificados
+
+Resultado real da última execução, não comportamento presumido.
 
 | Rota | Método | Cenário | Esperado |
 |---|---|---|---|
@@ -292,6 +335,8 @@ A tabela abaixo é o resultado real da última execução, não o comportamento 
 | `/api/observability/errors` | `POST` | `type` fora do catálogo | `400` · `Relatório inválido.` |
 | `/api/observability/errors` | `POST` | `reference` ausente | `400` · `Relatório inválido.` |
 | `/api/observability/errors` | `POST` | corpo acima de 16 KB | `413` · `Conteúdo excede o limite permitido.` |
+| `/api/avaliacoes`, `/api/meu/contexto`, `/api/pessoas`, `/api/equipe`, `/api/submissoes`, `/api/paineis/*` | qualquer | **sem sessão** | `401` · `application/json` com `{"mensagem":"Sua sessão expirou…"}` |
+| `/api/avaliacoes` | `DELETE` | método inexistente, sem sessão | `401` — **não** `405`: o middleware barra antes de o Next avaliar o método, e assim não revela quais verbos existem |
 
 ```bash
 # saúde e proxy de imagens
@@ -305,7 +350,13 @@ curl -i -X POST http://localhost:3000/api/observability/errors   -H "content-typ
 
 curl -i -X POST http://localhost:3000/api/observability/errors   -H "content-type: application/json" -H "origin: https://exemplo-externo.test"   -d '{"reference":"teste-2","route":"/teste","type":"CLIENTE","message":"m"}'
 
+# rota de domínio sem sessão: 401 em JSON, nunca HTML de login
+for r in /api/avaliacoes /api/meu/contexto /api/pessoas /api/equipe; do
+  printf "%-24s %s\n" "$r" "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3000$r")"
+done
 ```
+
+**O `401` em JSON é o ponto a conferir depois de mexer no middleware.** Se uma rota de API voltar a responder `307` para `/acesso`, o `fetch` do navegador segue o redirecionamento sozinho, recebe `200` com o HTML do login e `response.json()` falha com `Unexpected token '<'` — mensagem que não menciona sessão expirada em lugar nenhum.
 
 ### Guarda de rota — verificação manual
 
@@ -314,9 +365,12 @@ O middleware ([src/proxy.ts](src/proxy.ts)) é a primeira camada de acesso, e **
 | Requisição | Esperado |
 |---|---|
 | `/area`, `/pesquisas`, `/paineis`, `/admin/**` sem sessão | `307` → `/acesso?next=…` |
+| **`/api/**` de domínio sem sessão** | **`401` em JSON — nunca redirecionamento** |
 | `/acesso`, `/api/health`, `/api/background/*` sem sessão | `200` |
 | `/api/observability/errors` sem sessão | `202` — anônima por desenho |
 | qualquer resposta | `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` |
+
+Página e rota de API se comportam de formas diferentes de propósito: quem navega precisa ser levado ao login; quem chama a API precisa de um status que o código saiba tratar.
 
 ```bash
 curl -o /dev/null -w "%{http_code} -> %{redirect_url}
@@ -342,7 +396,7 @@ curl -sD - -o /dev/null http://localhost:3000/acesso | grep -iE "x-frame-options
 1. `src/proxy.ts` intercepta a requisição e chama `updateSession()`, que renova os cookies da sessão Supabase, aplica cabeçalhos de segurança (`no-store`, `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`) e redireciona usuários não autenticados para `/acesso?next=…`.
 2. `src/app/layout.tsx` injeta dois scripts `beforeInteractive` que leem `localStorage` e aplicam tema e estado da sidebar **antes** da primeira pintura, evitando flash.
 3. `AppProviders` monta `QueryClientProvider`, `PlatformBrandingProvider` (marca institucional, com cache em `localStorage` para não piscar o padrão), `ConfirmationProvider` (diálogo de confirmação disponível a qualquer tela), `ClientErrorReporter`, `PlatformInteractionLayer`, `NetworkStatusBanner` e `Toaster`.
-4. A página chama `usePlatformGuard(módulo?)`, que por baixo usa `usePlatformContext()` e executa `fc_obter_contexto_plataforma()`. Se o retorno for `UNLINKED`, chama `resolve_authenticated_person(null)` para criar o vínculo institucional e recarrega o contexto.
+4. A página chama `usePlatformGuard(módulo?)`, que por baixo usa `usePlatformContext()` e consulta `GET /api/meu/contexto` (→ `fc_obter_contexto_plataforma()`). Se o retorno for `UNLINKED`, chama `POST /api/meu/acesso-institucional` (→ `resolve_authenticated_person(null)`) para criar o vínculo e recarrega o contexto.
 5. A guarda devolve um de quatro estados. Negado (`loading`, `unidentified`, `restricted`) vira `PlatformGuardState`; liberado (`granted`) entrega `user` e `modules` já resolvidos, e `PlatformShell` renderiza apenas a navegação permitida.
 
 ### Autenticação
@@ -359,30 +413,40 @@ curl -sD - -o /dev/null http://localhost:3000/acesso | grep -iE "x-frame-options
 
 ### Resposta a um formulário
 
+Cada passo mostra a rota chamada pela tela e, à direita, a RPC que ela aciona no banco.
+
 ```text
-/pesquisas  →  list_my_survey_catalog()
+/pesquisas  →  GET /api/meu/catalogo            list_my_survey_catalog()
    ├── surveyCode === "CDDI"  →  /cddi          (jornada especializada)
    └── caso contrário         →  /pesquisas/[applicationCode]  (runtime genérico)
 
 runtime:
-  get_public_survey_form(code)              estrutura pública, sem dados pessoais
-  start_or_resume_my_survey_submission()    cria ou retoma o rascunho
-  save_my_survey_answer(...)                autossalvamento serializado
-  submit_my_survey_submission(id)           envio definitivo (irreversível)
+  GET  /api/formularios/[codigo]        get_public_survey_form         estrutura, sem dados pessoais
+  POST /api/submissoes                  start_or_resume_my_…           cria ou retoma o rascunho
+  GET  /api/ciclos/[codigo]/regras      fc_obter_regras_do_ciclo       lógica condicional (tolerante a falha)
+  PUT  /api/submissoes/[id]/respostas   save_my_survey_answer          autossalvamento serializado
+  POST /api/submissoes/[id]/envio       submit_my_survey_submission    envio definitivo (irreversível)
 ```
+
+O envio é o passo que mais concentra regra no banco: numa transação só, a RPC confere identidade e período, conta as obrigatórias **visíveis** pelo motor de lógica condicional, grava, apaga o bilhete de anonimato quando o ciclo é anônimo e registra auditoria.
 
 O CDDI adiciona duas particularidades: a chefia responsável é resolvida automaticamente do vínculo institucional (`get_my_cddi_identity` lê `cddi_leadership_links`, alimentado pela importação da base e por correções administrativas — não há seleção manual pelo participante) e a avaliação de chefia acontece em `/cddi/chefia/[personId]`.
 
 ### Administração de um ciclo
 
 ```text
-/admin/pesquisas/nova            create_survey_draft
-/admin/pesquisas/[surveyId]      get_survey_builder → seções, perguntas, alternativas
-                     identidade  update_application_visual_settings
-                     operacao    get_survey_operations → manage_survey_cycle
+/admin/pesquisas/nova       POST /api/avaliacoes                       create_survey_draft
+/admin/pesquisas/[id]       GET  /api/avaliacoes/[id]/construtor       get_survey_builder
+                            POST/PATCH …/secoes · …/perguntas          add_/update_survey_*
+                            POST …/itens/copia · …/itens/ordem         duplicate_/reorder_*
+              identidade    PUT  /api/avaliacoes/[id]/identidade-visual update_application_visual_settings
+              operacao      GET  /api/avaliacoes/[id]/ciclo            get_survey_operations
+                            POST /api/avaliacoes/[id]/ciclo            manage_survey_cycle
                                  (UPDATE_PERIOD · PUBLISH · SCHEDULE · OPEN
-                                  REOPEN · CLOSE · CANCEL)
+                                  REOPEN · CLOSE · CANCEL · ARCHIVE)
 ```
+
+A ação do ciclo vai no corpo do `POST`, não no caminho: as transições operam o mesmo recurso, e uma rota por verbo de negócio multiplicaria caminhos para um estado só.
 
 A estrutura só é editável enquanto a versão está em rascunho; `validate_survey_version_integrity` bloqueia a publicação de instrumentos inconsistentes.
 
@@ -526,7 +590,7 @@ Nenhum destes arquivos é importado por código de produção:
 
 2. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
 
-**Resolvidos.** A **guarda de acesso deixou de ser reescrita em cada página**: as 17 telas autenticadas repetiam a mesma sequência (carregando → identidade → módulo → montar o `user` da casca), com desfechos divergentes — parte usava `FullPageState`, parte um `<main>` vermelho sem caminho de volta. Hoje `usePlatformGuard()` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) resolve os quatro estados e `PlatformGuardState` os apresenta. `metadataText()` e `metadataObject()`, antes duplicadas em `/area` e `/perfil`, vivem em [src/lib/person-metadata.ts](src/lib/person-metadata.ts). O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
+**Resolvidos.** Os **formatos de retorno deixaram de ser redeclarados em cada tela**: `ManagedSurvey` existia em três arquivos com campos diferentes, `ApplicationItem` e `PersonSearchResult` em dois cada, e nenhuma cópia sabia da outra — divergiam em silêncio até alguém ler um campo que aquela versão não declarava. Hoje o formato vem dos contratos em [src/lib/api/](src/lib/api/), que declaram o retorno **completo** da RPC; tela que usa menos campos ignora o resto, e o compilador avisa quando o banco muda. A **guarda de acesso deixou de ser reescrita em cada página**: as 17 telas autenticadas repetiam a mesma sequência (carregando → identidade → módulo → montar o `user` da casca), com desfechos divergentes — parte usava `FullPageState`, parte um `<main>` vermelho sem caminho de volta. Hoje `usePlatformGuard()` ([src/lib/platform-guard.ts](src/lib/platform-guard.ts)) resolve os quatro estados e `PlatformGuardState` os apresenta. `metadataText()` e `metadataObject()`, antes duplicadas em `/area` e `/perfil`, vivem em [src/lib/person-metadata.ts](src/lib/person-metadata.ts). O estado do catálogo deixou de ser reimplementado nas telas — `/area` e `/pesquisas` importam `surveyItemState()` e `surveyApplicationHref()` de [src/lib/survey-catalog.ts](src/lib/survey-catalog.ts) e compartilham a consulta pelo hook `useSurveyCatalog`. Os modais ad hoc de `/equipe` e das telas administrativas deram lugar ao `Dialog` de `overlay-panel.tsx` e ao diálogo de confirmação de `confirmation-provider.tsx`.
 
 ### Inconsistências
 

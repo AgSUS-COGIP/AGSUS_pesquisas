@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
+
+/**
+ * Regras de lógica condicional do ciclo.
+ *
+ * Falha aqui **não** impede responder: o padrão seguro é mostrar o instrumento
+ * inteiro, porque esconder pergunta por engano é pior do que mostrar demais.
+ * Por isso a tela trata erro daqui como aviso, não como falha de carga.
+ */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ codigo: string }> },
+) {
+  const { codigo } = await params;
+  const codigoCiclo = decodeURIComponent(codigo).trim();
+
+  if (!codigoCiclo) {
+    return respostaDeEntradaInvalida("Informe o código do ciclo.");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("fc_obter_regras_do_ciclo", {
+    p_codigo_ciclo: codigoCiclo,
+  });
+
+  if (error) return respostaDeErro(error, "GET /api/ciclos/[codigo]/regras");
+
+  return NextResponse.json(data ?? []);
+}

@@ -33,10 +33,24 @@ Concentrar tudo que não é apresentação: identidade e permissões, fábricas 
 
 | Arquivo | Onde usar | Chave |
 |---|---|---|
-| `client.ts` | componentes de cliente | publicável, singleton, PKCE com `appendPkceFlowIdToRedirects` |
+| `client.ts` | componentes de cliente | publicável, singleton, PKCE com `appendPkceFlowIdToRedirects` — hoje só para `auth.*`; dados passam pela API REST |
 | `server.ts` | Server Components e Route Handlers com sessão | publicável, cookies via `next/headers` |
 | `proxy.ts` | apenas `src/proxy.ts` | publicável, reescreve cookies na resposta |
 | `admin.ts` | **apenas** `src/app/api/**` | **secreta — ignora RLS** |
+
+### Cliente da API REST (`api/`)
+
+O acesso a dados do navegador passa por aqui, não por `supabase.rpc()`. Cada domínio tem um par contrato + cliente; o transporte é compartilhado.
+
+| Arquivo | Papel |
+|---|---|
+| `requisicao.ts` | `chamar<T>()` e a classe `ErroDeApi` — transporte único. `ErroDeApi.status` preserva o código HTTP, e é o que permite a tela distinguir sem permissão (403) de sessão expirada (401), recurso ausente no ambiente (501) e falha de rede (0). |
+| `resposta-http.ts` | `statusDoErroPostgres()`, `respostaDeErro()`, `respostaDeEntradaInvalida()` — usados **pelas rotas**, não pelas telas. Tradução de erro do Postgres para status HTTP, testada. |
+| `validacao.ts` | `ehUuid()` — validação de forma nas rotas. |
+| `contratos*.ts` | Formatos que trafegam. São o **superconjunto** que a RPC devolve, não o recorte de uma tela. |
+| `cliente.ts`, `cliente-construtor.ts`, `cliente-pessoas.ts`, `cliente-runtime.ts`, `cliente-paineis.ts` | Uma função por operação, por domínio. |
+
+Regra ao acrescentar chamada: contrato e cliente no domínio correspondente, rota em `src/app/api/**` seguindo as quatro regras de [../app/api/CLAUDE.md](../app/api/CLAUDE.md). **Não** declare o formato de retorno dentro da tela — foi assim que `ManagedSurvey` acabou em três telas com campos diferentes.
 
 ### Domínio
 

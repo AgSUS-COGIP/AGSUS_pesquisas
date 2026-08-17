@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
+import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
+import { obterMarcaDaPlataforma } from "@/lib/api/cliente-pessoas";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding, type PlatformBranding } from "@/lib/platform-branding";
 
 export const platformBrandingQueryKey = ["platform", "branding"] as const;
@@ -18,12 +19,23 @@ const PlatformBrandingContext = createContext<PlatformBrandingContextValue>({
   loading: false,
 });
 
+/**
+ * Busca a marca pela rota REST.
+ *
+ * Este provider é montado em **toda** página, inclusive na tela de acesso, que
+ * é anônima. Lá a chamada falha — o middleware devolve 401 antes de a rota
+ * executar —, e é por isso que `brandingResolved` considera `query.isFetched`:
+ * sem sessão a marca não vem, e o provider precisa entregar o padrão em vez de
+ * ficar preso em carregando. O comportamento é o mesmo de quando a chamada era
+ * `supabase.rpc()` direto e falhava por falta de sessão; o que mudou é que
+ * agora a recusa chega como status, e não como mensagem solta.
+ *
+ * A tela pública `/acesso` não depende disto: ela é Server Component e resolve
+ * a marca por cliente próprio, antes de existir sessão.
+ */
 async function fetchPlatformBranding() {
   if (!isBrowserSupabaseConfigured()) return DEFAULT_PLATFORM_BRANDING;
-  const supabase = createBrowserSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
-  if (error) throw error;
-  return normalizePlatformBranding(data);
+  return normalizePlatformBranding(await obterMarcaDaPlataforma());
 }
 
 export function PlatformBrandingProvider({ children }: { children: ReactNode }) {

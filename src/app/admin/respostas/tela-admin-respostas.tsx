@@ -13,16 +13,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import { listarAvaliacoes } from "@/lib/api/cliente";
+import {
+  listarCiclosDaPesquisa,
+  listarRespostasDoCiclo,
+  removerResposta,
+} from "@/lib/api/cliente-pessoas";
+import type { CicloDePesquisa, RespostaDoCiclo } from "@/lib/api/contratos-pessoas";
 
-type Cycle = { applicationId: string; code: string; name: string; status: string; participants: number };
-type Submission = {
-  submissionId: string; personId: string | null; fullName: string | null;
-  employeeNumber: string | null; institutionalEmail: string | null;
-  submissionType: string; status: string; submittedAt: string | null;
-  answers: number; subjectName: string | null;
-};
+type Cycle = CicloDePesquisa;
+type Submission = RespostaDoCiclo;
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Rascunho",
@@ -61,24 +62,16 @@ export default function AdminRespostasPage() {
     let active = true;
     void (async () => {
       try {
-        const supabase = createBrowserSupabaseClient();
-        // Sem lista de pesquisas própria: os ciclos vêm do catálogo administrativo,
-        // e o seletor começa no mais recente.
-        const { data, error } = await supabase.rpc("list_managed_surveys");
-        if (error) throw error;
-        const surveys = (Array.isArray(data) ? data : []) as Array<{ code: string }>;
+        // Sem lista de pesquisas própria: os ciclos vêm do catálogo
+        // administrativo, e o seletor começa no mais recente.
+        const surveys = await listarAvaliacoes();
         const found: Cycle[] = [];
         for (const survey of surveys) {
-          // O `error` desta chamada era descartado. Quando a RPC não existia no
-          // ambiente, a falha sumia e a tela dizia "Nenhum ciclo disponível" —
+          // A falha desta chamada era descartada. Quando a RPC não existia no
+          // ambiente, o erro sumia e a tela dizia "Nenhum ciclo disponível" —
           // apresentando indisponibilidade como ausência de dados, que é o tipo
           // de mentira que faz procurar o defeito no lugar errado.
-          const { data: cycleData, error: cycleError } = await supabase.rpc(
-            "fc_listar_ciclos_pesquisa",
-            { p_codigo_pesquisa: survey.code },
-          );
-          if (cycleError) throw cycleError;
-          if (Array.isArray(cycleData)) found.push(...(cycleData as Cycle[]));
+          found.push(...await listarCiclosDaPesquisa(survey.code));
         }
         if (!active) return;
         setCycles(found);
@@ -94,12 +87,7 @@ export default function AdminRespostasPage() {
     if (!code) return;
     setLoading(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("fc_listar_respostas_ciclo", {
-        p_codigo_ciclo: code, p_busca: null, p_limite: 500,
-      });
-      if (error) throw error;
-      setSubmissions((Array.isArray(data) ? data : []) as Submission[]);
+      setSubmissions(await listarRespostasDoCiclo(code, { limite: 500 }));
     } catch (loadError) {
       toast.error(errorMessageFromUnknown(loadError));
       setSubmissions([]);
@@ -155,13 +143,7 @@ export default function AdminRespostasPage() {
 
     setBusyId(submission.submissionId);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.rpc("fc_remover_resposta_pessoa", {
-        p_submissao: submission.submissionId,
-        p_modo: mode,
-        p_motivo: reason,
-      });
-      if (error) throw error;
+      await removerResposta(submission.submissionId, mode, reason);
       toast.success(anular ? "Resposta anulada e registrada na auditoria." : "Resposta apagada. A operação ficou registrada na auditoria.");
       await loadSubmissions(cycleCode);
     } catch (removeError) {

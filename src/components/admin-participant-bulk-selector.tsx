@@ -4,32 +4,23 @@ import { CheckSquare2, Loader2, Search, Square, UserRoundPlus, UsersRound } from
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirmation-provider";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  listarCiclosDeParticipantes,
+  listarPessoasDisponiveis,
+  vincularParticipantes,
+} from "@/lib/api/cliente-pessoas";
+import { errorMessageFromUnknown } from "@/lib/observability";
+import type {
+  AvaliacaoComParticipantes,
+  PessoaCandidataAoCiclo,
+} from "@/lib/api/contratos-pessoas";
 
-type ApplicationItem = {
-  id: string;
-  code: string;
-  name: string;
-  status: string;
-};
-
-type PersonSearchResult = {
-  personId: string;
-  employeeNumber: string;
-  fullName: string;
-  institutionalEmail: string | null;
-  jobTitle: string | null;
-  costCenter: string | null;
-  participantId: string | null;
-  participantStatus: string | null;
-};
-
-type BulkResult = {
-  requestedCount?: number;
-  assignedCount?: number;
-  reactivatedCount?: number;
-  skippedCount?: number;
-};
+// Os formatos vêm do contrato da API. Antes, esta tela e a de gestão individual
+// declaravam cada uma o seu `ApplicationItem` e o seu `PersonSearchResult`, a
+// partir da mesma RPC — com campos diferentes, porque cada uma copiava só o que
+// ia usar, e nenhuma sabia da outra.
+type ApplicationItem = AvaliacaoComParticipantes;
+type PersonSearchResult = PessoaCandidataAoCiclo;
 
 export function AdminParticipantBulkSelector() {
   const confirm = useConfirm();
@@ -45,14 +36,11 @@ export function AdminParticipantBulkSelector() {
   useEffect(() => {
     const load = async () => {
       try {
-        const supabase = createBrowserSupabaseClient();
-        const { data, error } = await supabase.rpc("list_admin_participant_applications");
-        if (error) throw error;
-        const rows = Array.isArray(data) ? data as ApplicationItem[] : [];
+        const rows = await listarCiclosDeParticipantes();
         setApplications(rows);
         setApplicationId(rows[0]?.id ?? "");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Não foi possível carregar as avaliações.");
+        toast.error(errorMessageFromUnknown(error) || "Não foi possível carregar as avaliações.");
       } finally {
         setLoading(false);
       }
@@ -68,16 +56,11 @@ export function AdminParticipantBulkSelector() {
     }
 
     const timeout = window.setTimeout(async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("search_admin_people_for_application", {
-        target_application_id: applicationId,
-        target_search: search.trim(),
-      });
-      if (error) {
-        toast.error(error.message);
-        return;
+      try {
+        setPeople(await listarPessoasDisponiveis(applicationId, { busca: search.trim() }));
+      } catch (searchError) {
+        toast.error(errorMessageFromUnknown(searchError) || "Não foi possível pesquisar pessoas.");
       }
-      setPeople(Array.isArray(data) ? data as PersonSearchResult[] : []);
     }, 300);
 
     return () => window.clearTimeout(timeout);
@@ -123,18 +106,11 @@ export function AdminParticipantBulkSelector() {
     if (!applicationId || selected.size === 0) return;
     setWorking(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("assign_admin_application_participants_bulk", {
-        target_application_id: applicationId,
-        target_person_ids: Array.from(selected),
-        target_access_profile: "PARTICIPANTE",
-      });
-      if (error) throw error;
-      const result = (data ?? {}) as BulkResult;
+      const result = await vincularParticipantes(applicationId, { pessoas: Array.from(selected) });
       toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já existentes.`);
       resetSearch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível vincular as pessoas selecionadas.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível vincular as pessoas selecionadas.");
     } finally {
       setWorking(false);
     }
@@ -151,17 +127,11 @@ export function AdminParticipantBulkSelector() {
 
     setAssigningAll(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.rpc("assign_admin_all_available_participants", {
-        target_application_id: applicationId,
-        target_access_profile: "PARTICIPANTE",
-      });
-      if (error) throw error;
-      const result = (data ?? {}) as BulkResult;
+      const result = await vincularParticipantes(applicationId, { todosDisponiveis: true });
       toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já vinculadas.`);
       resetSearch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível vincular todo o público disponível.");
+      toast.error(errorMessageFromUnknown(error) || "Não foi possível vincular todo o público disponível.");
     } finally {
       setAssigningAll(false);
     }
