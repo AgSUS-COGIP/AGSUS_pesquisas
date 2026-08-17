@@ -131,6 +131,8 @@ A "próxima ação" de `/area` ordena por esse estado (`IN_PROGRESS` → `PENDIN
 
 **Edição só em rascunho.** `canEdit = submission.canEdit && submission.status === "DRAFT"`. Fora disso a tela vira somente leitura — os `fieldset` são desabilitados e o botão de envio desaparece.
 
+**Ciclo anônimo se anuncia a quem responde.** `start_or_resume_my_survey_submission` devolve `anonymous` desde `20260813220000`; a tela ignorava o campo, e quem respondia não sabia em que regime estava. Hoje `/pesquisas/[applicationCode]` exibe o selo "Anônima" e o `AnonymityNotice` **antes das perguntas** — a promessa muda o que a pessoa se sente à vontade para escrever, então precisa ser lida antes de ela começar a escrever, não junto ao botão de enviar. A confirmação de envio também muda de texto: num ciclo anônimo o envio fecha a edição **e** destrói o vínculo, e é isso que torna impossível reabrir. O CDDI não é afetado — é nominal por natureza e tem jornada própria.
+
 **Envio é irreversível.** Confirmação explícita antes de `submit_*` por `await confirm({ … })` (`useConfirm()`, diálogo acessível da aplicação — não `window.confirm`), e as telas descarregam as gravações pendentes antes de enviar para não perder debounce em voo.
 
 **Painéis não respondem formulários.** `/paineis` filtra o CDDI da lista de cartões (`isCddiSurvey`) e exibe um cartão dedicado ao painel de monitoramento. Nenhum link de painel inicia ou continua preenchimento.

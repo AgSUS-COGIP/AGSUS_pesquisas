@@ -1,18 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Info, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { AnonymityNotice } from "@/components/anonymity-notice";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
+import { identificationLabel } from "@/lib/anonymity";
 import { criarAvaliacao } from "@/lib/api/cliente";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
@@ -46,7 +48,7 @@ type FormValues = z.infer<typeof schema>;
  */
 const STEPS = [
   { title: "Identificação", description: "Como a avaliação será reconhecida no catálogo institucional.", fields: ["code", "name", "description"] },
-  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts"] },
+  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts", "anonymous"] },
   { title: "Revisão", description: "Confira os dados antes de criar a avaliação.", fields: [] },
 ] as const satisfies ReadonlyArray<{ title: string; description: string; fields: ReadonlyArray<keyof FormValues> }>;
 
@@ -215,18 +217,23 @@ export default function NewSurveyPage() {
             </div>
             <div className="mt-6 grid gap-3">
               <Checkbox label="Permitir rascunhos" description="A pessoa poderá salvar e continuar depois." {...form.register("allowDrafts")} />
-              {/* A opção "Avaliação anônima" foi retirada porque o anonimato
-                  ainda não é estrutural: a submissão guarda quem respondeu, e
-                  quem administra consegue reidentificar. Oferecer a caixa com
-                  um aviso ao lado manteria a promessa na tela — quem marca
-                  raramente lê a ressalva. O banco também recusa o valor
-                  (gatilho `tba_aplicacao_anonima`). */}
-              <p className="flex items-start gap-3 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
-                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>
-                  <strong className="font-semibold">Toda avaliação é identificada.</strong> O modo anônimo está indisponível: as respostas ainda ficam vinculadas a quem respondeu, então a plataforma não pode prometer anonimato. A opção volta quando a separação entre identidade e conteúdo estiver implementada.
-                </span>
-              </p>
+              {/* A opção esteve indisponível enquanto o anonimato não era
+                  estrutural — a submissão guardava quem respondeu, e quem
+                  administrava conseguia reidentificar. Deixou de ser o caso em
+                  `20260813220000_anonimato_estrutural.sql`: o vínculo entre
+                  pessoa e submissão passou a ser destruído no envio. O aviso
+                  que ficava aqui sobreviveu à migration e passou a negar um
+                  recurso que existe.
+
+                  O bloco de efeitos fica sempre visível, e não só quando a
+                  caixa está marcada: a irreversibilidade precisa ser lida
+                  **antes** da decisão, não depois dela. */}
+              <Checkbox
+                label="Avaliação anônima"
+                description="As respostas deixam de ser atribuíveis a quem respondeu, a partir do envio."
+                {...form.register("anonymous")}
+              />
+              <AnonymityNotice variant="admin" />
             </div>
           </div>
         )}
@@ -241,9 +248,7 @@ export default function NewSurveyPage() {
                 ["Abertura planejada", reviewDateLabel(values.opensAt)],
                 ["Encerramento planejado", reviewDateLabel(values.closesAt)],
                 ["Rascunhos", values.allowDrafts ? "Permitidos" : "Não permitidos"],
-                // Sempre nominal: o modo anônimo está indisponível enquanto o
-                // anonimato não for estrutural.
-                ["Identificação", "Nominal"],
+                ["Identificação", identificationLabel(values.anonymous)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>
