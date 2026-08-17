@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   ImagePlus,
+  LogIn,
   CircleDot,
   LayoutGrid,
   Loader2,
@@ -24,6 +25,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useConfirm } from "@/components/confirmation-provider";
+import { AccessScreenPreview } from "@/components/access-screen-preview";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { platformBrandingQueryKey, usePlatformBranding } from "@/components/platform-branding-provider";
@@ -59,7 +61,9 @@ import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/plat
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   atualizarMarcaDaPlataforma,
+  definirCorDaBarraLateral,
   definirCorDoPainelDeAcesso,
+  definirTextosDaMarca,
   definirFundoDeAcesso,
   definirPerfilDaPessoa,
   obterAreaDeAcessos,
@@ -92,10 +96,15 @@ const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLA
 
 // Abas do workspace. Cada card declara sua seção e só aparece na aba
 // correspondente (ou em "Tudo") e quando casa com a busca.
-type SectionId = "brand" | "appearance" | "access";
+type SectionId = "brand" | "login" | "appearance" | "access";
 const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] = [
   { id: "all", label: "Tudo", icon: LayoutGrid },
   { id: "brand", label: "Marca", icon: Type },
+  // A tela de acesso tem aba própria porque configurá-la exigia visitar duas:
+  // os textos ficavam em Marca e a cor do painel com a arte de fundo em
+  // Aparência. São ajustes da mesma tela, e quem vai mexer nela quer ver o
+  // conjunto — com a prévia ao lado, não em duas viagens.
+  { id: "login", label: "Tela de acesso", icon: LogIn },
   { id: "appearance", label: "Aparência", icon: SwatchBook },
   { id: "access", label: "Acessos", icon: UserCog },
 ];
@@ -112,6 +121,7 @@ const LIMITE_DE_PESSOAS = 100;
 
 const SECTION_ACCENT: Record<SectionId, string> = {
   brand: "var(--brand-solid)",
+  login: "var(--brand-primary)",
   appearance: "var(--brand-secondary)",
   access: "var(--status-warning-text)",
 };
@@ -191,6 +201,25 @@ export default function PlatformSettingsPage() {
    * configuração aponta.
    */
   const [uploadingBackground, setUploadingBackground] = useState(false);
+
+  /*
+   * Os textos da tela de acesso ficam em estado local até serem salvos, e não
+   * são gravados a cada tecla como as cores.
+   *
+   * Cor é escolha instantânea num seletor; texto é redigido, revisado e às
+   * vezes abandonado no meio. Salvar a cada tecla publicaria frase incompleta
+   * na única porta de entrada da plataforma, e cada tecla seria uma escrita no
+   * banco.
+   *
+   * O estado nasce do que a marca já traz, então o campo mostra o texto vigente
+   * — inclusive quando ele é o padrão do código, para quem edita ver o que está
+   * substituindo em vez de um campo vazio.
+   */
+  const [textos, setTextos] = useState({
+    expansao: branding.productDescription,
+    saudacao: branding.accessGreeting,
+    instrucao: branding.accessInstruction,
+  });
   const accessPanelIsDark = needsLightForeground(branding.accessPanelColor);
 
   /*
@@ -207,6 +236,20 @@ export default function PlatformSettingsPage() {
       )
     : null;
   const contrastePainelAprovado = (contrastePainel ?? 0) >= WCAG_AA_NORMAL_TEXT;
+
+  /*
+   * Contraste da barra lateral, medido contra o par que ela realmente usa.
+   *
+   * Diferente do painel de acesso, aqui não há alternância automática: a barra
+   * é escura por construção e o texto dela é claro. Por isso a prévia decide o
+   * texto pela mesma regra, e o aviso mede o par exibido.
+   */
+  const corDaBarra = branding.sidebarColor;
+  const sidebarIsDark = needsLightForeground(corDaBarra ?? "#0f2942");
+  const contrasteBarra = corDaBarra
+    ? contrastRatio(sidebarIsDark ? LIGHT_FOREGROUND : DARK_FOREGROUND, corDaBarra)
+    : null;
+  const contrasteBarraAprovado = (contrasteBarra ?? 0) >= WCAG_AA_NORMAL_TEXT;
 
   /*
    * Galeria das artes já enviadas.
@@ -318,6 +361,50 @@ export default function PlatformSettingsPage() {
       setUploadingBackground(false);
     }
   }, [branding, queryClient]);
+
+  /** Grava a cor da barra lateral; `null` restaura a cor institucional. */
+  const saveSidebarColor = useCallback(async (color: string | null) => {
+    setUploadingBackground(true);
+    try {
+      await definirCorDaBarraLateral(color);
+      queryClient.setQueryData(platformBrandingQueryKey, { ...branding, sidebarColor: color });
+      toast.success(color ? "Cor da barra lateral atualizada." : "Cor institucional restaurada.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a cor.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient]);
+
+  /**
+   * Grava os três textos institucionais de uma vez.
+   *
+   * Os três vão juntos porque `fc_definir_textos_marca` grava os três: enviar
+   * um só zeraria os outros dois. Campo vazio significa restaurar o padrão do
+   * código, não apagar — a tela de entrada não pode ficar sem título.
+   */
+  const saveBrandTexts = useCallback(async () => {
+    setUploadingBackground(true);
+    try {
+      const entrada = {
+        expansao: textos.expansao.trim() || null,
+        saudacao: textos.saudacao.trim() || null,
+        instrucao: textos.instrucao.trim() || null,
+      };
+      await definirTextosDaMarca(entrada);
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding,
+        productDescription: entrada.expansao ?? DEFAULT_PLATFORM_BRANDING.productDescription,
+        accessGreeting: entrada.saudacao ?? DEFAULT_PLATFORM_BRANDING.accessGreeting,
+        accessInstruction: entrada.instrucao ?? DEFAULT_PLATFORM_BRANDING.accessInstruction,
+      });
+      toast.success("Textos da tela de acesso atualizados.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar os textos.");
+    } finally {
+      setUploadingBackground(false);
+    }
+  }, [branding, queryClient, textos]);
 
   const uploadAccessBackground = useCallback(async (file: File) => {
     // 2 MB é o limite do próprio bucket `platform-assets`. Validar aqui existe
@@ -466,9 +553,10 @@ export default function PlatformSettingsPage() {
     return tabOk && searchOk;
   };
   const brandVisible = cardVisible("brand", "marca nomes institucionais organização nome do sistema identidade");
-  const appearanceVisible = cardVisible("appearance", "aparência logotipo logo cor principal cores tema prévia menu");
+  const loginVisible = cardVisible("login", "tela de acesso login entrada saudação instrução expansão sigla cor do painel arte fundo campanha");
+  const appearanceVisible = cardVisible("appearance", "aparência logotipo logo cor principal cores tema prévia menu barra lateral");
   const accessVisible = cardVisible("access", "acessos permissões perfis pessoas segurança participante avaliador admin superadmin");
-  const visibleCount = [brandVisible, appearanceVisible, accessVisible].filter(Boolean).length;
+  const visibleCount = [brandVisible, loginVisible, appearanceVisible, accessVisible].filter(Boolean).length;
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -556,7 +644,88 @@ export default function PlatformSettingsPage() {
               </div>
               <div className="mt-5 grid gap-5 md:grid-cols-2">
                 <Input label="Organização" placeholder="AgSUS" form="config-brand-form" error={form.formState.errors.organizationName?.message} {...form.register("organizationName")} />
-                <Input label="Nome do sistema" placeholder="Avaliações" form="config-brand-form" error={form.formState.errors.productName?.message} {...form.register("productName")} />
+                <Input label="Nome do sistema" placeholder="SIGAV" form="config-brand-form" error={form.formState.errors.productName?.message} {...form.register("productName")} />
+              </div>
+
+            </section>
+          ) : null}
+
+          {/* TELA DE ACESSO */}
+          {loginVisible ? (
+            <section data-config-section="login" className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6" style={{ borderTopColor: SECTION_ACCENT.login }}>
+              <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] pb-4">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-info-bg)] text-[var(--status-info-text)]"><LogIn className="h-5 w-5" aria-hidden="true" /></span>
+                <div>
+                  <h3 className="text-base font-black text-[var(--text-primary)]">Tela de acesso</h3>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">O que quem ainda não entrou vê. A prévia acompanha o que você digita, antes de salvar.</p>
+                </div>
+              </div>
+
+              {/*
+                Formulário à esquerda, prévia à direita, e a prévia é `sticky`:
+                a seção é alta, e uma prévia que rolasse para fora da tela ao
+                editar o terceiro campo não serviria para nada.
+              */}
+              <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_20rem]">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">Textos</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                    Deixar um campo vazio restaura o texto padrão — a tela nunca fica sem título.
+                  </p>
+
+                  <div className="mt-4 grid gap-4">
+                    <Input
+                      label="Expansão da sigla"
+                      hint="Exibida abaixo da assinatura. Até 120 caracteres."
+                      maxLength={120}
+                      value={textos.expansao}
+                      onChange={(event) => setTextos((atual) => ({ ...atual, expansao: event.target.value }))}
+                    />
+                    <Input
+                      label="Saudação"
+                      hint="Título de maior destaque do cartão. Até 80 caracteres."
+                      maxLength={80}
+                      value={textos.saudacao}
+                      onChange={(event) => setTextos((atual) => ({ ...atual, saudacao: event.target.value }))}
+                    />
+                    <Input
+                      label="Instrução"
+                      hint="Linha abaixo da saudação. Até 120 caracteres."
+                      maxLength={120}
+                      value={textos.instrucao}
+                      onChange={(event) => setTextos((atual) => ({ ...atual, instrucao: event.target.value }))}
+                    />
+                  </div>
+
+                  {/*
+                    Botão próprio, e não o "Salvar alterações" do rodapé: aquele
+                    chama `fc_atualizar_marca_plataforma`, que não conhece estes
+                    campos. Ligá-lo aqui faria a tela mostrar sucesso sem que o
+                    texto mudasse.
+                  */}
+                  <div className="mt-4 flex justify-end">
+                    <Button type="button" disabled={uploadingBackground} onClick={() => void saveBrandTexts()}>
+                      {uploadingBackground ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                      Salvar textos
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="lg:sticky lg:top-4 lg:self-start">
+                  <p className="section-eyebrow">Prévia</p>
+                  <AccessScreenPreview
+                    className="mt-3"
+                    organizationName={watchedOrganization}
+                    productDescription={textos.expansao || DEFAULT_PLATFORM_BRANDING.productDescription}
+                    greeting={textos.saudacao || DEFAULT_PLATFORM_BRANDING.accessGreeting}
+                    instruction={textos.instrucao || DEFAULT_PLATFORM_BRANDING.accessInstruction}
+                    panelColor={branding.accessPanelColor}
+                    backgroundUrl={branding.accessBackgroundUrl ?? "/acesso-fundo.png"}
+                  />
+                  <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
+                    Reprodução em escala menor. A arte e a cor do painel são configuradas em Aparência.
+                  </p>
+                </div>
               </div>
             </section>
           ) : null}
@@ -820,6 +989,78 @@ export default function PlatformSettingsPage() {
                             {contrastePainelAprovado
                               ? `Atinge o mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA.`
                               : `Abaixo do mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA — quem tem baixa visão pode não conseguir ler. Uma cor mais escura resolve sem mudar o tom.`}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/*
+                      Cor da barra lateral.
+
+                      Fica junto da cor do painel de acesso porque as duas são
+                      "cor de superfície escolhida por quem administra", e não
+                      cor de identidade — esta última é a Cor principal, logo
+                      abaixo, aplicada em botões e navegação ativa.
+                    */}
+                    <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">Cor da barra lateral</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                        Fundo do menu à esquerda em toda a aplicação. Sem cor definida, vale a institucional.
+                      </p>
+
+                      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <input
+                          type="color"
+                          aria-label="Cor da barra lateral"
+                          value={branding.sidebarColor ?? "#0f2942"}
+                          onChange={(event) => void saveSidebarColor(event.target.value)}
+                          disabled={uploadingBackground}
+                          className="h-12 w-16 shrink-0 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1"
+                        />
+
+                        <div
+                          className="flex-1 rounded-xl border border-[var(--border-subtle)] p-4"
+                          style={{ backgroundColor: branding.sidebarColor ?? "#0f2942" }}
+                        >
+                          <p className={`text-[10px] font-black uppercase tracking-[.12em] ${sidebarIsDark ? "text-white/60" : "text-slate-600"}`}>Principal</p>
+                          <p className={`mt-2 text-sm font-bold ${sidebarIsDark ? "text-white" : "text-[#003b70]"}`}>Visão geral</p>
+                        </div>
+
+                        {branding.sidebarColor ? (
+                          <button
+                            type="button"
+                            onClick={() => void saveSidebarColor(null)}
+                            disabled={uploadingBackground}
+                            className="inline-flex min-h-10 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] disabled:opacity-60"
+                          >
+                            Restaurar institucional
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {/*
+                        Mesmo aviso da cor do painel, e pelo mesmo motivo: a
+                        barra lateral tem texto claro por construção, então cor
+                        clara demais ali apaga a navegação inteira sem que nada
+                        reclame.
+                      */}
+                      {contrasteBarra !== null && (
+                        <p
+                          role="status"
+                          className={`mt-3 flex items-start gap-2 rounded-lg p-3 text-xs leading-5 ${
+                            contrasteBarraAprovado
+                              ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                              : "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
+                          }`}
+                        >
+                          {contrasteBarraAprovado
+                            ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                            : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+                          <span>
+                            Contraste do texto sobre esta cor: <strong className="font-bold">{contrasteBarra.toFixed(2)}</strong>.{" "}
+                            {contrasteBarraAprovado
+                              ? `Atinge o mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA.`
+                              : `Abaixo do mínimo de ${WCAG_AA_NORMAL_TEXT} da WCAG AA — os nomes do menu podem ficar ilegíveis.`}
                           </span>
                         </p>
                       )}

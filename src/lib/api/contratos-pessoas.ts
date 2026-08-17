@@ -337,3 +337,16 @@ export type DefinirFundoAcessoEntrada = {
 export type DefinirCorPainelEntrada = {
   cor: string | null;
 };
+
+/**
+ * Corpo de `PUT /api/plataforma/marca/textos`.
+ *
+ * Os três campos vão juntos porque `fc_definir_textos_marca` grava os três de
+ * uma vez: enviar só um zeraria os outros dois. A tela sempre manda o conjunto
+ * completo, mesmo que a pessoa tenha alterado um só.
+ */
+export type DefinirTextosMarcaEntrada = {
+  expansao: string | null;
+  saudacao: string | null;
+  instrucao: string | null;
+};

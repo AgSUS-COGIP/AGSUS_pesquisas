@@ -472,17 +472,22 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
           </p>
 
           {/*
-            Saudação, e não mais o nome do sistema repetido. O nome já aparece
-            duas vezes acima — na assinatura e na expansão —, então usá-lo aqui
-            pela terceira vez era gastar a linha de maior destaque do cartão
-            para não dizer nada novo. É a mesma escolha do SIGEPSI, que reserva
+            Saudação e instrução saem da marca configurada desde
+            `20260817160000`. Antes estavam escritas aqui, e mudar a recepção de
+            quem entra na plataforma exigia deploy. Campo vazio no banco cai no
+            padrão: a tela de entrada nunca fica sem título.
+
+            O texto é saudação, e não o nome do sistema repetido. O nome já
+            aparece duas vezes acima — na assinatura e na expansão —, então
+            usá-lo aqui pela terceira vez gastaria a linha de maior destaque do
+            cartão para não dizer nada novo. É a mesma escolha do SIGEPSI, que reserva
             este lugar para receber a pessoa.
           */}
           <h1 className={`mt-5 text-xl font-black tracking-tight lg:text-2xl ${lightOnPanel ? "text-white" : "text-[#003b70]"}`}>
-            Seja bem-vindo(a) à {branding.organizationName}
+            {branding.accessGreeting}
           </h1>
           <p className={`mt-1.5 text-sm leading-6 ${lightOnPanel ? "text-white/80" : "text-slate-600"}`}>
-            Acesse com sua conta institucional.
+            {branding.accessInstruction}
           </p>
 
           <button
