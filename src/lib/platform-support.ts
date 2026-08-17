@@ -1,9 +1,10 @@
+import { DEFAULT_PLATFORM_BRANDING, platformBrandingTitle } from "./platform-branding";
 import { PLATFORM_MODULE, type PlatformModule } from "./platform-modules";
 
 /** Canal institucional de suporte da plataforma. */
 export const PLATFORM_SUPPORT_EMAIL = "dados.recursoshumanos@agenciasus.org.br";
 
-const SUPPORT_SUBJECT = "Suporte — AgSUS Avaliações";
+const SUPPORT_SUBJECT = `Suporte — ${platformBrandingTitle(DEFAULT_PLATFORM_BRANDING)}`;
 
 /**
  * Link de e-mail para o canal de suporte, com assunto já preenchido.

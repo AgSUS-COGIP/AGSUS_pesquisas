@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { AppProviders } from "@/components/app-providers";
+import { DEFAULT_PLATFORM_BRANDING } from "@/lib/platform-branding";
 import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
@@ -10,12 +11,24 @@ import "./dark-theme.css";
 import "./sidebar-monitora.css";
 import "./monitor-dashboard.css";
 
+/*
+  O título sai de `DEFAULT_PLATFORM_BRANDING`, e não de texto repetido à mão.
+  Não é a marca configurada: `metadata` é estático e não lê o banco, então
+  renomear o produto em /admin/configuracoes muda o cabeçalho da aplicação e
+  **não** muda o título da aba. A dívida está descrita em
+  `src/lib/platform-branding.ts`; derivar da constante ao menos garante que o
+  nome apareça igual em todo lugar que não pode consultar o banco.
+*/
 export const metadata: Metadata = {
   title: {
-    default: "AgSUS Avaliações",
-    template: "%s | AgSUS",
+    // Só a sigla na aba: o favicon ao lado já é a cruz da AgSUS, e repetir
+    // "AgSUS" no texto gastava o espaço da aba dizendo duas vezes a mesma
+    // coisa. O nome completo continua no cabeçalho da aplicação e na tela de
+    // acesso, onde há largura para ele.
+    default: DEFAULT_PLATFORM_BRANDING.productName,
+    template: `%s | ${DEFAULT_PLATFORM_BRANDING.productName}`,
   },
-  description: "Plataforma institucional de avaliações e formulários da AgSUS.",
+  description: `${DEFAULT_PLATFORM_BRANDING.productDescription} — plataforma institucional de pesquisas e avaliações da ${DEFAULT_PLATFORM_BRANDING.organizationName}.`,
   icons: {
     icon: "/agsus-logo.png",
     shortcut: "/agsus-logo.png",
