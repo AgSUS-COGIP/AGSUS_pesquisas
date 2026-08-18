@@ -38,8 +38,8 @@ components/
 ├── cddi-platform-frame.tsx       moldura de página inteira das telas do CDDI
 ├── cddi-scroll-boundary.tsx      invólucro estático da rota /cddi
 ├── people-base-summary.tsx       retrato da base mestra de pessoas
-├── admin-participant-management.tsx     participantes por pesquisa
-├── admin-participant-bulk-selector.tsx  vinculação em lote
+├── admin-participant-linker.tsx         vincular pessoas a uma avaliação
+├── admin-participant-roster.tsx         lista de quem já está vinculado
 ├── admin-people-teams-management.tsx    pessoas, dados funcionais, lideranças
 └── ui/                           primitivos do design system
     ├── surface.tsx      Surface · PageHeader · StatCard

@@ -577,7 +577,7 @@ Nenhum destes arquivos é importado por código de produção:
 
 | Arquivo | Situação |
 |---|---|
-| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-management.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
+| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-roster.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
 | [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
 
 **Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.

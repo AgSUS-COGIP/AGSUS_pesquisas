@@ -26,7 +26,8 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin/pesquisas/[surveyId]` | `pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx` | `ADMIN_SURVEYS` | `/api/avaliacoes/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `DELETE /api/avaliacoes/[id]` |
 | `/admin/pesquisas/[surveyId]/identidade` | `pesquisas/[surveyId]/identidade/tela-admin-identidade-visual.tsx` | `ADMIN_SURVEYS` | `GET`/`PUT /api/avaliacoes/[id]/identidade-visual`; upload direto no storage `survey-assets` |
 | `/admin/pesquisas/[surveyId]/operacao` | `pesquisas/[surveyId]/operacao/tela-admin-operacao-ciclo.tsx` | `ADMIN_SURVEYS` | `GET`/`POST /api/avaliacoes/[id]/ciclo` → `get_survey_operations`, `manage_survey_cycle` |
-| `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `list_admin_application_participants`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants`, `create_and_assign_admin_participant`, `set_admin_application_participant_status` |
+| `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants` |
+| `/admin/participantes/todos` | `participantes/todos/tela-admin-participantes-todos.tsx` | `ADMIN_PARTICIPANTS` | `list_admin_participant_applications`, `list_admin_application_participants`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
 | `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
@@ -131,15 +132,16 @@ O mesmo vale **dentro** de `survey_sections`, que referencia a si mesma com `on 
 
 ### Gestão de participantes
 
-Três blocos independentes na mesma página:
+Duas rotas, cada uma com **um** par de campos (avaliação + busca):
 
-1. `PeopleBaseSummaryCard` — retrato da base mestra.
-2. `AdminParticipantBulkSelector` — vinculação em lote, incluindo "todos os disponíveis".
-3. `AdminParticipantManagement` — busca individual, vinculação, criação avulsa e mudança de status (bloquear, reativar, excluir).
+- `/admin/participantes` — `PeopleBaseSummaryCard` (retrato da base mestra) e `AdminParticipantLinker`: escolher a avaliação, buscar na base institucional e vincular, seja por seleção múltipla ou por "todos os disponíveis". A tela só vincula quem já está na base — cadastrar pessoa nova é fluxo de importação, não desta tela. Ao fim da página, um botão leva à visualização completa, levando a avaliação escolhida em `?avaliacao=`.
+- `/admin/participantes/todos` — `AdminParticipantRoster`: lista de quem já está vinculado, com filtro por situação e as ações de bloquear, reativar e remover. **Não vincula ninguém.**
+
+A separação é deliberada. Antes, `AdminParticipantBulkSelector` e `AdminParticipantManagement` conviviam na mesma página, cada um com o seu seletor de avaliação e o seu campo de busca sobre a **mesma** RPC — três campos de vínculo ao todo, dois estados de `applicationId` que podiam divergir, e nenhuma pista de qual valia. Hoje há um seletor por rota, e escolher a avaliação num lugar não contradiz o outro.
 
 **Regra da arquitetura:** a base mestra de pessoas e o público de uma pesquisa são decisões separadas. A importação atualiza só a base; vincular alguém a um ciclo é ato explícito do administrador.
 
-**Seletor não oferece ciclo de avaliação arquivada nem ciclo cancelado** (`20260817120000_seletores_respeitam_arquivamento.sql`). `CANCEL` arquiva a avaliação (`surveys.dt_arquivamento`) e `list_managed_surveys` já respeitava isso, mas `list_admin_participant_applications` **não fazia join com `public.surveys`** — não tinha como saber. Como ela ordena por `code` e os três componentes fazem `setApplicationId(rows[0]?.id)`, um ciclo cancelado de código anterior no alfabeto virava a **seleção padrão** de `/admin/participantes` e `/admin/equipes`; foi o que aconteceu com `BOMDIA-1`. E não sairia sozinho: `fc_expirar_pesquisas_arq` preserva arquivada que já teve versão publicada. A mesma regra passou a valer em `fc_listar_ciclos_lideranca` e em `fc_obter_ciclo_cddi_vigente` — "vigente" não pode ser cancelado.
+**Seletor não oferece ciclo de avaliação arquivada nem ciclo cancelado** (`20260817120000_seletores_respeitam_arquivamento.sql`). `CANCEL` arquiva a avaliação (`surveys.dt_arquivamento`) e `list_managed_surveys` já respeitava isso, mas `list_admin_participant_applications` **não fazia join com `public.surveys`** — não tinha como saber. Como ela ordena por `code` e cada componente faz `setApplicationId(rows[0]?.id)`, um ciclo cancelado de código anterior no alfabeto virava a **seleção padrão** de `/admin/participantes` e `/admin/equipes`; foi o que aconteceu com `BOMDIA-1`. E não sairia sozinho: `fc_expirar_pesquisas_arq` preserva arquivada que já teve versão publicada. A mesma regra passou a valer em `fc_listar_ciclos_lideranca` e em `fc_obter_ciclo_cddi_vigente` — "vigente" não pode ser cancelado.
 
 `fc_listar_ciclos_pesquisa` ficou **de fora de propósito**: alimenta o painel e `/admin/respostas`, superfícies de leitura sobre uma avaliação já escolhida. Esconder ciclo cancelado ali esconderia respostas coletadas antes do cancelamento. Ao criar seletor novo, a pergunta é "esta tela **age** sobre o ciclo?" — se sim, filtre; se só lê, não.
 
