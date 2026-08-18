@@ -1,7 +1,6 @@
 "use client";
 
-import { AdminParticipantBulkSelector } from "@/components/admin-participant-bulk-selector";
-import { AdminParticipantManagement } from "@/components/admin-participant-management";
+import { AdminParticipantLinker } from "@/components/admin-participant-linker";
 import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -34,12 +33,11 @@ export default function AdminParticipantsPage() {
       <PageHeader
         eyebrow="Gestão por avaliação"
         title="Defina quem pode responder"
-        description="A base institucional reúne as pessoas disponíveis. Selecione uma avaliação e vincule somente quem deve respondê-la, individualmente ou em lote."
+        description="A base institucional reúne as pessoas disponíveis. Escolha a avaliação, busque quem deve respondê-la e vincule. Para conferir o público já definido, abra a visualização completa ao fim da página."
       />
 
       <PeopleBaseSummaryCard />
-      <AdminParticipantBulkSelector />
-      <AdminParticipantManagement />
+      <AdminParticipantLinker />
     </div>
   </PlatformShell>;
 }
