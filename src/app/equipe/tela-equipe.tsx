@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, CheckCircle2, ClipboardCheck, Clock3, Hourglass, Search, UserMinus, UserPlus, UsersRound, X } from "lucide-react";
+import { ArrowDownUp, ArrowRight, CheckCircle2, ClipboardCheck, Clock3, Hourglass, ListChecks, Search, UserMinus, UserPlus, UsersRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -18,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
+import { saveCddiBatchQueue } from "@/lib/cddi-batch-queue";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { cycleStatusLabel } from "@/lib/survey-status-labels";
 import {
@@ -78,6 +80,7 @@ export default function TeamPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.TEAM);
   const granted = guard.state === "granted";
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [sortMode, setSortMode] = useState<SortMode>("PRIORITY");
@@ -85,6 +88,16 @@ export default function TeamPage() {
   const [candidateSearch, setCandidateSearch] = useState("");
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [selectedCycleCode, setSelectedCycleCode] = useState<string | null>(null);
+  // O modo de lote chega por `?modo=lote` (escolhido em "Avaliar minha equipe",
+  // no CDDI) mas também pode ser ligado direto aqui, por quem já está na tela.
+  // Lido por `window.location.search` dentro de efeito, e não por
+  // `useSearchParams()`, que exigiria um limite de Suspense nesta tela.
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("modo") === "lote") setBatchMode(true);
+  }, []);
   const deferredCandidateSearch = useDeferredValue(candidateSearch);
   const cyclesQuery = useQuery({
     queryKey: teamCyclesKey,
@@ -151,9 +164,50 @@ export default function TeamPage() {
     try {
       await retirarIntegrante(member.linkId);
       toast.success(`${member.fullName} foi retirado(a) da equipe.`);
+      // Quem sai da equipe sai também da seleção do lote — senão o contador
+      // da barra somaria uma pessoa que a fila não tem como incluir.
+      setSelectedMemberIds((current) => {
+        if (!current.has(member.personId)) return current;
+        const next = new Set(current);
+        next.delete(member.personId);
+        return next;
+      });
       await queryClient.invalidateQueries({ queryKey: ["team", "workspace"] });
     } catch (removeError) { toast.error(errorMessageFromUnknown(removeError) || "Não foi possível retirar a pessoa."); }
     finally { setWorkingId(null); }
+  }
+
+  function toggleBatchMode() {
+    setBatchMode((current) => !current);
+    setSelectedMemberIds(new Set());
+  }
+  function toggleMemberSelected(personId: string) {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+      if (next.has(personId)) next.delete(personId); else next.add(personId);
+      return next;
+    });
+  }
+  // O grupo leva TODOS os selecionados, não só os visíveis: quem marca três
+  // pessoas e depois muda o filtro ou a busca não pode perder seleção em
+  // silêncio — a barra diria "3 selecionados" e o grupo abriria com menos.
+  // A avaliação é preenchida uma única vez, na primeira pessoa da lista em
+  // tela; no envio, as mesmas respostas são replicadas para os demais.
+  //
+  // O grupo vai por sessionStorage, não pela URL: dezenas de UUIDs na query
+  // string estouram o limite de cabeçalho do servidor (HTTP 431).
+  function startBatchEvaluation(orderedMembers: TeamMember[]) {
+    const visible = orderedMembers.filter((member) => selectedMemberIds.has(member.personId));
+    const visibleIds = new Set(visible.map((member) => member.personId));
+    const hidden = (workspace?.members ?? []).filter((member) => selectedMemberIds.has(member.personId) && !visibleIds.has(member.personId));
+    const queue = [...visible, ...hidden];
+    if (!queue.length) return;
+    const cycleCode = workspace?.application?.code ?? null;
+    if (!saveCddiBatchQueue({ cycleCode, personIds: queue.map((member) => member.personId) })) {
+      toast.error("Não foi possível preparar o lote neste navegador. Avalie uma pessoa por vez.");
+      return;
+    }
+    router.push(`/cddi/chefia/${queue[0].personId}${cycleCode ? `?ciclo=${encodeURIComponent(cycleCode)}` : ""}`);
   }
 
   if (guard.state !== "granted") {
@@ -191,6 +245,14 @@ export default function TeamPage() {
               {workspace.application.code} · {cycleStatusLabel(cycleStatus)}
             </Badge>
           )}
+          <Button
+            variant="secondary"
+            onClick={toggleBatchMode}
+            title={batchMode ? "Sair da seleção múltipla" : "Selecionar vários integrantes e enviar as mesmas respostas para todos"}
+          >
+            <ListChecks className="h-4 w-4" aria-hidden="true" />
+            {batchMode ? "Cancelar seleção" : "Avaliar vários de uma vez"}
+          </Button>
           {cycles.length >= 2 && (
             <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
               <span>Ciclo</span>
@@ -282,6 +344,20 @@ export default function TeamPage() {
           </div>
         </div>
 
+        {batchMode && !loadingTeam && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              {selectedMemberIds.size === 0
+                ? "Marque quem você quer avaliar em grupo — a avaliação é preenchida uma vez e as mesmas respostas valem para todos."
+                : `${selectedMemberIds.size} ${selectedMemberIds.size === 1 ? "integrante selecionado" : "integrantes selecionados"} — as mesmas respostas serão enviadas para ${selectedMemberIds.size === 1 ? "essa pessoa" : "todos"}.`}
+            </span>
+            <Button disabled={!selectedMemberIds.size} onClick={() => startBatchEvaluation(filtered)}>
+              Iniciar avaliação em grupo
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+
         <div className="mt-5">
           {loadingTeam ? (
             <div className="grid gap-3" aria-busy="true">
@@ -295,7 +371,21 @@ export default function TeamPage() {
                 return (
                   <li key={member.linkId}>
                     <article className="grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 transition hover:border-[var(--border-strong)] lg:grid-cols-[auto_1fr_auto_auto] lg:items-center">
-                      <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-sm" />
+                      <div className="flex items-center gap-3">
+                        {batchMode && (
+                          <label className="inline-flex shrink-0 cursor-pointer items-center" title={state === "SUBMITTED" ? `Avaliação de ${member.fullName} já enviada — não é possível incluir no lote` : `Selecionar ${member.fullName} para o lote`}>
+                            <span className="sr-only">Selecionar {member.fullName} para o lote</span>
+                            <input
+                              type="checkbox"
+                              checked={selectedMemberIds.has(member.personId)}
+                              disabled={state === "SUBMITTED"}
+                              onChange={() => toggleMemberSelected(member.personId)}
+                              className="h-5 w-5 rounded border-[var(--border-subtle)] accent-[var(--brand-solid)] disabled:cursor-not-allowed disabled:opacity-40"
+                            />
+                          </label>
+                        )}
+                        <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-sm" />
+                      </div>
                       <div className="min-w-0">
                         <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{member.fullName}</strong>
                         <p className="mt-1 truncate text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle ?? "Cargo não informado"}</p>
