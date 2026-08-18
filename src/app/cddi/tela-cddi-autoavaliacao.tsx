@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
@@ -10,6 +11,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { SurveyBanner } from "@/components/survey-banner";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/overlay-panel";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -95,6 +97,8 @@ export default function CddiFormPage() {
   */
   const guard = usePlatformGuard();
   const podeAvaliarEquipe = guard.state === "granted" && guard.modules.includes(PLATFORM_MODULE.TEAM);
+  const router = useRouter();
+  const [teamModeDialogOpen, setTeamModeDialogOpen] = useState(false);
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [identity, setIdentity] = useState<IdentityContext | null>(null);
@@ -404,19 +408,47 @@ export default function CddiFormPage() {
                 <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Avalie suas próprias competências neste ciclo.</span>
               </button>
               {podeAvaliarEquipe ? (
-                <Link
-                  href="/equipe"
+                <button
+                  type="button"
+                  onClick={() => setTeamModeDialogOpen(true)}
                   className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
                 >
                   <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
                   <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Avaliar minha equipe</strong>
                   <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Veja pendentes, rascunhos e avaliações já concluídas.</span>
-                </Link>
+                </button>
               ) : null}
             </div>
           </section>
         </div>
       </div>
+      <Dialog
+        open={teamModeDialogOpen}
+        onOpenChange={setTeamModeDialogOpen}
+        title="Avaliar minha equipe"
+        description="Escolha se quer avaliar um colaborador por vez ou vários de uma só vez, com as mesmas respostas."
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => router.push("/equipe")}
+            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+          >
+            <UserRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+            <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Um colaborador por vez</strong>
+            <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Abra a lista da equipe e escolha quem avaliar agora.</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/equipe?modo=lote")}
+            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-5 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+          >
+            <UsersRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
+            <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Vários de uma só vez</strong>
+            <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Selecione várias pessoas, preencha uma única avaliação e envie as mesmas respostas para todas.</span>
+          </button>
+        </div>
+      </Dialog>
       <CompletionCelebration
         open={celebrate}
         onClose={() => setCelebrate(false)}
