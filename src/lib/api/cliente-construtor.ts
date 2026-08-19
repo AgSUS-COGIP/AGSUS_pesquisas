@@ -128,6 +128,14 @@ export function executarAcaoDoCiclo(avaliacaoId: string, entrada: AcaoCicloEntra
   });
 }
 
+/** Liga ou desliga o envio de e-mails automáticos aos participantes do ciclo. */
+export function definirNotificacaoEmail(avaliacaoId: string, enabled: boolean) {
+  return chamar<unknown>(`/api/avaliacoes/${avaliacaoId}/notificacoes`, {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 /** Regras condicionais já gravadas na versão do instrumento. */
 export function listarRegrasCondicionais(avaliacaoId: string, versaoId: string) {
   return chamar<RegraCondicional[]>(

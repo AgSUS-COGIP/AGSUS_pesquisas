@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
+import { dispatchParticipantEmails } from "@/app/api/tarefas/emails/despachador";
 import type { AcaoCicloEntrada, OperacaoCiclo } from "@/lib/api/contratos-construtor";
 
 /**
@@ -71,6 +72,24 @@ export async function POST(
   });
 
   if (error) return respostaDeErro(error, "POST /api/avaliacoes/[id]/ciclo");
+
+  // Abertura pela mão do operador despacha os e-mails de abertura na hora,
+  // sem esperar o cron. `after()` roda depois da resposta; a decisão de quem
+  // recebe continua toda no banco, então disparar sem necessidade é inócuo —
+  // e com a configuração de e-mail ausente o despacho apenas se declara
+  // pulado. Ciclo agendado abre preguiçosamente e fica a cargo do cron.
+  if (action === "OPEN" || action === "REOPEN") {
+    after(async () => {
+      try {
+        const result = await dispatchParticipantEmails();
+        if (result.status === "skipped") {
+          console.warn("[emails] despacho pós-abertura pulado; configuração ausente:", result.missingConfiguration.join(", "));
+        }
+      } catch (dispatchError) {
+        console.error("[emails] despacho pós-abertura falhou:", dispatchError);
+      }
+    });
+  }
 
   return NextResponse.json(data);
 }

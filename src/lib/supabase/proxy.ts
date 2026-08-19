@@ -10,12 +10,18 @@ import { NextResponse, type NextRequest } from "next/server";
 // seria redirecionado para a própria tela de login e nunca chegaria. A rota se
 // defende por outros meios — checagem de mesma origem e limite de 16 KB na
 // própria rota — e grava numa tabela sem leitura para `authenticated`.
+//
+// `/api/tarefas/emails` também é necessidade: quem a chama é o cron da
+// Vercel, que não tem sessão institucional. A rota se defende sozinha pelo
+// `CRON_SECRET` (sem o segredo correto, 401; sem o segredo configurado, 503)
+// e toda a decisão de negócio fica em RPC restrita ao service role.
 const PUBLIC_PATHS = new Set([
   "/",
   "/acesso",
   "/auth/confirm",
   "/api/health",
   "/api/observability/errors",
+  "/api/tarefas/emails",
 ]);
 
 function isPublicPath(pathname: string) {

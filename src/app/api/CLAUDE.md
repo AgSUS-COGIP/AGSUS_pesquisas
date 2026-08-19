@@ -14,7 +14,7 @@ Expor o acesso ao banco como rotas REST e executar o que **não pode** acontecer
 
 Estas quatro decisões são **transversais**: valem para as ~50 rotas de domínio e por isso estão aqui, uma vez, em vez de repetidas no cabeçalho de cada arquivo. Um comentário local só se justifica quando a rota **foge** delas.
 
-1. **Sessão do usuário, nunca service role.** Toda rota de domínio usa `createServerSupabaseClient()` — chave publicável com o cookie de quem chamou. RLS e as checagens dentro das RPCs continuam valendo, então defeito na rota não vira vazamento. `createAdminSupabaseClient()` fica restrito a `/api/observability/errors`, que grava sem sessão por necessidade.
+1. **Sessão do usuário, nunca service role.** Toda rota de domínio usa `createServerSupabaseClient()` — chave publicável com o cookie de quem chamou. RLS e as checagens dentro das RPCs continuam valendo, então defeito na rota não vira vazamento. `createAdminSupabaseClient()` fica restrito às rotas de infraestrutura que operam sem sessão por necessidade: `/api/observability/errors` e `/api/tarefas/emails`.
 2. **A regra de negócio não sobe para a rota.** O handler valida **forma** (campo presente, UUID bem formado) e chama a RPC. Período, escopo, papel, anonimato e integridade são revalidados pelo banco, que é a autoridade. Repetir a regra aqui criaria duas fontes que divergiriam na primeira correção.
 3. **Erro do Postgres vira status HTTP** por `respostaDeErro()` (`@/lib/api/resposta-http`), único tradutor. Em 4xx a mensagem do banco é repassada — as RPCs escrevem em português voltado ao operador; em 5xx não, porque pode carregar nome de coluna ou dado de outra pessoa.
 4. **Leitura que materializa estado não é cacheável.** `get_survey_operations`, `list_my_survey_catalog` e `get_public_survey_form` chamam `fc_abrir_ciclos_agendados()` antes de responder — a abertura de ciclo agendado é preguiçosa, já que o projeto não tem job agendado. As rotas que as expõem declaram `export const dynamic = "force-dynamic"`.
@@ -26,7 +26,8 @@ Não seguem as regras acima — cada uma tem autorização própria, pelo motivo
 | Rota | Método | Runtime | Autorização | Finalidade |
 |---|---|---|---|---|
 | `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica se as variáveis públicas e administrativas do Supabase existem. `200 ok` ou `503 degraded` com `missingConfiguration`. |
-| `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. **Única rota com service role.** |
+| `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. Usa service role. |
+| `/api/tarefas/emails` | `GET` | Node (`force-dynamic`) | `Authorization: Bearer CRON_SECRET` | Despacha os e-mails automáticos aos participantes (abertura e 24 h finais), por SMTP institucional (`@/config/email`) — não por provedor de terceiro. Chamada pelo cron da Vercel (`vercel.json`) e pelo `after()` de `POST …/ciclo` ao abrir um ciclo. Usa service role; quem decide quem recebe é `fc_reivindicar_emails()`. Sem `CRON_SECRET`, `503`; sem `SMTP_APP_PASSWORD`/`NEXT_PUBLIC_SITE_URL`, responde `skipped`. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
@@ -37,7 +38,7 @@ Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recur
 | Recurso | Rotas | Cliente |
 |---|---|---|
 | Avaliações | `/api/avaliacoes`, `/api/avaliacoes/[id]`, `…/copia` | `cliente.ts` |
-| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo` | `cliente-construtor.ts` |
+| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo`, `…/notificacoes` | `cliente-construtor.ts` |
 | Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
 | Equipe | `/api/equipe`, `…/ciclos`, `…/candidatos`, `…/membros` | `cliente-pessoas.ts` |
 | Jornada de resposta | `/api/formularios/[codigo]`, `/api/submissoes/**`, `/api/ciclos/[codigo]/regras`, `/api/meu/**` | `cliente-runtime.ts` |
@@ -109,7 +110,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - [@/lib/supabase/server](../../lib/CLAUDE.md) — `createServerSupabaseClient()`, cliente por cookie. **É o cliente de toda rota de domínio.**
 - [@/lib/api/resposta-http](../../lib/CLAUDE.md) — `respostaDeErro()`, `respostaDeEntradaInvalida()`, `statusDoErroPostgres()`.
 - [@/lib/api/validacao](../../lib/CLAUDE.md) — `ehUuid()`.
-- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, e só por `/api/observability/errors` e `/api/health`.**
+- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, e só por `/api/observability/errors`, `/api/health` e `/api/tarefas/emails`.**
 - [@/lib/auth-callback](../../lib/CLAUDE.md) — `safeAuthNext()`, `pkceExchangeOptions()`.
 
 ## Convenções específicas

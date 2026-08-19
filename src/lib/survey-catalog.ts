@@ -28,8 +28,12 @@ export type SurveyItemState = "COMPLETED" | "IN_PROGRESS" | "CLOSED" | "SCHEDULE
  *
  * O CDDI tem jornada própria porque exige seleção de chefia imediata e avaliação
  * de liderança; qualquer outro instrumento usa o runtime genérico.
+ *
+ * O parâmetro aceita só os dois campos usados de propósito: o e-mail de
+ * notificação aos participantes monta o mesmo link sem ter um item de
+ * catálogo completo em mãos — e a regra de roteamento precisa ser uma só.
  */
-export function surveyApplicationHref(item: SurveyCatalogItem) {
+export function surveyApplicationHref(item: Pick<SurveyCatalogItem, "surveyCode" | "applicationCode">) {
   return item.surveyCode === "CDDI" ? "/cddi" : `/pesquisas/${encodeURIComponent(item.applicationCode)}`;
 }
 

@@ -92,6 +92,7 @@ app/**  →  components/**  →  components/ui/**
 
 app/api/**  →  lib/supabase/admin   (service role — nunca no cliente)
             →  lib/supabase/server  (sessão do administrador → papel)
+            →  config/**            (parâmetros fixos de infraestrutura, ex. SMTP)
 src/proxy.ts →  lib/supabase/proxy
 ```
 
@@ -101,6 +102,7 @@ Invariantes a preservar:
 - `src/components/ui/**` não conhece Supabase nem regras de negócio.
 - `lib/supabase/admin.ts` só é importado por `src/app/api/**`.
 - Função pura vai para `src/lib`; hook que consulta o Supabase vai para `src/hooks`.
+- `src/config/**` guarda só parâmetro estrutural (host, porta, remetente) — nunca segredo. Credencial de verdade vem de variável de ambiente, mesmo quando o restante da configuração do mesmo recurso está fixado em código.
 
 ## Comandos
 
