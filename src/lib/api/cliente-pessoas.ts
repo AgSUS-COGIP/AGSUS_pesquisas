@@ -7,6 +7,7 @@ import type {
   CandidatoDaEquipe,
   CicloDeLideranca,
   CicloDePesquisa,
+  DefinirTextosMarcaEntrada,
   DefinirVinculoLiderancaEntrada,
   EquipeDaLideranca,
   EventoAuditoriaPessoa,
@@ -204,6 +205,27 @@ export function definirFundoDeAcesso(url: string | null, caminho: string | null)
 /** Define a cor do painel do acesso; `null` volta ao branco institucional. */
 export function definirCorDoPainelDeAcesso(cor: string | null) {
   return chamar<unknown>("/api/plataforma/marca/cor-painel", {
+    method: "PUT",
+    body: JSON.stringify({ cor }),
+  });
+}
+
+/**
+ * Define os textos institucionais da tela de acesso.
+ *
+ * Campo vazio restaura o padrão do código — a tela de entrada nunca fica sem
+ * título nem sem instrução.
+ */
+export function definirTextosDaMarca(entrada: DefinirTextosMarcaEntrada) {
+  return chamar<unknown>("/api/plataforma/marca/textos", {
+    method: "PUT",
+    body: JSON.stringify(entrada),
+  });
+}
+
+/** Define a cor da barra lateral; `null` volta à cor institucional. */
+export function definirCorDaBarraLateral(cor: string | null) {
+  return chamar<unknown>("/api/plataforma/marca/cor-barra-lateral", {
     method: "PUT",
     body: JSON.stringify({ cor }),
   });

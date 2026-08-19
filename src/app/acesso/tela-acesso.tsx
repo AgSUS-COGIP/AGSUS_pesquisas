@@ -23,6 +23,19 @@ import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
  */
 const BACKGROUND_IMAGE = "/acesso-fundo.png";
 
+/**
+ * A palavra gravada dentro dos arquivos de assinatura do SIGAV.
+ *
+ * Não é o nome configurado da plataforma, e a diferença importa: `productName`
+ * vem do banco e pode ser trocado em `/admin/configuracoes`, enquanto isto está
+ * desenhado no SVG e só muda com arte nova. Serve de texto alternativo da
+ * imagem, que precisa descrever o que ela mostra.
+ *
+ * **Se a marca for redesenhada com outra palavra, mude aqui junto** — divergir
+ * faz a tela anunciar para leitor de tela um nome que ninguém vê.
+ */
+const NOME_DESENHADO_NA_ASSINATURA = "SIGAV";
+
 function accessErrorMessage(code: string | null) {
   if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br. Selecione sua conta institucional.";
   if (code === "oauth-invalido") return "A autenticação não foi concluída. Selecione novamente sua conta institucional.";
@@ -391,10 +404,28 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
               Sem isso, o "SIGAV" em azul institucional sumiria sobre painel
               escuro enquanto o "AgSUS" ao lado apareceria em branco, deixando
               metade da assinatura invisível.
+
+              **O texto alternativo descreve o desenho, não a configuração.**
+              Ele já usou `branding.productName`, e o resultado foi a tela dizer
+              duas coisas diferentes ao mesmo tempo: o SVG desenha "SIGAV" e o
+              nome configurado no banco era "Avaliações", então quem enxergava
+              lia SIGAV e quem usava leitor de tela ouvia Avaliações. Texto
+              alternativo existe para dar, a quem não vê a imagem, o mesmo que
+              ela mostra — e o que ela mostra está gravado no arquivo.
+
+              É a mesma regra que o lado da AgSUS já seguia: a cruz tem
+              `alt="AgSUS"` fixo, e é o texto ao lado dela que sai da marca
+              configurada.
+
+              A consequência é que a assinatura só vale enquanto o produto se
+              chamar SIGAV. Renomear exige arte nova — trocar o nome em
+              /admin/configuracoes não redesenha o SVG, e nenhum `alt` dinâmico
+              resolveria isso; apenas esconderia a divergência de quem não vê a
+              tela.
             */}
             <ExternalImage
               src={lightOnPanel ? "/sigav-assinatura-negativa.svg" : "/sigav-assinatura.svg"}
-              alt={branding.productName}
+              alt={NOME_DESENHADO_NA_ASSINATURA}
               width={300}
               height={96}
               priority
@@ -441,17 +472,22 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
           </p>
 
           {/*
-            Saudação, e não mais o nome do sistema repetido. O nome já aparece
-            duas vezes acima — na assinatura e na expansão —, então usá-lo aqui
-            pela terceira vez era gastar a linha de maior destaque do cartão
-            para não dizer nada novo. É a mesma escolha do SIGEPSI, que reserva
+            Saudação e instrução saem da marca configurada desde
+            `20260817160000`. Antes estavam escritas aqui, e mudar a recepção de
+            quem entra na plataforma exigia deploy. Campo vazio no banco cai no
+            padrão: a tela de entrada nunca fica sem título.
+
+            O texto é saudação, e não o nome do sistema repetido. O nome já
+            aparece duas vezes acima — na assinatura e na expansão —, então
+            usá-lo aqui pela terceira vez gastaria a linha de maior destaque do
+            cartão para não dizer nada novo. É a mesma escolha do SIGEPSI, que reserva
             este lugar para receber a pessoa.
           */}
           <h1 className={`mt-5 text-xl font-black tracking-tight lg:text-2xl ${lightOnPanel ? "text-white" : "text-[#003b70]"}`}>
-            Seja bem-vindo(a) à {branding.organizationName}
+            {branding.accessGreeting}
           </h1>
           <p className={`mt-1.5 text-sm leading-6 ${lightOnPanel ? "text-white/80" : "text-slate-600"}`}>
-            Acesse com sua conta institucional.
+            {branding.accessInstruction}
           </p>
 
           <button
