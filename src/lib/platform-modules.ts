@@ -36,12 +36,26 @@ export const EVALUATOR_ROLE_MODULES = Object.freeze([
  * Fora da lista de propósito: `ADMIN_TEAMS` (dados funcionais e vínculos de
  * liderança), `ADMIN_ACCESS` (papéis e marca) e `ADMIN_IMPORT` (carga da base
  * institucional) — administração global, exclusiva do Superadmin.
+ *
+ * **`TEAM` também ficou de fora, desde 17/08/2026.** "Minha equipe" serve a
+ * quem lidera pessoas: `/equipe` lista os ciclos em que a pessoa tem vínculo
+ * ativo de chefia e permite avaliar quem está sob ela. Isso é atributo de
+ * **dado** (`cddi_leadership_links`), não de perfil — e o perfil Admin descreve
+ * quem opera as avaliações, não quem chefia alguém.
+ *
+ * Na base, nenhum dos Admins lidera equipe, então a tela só aparecia para
+ * abrir vazia. Avaliador mantém o módulo (os 114 lideram) e Superadmin o mantém
+ * por ter todos.
+ *
+ * A ressalva honesta: um Admin que **venha** a liderar uma equipe perde o
+ * caminho para avaliá-la. Enquanto isso não acontecer, o custo é zero; se
+ * acontecer, o certo não é devolver `TEAM` ao perfil, e sim conceder o módulo a
+ * quem lidera — `fc_obter_contexto_plataforma()` já calcula `isLeader`.
  */
 export const ADMIN_ROLE_MODULES = Object.freeze([
   PLATFORM_MODULE.HOME,
   PLATFORM_MODULE.SURVEYS,
   PLATFORM_MODULE.DASHBOARDS,
-  PLATFORM_MODULE.TEAM,
   PLATFORM_MODULE.ADMIN_SURVEYS,
   PLATFORM_MODULE.ADMIN_PARTICIPANTS,
 ]) as readonly PlatformModule[];
