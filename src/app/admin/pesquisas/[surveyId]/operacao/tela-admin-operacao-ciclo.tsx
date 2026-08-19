@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/form-controls";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
+import { definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
 import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
@@ -204,6 +205,21 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     await runAction(action);
   }
 
+  async function toggleEmailNotifications(next: boolean) {
+    setWorking("EMAIL_NOTIFICATIONS");
+    try {
+      await definirNotificacaoEmail(surveyId, next);
+      toast.success(next
+        ? "Envio de e-mails ligado. Os participantes recebem o aviso de abertura e o lembrete das 24 horas finais."
+        : "Envio de e-mails desligado. Nenhum e-mail automático será enviado.");
+      await loadOperations();
+    } catch (toggleError) {
+      toast.error(errorMessageFromUnknown(toggleError));
+    } finally {
+      setWorking(null);
+    }
+  }
+
   if (guard.state !== "granted") {
     return <PlatformGuardState
       guard={guard}
@@ -236,6 +252,16 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const canSchedule = (operations?.readyToOpen ?? false)
     && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
     && opensInFuture(opensAt);
+
+  // O checkbox de e-mails segue a regra da administração: indisponível nunca é
+  // só um controle apagado — o motivo aparece junto. Sem participantes ele não
+  // liga (não haveria destinatário), mas continua podendo ser desligado.
+  const emailNotificationsEnabled = operations?.application?.emailNotifications ?? false;
+  const emailNotificationsBlockedReason = !operations?.application
+    ? "O ciclo de aplicação ainda não foi criado."
+    : operations.metrics.participants === 0 && !emailNotificationsEnabled
+      ? "Vincule participantes ao ciclo para habilitar o envio — hoje não há destinatário."
+      : null;
 
   const periodAction = canReopen ? "REOPEN" : canSchedule ? "SCHEDULE" : "UPDATE_PERIOD";
   const periodActionLabel = {
@@ -472,6 +498,40 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
             </p>}
           </Surface>
         </div>
+
+        <Surface className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Notificações</p>
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Avisos por e-mail aos participantes</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                Com a opção ligada, cada participante recebe dois avisos automáticos: um quando o ciclo abre e outro nas 24 horas
+                finais antes do encerramento — cada um, no máximo uma vez. Quem já enviou a resposta não recebe o lembrete.
+              </p>
+            </div>
+            {emailNotificationsEnabled
+              ? <Badge variant="success"><Mail className="h-3.5 w-3.5" aria-hidden="true" />Envio ligado</Badge>
+              : <Badge variant="neutral"><Mail className="h-3.5 w-3.5" aria-hidden="true" />Envio desligado</Badge>}
+          </div>
+
+          <div className="mt-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+            <Checkbox
+              label="Enviar e-mails aos participantes"
+              description={emailNotificationsEnabled
+                ? `${operations.metrics.participants} ${operations.metrics.participants === 1 ? "participante vinculado receberá" : "participantes vinculados receberão"} os avisos deste ciclo no e-mail institucional.`
+                : "Nenhum e-mail automático é enviado enquanto a opção estiver desmarcada."}
+              checked={emailNotificationsEnabled}
+              disabled={emailNotificationsBlockedReason !== null || working !== null}
+              onChange={(event) => void toggleEmailNotifications(event.target.checked)}
+            />
+            {emailNotificationsBlockedReason && (
+              <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold leading-5 text-[var(--text-secondary)]">
+                <Lock className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                {emailNotificationsBlockedReason}
+              </p>
+            )}
+          </div>
+        </Surface>
 
         <Surface className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">

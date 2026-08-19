@@ -2,5 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "github": {
     "silent": true
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/tarefas/emails",
+      "schedule": "0 * * * *"
+    }
+  ]
 }

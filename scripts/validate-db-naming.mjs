@@ -78,6 +78,13 @@ const LEGACY_RESTORED_OBJECTS = {
       "set_admin_application_participant_status",
     ]),
   },
+  // Notificação por e-mail: a migration acrescenta o campo `emailNotifications`
+  // ao retorno de `get_survey_operations`, função legada consumida pelo nome
+  // pela tela de propriedades em bundles já publicados. Os objetos novos do
+  // arquivo (tl_email_participante, fc_*) seguem o padrão e não constam aqui.
+  "supabase/migrations/20260818130000_notificar_participantes_por_email.sql": {
+    função: new Set(["get_survey_operations"]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria

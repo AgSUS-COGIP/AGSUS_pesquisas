@@ -152,6 +152,8 @@ export type OperacaoCiclo = {
     closesAt: string | null;
     allowDrafts: boolean;
     accessMode?: string;
+    /** Envio automático de e-mails aos participantes (abertura e 24 h finais). */
+    emailNotifications?: boolean;
   } | null;
   metrics: {
     sections: number;
@@ -177,6 +179,11 @@ export type AcaoCicloEntrada = {
   action: string;
   opensAt?: string | null;
   closesAt?: string | null;
+};
+
+/** Corpo de `PUT /api/avaliacoes/[id]/notificacoes`. */
+export type NotificacaoEmailEntrada = {
+  enabled: boolean;
 };
 
 /**
