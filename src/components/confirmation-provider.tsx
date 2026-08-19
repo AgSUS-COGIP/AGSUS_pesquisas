@@ -31,6 +31,8 @@ export type ConfirmOptions = {
   cancelLabel?: string;
   tone?: "primary" | "danger";
   prompt?: ConfirmPrompt;
+  /** Oculta o aviso genérico quando a própria tela já explicou a consequência. */
+  showReviewNotice?: boolean;
 };
 
 type ConfirmOutcome = boolean | string;
@@ -112,6 +114,7 @@ export function ConfirmationProvider({ children }: { children: ReactNode }) {
         onOpenChange={(open) => { if (!open) finish(false); }}
         title={request?.title ?? "Confirmar ação"}
         description={request?.description}
+        contentClassName={!prompt && request?.showReviewNotice === false ? "hidden" : undefined}
         footer={request ? (
           <>
             <Button variant="secondary" onClick={() => finish(false)}>{request.cancelLabel ?? "Cancelar"}</Button>
@@ -124,10 +127,12 @@ export function ConfirmationProvider({ children }: { children: ReactNode }) {
       >
         {request ? (
           <div className="space-y-4">
-            <div className={`flex items-start gap-3 rounded-xl border p-4 text-sm leading-6 ${danger ? "border-red-200 bg-red-50 text-red-900" : "border-blue-200 bg-blue-50 text-blue-950"}`}>
-              {danger ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />}
-              <p>Revise as informações antes de continuar. A ação só será executada depois da confirmação.</p>
-            </div>
+            {request.showReviewNotice !== false ? (
+              <div className={`flex items-start gap-3 rounded-xl border p-4 text-sm leading-6 ${danger ? "border-red-200 bg-red-50 text-red-900" : "border-blue-200 bg-blue-50 text-blue-950"}`}>
+                {danger ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />}
+                <p>Revise as informações antes de continuar. A ação só será executada depois da confirmação.</p>
+              </div>
+            ) : null}
 
             {prompt ? (
               <Textarea

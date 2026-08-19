@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRound, UsersRound } from "lucide-react";
 import { CddiLoadingState } from "@/components/cddi-loading-state";
 import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { CompletionCelebration } from "@/components/completion-celebration";
@@ -108,6 +108,7 @@ export default function CddiFormPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"info" | "warning" | "error" | "success">("info");
+  const [missingQuestions, setMissingQuestions] = useState<string[]>([]);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
@@ -182,9 +183,10 @@ export default function CddiFormPage() {
   }, []);
 
   const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
-  // Etapa 0 = identificação e chefia; 1..N = uma competência cada; N+1 = revisão.
-  const totalSteps = sections.length + 2;
-  const currentSection = step > 0 && step <= sections.length ? sections[step - 1] : null;
+  // 0..N-1 = competências; N = revisão. Os dados funcionais permanecem no
+  // cabeçalho, sem criar uma etapa intermediária antes da avaliação.
+  const totalSteps = sections.length + 1;
+  const currentSection = step < sections.length ? sections[step] : null;
   const requiredQuestions = useMemo(() => sections.flatMap((section) => section.questions).filter((question) => question.required), [sections]);
   const questionsById = useMemo(() => new Map(sections.flatMap((section) => section.questions).map((question) => [question.id, question])), [sections]);
   const answeredRequired = requiredQuestions.filter((question) => answered(question, answers)).length;
@@ -244,7 +246,7 @@ export default function CddiFormPage() {
     // A chefia vem do vínculo institucional (cddi_leadership_links) e precisa
     // existir antes de qualquer competência: é ela que avaliará esta pessoa no
     // ciclo. Sem vínculo, a correção é administrativa — não há seleção manual.
-    if (step === 0 && !identity?.leader) {
+    if (!identity?.leader) {
       setMessageType("warning");
       setMessage("Sua chefia responsável ainda não está registrada na base institucional. Procure a administração para atualizar o vínculo antes de iniciar.");
       return false;
@@ -252,8 +254,7 @@ export default function CddiFormPage() {
     if (!currentSection || !canEdit) return true;
     const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
     if (missing.length) {
-      setMessageType("warning");
-      setMessage(`Preencha ${missing.length} ${missing.length === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} desta etapa antes de continuar.`);
+      setMissingQuestions(missing.map((question) => question.title));
       return false;
     }
     return true;
@@ -268,10 +269,9 @@ export default function CddiFormPage() {
    * banco — mas a pessoa só descobria a pendência no fim, sem saber de onde
    * vinha, num instrumento de 15 etapas.
    *
-   * A etapa 0 é identificação, `1..sections.length` são as competências e a
-   * última é a revisão — daí o `+ 1` no índice da primeira incompleta. Sem
-   * chefia registrada, nada além da identificação é alcançável, que é a mesma
-   * regra que `validateCurrentStep()` já aplicava ao avançar.
+   * As etapas `0..sections.length - 1` são as competências e a última é a
+   * revisão. Sem chefia registrada, a primeira competência permanece visível,
+   * mas nenhuma etapa seguinte é liberada e o envio continua bloqueado.
    */
   const firstIncompleteStep = useMemo(() => {
     if (!canEdit) return totalSteps - 1;
@@ -279,7 +279,7 @@ export default function CddiFormPage() {
     const incomplete = sections.findIndex((section) =>
       section.questions.some((question) => question.required && !answered(question, answers)),
     );
-    return incomplete === -1 ? totalSteps - 1 : incomplete + 1;
+    return incomplete === -1 ? totalSteps - 1 : incomplete;
   }, [sections, answers, canEdit, identity?.leader, totalSteps]);
 
   /** Navega entre etapas. Só valida ao avançar — voltar para revisar é sempre livre. */
@@ -300,7 +300,12 @@ export default function CddiFormPage() {
     if (!submission?.submission?.id || !canEdit) return;
     if (!identity?.leader) { setMessageType("warning"); setMessage("Sua chefia responsável ainda não está registrada na base institucional. Procure a administração para atualizar o vínculo antes de enviar."); return; }
     if (answeredRequired !== requiredQuestions.length) { setMessageType("warning"); setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
-    if (!(await confirm({ title: "Enviar autoavaliação?", description: "Depois do envio, suas respostas serão bloqueadas para edição e encaminhadas para consolidação.", confirmLabel: "Enviar autoavaliação" }))) return;
+    if (!(await confirm({
+      title: "Enviar autoavaliação?",
+      description: "Depois do envio, suas respostas serão bloqueadas para edição e encaminhadas para consolidação.",
+      confirmLabel: "Enviar autoavaliação",
+      showReviewNotice: false,
+    }))) return;
     setSubmitting(true);
     try {
       await flushPendingSaves();
@@ -345,8 +350,6 @@ export default function CddiFormPage() {
     <CddiPlatformFrame title="CDDI 2026">
       <div className="min-h-[60vh] text-[var(--text-primary)]">
         <div className="mx-auto max-w-[960px] space-y-4">
-          {/* A capa configurada em /admin/pesquisas/[id]/identidade abre a
-              jornada — é ela que dá identidade visual ao instrumento. */}
           <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] shadow-[var(--shadow-card)]" style={{ borderTopColor: CDDI_RULE }}>
             <SurveyBanner
               key={visualIdentity.bannerUrl}
@@ -356,16 +359,16 @@ export default function CddiFormPage() {
               className="h-auto max-h-56 w-full object-cover"
             />
             <div className="p-5 sm:p-7">
-            <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
-            <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
-            <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
+              <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
+              <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
+              <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
 
-            <dl className="mt-5 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
-              <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-              {identityFields}
-              <IdentityField label="Unidade" value={person.unit || "Não informada"} />
-            </dl>
+              <dl className="mt-5 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
+                <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
+                {identityFields}
+                <IdentityField label="Unidade" value={person.unit || "Não informada"} />
+              </dl>
             </div>
           </section>
 
@@ -395,8 +398,6 @@ export default function CddiFormPage() {
                   : "Avalie suas próprias competências neste ciclo. As respostas são salvas automaticamente."}
               </p>
             </div>
-            {/* Uma coluna quando só existe uma escolha: a grade de dois deixava
-                metade da faixa vazia para quem não avalia equipe. */}
             <div className={`mt-4 grid gap-3 ${podeAvaliarEquipe ? "md:grid-cols-2" : ""}`}>
               <button
                 type="button"
@@ -405,7 +406,7 @@ export default function CddiFormPage() {
               >
                 <UserRound className="h-6 w-6" style={{ color: CDDI_INK }} aria-hidden="true" />
                 <strong className="mt-3 block text-base font-semibold" style={{ color: CDDI_INK }}>Responder minha autoavaliação</strong>
-                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Avalie suas próprias competências neste ciclo.</span>
+                <span className="mt-1 block text-sm leading-6 text-[var(--text-secondary)]">Abra diretamente a primeira competência da sua autoavaliação.</span>
               </button>
               {podeAvaliarEquipe ? (
                 <button
@@ -449,17 +450,10 @@ export default function CddiFormPage() {
           </button>
         </div>
       </Dialog>
-      <CompletionCelebration
-        open={celebrate}
-        onClose={() => setCelebrate(false)}
-        title="Parabéns! Autoavaliação concluída"
-        message="Suas respostas foram enviadas com sucesso e já fazem parte do ciclo de avaliação."
-        actionLabel="Continuar"
-      />
     </CddiPlatformFrame>
   );
 
-  const stepTitle = step === 0 ? "Identificação e estrutura" : step === totalSteps - 1 ? "Revisão final" : currentSection?.title;
+  const stepTitle = step === totalSteps - 1 ? "Revisão final" : currentSection?.title;
   const missingToSubmit = requiredQuestions.length - answeredRequired;
 
   return (
@@ -504,17 +498,15 @@ export default function CddiFormPage() {
             </div>
             <nav aria-label="Etapas da autoavaliação" className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {Array.from({ length: totalSteps }).map((_, index) => {
-                const complete = index === 0
-                  ? Boolean(identity.leader)
-                  : index <= sections.length
-                    ? sectionCompletion(sections[index - 1], answers) === 100
-                    : answeredRequired === requiredQuestions.length;
+                const complete = index < sections.length
+                  ? sectionCompletion(sections[index], answers) === 100
+                  : answeredRequired === requiredQuestions.length;
                 const current = index === step;
                 const locked = index > firstIncompleteStep;
-                const label = index === 0 ? "Início" : index === totalSteps - 1 ? "Revisão" : String(index).padStart(2, "0");
+                const label = index === totalSteps - 1 ? "Revisão" : String(index + 1).padStart(2, "0");
                 const lockedReason = !identity.leader
                   ? "Sua chefia responsável precisa estar registrada antes de começar"
-                  : `Responda as obrigatórias da etapa ${String(firstIncompleteStep).padStart(2, "0")} para liberar esta`;
+                  : `Responda as obrigatórias da etapa ${String(firstIncompleteStep + 1).padStart(2, "0")} para liberar esta`;
                 return (
                   <button
                     key={index}
@@ -524,7 +516,7 @@ export default function CddiFormPage() {
                     aria-current={current ? "step" : undefined}
                     title={locked
                       ? lockedReason
-                      : index === 0 ? "Identificação e chefia" : index === totalSteps - 1 ? "Revisão final" : sections[index - 1]?.title}
+                      : index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
                     className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
                       current
                         ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
@@ -558,49 +550,9 @@ export default function CddiFormPage() {
             </p>
           )}
 
-          {step === 0 && (
-            <div className="space-y-4">
-              <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
-                <h2 className="break-words text-lg font-semibold" style={{ color: CDDI_INK }}>1. Chefia responsável pela avaliação</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">O vínculo vem da base institucional e é preenchido automaticamente — você não precisa indicá-lo. É essa chefia que avaliará você neste ciclo.</p>
-                {identity.leader ? (
-                  <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4">
-                    <div className="min-w-0">
-                      <span className="text-xs text-[var(--status-success-text)]">Chefia registrada</span>
-                      <strong className="block break-words font-semibold text-[var(--status-success-text)]">{identity.leader.fullName}</strong>
-                      <span className="block break-words text-sm text-[var(--status-success-text)]">{[identity.leader.jobTitle, identity.leader.unit].filter(Boolean).join(" · ") || "Dados funcionais não informados"}</span>
-                    </div>
-                    <BadgeCheck className="h-7 w-7 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" />
-                  </div>
-                ) : (
-                  <div className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4">
-                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--status-warning-text)]" aria-hidden="true" />
-                    <div>
-                      <strong className="block font-semibold text-[var(--status-warning-text)]">Chefia ainda não registrada</strong>
-                      <p className="mt-1 text-sm leading-6 text-[var(--status-warning-text)]">Sua chefia não foi localizada na base institucional. Procure a administração para atualizar o vínculo — sem ele não é possível concluir a avaliação.</p>
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
-                <h2 className="text-lg font-semibold" style={{ color: CDDI_INK }}>2. Seus dados organizacionais</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Somente leitura. Divergências são corrigidas pela administração, na base institucional.</p>
-                <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-                  {[["Diretoria", person.directorate], ["Unidade", person.unit], ["Coordenação", person.coordination]].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-                      <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
-                      <dd className="mt-0.5 break-words font-semibold" style={{ color: CDDI_INK }}>{value || "Não informada"}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            </div>
-          )}
-
           {currentSection && (
             <section className="rounded-2xl border border-[var(--border-subtle)] border-t-4 border-t-[var(--brand-secondary)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Competência {step} de {sections.length}</p>
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Competência {step + 1} de {sections.length}</p>
               <h2 className="mt-1 break-words text-xl font-semibold leading-snug tracking-tight sm:text-2xl" style={{ color: CDDI_INK }}>{currentSection.title}</h2>
               {currentSection.description && <p className="mt-3 whitespace-pre-line break-words rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-7 text-[var(--text-secondary)]">{currentSection.description}</p>}
 
@@ -667,7 +619,7 @@ export default function CddiFormPage() {
                     <button
                       key={section.id}
                       type="button"
-                      onClick={() => goToStep(index + 1, false)}
+                      onClick={() => goToStep(index, false)}
                       className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -722,16 +674,7 @@ export default function CddiFormPage() {
                   : <><Save className="h-4 w-4" aria-hidden="true" />{savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Somente leitura"}</>}
             </p>
             <div className="ml-auto flex gap-2">
-              {step === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => goToStep(1, true)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-solid)] px-6 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)]"
-                >
-                  Iniciar avaliação
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-              ) : <>
+              <>
                 <button
                   type="button"
                   onClick={() => setScreen("home")}
@@ -743,7 +686,8 @@ export default function CddiFormPage() {
                 <button
                   type="button"
                   onClick={() => goToStep(step - 1, false)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+                  disabled={step === 0}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                   Anterior
@@ -757,10 +701,49 @@ export default function CddiFormPage() {
                   Próxima
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
-              </>}
+              </>
             </div>
           </div>
         </footer>
+        <CompletionCelebration
+          open={celebrate}
+          onClose={() => router.replace("/area")}
+          title="Parabéns! Autoavaliação concluída"
+          message="Suas respostas foram enviadas com sucesso e já fazem parte do ciclo de avaliação."
+          actionLabel="Ir para o início do sistema"
+        />
+        <Dialog
+          open={missingQuestions.length > 0}
+          onOpenChange={(open) => { if (!open) setMissingQuestions([]); }}
+          title={missingQuestions.length === 1 ? "Falta responder uma pergunta" : `Faltam responder ${missingQuestions.length} perguntas`}
+          description="Complete as respostas obrigatórias desta etapa antes de continuar."
+          className="max-w-lg border-amber-200"
+          footer={(
+            <button
+              type="button"
+              onClick={() => setMissingQuestions([])}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition hover:bg-amber-700 sm:w-auto"
+            >
+              Voltar e responder
+            </button>
+          )}
+        >
+          <div className="text-center">
+            <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-100 text-amber-700 ring-8 ring-amber-50">
+              <AlertTriangle className="h-10 w-10" aria-hidden="true" />
+            </span>
+            <p className="mx-auto mt-6 max-w-md text-base leading-7 text-slate-700">
+              Você deixou {missingQuestions.length} {missingQuestions.length === 1 ? "pergunta obrigatória sem resposta" : "perguntas obrigatórias sem resposta"} nesta etapa.
+            </p>
+            <ul className="mt-5 space-y-2 text-left" aria-label="Perguntas que precisam ser respondidas">
+              {missingQuestions.map((question) => (
+                <li key={question} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-950">
+                  {question}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Dialog>
       </div>
     </CddiPlatformFrame>
   );
