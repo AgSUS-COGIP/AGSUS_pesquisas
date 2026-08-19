@@ -214,7 +214,20 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
 
   return (
     <>
-      <aside data-print-hidden="true" aria-label="Navegação principal" className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex">
+      {/*
+        A cor de fundo vem da marca configurada e sobrescreve a do CSS. Vai em
+        `style`, e não em classe: o valor é arbitrário, escolhido por quem
+        administra, e o Tailwind só gera as classes que consegue ver no código.
+
+        Nula mantém o que a folha de estilo define — é o estado institucional
+        padrão, e não um branco forçado.
+      */}
+      <aside
+        data-print-hidden="true"
+        aria-label="Navegação principal"
+        className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex"
+        style={branding.sidebarColor ? { backgroundColor: branding.sidebarColor } : undefined}
+      >
         <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} onTip={setTip} />
       </aside>
       {/*
