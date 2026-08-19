@@ -10,6 +10,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformFooter } from "@/components/platform-footer";
 import { PlatformLogo } from "@/components/platform-logo";
+import { OnlinePresenceIndicator } from "@/components/online-presence-indicator";
 import { PlatformIcon } from "@/components/platform-icons";
 import { PlatformThemeToggle } from "@/components/platform-theme-toggle";
 import { Drawer } from "@/components/ui/overlay-panel";
@@ -18,7 +19,7 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
-import { PARTICIPANT_ROLE_MODULES } from "@/lib/platform-modules";
+import { PARTICIPANT_ROLE_MODULES, resolvePlatformRole } from "@/lib/platform-modules";
 import { isSuperAdminOnlyRoute } from "@/lib/platform-support";
 import {
   isPlatformSidebarCompact,
@@ -30,6 +31,7 @@ import { platformBrandingTitle, type PlatformBranding } from "@/lib/platform-bra
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
+  id?: string;
   fullName: string;
   institutionalEmail?: string | null;
   employeeNumber?: string | null;
@@ -268,6 +270,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   // Sem módulos informados, a casca assume o piso do modelo (Participante) —
   // nunca um conjunto mais amplo do que o perfil da pessoa permite.
   const modules = user.modules ?? [...PARTICIPANT_ROLE_MODULES];
+  const canViewPresence = branding.onlinePresenceViewerRoles.includes(resolvePlatformRole(user.roles ?? []));
   // O rodapé de suporte fica fora das rotas exclusivas do Superadmin (quem já é
   // o canal de suporte) e do modo foco, onde a barra de ações da avaliação ocupa
   // o rodapé da tela.
@@ -402,6 +405,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {branding.onlinePresenceEnabled ? <OnlinePresenceIndicator user={user} canView={canViewPresence} /> : null}
               <PlatformThemeToggle compact />
               {focus ? (
                 <Link href={exitHref} className="secondary-button" aria-label="Sair da avaliação">

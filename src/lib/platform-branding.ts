@@ -49,6 +49,9 @@ export type PlatformBranding = {
    * produziria tela ilegível na primeira combinação infeliz.
    */
   accessPanelColor: string | null;
+  /** Liga o canal e define os perfis que podem participar e visualizar. */
+  onlinePresenceEnabled: boolean;
+  onlinePresenceViewerRoles: string[];
   primaryColor: string;
   updatedAt: string | null;
 };
@@ -65,6 +68,8 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   accessBackgroundUrl: null,
   accessBackgroundPath: null,
   accessPanelColor: null,
+  onlinePresenceEnabled: true,
+  onlinePresenceViewerRoles: ["ADMINISTRATOR", "SURVEY_MANAGER"],
   primaryColor: "#0b4f82",
   updatedAt: null,
 };
@@ -114,6 +119,12 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     accessPanelColor: typeof source.accessPanelColor === "string" && HEX_COLOR.test(source.accessPanelColor)
       ? source.accessPanelColor
       : null,
+    onlinePresenceEnabled: typeof source.onlinePresenceEnabled === "boolean"
+      ? source.onlinePresenceEnabled
+      : DEFAULT_PLATFORM_BRANDING.onlinePresenceEnabled,
+    onlinePresenceViewerRoles: Array.isArray(source.onlinePresenceViewerRoles)
+      ? source.onlinePresenceViewerRoles.filter((role): role is string => typeof role === "string")
+      : DEFAULT_PLATFORM_BRANDING.onlinePresenceViewerRoles,
     primaryColor,
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : null,
   };

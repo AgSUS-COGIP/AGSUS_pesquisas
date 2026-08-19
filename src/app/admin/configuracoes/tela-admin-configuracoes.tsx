@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ImagePlus,
   LogIn,
+  RadioTower,
   CircleDot,
   LayoutGrid,
   Loader2,
@@ -56,7 +57,7 @@ import {
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
-import { PLATFORM_ROLE } from "@/lib/platform-roles";
+import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
@@ -65,6 +66,7 @@ import {
   definirCorDoPainelDeAcesso,
   definirTextosDaMarca,
   definirFundoDeAcesso,
+  definirPresencaOnline,
   definirPerfilDaPessoa,
   obterAreaDeAcessos,
 } from "@/lib/api/cliente-pessoas";
@@ -96,7 +98,7 @@ const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLA
 
 // Abas do workspace. Cada card declara sua seção e só aparece na aba
 // correspondente (ou em "Tudo") e quando casa com a busca.
-type SectionId = "brand" | "login" | "appearance" | "access";
+type SectionId = "brand" | "login" | "appearance" | "features" | "access";
 const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] = [
   { id: "all", label: "Tudo", icon: LayoutGrid },
   { id: "brand", label: "Marca", icon: Type },
@@ -106,6 +108,7 @@ const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] 
   // conjunto — com a prévia ao lado, não em duas viagens.
   { id: "login", label: "Tela de acesso", icon: LogIn },
   { id: "appearance", label: "Aparência", icon: SwatchBook },
+  { id: "features", label: "Recursos", icon: RadioTower },
   { id: "access", label: "Acessos", icon: UserCog },
 ];
 // Acento superior de cada seção — sempre por token, nunca hexadecimal literal.
@@ -123,6 +126,7 @@ const SECTION_ACCENT: Record<SectionId, string> = {
   brand: "var(--brand-solid)",
   login: "var(--brand-primary)",
   appearance: "var(--brand-secondary)",
+  features: "var(--status-success-text)",
   access: "var(--status-warning-text)",
 };
 
@@ -155,6 +159,9 @@ export default function PlatformSettingsPage() {
   const [peopleQuery, setPeopleQuery] = useState("");
   const [fetching, setFetching] = useState(false);
   const [changing, setChanging] = useState("");
+  const [presenceEnabled, setPresenceEnabled] = useState(branding.onlinePresenceEnabled);
+  const [presenceRoles, setPresenceRoles] = useState<string[]>(branding.onlinePresenceViewerRoles);
+  const [savingPresence, setSavingPresence] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -175,6 +182,11 @@ export default function PlatformSettingsPage() {
       primaryColor: branding.primaryColor,
     });
   }, [branding, form]);
+
+  useEffect(() => {
+    setPresenceEnabled(branding.onlinePresenceEnabled);
+    setPresenceRoles(branding.onlinePresenceViewerRoles);
+  }, [branding.onlinePresenceEnabled, branding.onlinePresenceViewerRoles]);
 
   const loadPeople = useCallback(async (term = "") => {
     setFetching(true);
@@ -310,6 +322,33 @@ export default function PlatformSettingsPage() {
       setUploadingBackground(false);
     }
   }, [branding, queryClient]);
+
+  const togglePresenceRole = useCallback((role: string) => {
+    setPresenceRoles((current) => current.includes(role)
+      ? current.filter((item) => item !== role)
+      : [...current, role]);
+  }, []);
+
+  const savePresence = useCallback(async () => {
+    if (presenceRoles.length === 0) {
+      toast.error("Selecione ao menos um perfil para usar a presença online.");
+      return;
+    }
+    setSavingPresence(true);
+    try {
+      await definirPresencaOnline(presenceEnabled, presenceRoles);
+      queryClient.setQueryData(platformBrandingQueryKey, {
+        ...branding,
+        onlinePresenceEnabled: presenceEnabled,
+        onlinePresenceViewerRoles: presenceRoles,
+      });
+      toast.success(presenceEnabled ? "Presença online atualizada." : "Presença online desativada.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a presença online.");
+    } finally {
+      setSavingPresence(false);
+    }
+  }, [branding, presenceEnabled, presenceRoles, queryClient]);
 
   /**
    * Remove uma arte do storage.
@@ -555,8 +594,11 @@ export default function PlatformSettingsPage() {
   const brandVisible = cardVisible("brand", "marca nomes institucionais organização nome do sistema identidade");
   const loginVisible = cardVisible("login", "tela de acesso login entrada saudação instrução expansão sigla cor do painel arte fundo campanha");
   const appearanceVisible = cardVisible("appearance", "aparência logotipo logo cor principal cores tema prévia menu barra lateral");
+  const featuresVisible = cardVisible("features", "recursos presença online pessoas conectadas realtime desempenho perfis");
   const accessVisible = cardVisible("access", "acessos permissões perfis pessoas segurança participante avaliador admin superadmin");
-  const visibleCount = [brandVisible, loginVisible, appearanceVisible, accessVisible].filter(Boolean).length;
+  const visibleCount = [brandVisible, loginVisible, appearanceVisible, featuresVisible, accessVisible].filter(Boolean).length;
+  const presenceDirty = presenceEnabled !== branding.onlinePresenceEnabled
+    || [...presenceRoles].sort().join("|") !== [...branding.onlinePresenceViewerRoles].sort().join("|");
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -1095,6 +1137,65 @@ export default function PlatformSettingsPage() {
                     <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">A prévia representa a identidade global.</p>
                   </div>
                 </div>
+              </div>
+            </section>
+          ) : null}
+
+          {/* RECURSOS */}
+          {featuresVisible ? (
+            <section data-config-section="features" className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6" style={{ borderTopColor: SECTION_ACCENT.features }}>
+              <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]"><RadioTower className="h-5 w-5" aria-hidden="true" /></span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-black text-[var(--text-primary)]">Pessoas online</h3>
+                      <Badge variant={presenceEnabled ? "success" : "neutral"}>{presenceEnabled ? "Ativo" : "Desativado"}</Badge>
+                    </div>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Conta todas as pessoas com a plataforma aberta. A quantidade e a lista ficam visíveis apenas para os perfis autorizados abaixo.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={presenceEnabled}
+                  onClick={() => setPresenceEnabled((current) => !current)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${presenceEnabled ? "bg-emerald-500" : "bg-slate-300"}`}
+                >
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${presenceEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                  <span className="sr-only">{presenceEnabled ? "Desativar pessoas online" : "Ativar pessoas online"}</span>
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_20rem]">
+                <fieldset>
+                  <legend className="text-sm font-bold text-[var(--text-primary)]">Quem pode visualizar</legend>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Todos os perfis ativos são contabilizados. Somente os perfis selecionados podem ver a quantidade, os nomes e as fotos.</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {roleOrder.map((role) => {
+                      const selected = presenceRoles.includes(role);
+                      return (
+                        <label key={role} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${selected ? "border-emerald-300 bg-emerald-50/70" : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--border-strong)]"}`}>
+                          <input type="checkbox" checked={selected} onChange={() => togglePresenceRole(role)} className="h-4 w-4 accent-emerald-600" />
+                          <span>
+                            <strong className="block text-sm text-[var(--text-primary)]">{PLATFORM_ROLE_LABELS[role as keyof typeof PLATFORM_ROLE_LABELS]}</strong>
+                            <span className="block text-xs text-[var(--text-secondary)]">{selected ? "Pode visualizar" : "Apenas é contabilizado"}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <aside className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                  <p className="section-eyebrow">Impacto controlado</p>
+                  <strong className="mt-2 block text-sm text-[var(--text-primary)]">Sem consulta contínua ao banco</strong>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Cada pessoa mantém uma conexão enquanto usa o sistema. Não há gravação por minuto nem atualização por movimento do usuário.</p>
+                  <Button type="button" onClick={() => void savePresence()} disabled={!presenceDirty || savingPresence || presenceRoles.length === 0} className="mt-4 w-full">
+                    {savingPresence ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                    {savingPresence ? "Salvando..." : "Salvar recurso"}
+                  </Button>
+                </aside>
               </div>
             </section>
           ) : null}

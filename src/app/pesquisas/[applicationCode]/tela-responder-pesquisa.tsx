@@ -27,6 +27,7 @@ import {
   obterRegrasDoCiclo,
 } from "@/lib/api/cliente-runtime";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
 type Option = { id: string; label: string; value: string };
@@ -73,14 +74,16 @@ export default function GenericSurveyPage() {
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [loading, setLoading] = useState(true);
-  const [pendingSaves, setPendingSaves] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [step, setStep] = useState(0);
   const timers = useRef<Record<string, number>>({});
   const latestAnswers = useRef<Answers>({});
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const [saveQueue] = useState(() => new ReliableSaveQueue());
+  const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
   const formTopRef = useRef<HTMLElement>(null);
+
+  useEffect(() => saveQueue.subscribe(setSaveSnapshot), [saveQueue]);
 
   useEffect(() => {
     latestAnswers.current = answers;
@@ -167,21 +170,19 @@ export default function GenericSurveyPage() {
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
   const anonymous = submission?.anonymous === true;
-  const saving = pendingSaves > 0;
+  const saving = saveSnapshot.pending > 0;
 
   /**
-   * Encadeia a gravação após as anteriores.
+   * Agenda a gravação na fila compartilhada pelas jornadas de avaliação.
    *
    * A serialização evita que dois autossalvamentos da mesma pergunta cheguem ao
-   * banco fora de ordem e gravem o valor antigo por último. O `catch` que precede
-   * o `then` mantém a corrente viva depois de uma falha.
+   * banco fora de ordem e gravem o valor antigo por último. A fila continua viva
+   * depois de uma falha e preserva o erro para `flush()` barrar o envio.
    */
   function enqueueSave(question: Question, value: SurveyAnswerValue) {
-    if (!canEdit || !submission?.submission?.id) return saveQueue.current;
+    if (!canEdit || !submission?.submission?.id) return Promise.resolve();
     const submissionId = submission.submission.id;
-    setPendingSaves((current) => current + 1);
-
-    const operation = async () => {
+    return saveQueue.enqueue(async () => {
       // `buildSurveyAnswerPayload` devolve as chaves no formato do banco
       // (`target_text`, `target_number`, …); o contrato da rota usa os nomes do
       // domínio, então a conversão acontece aqui.
@@ -196,18 +197,10 @@ export default function GenericSurveyPage() {
         datetime: payload.target_datetime,
         json: payload.target_json,
       });
-    };
-
-    saveQueue.current = saveQueue.current
-      .catch(() => undefined)
-      .then(operation)
-      .catch((saveError) => {
-        toast.error(saveError instanceof Error ? saveError.message : "Não foi possível salvar a resposta.");
-        throw saveError;
-      })
-      .finally(() => setPendingSaves((current) => Math.max(0, current - 1)));
-
-    return saveQueue.current;
+    }).catch((saveError) => {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a resposta.");
+      throw saveError;
+    });
   }
 
   function update(question: Question, value: SurveyAnswerValue, delay = 0) {
@@ -218,10 +211,10 @@ export default function GenericSurveyPage() {
     if (delay) {
       timers.current[question.id] = window.setTimeout(() => {
         delete timers.current[question.id];
-        void enqueueSave(question, latestAnswers.current[question.id] ?? value);
+        void enqueueSave(question, latestAnswers.current[question.id] ?? value).catch(() => undefined);
       }, delay);
     } else {
-      void enqueueSave(question, value);
+      void enqueueSave(question, value).catch(() => undefined);
     }
   }
 
@@ -238,9 +231,9 @@ export default function GenericSurveyPage() {
       delete timers.current[questionId];
       const question = questionsById.get(questionId);
       const value = latestAnswers.current[questionId];
-      if (question && value) void enqueueSave(question, value);
+      if (question && value) void enqueueSave(question, value).catch(() => undefined);
     });
-    await saveQueue.current;
+    await saveQueue.flush();
   }
 
   function validateCurrentSection() {
@@ -545,8 +538,10 @@ export default function GenericSurveyPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p role="status" className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
               {saving
-                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando {pendingSaves > 1 ? `${pendingSaves} alterações` : "alteração"}...</>
-                : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Todas as respostas foram salvas automaticamente" : isSubmitted ? "Envio concluído" : "Somente leitura"}</>}
+                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando {saveSnapshot.pending > 1 ? `${saveSnapshot.pending} alterações` : "alteração"}...</>
+                : saveSnapshot.status === "ERROR"
+                  ? <><ShieldCheck className="h-4 w-4 text-[var(--status-danger-text)]" aria-hidden="true" />Falha ao salvar automaticamente</>
+                  : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Todas as respostas foram salvas automaticamente" : isSubmitted ? "Envio concluído" : "Somente leitura"}</>}
             </p>
             <div className="flex flex-wrap justify-end gap-2">
               <Link

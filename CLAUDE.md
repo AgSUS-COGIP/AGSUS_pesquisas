@@ -160,3 +160,13 @@ Ao diagnosticar erro de servidor em desenvolvimento, o log útil é `.next/dev/l
 - **O banco de produção já divergiu do histórico de migrations.** `supabase_migrations.schema_migrations` pode afirmar que uma migration rodou sem que os objetos dela existam (SQL aplicado direto não deixa registro). Antes de aplicar migration em produção, confronte histórico e esquema real com as queries de [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
 - **O CDDI tem jornada própria** (`/cddi`) por causa do vínculo institucional de chefia e da avaliação de liderança. A chefia **não é selecionada pelo participante**: vem de `cddi_leadership_links` (importação da base oficial ou correção administrativa). Outras avaliações usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.
 - Existe código não utilizado e duplicação conhecida — consulte "Observações e Melhorias Sugeridas" no [README.md](README.md) antes de assumir que um componente está em uso.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
