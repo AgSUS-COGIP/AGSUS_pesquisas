@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck, UsersRound } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   enviarSubmissaoCddi,
   gravarRespostaCddi,
@@ -53,6 +53,7 @@ function completion(section: Section, answers: Answers) {
 
 export default function LeaderEvaluationPage() {
   const confirm = useConfirm();
+  const router = useRouter();
   const params = useParams<{ personId: string }>();
   const personId = params.personId;
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
@@ -599,12 +600,12 @@ export default function LeaderEvaluationPage() {
     </footer>
     <CompletionCelebration
       open={celebrate}
-      onClose={() => setCelebrate(false)}
+      onClose={() => router.replace("/area")}
       title={inGroup ? "Parabéns! Avaliações concluídas" : "Parabéns! Avaliação concluída"}
       message={inGroup
         ? `As avaliações de ${groupMembers.map((item) => item.fullName).join(", ")} foram enviadas com sucesso, todas com as mesmas respostas.`
         : `A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
-      actionLabel="Continuar"
+      actionLabel="Ir para o início do sistema"
     />
   </div></CddiPlatformFrame>;
 }
