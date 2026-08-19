@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -77,6 +78,84 @@ type ParticipantState = "COMPLETE" | "AWAITING_LEADER" | "AWAITING_AUTO" | "PEND
 
 const PAGE_SIZES = [25, 50, 100];
 
+type FilterOption = { value: string; label: string };
+
+const STATUS_FILTER_OPTIONS: FilterOption[] = [
+  { value: "COMPLETE", label: "Ciclo concluído" },
+  { value: "AWAITING_LEADER", label: "Aguardando avaliação da chefia" },
+  { value: "AWAITING_AUTO", label: "Aguardando autoavaliação" },
+  { value: "PENDING", label: "Nenhuma avaliação concluída" },
+  { value: "NO_MANAGER", label: "Sem chefia informada" },
+];
+
+function normalizeFilterText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+}
+
+function SearchableMultiSelect({
+  label,
+  options,
+  values,
+  onChange,
+  emptyLabel,
+}: {
+  label: string;
+  options: FilterOption[];
+  values: string[];
+  onChange: (values: string[]) => void;
+  emptyLabel: string;
+}) {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = normalizeFilterText(search.trim());
+  const visibleOptions = normalizedSearch
+    ? options.filter((option) => normalizeFilterText(option.label).includes(normalizedSearch))
+    : options;
+  const selected = new Set(values);
+
+  return (
+    <div className="block lg:col-span-4">
+      <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">{label}</span>
+      <details name="cddi-filter-multiselect" className="group relative">
+        <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] [&::-webkit-details-marker]:hidden">
+          <span className="truncate">{values.length ? `${values.length} selecionado${values.length === 1 ? "" : "s"}` : emptyLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="relative z-30 mt-2 w-full min-w-[320px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 shadow-xl">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar nas opções..."
+              className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--control-bg)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-solid)]"
+            />
+          </div>
+          {values.length ? (
+            <button type="button" onClick={() => onChange([])} className="mt-2 text-xs font-black text-[var(--brand-primary)] hover:underline">
+              Limpar seleção
+            </button>
+          ) : null}
+          <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-[var(--border-subtle)]">
+            {visibleOptions.map((option) => (
+              <label key={option.value} className="flex cursor-pointer items-start gap-2 border-b border-[var(--border-subtle)] px-3 py-2.5 text-sm last:border-b-0 hover:bg-[var(--surface-interactive)]">
+                <input
+                  type="checkbox"
+                  checked={selected.has(option.value)}
+                  onChange={() => onChange(selected.has(option.value) ? values.filter((value) => value !== option.value) : [...values, option.value])}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-solid)]"
+                />
+                <span className="leading-5 text-[var(--text-primary)]">{option.label}</span>
+              </label>
+            ))}
+            {!visibleOptions.length ? <p className="px-3 py-6 text-center text-sm text-[var(--text-muted)]">Nenhuma opção encontrada.</p> : null}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function pct(value: number) {
   return `${value.toFixed(1).replace(".", ",")}%`;
 }
@@ -133,19 +212,21 @@ export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
-  const [directorate, setDirectorate] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [directorateDraft, setDirectorateDraft] = useState("");
-  const [statusDraft, setStatusDraft] = useState("");
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [selectedDirectorates, setSelectedDirectorates] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [participantDraft, setParticipantDraft] = useState<string[]>([]);
+  const [directorateDraft, setDirectorateDraft] = useState<string[]>([]);
+  const [statusDraft, setStatusDraft] = useState<string[]>([]);
   // Recortes que faltavam. A diretoria sozinha é grossa demais para quem
   // acompanha o ciclo no dia a dia: a pergunta real costuma ser "como está a
   // minha unidade" ou "quem ainda não foi avaliado pela chefia tal".
-  const [unit, setUnit] = useState("");
-  const [coordination, setCoordination] = useState("");
-  const [manager, setManager] = useState("");
-  const [unitDraft, setUnitDraft] = useState("");
-  const [coordinationDraft, setCoordinationDraft] = useState("");
-  const [managerDraft, setManagerDraft] = useState("");
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [selectedCoordinations, setSelectedCoordinations] = useState<string[]>([]);
+  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
+  const [unitDraft, setUnitDraft] = useState<string[]>([]);
+  const [coordinationDraft, setCoordinationDraft] = useState<string[]>([]);
+  const [managerDraft, setManagerDraft] = useState<string[]>([]);
   // Nenhum código de ciclo escrito aqui: vazio significa "ainda não escolhi", e
   // o painel assume o primeiro da lista — que a RPC já devolve do mais recente
   // para o mais antigo. Com `CDDI-2026` fixo, a segunda edição abriria sempre
@@ -176,7 +257,7 @@ export default function CddiMonitoringPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, directorate, unit, coordination, manager, statusFilter, pageSize, resolvedCycle]);
+  }, [query, participantIds, selectedDirectorates, selectedUnits, selectedCoordinations, selectedManagers, selectedStatuses, pageSize, resolvedCycle]);
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -213,12 +294,55 @@ export default function CddiMonitoringPage() {
   const data = dashboard.data;
   const cycleOptions = cycles.data ?? [];
   const all = data.participants || [];
-  const directorates = Array.from(new Set(all.map((item) => item.directorate).filter(Boolean))).sort();
-  // As opções de unidade e coordenação acompanham a diretoria já escolhida: numa
-  // base de mil pessoas, uma lista de unidades sem recorte é inutilizável.
-  const units = Array.from(new Set(all.filter((item) => !directorate || item.directorate === directorate).map((item) => item.unit).filter(Boolean))).sort();
-  const coordinations = Array.from(new Set(all.filter((item) => !directorate || item.directorate === directorate).map((item) => item.coordination).filter(Boolean))).sort();
-  const managers = Array.from(new Set(all.map((item) => item.managerName).filter((value): value is string => Boolean(value)))).sort();
+  const selectedParticipants = all.filter((item) => participantIds.includes(item.personId));
+
+  function matchesStatuses(item: Participant, statuses: string[]) {
+    return !statuses.length || statuses.some((status) => participantState(item) === status || (status === "NO_MANAGER" && !item.managerName));
+  }
+
+  // Filtros facetados: cada lista considera todas as outras escolhas, menos a
+  // própria dimensão. Assim só aparecem combinações que realmente existem.
+  function matchesDraftFacets(item: Participant, omit?: "participant" | "directorate" | "unit" | "coordination" | "manager" | "status") {
+    return (
+      (omit === "participant" || !participantDraft.length || participantDraft.includes(item.personId)) &&
+      (omit === "directorate" || !directorateDraft.length || directorateDraft.includes(item.directorate)) &&
+      (omit === "unit" || !unitDraft.length || unitDraft.includes(item.unit)) &&
+      (omit === "coordination" || !coordinationDraft.length || coordinationDraft.includes(item.coordination)) &&
+      (omit === "manager" || !managerDraft.length || (item.managerName ? managerDraft.includes(item.managerName) : false)) &&
+      (omit === "status" || matchesStatuses(item, statusDraft))
+    );
+  }
+
+  const participantOptions = all
+    .filter((item) => matchesDraftFacets(item, "participant"))
+    .map((item) => ({ value: item.personId, label: `${item.fullName}${item.employeeNumber ? ` · ${item.employeeNumber}` : ""}` }))
+    .sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
+  const directorateOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "directorate")).map((item) => item.directorate).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const unitOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "unit")).map((item) => item.unit).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const coordinationOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "coordination")).map((item) => item.coordination).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const managerOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "manager")).map((item) => item.managerName).filter((value): value is string => Boolean(value)))).sort().map((value) => ({ value, label: value }));
+  const statusPeople = all.filter((item) => matchesDraftFacets(item, "status"));
+  const availableStatuses = new Set(statusPeople.flatMap((item) => [participantState(item), ...(!item.managerName ? ["NO_MANAGER"] : [])]));
+  const statusOptions = STATUS_FILTER_OPTIONS.filter((option) => availableStatuses.has(option.value));
+
+  function retainCompatibleParticipantDraft(overrides: Partial<{ directorate: string[]; unit: string[]; coordination: string[]; manager: string[]; status: string[] }>) {
+    const nextDirectorate = overrides.directorate ?? directorateDraft;
+    const nextUnit = overrides.unit ?? unitDraft;
+    const nextCoordination = overrides.coordination ?? coordinationDraft;
+    const nextManager = overrides.manager ?? managerDraft;
+    const nextStatus = overrides.status ?? statusDraft;
+    setParticipantDraft((current) => current.filter((personId) => {
+      const person = all.find((item) => item.personId === personId);
+      return Boolean(
+        person &&
+        (!nextDirectorate.length || nextDirectorate.includes(person.directorate)) &&
+        (!nextUnit.length || nextUnit.includes(person.unit)) &&
+        (!nextCoordination.length || nextCoordination.includes(person.coordination)) &&
+        (!nextManager.length || (person.managerName ? nextManager.includes(person.managerName) : false)) &&
+        matchesStatuses(person, nextStatus),
+      );
+    }));
+  }
   const filtered = all.filter((item) => {
     const term = query.trim().toLocaleLowerCase("pt-BR");
     const matchesTerm =
@@ -226,16 +350,13 @@ export default function CddiMonitoringPage() {
       [item.fullName, item.employeeNumber, item.institutionalEmail, item.managerName, item.unit, item.coordination].some(
         (value) => value?.toLocaleLowerCase("pt-BR").includes(term),
       );
-    const matchesDirectorate = !directorate || item.directorate === directorate;
-    const matchesUnit = !unit || item.unit === unit;
-    const matchesCoordination = !coordination || item.coordination === coordination;
-    const matchesManager = !manager || item.managerName === manager;
-    const state = participantState(item);
-    const matchesStatus =
-      !statusFilter ||
-      state === statusFilter ||
-      (statusFilter === "NO_MANAGER" && !item.managerName);
-    return matchesTerm && matchesDirectorate && matchesUnit && matchesCoordination && matchesManager && matchesStatus;
+    const matchesDirectorate = !selectedDirectorates.length || selectedDirectorates.includes(item.directorate);
+    const matchesParticipant = !participantIds.length || participantIds.includes(item.personId);
+    const matchesUnit = !selectedUnits.length || selectedUnits.includes(item.unit);
+    const matchesCoordination = !selectedCoordinations.length || selectedCoordinations.includes(item.coordination);
+    const matchesManager = !selectedManagers.length || (item.managerName ? selectedManagers.includes(item.managerName) : false);
+    const matchesStatus = matchesStatuses(item, selectedStatuses);
+    return matchesTerm && matchesParticipant && matchesDirectorate && matchesUnit && matchesCoordination && matchesManager && matchesStatus;
   });
 
   const autoDone = filtered.filter((item) => item.autoCompleted).length;
@@ -282,12 +403,18 @@ export default function CddiMonitoringPage() {
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const competencySummary = data.competencies.map((competency) => {
     const competencyScores = scopedScores.filter((score) => score.competencyCode === competency.code);
+    // O comparativo precisa usar a mesma população nas três colunas. Misturar
+    // todas as autoavaliações com apenas as avaliações de chefia já pareadas
+    // fazia o valor final parecer incompatível com os 40% / 60% exibidos.
+    const pairedScores = competencyScores.filter(
+      (score) => typeof score.autoScore === "number" && typeof score.leaderScore === "number" && typeof score.finalScore === "number",
+    );
     return {
       ...competency,
-      auto: avg(competencyScores.map((score) => score.autoScore)),
-      leader: avg(competencyScores.map((score) => score.leaderScore)),
-      final: avg(competencyScores.map((score) => score.finalScore)),
-      completed: competencyScores.filter((score) => typeof score.finalScore === "number").length,
+      auto: avg(pairedScores.map((score) => score.autoScore)),
+      leader: avg(pairedScores.map((score) => score.leaderScore)),
+      final: avg(pairedScores.map((score) => score.finalScore)),
+      completed: pairedScores.length,
     };
   });
 
@@ -321,25 +448,26 @@ export default function CddiMonitoringPage() {
 
   function clearFilters() {
     setQuery("");
-    setDirectorate(""); setUnit(""); setCoordination(""); setManager(""); setStatusFilter("");
-    setDirectorateDraft(""); setUnitDraft(""); setCoordinationDraft(""); setManagerDraft(""); setStatusDraft("");
+    setParticipantIds([]); setSelectedDirectorates([]); setSelectedUnits([]); setSelectedCoordinations([]); setSelectedManagers([]); setSelectedStatuses([]);
+    setParticipantDraft([]); setDirectorateDraft([]); setUnitDraft([]); setCoordinationDraft([]); setManagerDraft([]); setStatusDraft([]);
   }
 
   function applyFilters() {
-    setDirectorate(directorateDraft);
-    setUnit(unitDraft);
-    setCoordination(coordinationDraft);
-    setManager(managerDraft);
-    setStatusFilter(statusDraft);
+    setParticipantIds(participantDraft);
+    setSelectedDirectorates(directorateDraft);
+    setSelectedUnits(unitDraft);
+    setSelectedCoordinations(coordinationDraft);
+    setSelectedManagers(managerDraft);
+    setSelectedStatuses(statusDraft);
   }
 
-  const hasActiveFilter = Boolean(query || directorate || unit || coordination || manager || statusFilter);
+  const hasActiveFilter = Boolean(query || participantIds.length || selectedDirectorates.length || selectedUnits.length || selectedCoordinations.length || selectedManagers.length || selectedStatuses.length);
 
   // Clicar num KPI aplica (ou remove, se já ativo) o recorte por situação —
   // como no AgSUS Monitora. O rascunho do filtro acompanha para o painel refletir.
   function selectKpi(key: string) {
-    const next = statusFilter === key ? "" : key;
-    setStatusFilter(next);
+    const next = !key ? [] : selectedStatuses.includes(key) ? selectedStatuses.filter((status) => status !== key) : [...selectedStatuses, key];
+    setSelectedStatuses(next);
     setStatusDraft(next);
   }
 
@@ -357,11 +485,13 @@ export default function CddiMonitoringPage() {
   // número sem aparecer aqui faz o operador desconfiar do painel.
   const contextLine = hasActiveFilter
     ? `Recorte ativo: ${filtered.length} de ${all.length} participantes${[
-        directorate,
-        unit,
-        coordination,
-        manager ? `chefia ${manager}` : "",
-        statusFilter ? statusFilterLabel(statusFilter) : "",
+        selectedParticipants.length === 1 ? `participante ${selectedParticipants[0].fullName}` : "",
+        selectedParticipants.length > 1 ? `${selectedParticipants.length} participantes selecionados` : "",
+        selectedDirectorates.length === 1 ? selectedDirectorates[0] : selectedDirectorates.length > 1 ? `${selectedDirectorates.length} diretorias` : "",
+        selectedUnits.length === 1 ? selectedUnits[0] : selectedUnits.length > 1 ? `${selectedUnits.length} unidades` : "",
+        selectedCoordinations.length === 1 ? selectedCoordinations[0] : selectedCoordinations.length > 1 ? `${selectedCoordinations.length} coordenações` : "",
+        selectedManagers.length === 1 ? `chefia ${selectedManagers[0]}` : selectedManagers.length > 1 ? `${selectedManagers.length} chefias` : "",
+        selectedStatuses.length === 1 ? statusFilterLabel(selectedStatuses[0]) : selectedStatuses.length > 1 ? `${selectedStatuses.length} situações` : "",
         query.trim() ? `busca "${query.trim()}"` : "",
       ].filter(Boolean).map((part) => ` · ${part}`).join("")}.`
     : `Sem filtros aplicados. Recorte base: ${all.length} participantes do ciclo.`;
@@ -420,7 +550,7 @@ export default function CddiMonitoringPage() {
             <h2 id="dashboard-filter-title" className="mt-1 text-base font-black text-[var(--text-primary)]">Refinar visualização</h2>
           </div>
           <div className="flex items-center gap-3">
-            {(hasActiveFilter || directorateDraft || unitDraft || coordinationDraft || managerDraft || statusDraft) ? (
+            {(hasActiveFilter || participantDraft.length || directorateDraft.length || unitDraft.length || coordinationDraft.length || managerDraft.length || statusDraft.length) ? (
               <button type="button" onClick={clearFilters} className="text-xs font-black text-[var(--brand-primary)] hover:underline">Limpar filtros</button>
             ) : null}
             <button type="button" onClick={() => setShowFilters((visible) => !visible)} className="secondary-button inline-flex h-9 items-center gap-2 px-3 text-xs" aria-expanded={showFilters} aria-controls="dashboard-filters">
@@ -437,62 +567,25 @@ export default function CddiMonitoringPage() {
             por que não funciona. No lugar entraram os recortes que a operação
             usa de fato, e o seletor de ciclo virou real.
           */}
-          <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Diretoria</span>
-            <select
-              value={directorateDraft}
-              onChange={(event) => {
-                // Trocar a diretoria zera unidade e coordenação: manter a
-                // escolha anterior produziria recorte vazio sem explicação.
-                setDirectorateDraft(event.target.value);
-                setUnitDraft("");
-                setCoordinationDraft("");
-              }}
-              className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]"
-            >
-              <option value="">Todas as diretorias</option>
-              {directorates.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Unidade</span>
-            <select value={unitDraft} onChange={(event) => setUnitDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
-              <option value="">Todas as unidades</option>
-              {units.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Coordenação</span>
-            <select value={coordinationDraft} onChange={(event) => setCoordinationDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
-              <option value="">Todas as coordenações</option>
-              {coordinations.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Chefia</span>
-            <select value={managerDraft} onChange={(event) => setManagerDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
-              <option value="">Todas as chefias</option>
-              {managers.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="lg:col-span-3">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Status</span>
-            <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)]">
-              <option value="">Todas as situações</option>
-              <option value="COMPLETE">Ciclo concluído</option>
-              <option value="AWAITING_LEADER">Aguardando avaliação da chefia</option>
-              <option value="AWAITING_AUTO">Aguardando autoavaliação</option>
-              <option value="PENDING">Nenhuma avaliação concluída</option>
-              <option value="NO_MANAGER">Sem chefia informada</option>
-            </select>
-          </label>
+          <SearchableMultiSelect
+            label="Participantes"
+            options={participantOptions}
+            values={participantDraft}
+            onChange={setParticipantDraft}
+            emptyLabel="Todas as pessoas"
+          />
+          <SearchableMultiSelect label="Diretorias" options={directorateOptions} values={directorateDraft} onChange={(values) => { setDirectorateDraft(values); retainCompatibleParticipantDraft({ directorate: values }); }} emptyLabel="Todas as diretorias" />
+          <SearchableMultiSelect label="Unidades" options={unitOptions} values={unitDraft} onChange={(values) => { setUnitDraft(values); retainCompatibleParticipantDraft({ unit: values }); }} emptyLabel="Todas as unidades" />
+          <SearchableMultiSelect label="Coordenações" options={coordinationOptions} values={coordinationDraft} onChange={(values) => { setCoordinationDraft(values); retainCompatibleParticipantDraft({ coordination: values }); }} emptyLabel="Todas as coordenações" />
+          <SearchableMultiSelect label="Chefias" options={managerOptions} values={managerDraft} onChange={(values) => { setManagerDraft(values); retainCompatibleParticipantDraft({ manager: values }); }} emptyLabel="Todas as chefias" />
+          <SearchableMultiSelect label="Status" options={statusOptions} values={statusDraft} onChange={(values) => { setStatusDraft(values); retainCompatibleParticipantDraft({ status: values }); }} emptyLabel="Todas as situações" />
           {/*
             O ciclo troca a consulta, não o recorte em memória, então aplica na
             hora — esperar o "Filtrar" faria a tela mostrar dados de um ciclo com
             o seletor exibindo outro. Com um único ciclo cadastrado o controle
             continua visível, mas fica desabilitado e diz por quê.
           */}
-          <label className="lg:col-span-3">
+          <label className="lg:col-span-4">
             <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
             <select
               value={resolvedCycle}
@@ -510,7 +603,7 @@ export default function CddiMonitoringPage() {
                 : <option value={data.application.code}>{data.application.name}</option>}
             </select>
           </label>
-          <button type="submit" className="primary-button h-11 justify-center lg:col-span-3" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
+          <button type="submit" className="primary-button h-11 justify-center lg:col-span-4 lg:col-start-9" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
         </form> : null}
       </section>
 
@@ -521,9 +614,9 @@ export default function CddiMonitoringPage() {
               key={kpi.label}
               type="button"
               data-tone={kpi.tone}
-              aria-pressed={statusFilter === kpi.key}
+              aria-pressed={kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length}
               onClick={() => selectKpi(kpi.key)}
-              className={`monitor-kpi ${statusFilter === kpi.key ? "is-active" : ""}`}
+              className={`monitor-kpi ${(kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length) ? "is-active" : ""}`}
             >
               <span className="monitor-kpi-label">{kpi.label}</span>
               <strong className="monitor-kpi-value">{kpi.value}</strong>
@@ -565,7 +658,7 @@ export default function CddiMonitoringPage() {
                   <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
                   <div><strong className="block text-sm">{pendingLeader} avaliações da chefia pendentes</strong><span className="text-xs opacity-80">Inclui participantes que ainda não concluíram a autoavaliação.</span></div>
                 </div>
-                <button type="button" onClick={() => selectKpi("NO_MANAGER")} aria-pressed={statusFilter === "NO_MANAGER"} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] ${statusFilter === "NO_MANAGER" ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
+                <button type="button" onClick={() => selectKpi("NO_MANAGER")} aria-pressed={selectedStatuses.includes("NO_MANAGER")} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] ${selectedStatuses.includes("NO_MANAGER") ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
                   <UserRoundX className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-secondary)]" />
                   <span><strong className="block text-sm text-[var(--text-primary)]">{withoutManager} sem vínculo de chefia</strong><span className="text-xs text-[var(--text-muted)]">A chefia é automática; revise a associação cadastrada em Equipes.</span></span>
                 </button>
@@ -629,6 +722,7 @@ export default function CddiMonitoringPage() {
             <div className="border-b border-[var(--border-subtle)] p-5">
               <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-primary)]">Comparativo</p>
               <h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">Médias por competência</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Auto, chefia e final usam a mesma base de pessoas com as duas avaliações concluídas.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px] text-left text-sm">

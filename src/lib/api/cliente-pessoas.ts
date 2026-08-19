@@ -231,6 +231,14 @@ export function definirCorDaBarraLateral(cor: string | null) {
   });
 }
 
+/** Liga/desliga a presença e restringe os perfis que entram no canal. */
+export function definirPresencaOnline(ativa: boolean, perfis: string[]) {
+  return chamar<unknown>("/api/plataforma/presenca", {
+    method: "PUT",
+    body: JSON.stringify({ ativa, perfis }),
+  });
+}
+
 /** Matriz de perfis e pessoas. */
 export function obterAreaDeAcessos(opcoes?: { busca?: string }) {
   return chamar<AreaDeAcessos>(`/api/plataforma/acessos${consulta({ busca: opcoes?.busca })}`);

@@ -9,6 +9,7 @@ import type { PlatformContext } from "./platform-context";
  * mesmo objeto que cada página montava à mão antes de `resolvePlatformGuard()`.
  */
 export type PlatformShellUser = {
+  id?: string;
   fullName: string;
   institutionalEmail: string | null;
   employeeNumber: string;
@@ -64,6 +65,7 @@ export function resolvePlatformGuard({ context, loading, error, requiredModule }
     person,
     modules,
     user: {
+      id: person.id,
       fullName: person.fullName,
       institutionalEmail: person.institutionalEmail,
       employeeNumber: person.employeeNumber,

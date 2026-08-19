@@ -322,6 +322,12 @@ export type AtualizarMarcaEntrada = {
   primaryColor: string;
 };
 
+/** Configuração do recurso de presença online. */
+export type DefinirPresencaOnlineEntrada = {
+  ativa: boolean;
+  perfis: string[];
+};
+
 /**
  * Corpo aceito por `PUT /api/plataforma/marca/fundo-acesso`.
  *

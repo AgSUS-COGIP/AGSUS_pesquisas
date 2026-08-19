@@ -339,24 +339,51 @@ export default function LeaderEvaluationPage() {
   const missingToSubmit = requiredQuestions.filter((question) => !answered(question, answers)).length;
   const isSubmitted = submission.submission?.status !== "DRAFT";
 
-  return <CddiPlatformFrame title={`Avaliação de ${member.fullName}`}><div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
+  return <CddiPlatformFrame title={inGroup ? `Avaliação em grupo · ${groupMembers.length} pessoas` : `Avaliação de ${member.fullName}`}><div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
     <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] space-y-4 px-4 py-5 sm:px-6">
       <header className="rounded-2xl border border-[var(--border-subtle)] border-t-4 bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6" style={{ borderTopColor: CDDI_RULE }}>
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
-              {inGroup && <Badge variant="info" title={`As mesmas respostas serão enviadas para ${groupMembers.length} pessoas`}>Avaliação em grupo · {groupMembers.length} pessoas</Badge>}
+        {inGroup ? (
+          <>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
+                  <Badge variant="info" title={`As mesmas respostas serão enviadas para ${groupMembers.length} pessoas`}>{groupMembers.length} pessoas selecionadas</Badge>
+                </div>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>Avaliação em grupo</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Você preencherá uma única avaliação. As respostas serão registradas igualmente para todas as pessoas abaixo.</p>
+              </div>
+              <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Voltar à equipe
+              </Link>
             </div>
-            <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h2>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p>
+            <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Pessoas incluídas na avaliação em grupo">
+              {groupMembers.map((item) => (
+                <li key={item.personId} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                  <PersonAvatar fullName={item.fullName} avatarUrl={item.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-sm" />
+                  <span className="min-w-0">
+                    <strong className="block truncate text-sm text-[var(--text-primary)]">{item.fullName}</strong>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--text-secondary)]">Matrícula {item.employeeNumber} · {item.jobTitle || "Cargo não informado"}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
+              <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p>
+            </div>
+            <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar à equipe
+            </Link>
           </div>
-          <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar à equipe
-          </Link>
-        </div>
+        )}
       </header>
 
       {!canEdit && (
@@ -375,7 +402,7 @@ export default function LeaderEvaluationPage() {
           <UsersRound className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Avaliação em grupo.</strong>{" "}
-            Ao enviar, estas mesmas respostas serão registradas também para: {otherGroupMembers.map((item) => item.fullName).join(", ")}.
+            Ao enviar, estas respostas serão registradas para as {groupMembers.length} pessoas listadas acima.
           </span>
         </p>
       )}
