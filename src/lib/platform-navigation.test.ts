@@ -54,10 +54,25 @@ describe("platform navigation", () => {
       "/area",
       "/pesquisas",
       "/paineis",
-      "/equipe",
       "/admin/pesquisas",
       "/admin/participantes",
     ]);
+  });
+
+  /*
+   * "Minha equipe" serve a quem lidera pessoas, e liderança é dado
+   * (`cddi_leadership_links`), não perfil. O Admin descreve quem opera as
+   * avaliações; na base, nenhum dos Admins lidera equipe, então a tela só
+   * aparecia para abrir vazia.
+   *
+   * O teste fixa a distinção entre os dois perfis porque devolver `/equipe` ao
+   * Admin é a "correção" que alguém tentaria ao ver a lista menor que a do
+   * Avaliador.
+   */
+  it("reserva /equipe a quem lidera: avaliador tem, admin não", () => {
+    expect(menuFor(PLATFORM_ROLE.EVALUATOR)).toContain("/equipe");
+    expect(menuFor(PLATFORM_ROLE.ADMIN)).not.toContain("/equipe");
+    expect(menuFor(PLATFORM_ROLE.SUPER_ADMIN)).toContain("/equipe");
   });
 
   it("shows the super admin every entry of the menu", () => {
