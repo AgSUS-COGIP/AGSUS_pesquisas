@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+
+  allowedDevOrigins: [
+    "mucid-precorneal-haleigh.ngrok-free.dev",
+  ],
+
   images: {
     remotePatterns: [
       {
