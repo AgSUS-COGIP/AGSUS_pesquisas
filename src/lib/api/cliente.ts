@@ -43,3 +43,12 @@ export function duplicarAvaliacao(id: string, entrada: DuplicarAvaliacaoEntrada 
 export function excluirAvaliacao(id: string) {
   return chamar<unknown>(`/api/avaliacoes/${id}`, { method: "DELETE" });
 }
+
+/**
+ * Exclui definitivamente uma avaliação já arquivada.
+ *
+ * A operação remove também o ciclo, as respostas e os dados associados.
+ */
+export function excluirAvaliacaoArquivada(id: string) {
+  return chamar<unknown>(`/api/avaliacoes/${id}?arquivada=true`, { method: "DELETE" });
+}
