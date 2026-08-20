@@ -52,7 +52,9 @@ describe("participantEmailContent — abertura", () => {
 
   it("omite a linha de prazo quando o ciclo não tem encerramento", () => {
     const withoutDeadline = participantEmailContent({ ...basePayload, closesAt: null }, url);
-    expect(withoutDeadline.text).not.toContain("até");
+    // A frase inteira, e não a palavra "até": textos configuráveis também
+    // entram no corpo, e casar por palavra solta quebraria a cada ajuste deles.
+    expect(withoutDeadline.text).not.toContain("Você pode responder até");
     expect(withoutDeadline.html).not.toContain("Você pode responder até");
   });
 
@@ -94,5 +96,115 @@ describe("participantEmailContent — lembrete de 24 horas", () => {
     }
     expect(content.text).toContain("O prazo termina em");
     expect(content.text).toContain("17:59");
+  });
+
+  it("não repete a descrição da avaliação — aqui o assunto é o prazo", () => {
+    const comDescricao = participantEmailContent(
+      { ...payload, surveyDescription: "Instrumento anual de clima." },
+      url,
+    );
+    expect(comDescricao.html).not.toContain("Sobre esta avaliação");
+    expect(comDescricao.text).not.toContain("Instrumento anual de clima.");
+  });
+
+  it("mantém a instrução de acesso: quem não respondeu pode não saber entrar", () => {
+    expect(content.text).toContain("conta institucional do Google");
+  });
+});
+
+describe("participantEmailContent — lembrete dirigido", () => {
+  const payload: ParticipantEmailPayload = {
+    ...basePayload,
+    kind: "manual_reminder",
+    surveyDescription: "Instrumento anual de clima.",
+  };
+  const url = surveyResponseUrl("https://pesquisas.agsus.org.br", payload);
+  const content = participantEmailContent(payload, url);
+
+  it("não se anuncia como abertura nem como prazo final", () => {
+    expect(content.subject).toBe("Lembrete: Clima Organizacional 2026 está aberta para resposta");
+    expect(content.subject).not.toContain("24 horas");
+  });
+
+  it("repete o contexto inteiro: quem recebe pode não ter visto o primeiro e-mail", () => {
+    for (const body of [content.html, content.text]) {
+      expect(body).toContain("Clima Organizacional 2026");
+      expect(body).toContain("Instrumento anual de clima.");
+      expect(body).toContain("conta institucional do Google");
+      expect(body).toContain(url);
+    }
+  });
+
+  it("diz que a resposta ainda não foi registrada", () => {
+    expect(content.text).toContain("ainda não foi registrada");
+  });
+});
+
+describe("participantEmailContent — textos configuráveis", () => {
+  const url = surveyResponseUrl("https://pesquisas.agsus.org.br", basePayload);
+
+  it("sem configuração, identifica o sistema e explica como acessar", () => {
+    const content = participantEmailContent(basePayload, url);
+    for (const body of [content.html, content.text]) {
+      expect(body).toContain("SIGAV");
+      expect(body).toContain("AgSUS");
+      expect(body).toContain("conta institucional do Google");
+    }
+  });
+
+  it("usa a descrição da avaliação quando o ciclo tem uma", () => {
+    const content = participantEmailContent(
+      { ...basePayload, surveyDescription: "Mede o clima organizacional das equipes." },
+      url,
+    );
+    expect(content.html).toContain("Sobre esta avaliação");
+    expect(content.html).toContain("Mede o clima organizacional das equipes.");
+    expect(content.text).toContain("Sobre esta avaliação: Mede o clima organizacional das equipes.");
+  });
+
+  it("omite o bloco de descrição quando o ciclo não tem uma", () => {
+    expect(participantEmailContent(basePayload, url).html).not.toContain("Sobre esta avaliação");
+  });
+
+  it("respeita instrução, rodapé e nomes configurados", () => {
+    const content = participantEmailContent(
+      {
+        ...basePayload,
+        organizationName: "Agência",
+        productName: "SIGAV 2",
+        emailInstruction: "Entre pelo portal interno.",
+        emailFooter: "Dúvidas: ramal 200.",
+      },
+      url,
+    );
+    expect(content.html).toContain("SIGAV 2 · Agência");
+    expect(content.text).toContain("Entre pelo portal interno.");
+    expect(content.text).toContain("Dúvidas: ramal 200.");
+    expect(content.text).not.toContain("conta institucional do Google");
+  });
+
+  it("texto configurado em branco cai no padrão, e nunca deixa o e-mail sem instrução", () => {
+    const content = participantEmailContent(
+      { ...basePayload, emailInstruction: "   ", emailFooter: "", productName: null },
+      url,
+    );
+    expect(content.text).toContain("conta institucional do Google");
+    expect(content.text).toContain("aviso automático do SIGAV");
+  });
+
+  it("escapa HTML também nos textos configuráveis", () => {
+    const content = participantEmailContent(
+      {
+        ...basePayload,
+        surveyDescription: '<img src=x onerror="alert(1)">',
+        emailFooter: "<b>rodapé</b>",
+        productName: "<i>P</i>",
+      },
+      url,
+    );
+    expect(content.html).not.toContain("<img");
+    expect(content.html).not.toContain("<b>rodapé</b>");
+    expect(content.html).not.toContain("<i>P</i>");
+    expect(content.html).toContain("&lt;img");
   });
 });

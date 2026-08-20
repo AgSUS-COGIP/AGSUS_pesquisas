@@ -1,0 +1,36 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { respostaDeErro } from "@/lib/api/resposta-http";
+import { ehUuid } from "@/lib/api/validacao";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Histórico de e-mails aos participantes, com resumo por situação.
+ *
+ * `tl_email_participante` não tem grant para `authenticated` e não vai ganhar:
+ * a leitura passa por `fc_listar_envios_email`, que exige papel administrativo.
+ * Até esta rota existir, ninguém na plataforma conseguia ver o que havia sido
+ * enviado — nem que nada havia.
+ */
+export async function GET(request: NextRequest) {
+  const avaliacao = request.nextUrl.searchParams.get("avaliacao");
+  const situacao = request.nextUrl.searchParams.get("situacao") ?? "ALL";
+  const limite = Number(request.nextUrl.searchParams.get("limite") ?? 200);
+
+  if (avaliacao && !ehUuid(avaliacao)) {
+    return NextResponse.json({ error: "Ciclo inválido." }, { status: 400 });
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("fc_listar_envios_email", {
+    p_aplicacao: avaliacao || null,
+    p_situacao: situacao,
+    p_limite: Number.isFinite(limite) ? limite : 200,
+  });
+
+  if (error) return respostaDeErro(error, "GET /api/plataforma/emails");
+
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+}
