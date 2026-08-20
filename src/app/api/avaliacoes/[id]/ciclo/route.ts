@@ -1,9 +1,11 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
-import { dispatchParticipantEmails } from "@/app/api/tarefas/emails/despachador";
+import { scheduleParticipantEmailDispatch } from "@/app/api/tarefas/emails/agendamento";
 import type { AcaoCicloEntrada, OperacaoCiclo } from "@/lib/api/contratos-construtor";
+
+export const maxDuration = 300;
 
 /**
  * Estado do ciclo: métricas, checklist de integridade e sinais de prontidão.
@@ -79,16 +81,7 @@ export async function POST(
   // e com a configuração de e-mail ausente o despacho apenas se declara
   // pulado. Ciclo agendado abre preguiçosamente e fica a cargo do cron.
   if (action === "OPEN" || action === "REOPEN") {
-    after(async () => {
-      try {
-        const result = await dispatchParticipantEmails();
-        if (result.status === "skipped") {
-          console.warn("[emails] despacho pós-abertura pulado; configuração ausente:", result.missingConfiguration.join(", "));
-        }
-      } catch (dispatchError) {
-        console.error("[emails] despacho pós-abertura falhou:", dispatchError);
-      }
-    });
+    scheduleParticipantEmailDispatch("abertura");
   }
 
   return NextResponse.json(data);

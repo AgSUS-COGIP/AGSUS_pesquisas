@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dispatchParticipantEmails } from "./despachador";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 /**
  * Tarefa agendada: despacha os e-mails automáticos aos participantes.
@@ -13,13 +14,12 @@ export const dynamic = "force-dynamic";
  * segredo: sem `CRON_SECRET` configurado a rota responde 503 e não faz nada;
  * com o segredo errado, 401.
  *
- * A janela de execução é tolerante por desenho (ver a migration
- * 20260818130000): uma execução por dia já cai dentro de qualquer janela de
- * 24 horas, então a rota funciona em qualquer cadência de cron — e rodá-la
- * duas vezes não duplica envio.
+ * A janela de execução é tolerante por desenho. A fila separa execuções
+ * concorrentes por token, portanto cron e disparo imediato podem se sobrepor
+ * sem processar o mesmo lote ao mesmo tempo.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET?.trim();
   if (!secret) {
     return NextResponse.json(
       { status: "degraded", missingConfiguration: ["CRON_SECRET"] },
