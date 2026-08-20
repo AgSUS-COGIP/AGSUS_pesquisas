@@ -85,6 +85,11 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260818130000_notificar_participantes_por_email.sql": {
     função: new Set(["get_survey_operations"]),
   },
+  // Corrige o estado inicial sem trocar o contrato já consumido pelo
+  // frontend. A fila de e-mails usa apenas objetos novos no padrão fc_*.
+  "supabase/migrations/20260820153000_corrigir_criacao_e_fila_emails.sql": {
+    função: new Set(["create_survey_draft"]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria

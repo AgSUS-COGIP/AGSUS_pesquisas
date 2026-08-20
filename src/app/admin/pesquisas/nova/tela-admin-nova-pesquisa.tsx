@@ -19,7 +19,7 @@ import { criarAvaliacao } from "@/lib/api/cliente";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { nowLocalInputValue, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
+import { nowLocalInputValue, periodIssues } from "@/lib/survey-cycle-period";
 
 const schema = z.object({
   code: z.string().min(3, "Informe um código com pelo menos 3 caracteres.").max(30),
@@ -42,9 +42,8 @@ type FormValues = z.infer<typeof schema>;
 
 /**
  * O formulário é dividido em três etapas. Só a última oferece as ações que
- * gravam ("Criar rascunho" e "Publicar"); as anteriores avançam com "Prosseguir"
- * e saem com "Cancelar", de modo que nenhuma etapa intermediária pareça capaz de
- * concluir a criação.
+ * gravam ("Criar rascunho" e "Criar e configurar"); as anteriores avançam com
+ * "Prosseguir" e saem com "Cancelar".
  */
 const STEPS = [
   { title: "Identificação", description: "Como a avaliação será reconhecida no catálogo institucional.", fields: ["code", "name", "description"] },
@@ -67,7 +66,7 @@ export default function NewSurveyPage() {
   const [step, setStep] = useState(0);
   // Distingue qual das duas ações da última etapa está em curso, para que só o
   // botão acionado exiba o indicador de carregamento.
-  const [intent, setIntent] = useState<"DRAFT" | "PUBLISH" | null>(null);
+  const [intent, setIntent] = useState<"DRAFT" | "CONFIGURE" | null>(null);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -107,20 +106,8 @@ export default function NewSurveyPage() {
     setStep((current) => Math.min(current + 1, LAST_STEP));
   }
 
-  async function submit(values: FormValues) {
-    // Um rascunho preenchido hoje pode ser publicado dias depois; o período
-    // informado envelhece nesse intervalo. A publicação só segue com período
-    // ainda válido, e o toast diz exatamente o que corrigir.
-    if (intent === "PUBLISH") {
-      const blocked = publishBlockedMessage(values.opensAt ?? "", values.closesAt ?? "");
-      if (blocked) {
-        toast.error(blocked);
-        setStep(1);
-        setIntent(null);
-        return;
-      }
-    }
-
+  async function submit(values: FormValues, creationIntent: "DRAFT" | "CONFIGURE") {
+    setIntent(creationIntent);
     try {
       // As datas saem em ISO: o `datetime-local` é hora local, e a conversão
       // precisa acontecer onde o fuso do operador é conhecido.
@@ -137,11 +124,9 @@ export default function NewSurveyPage() {
       // O banco normaliza o código para maiúsculas; o valor digitado é reserva.
       const code = criada?.code ?? values.code.toUpperCase();
 
-      // Publicar exige estrutura, e a avaliação nasce só com a seção
-      // "Introdução", sem perguntas — o banco recusaria o PUBLISH agora. Em vez
-      // de prometer o que falharia, a ação leva ao construtor, onde a estrutura
-      // é montada e a publicação acontece pela tela de operação do ciclo.
-      if (intent === "PUBLISH" && criada?.surveyId) {
+      // As duas ações criam o mesmo rascunho. A segunda só encurta o caminho
+      // até o construtor; publicação continua sendo uma transição posterior.
+      if (creationIntent === "CONFIGURE" && criada?.surveyId) {
         toast.success(`Avaliação ${code} criada. Adicione as perguntas para concluir a publicação.`);
         router.push(`/admin/pesquisas/${criada.surveyId}`);
         return;
@@ -160,7 +145,7 @@ export default function NewSurveyPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-      <form onSubmit={form.handleSubmit(submit)} noValidate className="rounded-[2rem] border border-[var(--border-subtle)] bg-white p-6 shadow-sm sm:p-8">
+      <form onSubmit={form.handleSubmit((formValues) => submit(formValues, "DRAFT"))} noValidate className="rounded-[2rem] border border-[var(--border-subtle)] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[var(--brand-primary)]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--brand-secondary)]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[var(--brand-primary)]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
 
         <ol className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Etapas da criação">
@@ -263,7 +248,7 @@ export default function NewSurveyPage() {
               </div>
             )}
             <p className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-              <strong className="font-black">Criar rascunho</strong> registra a avaliação sem publicá-la. <strong className="font-black">Publicar</strong> registra e abre o construtor para você adicionar as perguntas — a publicação se conclui na operação do ciclo, que exige ao menos uma pergunta.
+              <strong className="font-black">Criar rascunho</strong> registra a avaliação e volta ao catálogo. <strong className="font-black">Criar e configurar</strong> registra o mesmo rascunho e abre o construtor para adicionar as perguntas. A publicação acontece depois, nas propriedades do ciclo.
             </p>
           </div>
         )}
@@ -285,13 +270,18 @@ export default function NewSurveyPage() {
             </Button>
           ) : (
             <>
-              <Button type="submit" variant="secondary" size="lg" disabled={submitting} onClick={() => setIntent("DRAFT")}>
+              <Button type="submit" variant="secondary" size="lg" disabled={submitting}>
                 {submitting && intent === "DRAFT" ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
                 Criar rascunho
               </Button>
-              <Button type="submit" size="lg" disabled={submitting} onClick={() => setIntent("PUBLISH")}>
-                {submitting && intent === "PUBLISH" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                Publicar
+              <Button
+                type="button"
+                size="lg"
+                disabled={submitting}
+                onClick={() => void form.handleSubmit((formValues) => submit(formValues, "CONFIGURE"))()}
+              >
+                {submitting && intent === "CONFIGURE" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                Criar e configurar
               </Button>
             </>
           )}
