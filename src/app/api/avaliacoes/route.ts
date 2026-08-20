@@ -24,9 +24,22 @@ export async function GET(request: Request) {
   return NextResponse.json(avaliacoes);
 }
 
-/** Campo de texto obrigatório, já aparado. */
-function textoObrigatorio(valor: unknown) {
-  return typeof valor === "string" && valor.trim() ? valor.trim() : null;
+/** Campo de texto obrigatório, já aparado e limitado no contrato HTTP. */
+function textoObrigatorio(valor: unknown, limite: number) {
+  if (typeof valor !== "string") return null;
+  const texto = valor.trim();
+  return texto && texto.length <= limite ? texto : null;
+}
+
+function dataIsoOpcional(valor: unknown): { valid: boolean; value: string | null } {
+  if (valor === null || valor === undefined || valor === "") {
+    return { valid: true, value: null };
+  }
+  if (typeof valor !== "string") return { valid: false, value: null };
+  const data = new Date(valor);
+  return Number.isNaN(data.getTime())
+    ? { valid: false, value: null }
+    : { valid: true, value: data.toISOString() };
 }
 
 /** Cria uma avaliação em rascunho. */
@@ -38,22 +51,37 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
 
-  const code = textoObrigatorio(corpo.code);
-  const name = textoObrigatorio(corpo.name);
-  const applicationName = textoObrigatorio(corpo.applicationName);
+  const code = textoObrigatorio(corpo.code, 30);
+  const name = textoObrigatorio(corpo.name, 140);
+  const applicationName = textoObrigatorio(corpo.applicationName, 160);
+  const description = typeof corpo.description === "string" ? corpo.description.trim() : null;
+  const opensAt = dataIsoOpcional(corpo.opensAt);
+  const closesAt = dataIsoOpcional(corpo.closesAt);
 
   if (!code || !name || !applicationName) {
-    return respostaDeEntradaInvalida("Informe código, nome e nome da aplicação da avaliação.");
+    return respostaDeEntradaInvalida("Informe código, nome e nome do ciclo dentro dos limites permitidos.");
+  }
+  if (description && description.length > 600) {
+    return respostaDeEntradaInvalida("A descrição deve ter no máximo 600 caracteres.");
+  }
+  if (!opensAt.valid || !closesAt.valid) {
+    return respostaDeEntradaInvalida("Informe datas válidas para abertura e encerramento.");
+  }
+  if (corpo.anonymous !== undefined && typeof corpo.anonymous !== "boolean") {
+    return respostaDeEntradaInvalida("Informe corretamente se a avaliação é anônima.");
+  }
+  if (corpo.allowDrafts !== undefined && typeof corpo.allowDrafts !== "boolean") {
+    return respostaDeEntradaInvalida("Informe corretamente se rascunhos são permitidos.");
   }
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc("create_survey_draft", {
     p_code: code,
     p_name: name,
-    p_description: typeof corpo.description === "string" ? corpo.description.trim() : null,
+    p_description: description,
     p_application_name: applicationName,
-    p_opens_at: corpo.opensAt ?? null,
-    p_closes_at: corpo.closesAt ?? null,
+    p_opens_at: opensAt.value,
+    p_closes_at: closesAt.value,
     p_anonymous: corpo.anonymous ?? false,
     p_allow_drafts: corpo.allowDrafts ?? true,
   });
