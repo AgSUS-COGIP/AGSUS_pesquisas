@@ -356,3 +356,69 @@ export type DefinirTextosMarcaEntrada = {
   saudacao: string | null;
   instrucao: string | null;
 };
+
+/** Textos institucionais do e-mail aos participantes. Vazio restaura o padrão. */
+export type DefinirTextosEmailEntrada = {
+  instrucao: string | null;
+  rodape: string | null;
+};
+
+/** Pessoas escolhidas para receber o lembrete dirigido de um ciclo. */
+export type EnviarEmailsEntrada = {
+  avaliacao: string;
+  pessoas: string[];
+};
+
+/**
+ * Uma pessoa da audiência de um ciclo, com a situação de resposta dela.
+ *
+ * `situation` considera só a resposta **da própria pessoa sobre si**: no CDDI
+ * quem lidera equipe também responde sobre outros, e contar essas marcaria a
+ * chefia como concluída sem que a autoavaliação existisse.
+ */
+export type PessoaDaAudiencia = {
+  personId: string;
+  fullName: string;
+  employeeNumber: string | null;
+  email: string | null;
+  participantStatus: string;
+  situation: "PENDING" | "DRAFT" | "DONE";
+  emailValido: boolean;
+  lastEmailAt: string | null;
+  lastEmailKind: string | null;
+  lastEmailStatus: string | null;
+};
+
+/** Um registro do histórico de envios. */
+export type EnvioDeEmail = {
+  id: string;
+  kind: string;
+  /** PENDENTE (na fila) → PROCESSANDO (reivindicado) → ENVIADO ou FALHOU. */
+  status: "PENDENTE" | "PROCESSANDO" | "ENVIADO" | "FALHOU";
+  erro: string | null;
+  createdAt: string;
+  sentAt: string | null;
+  personName: string;
+  personEmail: string | null;
+  applicationCode: string;
+  applicationName: string;
+};
+
+export type HistoricoDeEmails = {
+  /** Contagem por situação. Chave ausente significa zero. */
+  resumo: Partial<Record<"PENDENTE" | "PROCESSANDO" | "ENVIADO" | "FALHOU", number>>;
+  envios: EnvioDeEmail[];
+};
+
+/** Resultado de um lote de despacho. `remaining` avisa que pode haver mais. */
+export type ResultadoDoDespacho =
+  | { status: "skipped"; missingConfiguration: string[] }
+  | { status: "ok"; claimed: number; sent: number; failed: number; remaining: boolean };
+
+/** Resultado do enfileiramento dirigido. `ignoradas` não é erro — ver a RPC. */
+export type ResultadoDoEnvioManual = {
+  status: string;
+  solicitadas: number;
+  enfileiradas: number;
+  ignoradas: number;
+};

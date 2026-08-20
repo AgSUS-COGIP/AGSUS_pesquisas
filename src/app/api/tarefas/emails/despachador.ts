@@ -42,7 +42,7 @@ type PendingEmail = {
 
 export type ParticipantEmailDispatchResult =
   | { status: "skipped"; missingConfiguration: string[] }
-  | { status: "ok"; claimed: number; sent: number; failed: number };
+  | { status: "ok"; claimed: number; sent: number; failed: number; remaining: boolean };
 
 export function participantEmailMissingConfiguration(): string[] {
   const missing = [...getAdminSupabaseConfigurationStatus().missingVariables];
@@ -90,14 +90,42 @@ async function sendViaSmtp(to: string, subject: string, html: string, text: stri
   });
 }
 
+/**
+ * Um despacho processa **um lote**, dentro de um orçamento de tempo.
+ *
+ * O envio é sequencial — uma conexão SMTP autenticada, uma mensagem por vez —
+ * e não há como não ser: é assim que o SMTP institucional funciona. A conta é
+ * simples e decide o desenho: a ~0,5 s por mensagem, os 1021 participantes do
+ * CDDI levariam uns 8 minutos, e nenhuma função serverless vive tanto. Um laço
+ * único terminaria em timeout, e o pior é que ele morreria **depois** de
+ * mandar pelo SMTP e **antes** de registrar o desfecho — o caso que a linha
+ * abaixo chama de pior desfecho possível, agora multiplicado.
+ *
+ * Por isso cada chamada pega no máximo `BATCH_SIZE` e para ao encostar em
+ * `TIME_BUDGET_MS`, devolvendo `remaining: true`. Quem chama decide se insiste:
+ * a central de e-mails chama em laço e mostra o progresso, o cron pega o que
+ * sobrou no dia seguinte. Nenhuma chamada é longa, e a fila é retomável por
+ * construção — as linhas ficam PROCESSANDO e voltam no próximo lote.
+ */
+const BATCH_SIZE = 40;
+/**
+ * Folga proposital contra o menor teto usual de função serverless (60 s).
+ * O orçamento é conferido **antes** de começar cada mensagem, então o pior caso
+ * é este valor mais o tempo de um envio.
+ */
+const TIME_BUDGET_MS = 20_000;
+
 export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispatchResult> {
   const missingConfiguration = participantEmailMissingConfiguration();
   if (missingConfiguration.length) {
     return { status: "skipped", missingConfiguration };
   }
 
+  const startedAt = Date.now();
   const supabase = createAdminSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_reivindicar_emails");
+  const { data, error } = await supabase.rpc("fc_reivindicar_emails_lote", {
+    p_limite: BATCH_SIZE,
+  });
   if (error) {
     throw new Error(`Não foi possível reivindicar os e-mails pendentes: ${error.message}`);
   }
@@ -106,8 +134,15 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL as string;
   let sent = 0;
   let failed = 0;
+  let interrupted = false;
 
   for (const email of pending) {
+    // Antes de começar, não no meio: parar entre mensagens deixa a fila num
+    // estado íntegro, com o restante ainda PROCESSANDO.
+    if (Date.now() - startedAt > TIME_BUDGET_MS) {
+      interrupted = true;
+      break;
+    }
     try {
       const url = surveyResponseUrl(siteUrl, email);
       const content = participantEmailContent(email, url);
@@ -137,5 +172,9 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     }
   }
 
-  return { status: "ok", claimed: pending.length, sent, failed };
+  // "Pode haver mais" é honesto por construção: o lote veio cheio, ou o tempo
+  // acabou antes de esvaziá-lo. Não afirma que há — afirma que não dá para
+  // garantir que não há, que é a informação de que quem chama precisa.
+  const remaining = interrupted || pending.length >= BATCH_SIZE;
+  return { status: "ok", claimed: pending.length, sent, failed, remaining };
 }

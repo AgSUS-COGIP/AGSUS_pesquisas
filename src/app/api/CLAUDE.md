@@ -40,10 +40,13 @@ Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recur
 | Avaliações | `/api/avaliacoes`, `/api/avaliacoes/[id]`, `…/copia` | `cliente.ts` |
 | Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo`, `…/notificacoes` | `cliente-construtor.ts` |
 | Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
+| Central de e-mails | `/api/plataforma/emails`, `…/audiencia`, `…/enviar`, `…/despachar`, `…/textos` | `cliente-pessoas.ts` |
 | Equipe | `/api/equipe`, `…/ciclos`, `…/candidatos`, `…/membros` | `cliente-pessoas.ts` |
 | Jornada de resposta | `/api/formularios/[codigo]`, `/api/submissoes/**`, `/api/ciclos/[codigo]/regras`, `/api/meu/**` | `cliente-runtime.ts` |
 | CDDI | `/api/cddi/ciclo-vigente`, `…/identidade`, `…/submissoes/**` | `cliente-runtime.ts` |
 | Painéis | `/api/paineis/[codigo]`, `/api/paineis/cddi`, `/api/respostas/**`, `/api/modelos-avaliacao` | `cliente-paineis.ts` |
+
+**`/api/plataforma/emails/despachar` é a exceção que confirma a regra 1.** Ela não chama RPC de domínio — aciona o despachador, que usa **service role** e ignora RLS. Por isso é a única rota de domínio com guarda explícita no handler: lê `canManageSurveys` de `fc_obter_contexto_plataforma()`, avaliado pelo banco sob a sessão de quem chamou. Sem essa checagem, qualquer sessão autenticada dispararia e-mail institucional para mil pessoas. Ela processa **um lote** por chamada; quem drena a fila é a tela, chamando em laço — o SMTP é sequencial e mil mensagens não cabem numa invocação serverless.
 
 **`/api/meu/…` é sempre relativo a quem chamou** e nunca recebe identificador de pessoa no caminho. Uma rota como `/api/pessoas/[id]/catalogo` precisaria verificar que `[id]` é o próprio chamador — verificação que se esquece. Aqui a identidade vem da sessão e não há parâmetro para forjar.
 

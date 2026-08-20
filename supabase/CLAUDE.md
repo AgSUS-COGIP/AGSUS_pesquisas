@@ -149,7 +149,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 | RPC | Uso |
 |---|---|
-| `fc_obter_marca_plataforma()` | Devolve `organizationName`, `productName`, `logoUrl`, `logoPath`, `primaryColor`, `updatedAt`. Leitura para qualquer sessão. |
+| `fc_obter_marca_plataforma()` | Devolve `organizationName`, `productName`, `logoUrl`, `logoPath`, `primaryColor`, `updatedAt` e os textos e cores configuráveis (`productDescription`, `accessGreeting`, `accessInstruction`, `emailInstruction`, `emailFooter`, `sidebarColor`, `accessPanelColor`, arte de fundo). Leitura para qualquer sessão. Redefinida várias vezes **sem mudar a assinatura** — acrescentar chave ao jsonb é seguro, quem não a conhece a ignora. |
 | `fc_atualizar_marca_plataforma(no_organizacao, no_produto, tx_url_logotipo, tx_caminho, co_cor_principal)` | Grava a linha única. Exige `can_manage_surveys()`; valida nomes (1–60), cor `^#[0-9a-f]{6}$`, logotipo obrigatoriamente **HTTPS** e URL + caminho informados **em conjunto**. |
 
 ### Construtor e ciclo
@@ -175,6 +175,22 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 | `fc_definir_notificacao_email(target_survey_id, target_enabled)` | Liga/desliga a opção do ciclo. Exige `can_manage_surveys()`; audita `SURVEY_EMAIL_NOTIFICATIONS_SET`. |
 | `fc_reivindicar_emails()` | **Service role apenas.** Materializa aberturas agendadas, rearma envios `FALHOU` cuja janela continua válida e reivindica os pendentes (claim-first, `on conflict do nothing`). Devolve array jsonb com o payload de cada envio. Só recebe quem tem vínculo `ELIGIBLE`/`INVITED`/`IN_PROGRESS`, pessoa ativa e e-mail com forma válida — quem concluiu não é lembrado. |
 | `fc_concluir_email_participante(target_email_id, target_success, target_error)` | **Service role apenas.** Grava o desfecho (`ENVIADO`/`FALHOU`). |
+
+**O conteúdo do e-mail vem de três lugares, e nenhum deles é escolha de estilo** (`20260820120000_textos_de_email_configuraveis.sql`). Nome, prazo e link vêm do ciclo; **o que a avaliação é** vem de `surveys.description`, já editada no construtor — a migration só a fez chegar ao payload, em vez de criar um segundo campo que divergiria dela; **a instrução de acesso e o rodapé** são institucionais, se repetem em todo ciclo e passaram a morar em `tb_config_plataforma` (`tx_instrucao_email`, `tx_rodape_email`), configurados em `/admin/configuracoes` por `fc_definir_textos_email(p_instrucao, p_rodape)`.
+
+A configuração entra por `left join … on cfg.co_configuracao = 1`, e o `left` é a decisão que importa: com `cross join`, uma instalação sem a linha de configuração deixaria de reivindicar **qualquer** e-mail, em silêncio. Nulo faz o template cair no padrão de `src/lib/participant-emails.ts`, que nunca envia sem instrução nem sem assinatura.
+
+**Três mudanças estruturais** na mesma migration:
+
+| RPC nova | Uso |
+|---|---|
+| `fc_reivindicar_emails_lote(p_limite)` | **Service role apenas.** O que `fc_reivindicar_emails()` fazia, agora com teto por chamada. A antiga virou **ponte** delegando com limite 500 — apagá-la derrubaria o despachador publicado. |
+| `fc_agendar_envio_manual(p_aplicacao, p_pessoas[])` | Enfileira `manual_reminder` para pessoas escolhidas. Exige `can_manage_surveys()` e ciclo `OPEN`; teto de 1500 por disparo; audita `EMAIL_MANUAL_QUEUED`. |
+| `fc_listar_audiencia_email(...)` · `fc_listar_envios_email(...)` | Leitura administrativa. `tl_email_participante` continua sem grant: quem lê são estas funções. |
+
+**O lote é o que torna o CDDI viável.** O envio é sequencial — uma conexão SMTP por mensagem — e 1021 envios levariam uns 8 minutos, mais do que qualquer função serverless vive. O `insert` continua marcando a fila inteira (é barato); o que o limite controla é quanto volta por chamada. Quem drena é a central de e-mails, chamando em sequência com progresso visível.
+
+**O índice único virou parcial.** `uk_email_participante` foi substituída por `in_email_partic_auto_unico`, restrita aos dois tipos automáticos. `manual_reminder` é append-only de propósito: um segundo lembrete à mesma pessoa é legítimo, e a unicidade antiga o bloquearia em silêncio. O que protege do clique duplo é a regra de `fc_agendar_envio_manual` (recusa quem já tem manual `PROCESSANDO`), não mais a constraint. **`manual_reminder` também não exige `st_notificacao_email`** — envio dirigido é ato explícito de quem opera, e exigir o interruptor tornaria impossível cobrar quem falta num ciclo sem aviso automático.
 
 Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)); a janela tolera qualquer cadência de cron — uma execução por dia ainda cai dentro de qualquer janela de 24 horas. Teste de idempotência em `tests/email_participante_idempotencia.sql`.
 

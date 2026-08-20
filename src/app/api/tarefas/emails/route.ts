@@ -34,11 +34,38 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await dispatchParticipantEmails();
-    return NextResponse.json(result, {
-      status: result.status === "skipped" ? 503 : 200,
-      headers: { "Cache-Control": "no-store" },
-    });
+    // Drena o que couber no orçamento desta invocação, em vez de um lote só.
+    //
+    // O despacho passou a trabalhar em lotes curtos (ver `despachador.ts`), e
+    // uma chamada única deixaria o cron entregando algumas dezenas de e-mails
+    // por dia. O laço aqui aproveita a invocação inteira; o que sobrar fica
+    // PROCESSANDO e volta amanhã.
+    //
+    // **O cron é a rede de segurança, não o caminho para volume.** Um ciclo com
+    // mil participantes não se esgota numa invocação serverless, e a conta é do
+    // SMTP sequencial, não deste laço. Volume se processa pela central de
+    // e-mails, que chama o despacho em sequência mostrando o progresso.
+    const startedAt = Date.now();
+    let total = { claimed: 0, sent: 0, failed: 0 };
+    let last = await dispatchParticipantEmails();
+    if (last.status === "skipped") {
+      return NextResponse.json(last, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+    while (last.status === "ok") {
+      total = {
+        claimed: total.claimed + last.claimed,
+        sent: total.sent + last.sent,
+        failed: total.failed + last.failed,
+      };
+      if (!last.remaining || Date.now() - startedAt > 45_000) break;
+      const next = await dispatchParticipantEmails();
+      if (next.status !== "ok") break;
+      last = next;
+    }
+    return NextResponse.json(
+      { status: "ok", ...total, remaining: last.status === "ok" ? last.remaining : false },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
   } catch (dispatchError) {
     console.error("GET /api/tarefas/emails:", dispatchError);
     return NextResponse.json(
