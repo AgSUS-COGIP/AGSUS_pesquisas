@@ -25,9 +25,9 @@ Não seguem as regras acima — cada uma tem autorização própria, pelo motivo
 
 | Rota | Método | Runtime | Autorização | Finalidade |
 |---|---|---|---|---|
-| `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica se as variáveis públicas e administrativas do Supabase existem. `200 ok` ou `503 degraded` com `missingConfiguration`. |
+| `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica Supabase, SMTP, URL pública e cron sem expor valores. `200 ok` ou `503 degraded` com `missingConfiguration`. |
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. Usa service role. |
-| `/api/tarefas/emails` | `GET` | Node (`force-dynamic`) | `Authorization: Bearer CRON_SECRET` | Despacha os e-mails automáticos aos participantes (abertura e 24 h finais), por SMTP institucional (`@/config/email`) — não por provedor de terceiro. Chamada pelo cron da Vercel (`vercel.json`), pelo `after()` de `POST …/ciclo` ao abrir um ciclo e pelo `after()` de `PUT …/notificacoes` ao ligar a opção num ciclo já `OPEN`. Usa service role; quem decide quem recebe é `fc_reivindicar_emails()`. Sem `CRON_SECRET`, `503`; sem `SMTP_APP_PASSWORD`/`NEXT_PUBLIC_SITE_URL`, responde `skipped`. |
+| `/api/tarefas/emails` | `GET` | Node (`force-dynamic`) | `Authorization: Bearer CRON_SECRET` | Envia abertura e lembrete de 24 h em lotes reivindicados por token, com pool SMTP e concorrência limitada. Também roda por `after()` ao abrir o ciclo ou ligar a opção. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
