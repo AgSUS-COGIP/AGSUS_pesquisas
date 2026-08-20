@@ -251,10 +251,20 @@ export default function TelaAdminEmails() {
   const drenarFila = useCallback(async () => {
     let enviados = 0;
     let falhas = 0;
+    /*
+     * `pulado` sobe para quem chamou em vez de virar só um toast aqui.
+     *
+     * Sem isso o chamador não distingue "a fila esvaziou" de "o servidor nem
+     * tentou", e anuncia sucesso com zero enviados — foi o que aconteceu em
+     * 20/08/2026: a rota devolveu 503 por falta de SMTP_APP_PASSWORD, a tela
+     * mostrou o erro e **em seguida** um "0 e-mails enviados" como se tivesse
+     * dado certo.
+     */
+    let pulado: string[] | null = null;
     for (let volta = 0; volta < 60; volta += 1) {
       const resultado = await despacharEmails();
       if (resultado.status === "skipped") {
-        toast.error(`Envio não configurado no servidor: ${resultado.missingConfiguration.join(", ")}.`);
+        pulado = resultado.missingConfiguration;
         break;
       }
       enviados += resultado.sent;
@@ -262,7 +272,7 @@ export default function TelaAdminEmails() {
       setProgresso({ enviados, falhas });
       if (!resultado.remaining) break;
     }
-    return { enviados, falhas };
+    return { enviados, falhas, pulado };
   }, []);
 
   const enviarSelecionadas = useCallback(async () => {
@@ -285,15 +295,25 @@ export default function TelaAdminEmails() {
     try {
       const fila = await enviarEmailsParaPessoas({ avaliacao: cicloId, pessoas });
       if (fila.enfileiradas === 0) {
-        toast.error("Ninguém entrou na fila. Verifique se as pessoas continuam elegíveis no ciclo.");
+        // A causa mais comum não é inelegibilidade: é já existir um lembrete
+        // aguardando envio. Culpar o cadastro manda quem opera investigar o
+        // lugar errado — a fila é o primeiro lugar a olhar.
+        toast.error("Ninguém entrou na fila. Quem você selecionou já tem um lembrete aguardando envio, ou deixou de ser elegível no ciclo. Confira em Fila e histórico.");
+        void carregarAudiencia();
         return;
       }
       if (fila.ignoradas > 0) {
         toast.warning(`${fila.ignoradas} de ${fila.solicitadas} ficaram de fora — sem e-mail válido, fora do ciclo, ou já com lembrete na fila.`);
       }
-      const { enviados, falhas } = await drenarFila();
-      if (falhas > 0) {
+      const { enviados, falhas, pulado } = await drenarFila();
+      if (pulado) {
+        // Enfileirou, mas o servidor não despachou. A distinção importa: o
+        // trabalho não se perdeu, e some assim que a configuração existir.
+        toast.error(`${fila.enfileiradas} na fila, mas o servidor não enviou: falta ${pulado.join(", ")}. Ficam aguardando e saem no próximo despacho.`);
+      } else if (falhas > 0) {
         toast.warning(`${enviados} enviados, ${falhas} falharam. Veja o motivo em Fila e histórico.`);
+      } else if (enviados === 0) {
+        toast.warning(`${fila.enfileiradas} na fila, mas nada foi enviado ainda. Veja em Fila e histórico.`);
       } else {
         toast.success(`${enviados} ${enviados === 1 ? "e-mail enviado" : "e-mails enviados"}.`);
       }
@@ -310,8 +330,14 @@ export default function TelaAdminEmails() {
     setProcessando(true);
     setProgresso({ enviados: 0, falhas: 0 });
     try {
-      const { enviados, falhas } = await drenarFila();
-      toast.success(`Fila processada: ${enviados} enviados, ${falhas} falharam.`);
+      const { enviados, falhas, pulado } = await drenarFila();
+      if (pulado) {
+        toast.error(`O servidor não conseguiu enviar: falta ${pulado.join(", ")}. A fila continua intacta.`);
+      } else if (enviados === 0 && falhas === 0) {
+        toast.info("Nada pendente na fila.");
+      } else {
+        toast.success(`Fila processada: ${enviados} enviados, ${falhas} falharam.`);
+      }
       void carregarHistorico();
     } catch (erro) {
       toast.error(errorMessageFromUnknown(erro) || "Não foi possível processar a fila.");

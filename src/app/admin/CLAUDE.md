@@ -189,6 +189,10 @@ Três painéis, cada um respondendo a uma pergunta diferente de quem opera. O se
 
 **A fila é drenada em laço pela tela, não numa chamada só.** O SMTP é sequencial e mil mensagens não cabem numa invocação serverless — `drenarFila()` chama `POST …/despachar` repetidamente (teto de 60 voltas) enquanto o servidor devolver `remaining`, atualizando o progresso a cada volta. **O cron continua existindo como rede de segurança, não como caminho para volume.**
 
+**A tela nunca anuncia envio que não aconteceu.** `drenarFila()` devolve `pulado` a quem chamou, em vez de só emitir um toast: sem isso o chamador não distingue "a fila esvaziou" de "o servidor nem tentou", e anuncia sucesso com zero enviados — foi o que aconteceu em 20/08/2026, quando o despacho retornou 503 por falta de `SMTP_APP_PASSWORD` e a tela mostrou o erro **e em seguida** um "0 e-mails enviados". Hoje os quatro desfechos têm mensagem própria: pulado por configuração, falhas parciais, nada enviado, e sucesso.
+
+**"Ninguém entrou na fila" nomeia a causa provável.** A mais comum não é inelegibilidade — é já existir um lembrete aguardando envio, barrado pela proteção contra clique duplo. Culpar o cadastro manda quem opera investigar o lugar errado.
+
 **A confirmação diz o número.** Um clique aqui alcança pessoas reais e consome cota de envio da conta institucional; acima de 50 destinatários o diálogo usa `tone: "danger"`. E `ignoradas > 0` vira aviso explícito: a diferença entre solicitadas e enfileiradas não é erro (gente sem e-mail válido, fora do ciclo, ou já com lembrete na fila), mas esconder o número faria alguém concluir que enviou para 300 quando foram 287.
 
 **A prévia chama `participantEmailContent()`, o gerador real**, dentro de um `<iframe srcDoc sandbox="">`. Reproduzir o layout na tela divergiria do template no primeiro ajuste, e a divergência só apareceria na caixa de entrada de mil pessoas. O `iframe` também impede o CSS da aplicação de contaminar um HTML escrito para cliente de e-mail.
