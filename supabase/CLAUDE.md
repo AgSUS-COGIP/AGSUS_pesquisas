@@ -149,7 +149,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 | RPC | Uso |
 |---|---|
-| `fc_obter_marca_plataforma()` | Devolve `organizationName`, `productName`, `logoUrl`, `logoPath`, `primaryColor`, `updatedAt`. Leitura para qualquer sessão. |
+| `fc_obter_marca_plataforma()` | Devolve `organizationName`, `productName`, `logoUrl`, `logoPath`, `primaryColor`, `updatedAt` e os textos e cores configuráveis (`productDescription`, `accessGreeting`, `accessInstruction`, `emailInstruction`, `emailFooter`, `sidebarColor`, `accessPanelColor`, arte de fundo). Leitura para qualquer sessão. Redefinida várias vezes **sem mudar a assinatura** — acrescentar chave ao jsonb é seguro, quem não a conhece a ignora. |
 | `fc_atualizar_marca_plataforma(no_organizacao, no_produto, tx_url_logotipo, tx_caminho, co_cor_principal)` | Grava a linha única. Exige `can_manage_surveys()`; valida nomes (1–60), cor `^#[0-9a-f]{6}$`, logotipo obrigatoriamente **HTTPS** e URL + caminho informados **em conjunto**. |
 
 ### Construtor e ciclo
@@ -175,6 +175,23 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 | `fc_definir_notificacao_email(target_survey_id, target_enabled)` | Liga/desliga a opção do ciclo. Exige `can_manage_surveys()`; audita `SURVEY_EMAIL_NOTIFICATIONS_SET`. |
 | `fc_reivindicar_emails()` | **Service role apenas.** Materializa aberturas, cria pendências e entrega até 100 por token. `PROCESSANDO` expira em 15 minutos; `FALHOU` espera 5 minutos e tem no máximo 5 tentativas; `FOR UPDATE SKIP LOCKED` separa execuções concorrentes. |
 | `fc_concluir_email_participante(target_email_id, target_claim_token, target_success, target_error)` | **Service role apenas.** Só conclui uma linha enquanto o token da execução ainda é vigente. A assinatura anterior permanece temporariamente para bundles já publicados. |
+
+**O conteúdo do e-mail vem de três lugares, e nenhum deles é escolha de estilo.** Nome, prazo e link vêm do ciclo; **o que a avaliação é** vem de `surveys.description`, já editada no construtor — o payload só a transporta, em vez de existir um segundo campo que divergiria dela; **a instrução de acesso e o rodapé** são institucionais, se repetem em todo ciclo e moram em `tb_config_plataforma` (`tx_instrucao_email`, `tx_rodape_email`), configurados na central de e-mails por `fc_definir_textos_email(p_instrucao, p_rodape)`.
+
+A configuração entra na reivindicação por `left join … on cfg.co_configuracao = 1`, e o `left` é a decisão que importa: com `cross join`, uma instalação sem a linha de configuração deixaria de reivindicar **qualquer** e-mail, em silêncio. Nulo faz o template cair no padrão de `src/lib/participant-emails.ts`, que nunca envia sem instrução nem sem assinatura.
+
+**Envio dirigido** (`manual_reminder`), para avisar pessoas escolhidas em vez do ciclo inteiro:
+
+| RPC | Uso |
+|---|---|
+| `fc_agendar_envio_manual(p_aplicacao, p_pessoas[])` | Enfileira `manual_reminder` para as pessoas escolhidas. Exige `can_manage_surveys()` e ciclo `OPEN`; teto de 1500 por disparo; audita `EMAIL_MANUAL_QUEUED`. **Não envia — enfileira**, e o despacho é o mesmo dos automáticos. |
+| `fc_listar_audiencia_email(...)` · `fc_listar_envios_email(...)` | Leitura administrativa. `tl_email_participante` continua sem grant: quem lê são estas funções. |
+
+**O índice único virou parcial.** `uk_email_participante` deu lugar a `in_email_partic_auto_unico`, restrita aos dois tipos automáticos. `manual_reminder` é append-only de propósito: um segundo lembrete à mesma pessoa é legítimo, e a unicidade antiga o bloquearia em silêncio. O que protege do clique duplo é a regra de `fc_agendar_envio_manual`, que recusa quem já tem manual em `PENDENTE` — ou em `PROCESSANDO` dentro do lease, para que um claim abandonado não bloqueie para sempre.
+
+**`manual_reminder` não exige `st_notificacao_email`.** Envio dirigido é ato explícito de quem opera; exigir o interruptor do ciclo tornaria impossível cobrar quem falta num ciclo sem aviso automático.
+
+> **Duas frentes trabalharam nesta fila no mesmo dia (20/08/2026)**, e a reconciliação vale registrar. Uma criou a máquina de estados, o contador de tentativas e o token de reivindicação; a outra criou o envio dirigido, a leitura administrativa e os textos configuráveis. Como as duas redefiniram `fc_reivindicar_emails()`, a segunda sobrescreveu a primeira em produção e deixou `nu_tentativas` órfão por algumas horas. A versão vigente é a **da primeira frente**, acrescida do payload de conteúdo e do suporte a `manual_reminder`. A lição é a de sempre neste arquivo: **redefinição de função é o ponto onde trabalho paralelo se perde em silêncio** — confira a definição viva no banco antes de assumir que a sua é a que está lá.
 
 Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)). A chave única impede criar dois registros para o mesmo aviso; o token impede processamento concorrente. Como SMTP e confirmação no banco são sistemas distintos, uma interrupção exatamente entre os dois ainda pode exigir reconciliação operacional. Teste em `tests/email_participante_idempotencia.sql`.
 

@@ -41,6 +41,11 @@ export const platformNavigationGroups: readonly PlatformNavGroup[] = [
     items: [
       { href: "/admin/pesquisas", label: "Gerenciar avaliações", description: "Criar pesquisas e operar ciclos", icon: "edit", module: PLATFORM_MODULE.ADMIN_SURVEYS },
       { href: "/admin/participantes", label: "Participantes", description: "Gerenciar público e elegibilidade", icon: "users", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS },
+      // Fica sob ADMIN_SURVEYS, e não num módulo próprio: acrescentar módulo
+      // exige mexer no `case` de fc_obter_contexto_plataforma e em ROLE_MODULES,
+      // que precisam concordar — risco desproporcional para uma tela que trata
+      // da operação dos ciclos, exatamente o que esse módulo já governa.
+      { href: "/admin/emails", label: "E-mails", description: "Enviar avisos e acompanhar a fila", icon: "mail", module: PLATFORM_MODULE.ADMIN_SURVEYS },
       { href: "/admin/equipes", label: "Equipes", description: "Organizar lideranças e integrantes", icon: "hierarchy", module: PLATFORM_MODULE.ADMIN_TEAMS },
       // Remover resposta alheia é administração global, não operação de
       // pesquisa: fica sob `ADMIN_TEAMS`, exclusivo do Superadmin, e não sob
