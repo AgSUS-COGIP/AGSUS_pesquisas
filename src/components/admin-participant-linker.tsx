@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckSquare2, Loader2, Search, Square, UserRoundPlus, UsersRound } from "lucide-react";
+import { ArrowRight, CheckSquare2, ChevronDown, Loader2, Search, Square, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirmation-provider";
-import { PersonAvatar } from "@/components/person-avatar";
 import {
   listarCiclosDeParticipantes,
   listarPessoasDisponiveis,
@@ -39,11 +38,12 @@ export function AdminParticipantLinker() {
   const [applicationId, setApplicationId] = useState("");
   const [search, setSearch] = useState("");
   const [people, setPeople] = useState<PersonSearchResult[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selectedPeople, setSelectedPeople] = useState<Map<string, PersonSearchResult>>(() => new Map());
+  const [allAvailableSelected, setAllAvailableSelected] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [working, setWorking] = useState(false);
-  const [assigningAll, setAssigningAll] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -61,7 +61,13 @@ export function AdminParticipantLinker() {
   }, []);
 
   useEffect(() => {
-    setSelected(new Set());
+    setSelectedPeople(new Map());
+    setAllAvailableSelected(false);
+    setSearch("");
+    setPeople([]);
+  }, [applicationId]);
+
+  useEffect(() => {
     if (!applicationId || search.trim().length < MIN_SEARCH_LENGTH) {
       setPeople([]);
       setSearching(false);
@@ -69,17 +75,22 @@ export function AdminParticipantLinker() {
     }
 
     setSearching(true);
+    let canceled = false;
     const timeout = window.setTimeout(async () => {
       try {
-        setPeople(await listarPessoasDisponiveis(applicationId, { busca: search.trim() }));
+        const results = await listarPessoasDisponiveis(applicationId, { busca: search.trim() });
+        if (!canceled) setPeople(results);
       } catch (searchError) {
-        toast.error(errorMessageFromUnknown(searchError) || "Não foi possível pesquisar pessoas.");
+        if (!canceled) toast.error(errorMessageFromUnknown(searchError) || "Não foi possível pesquisar pessoas.");
       } finally {
-        setSearching(false);
+        if (!canceled) setSearching(false);
       }
     }, 300);
 
-    return () => window.clearTimeout(timeout);
+    return () => {
+      canceled = true;
+      window.clearTimeout(timeout);
+    };
   }, [applicationId, search]);
 
   const selectedApplication = useMemo(
@@ -88,32 +99,40 @@ export function AdminParticipantLinker() {
   );
 
   const eligiblePeople = useMemo(() => people.filter((person) => !isLinked(person)), [people]);
-  const alreadyLinkedCount = people.length - eligiblePeople.length;
-  const allVisibleSelected = eligiblePeople.length > 0 && eligiblePeople.every((person) => selected.has(person.personId));
-  const busy = working || assigningAll;
+  const selectedCount = selectedPeople.size;
+  const hasSelection = allAvailableSelected || selectedCount > 0;
+  const busy = working;
 
   function togglePerson(personId: string) {
-    setSelected((current) => {
-      const next = new Set(current);
+    if (allAvailableSelected) return;
+    const person = eligiblePeople.find((candidate) => candidate.personId === personId);
+    if (!person) return;
+    setSelectedPeople((current) => {
+      const next = new Map(current);
       if (next.has(personId)) next.delete(personId);
-      else next.add(personId);
+      else next.set(personId, person);
       return next;
     });
   }
 
-  function toggleVisible() {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (allVisibleSelected) eligiblePeople.forEach((person) => next.delete(person.personId));
-      else eligiblePeople.forEach((person) => next.add(person.personId));
+  function clearSelection() {
+    setSelectedPeople(new Map());
+    setAllAvailableSelected(false);
+  }
+
+  function removeSelectedPerson(personId: string) {
+    setSelectedPeople((current) => {
+      const next = new Map(current);
+      next.delete(personId);
       return next;
     });
   }
 
-  function resetSearch() {
-    setSelected(new Set());
+  function resetSelector() {
+    clearSelection();
     setSearch("");
     setPeople([]);
+    setSelectorOpen(false);
   }
 
   /** Recarrega os contadores do cabeçalho depois de mexer no público. */
@@ -126,39 +145,25 @@ export function AdminParticipantLinker() {
   }
 
   async function assignSelected() {
-    if (!applicationId || selected.size === 0) return;
+    if (!applicationId || !hasSelection) return;
     setWorking(true);
     try {
-      const result = await vincularParticipantes(applicationId, { pessoas: Array.from(selected) });
+      if (allAvailableSelected && selectedApplication) {
+        const confirmed = await confirm({
+          title: "Vincular todas as pessoas elegíveis?",
+          description: `Todas as pessoas ativas e elegíveis serão vinculadas a “${selectedApplication.code} — ${selectedApplication.name}”. Lideranças marcadas como não avaliáveis serão excluídas automaticamente.`,
+          confirmLabel: "Vincular todas",
+        });
+        if (!confirmed) return;
+      }
+      const result = await vincularParticipantes(applicationId, allAvailableSelected ? { todosDisponiveis: true } : { pessoas: Array.from(selectedPeople.keys()) });
       toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já existentes.`);
-      resetSearch();
+      resetSelector();
       await refreshApplications();
     } catch (error) {
       toast.error(errorMessageFromUnknown(error) || "Não foi possível vincular as pessoas selecionadas.");
     } finally {
       setWorking(false);
-    }
-  }
-
-  async function assignAllAvailable() {
-    if (!applicationId || !selectedApplication) return;
-    const confirmed = await confirm({
-      title: "Vincular todas as pessoas elegíveis?",
-      description: `Todas as pessoas ativas e elegíveis serão vinculadas a “${selectedApplication.code} — ${selectedApplication.name}”. Lideranças marcadas como não avaliáveis serão excluídas automaticamente.`,
-      confirmLabel: "Vincular todas",
-    });
-    if (!confirmed) return;
-
-    setAssigningAll(true);
-    try {
-      const result = await vincularParticipantes(applicationId, { todosDisponiveis: true });
-      toast.success(`${result.assignedCount ?? 0} vinculadas, ${result.reactivatedCount ?? 0} reativadas e ${result.skippedCount ?? 0} já vinculadas.`);
-      resetSearch();
-      await refreshApplications();
-    } catch (error) {
-      toast.error(errorMessageFromUnknown(error) || "Não foi possível vincular todo o público disponível.");
-    } finally {
-      setAssigningAll(false);
     }
   }
 
@@ -173,13 +178,9 @@ export function AdminParticipantLinker() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button type="button" disabled={!applicationId || busy} onClick={() => void assignAllAvailable()} className="secondary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
-            {assigningAll ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UserRoundPlus className="h-4 w-4" aria-hidden="true" />}
-            Vincular todos os disponíveis
-          </button>
-          <button type="button" disabled={!selected.size || busy} onClick={() => void assignSelected()} className="primary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={!hasSelection || busy} onClick={() => void assignSelected()} className="primary-button min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50">
             {working ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UsersRound className="h-4 w-4" aria-hidden="true" />}
-            Vincular {selected.size || "selecionadas"}
+            {allAvailableSelected ? "Vincular todos os disponíveis" : `Vincular ${selectedCount || "selecionadas"}`}
           </button>
         </div>
       </div>
@@ -193,11 +194,36 @@ export function AdminParticipantLinker() {
           </select>
         </label>
 
-        <label className="relative block">
-          <span className="text-xs font-black uppercase tracking-[.14em] text-[var(--text-secondary)]">Buscar pessoa na base institucional</span>
-          <Search className="absolute bottom-3.5 left-4 h-4 w-4 text-[var(--text-secondary)]" aria-hidden="true" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} disabled={!applicationId} placeholder="Nome, matrícula, e-mail, cargo ou coordenação" className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-11 pr-4 font-semibold text-[var(--text-primary)] outline-none focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-sky-200/20 disabled:opacity-60" />
-        </label>
+        <div className="relative">
+          <span id="participant-selector-label" className="text-xs font-black uppercase tracking-[.14em] text-[var(--text-secondary)]">Participantes</span>
+          <button type="button" aria-labelledby="participant-selector-label" aria-expanded={selectorOpen} aria-haspopup="listbox" disabled={!applicationId || busy} onClick={() => setSelectorOpen((open) => !open)} className="mt-2 flex h-12 w-full items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 text-left font-semibold text-[var(--text-primary)] outline-none focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-sky-200/20 disabled:opacity-60">
+            <span className="truncate">{allAvailableSelected ? "Todos os participantes disponíveis" : selectedCount === 0 ? "Selecione participantes" : `${selectedCount} participante${selectedCount === 1 ? "" : "s"} selecionado${selectedCount === 1 ? "" : "s"}`}</span>
+            <ChevronDown className={`h-4 w-4 shrink-0 transition ${selectorOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+          </button>
+          {selectorOpen ? (
+            <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-xl">
+              <div className="border-b border-[var(--border-subtle)] p-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-secondary)]" aria-hidden="true" />
+                  <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} disabled={allAvailableSelected} placeholder="Buscar novas pessoas" className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-9 pr-3 text-sm font-medium text-[var(--text-primary)] outline-none focus:ring-4 focus:ring-sky-200/20 disabled:opacity-60" />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setAllAvailableSelected(true); setSelectedPeople(new Map()); }} disabled={allAvailableSelected} className="secondary-button min-h-9 text-xs disabled:cursor-not-allowed disabled:opacity-50">Selecionar todos os disponíveis</button>
+                </div>
+              </div>
+
+              <div role="listbox" aria-label="Resultados da busca" aria-multiselectable="true" className="max-h-72 divide-y divide-[var(--border-subtle)] overflow-y-auto overscroll-contain">
+                {allAvailableSelected ? <p className="p-4 text-sm text-[var(--text-secondary)]">Todos os participantes disponíveis estão selecionados.</p> : searching ? <div className="grid place-items-center p-6 text-[var(--text-secondary)]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /></div> : eligiblePeople.length > 0 ? eligiblePeople.map((person) => {
+                  const checked = selectedPeople.has(person.personId);
+                  return <button key={person.personId} type="button" role="option" aria-selected={checked} onClick={() => togglePerson(person.personId)} className={`flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left transition ${checked ? "bg-sky-500/10" : "hover:bg-[var(--surface-muted)]"}`}>
+                    {checked ? <CheckSquare2 className="h-5 w-5 shrink-0 text-sky-500" aria-hidden="true" /> : <Square className="h-5 w-5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />}
+                    <span className="min-w-0"><strong className="block truncate text-sm text-[var(--text-primary)]">{person.fullName}</strong><span className="block truncate text-xs text-[var(--text-secondary)]">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span></span>
+                  </button>;
+                }) : <p className="p-4 text-sm text-[var(--text-secondary)]">{search.trim().length >= MIN_SEARCH_LENGTH ? "Nenhuma pessoa disponível para essa busca." : `Digite pelo menos ${MIN_SEARCH_LENGTH} caracteres para buscar novas pessoas.`}</p>}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {selectedApplication ? (
@@ -217,49 +243,22 @@ export function AdminParticipantLinker() {
         </div>
       ) : null}
 
-      {eligiblePeople.length > 0 ? (
-        <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
-          <button type="button" onClick={toggleVisible} className="flex min-h-12 w-full items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 text-left text-sm font-black text-[var(--text-primary)]">
-            {allVisibleSelected ? <CheckSquare2 className="h-5 w-5 text-sky-500" aria-hidden="true" /> : <Square className="h-5 w-5 text-[var(--text-secondary)]" aria-hidden="true" />}
-            {allVisibleSelected ? "Desmarcar resultados visíveis" : `Selecionar ${eligiblePeople.length} resultados visíveis`}
-          </button>
-          <div className="max-h-[28rem] divide-y divide-[var(--border-subtle)] overflow-y-auto overscroll-contain">
-            {eligiblePeople.map((person) => {
-              const checked = selected.has(person.personId);
-              return (
-                <button key={person.personId} type="button" aria-pressed={checked} onClick={() => togglePerson(person.personId)} className={`flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition ${checked ? "bg-sky-500/10" : "bg-[var(--surface-card)] hover:bg-[var(--surface-muted)]"}`}>
-                  {checked ? <CheckSquare2 className="h-5 w-5 shrink-0 text-sky-500" aria-hidden="true" /> : <Square className="h-5 w-5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />}
-                  <PersonAvatar fullName={person.fullName} avatarUrl={person.avatarUrl} className="h-10 w-10 shrink-0 rounded-xl" />
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm text-[var(--text-primary)]">{person.fullName}</strong>
-                    <span className="mt-1 block truncate text-xs text-[var(--text-secondary)]">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"} · {person.costCenter || "Sem coordenação"} · {person.institutionalEmail || "Sem e-mail"}</span>
-                  </span>
-                  {person.participantStatus ? <span className="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-black text-amber-500">{person.participantStatus === "BLOCKED" ? "Reativar" : "Restaurar"}</span> : null}
-                </button>
-              );
-            })}
+      {hasSelection ? (
+        <div className="mt-5 rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-[var(--text-primary)]">Participantes selecionados</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{allAvailableSelected ? "Todos os participantes disponíveis serão vinculados." : `${selectedCount} participante${selectedCount === 1 ? "" : "s"} será${selectedCount === 1 ? "" : "ão"} vinculado${selectedCount === 1 ? "" : "s"}.`}</p>
+            </div>
+            <button type="button" onClick={clearSelection} disabled={busy} className="secondary-button min-h-10 justify-center text-sm disabled:cursor-not-allowed disabled:opacity-50"><X className="h-4 w-4" aria-hidden="true" />Remover todos os participantes selecionados</button>
           </div>
-          {alreadyLinkedCount > 0 ? (
-            <p className="border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3 text-xs text-[var(--text-secondary)]">
-              {alreadyLinkedCount === 1 ? "1 pessoa encontrada já está vinculada e foi omitida." : `${alreadyLinkedCount} pessoas encontradas já estão vinculadas e foram omitidas.`}
-            </p>
+          {selectedCount > 0 ? (
+            <div className="mt-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto border-t border-sky-500/20 pt-3">
+              {Array.from(selectedPeople.values()).map((person) => <button key={person.personId} type="button" onClick={() => removeSelectedPerson(person.personId)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-3 py-1.5 text-sm font-bold text-[var(--text-primary)] transition hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-50"><span className="max-w-52 truncate">{person.fullName}</span><X className="h-3.5 w-3.5" aria-hidden="true" /></button>)}
+            </div>
           ) : null}
         </div>
-      ) : searching ? (
-        <div className="mt-5 grid place-items-center rounded-2xl border border-dashed border-[var(--border-subtle)] p-8 text-[var(--text-secondary)]">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-        </div>
-      ) : search.trim().length >= MIN_SEARCH_LENGTH ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-6 text-center text-sm text-[var(--text-secondary)]">
-          {alreadyLinkedCount > 0
-            ? `${alreadyLinkedCount === 1 ? "A pessoa encontrada já está" : "As pessoas encontradas já estão"} vinculada${alreadyLinkedCount === 1 ? "" : "s"} a esta avaliação.`
-            : "Nenhuma pessoa disponível para vínculo com essa busca."}
-        </div>
-      ) : (
-        <p className="mt-5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-6 text-center text-sm text-[var(--text-secondary)]">
-          Digite pelo menos {MIN_SEARCH_LENGTH} caracteres para buscar na base institucional.
-        </p>
-      )}
+      ) : null}
 
       <div className="mt-6 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--text-secondary)]">Para conferir, bloquear ou remover quem já está vinculado, abra a visualização completa.</p>
