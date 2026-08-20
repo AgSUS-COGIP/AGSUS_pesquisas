@@ -261,7 +261,16 @@ export default function TelaAdminEmails() {
      * dado certo.
      */
     let pulado: string[] | null = null;
-    for (let volta = 0; volta < 60; volta += 1) {
+    /*
+     * O despachador já processa vários lotes por chamada, dentro do próprio
+     * orçamento de tempo. O laço daqui existe para o caso de a fila ser maior
+     * do que cabe numa execução: enquanto uma chamada ainda reivindicou algo,
+     * há trabalho; `claimed` em zero é o sinal de fila vazia.
+     *
+     * O teto de 20 voltas é backstop contra laço infinito se alguma linha
+     * ficasse presa sendo reivindicada e nunca concluída.
+     */
+    for (let volta = 0; volta < 20; volta += 1) {
       const resultado = await despacharEmails();
       if (resultado.status === "skipped") {
         pulado = resultado.missingConfiguration;
@@ -270,7 +279,7 @@ export default function TelaAdminEmails() {
       enviados += resultado.sent;
       falhas += resultado.failed;
       setProgresso({ enviados, falhas });
-      if (!resultado.remaining) break;
+      if (resultado.claimed === 0) break;
     }
     return { enviados, falhas, pulado };
   }, []);

@@ -10,7 +10,7 @@
 
 begin;
 
-select plan(12);
+select plan(15);
 
 -- ---------------------------------------------------------------------------
 -- Guarda de papel: o EXECUTE de `authenticated` existe pelo gate de contratos
@@ -73,17 +73,28 @@ select is(
 
 -- 2. Os dois claims são do tipo research_opened.
 select is(
-  (select count(*)::integer from public.tl_email_participante where tp_email = 'research_opened'),
+  (select count(*)::integer from public.tl_email_participante
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+      and tp_email = 'research_opened'),
   2,
   'os registros criados são do tipo research_opened'
+);
+
+-- Uma segunda execução enquanto a primeira detém o lote não pode receber as
+-- mesmas linhas.
+select is(
+  (select jsonb_array_length(public.fc_reivindicar_emails())),
+  0,
+  'reivindicações concorrentes não devolvem o lote que já está processando'
 );
 
 -- Simula o envio bem-sucedido dos dois.
 select lives_ok(
   $sql$
-    select public.fc_concluir_email_participante(sq_email, true)
+    select public.fc_concluir_email_participante(sq_email, co_reivindicacao, true)
     from public.tl_email_participante
-    where st_envio = 'PROCESSANDO'
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+      and st_envio = 'PROCESSANDO'
   $sql$,
   'concluir os envios com sucesso não falha'
 );
@@ -97,7 +108,8 @@ select is(
 
 -- 4. E não cria registro em dobro — a chave única segura o insert.
 select is(
-  (select count(*)::integer from public.tl_email_participante),
+  (select count(*)::integer from public.tl_email_participante
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'),
   2,
   'reprocessamento não duplica registros de controle'
 );
@@ -105,6 +117,14 @@ select is(
 -- ---------------------------------------------------------------------------
 -- Janela de 24 horas: encurta o encerramento e reprocessa.
 -- ---------------------------------------------------------------------------
+-- O lembrete só pode existir depois de um intervalo real desde o convite;
+-- ciclos curtos não recebem os dois avisos na mesma execução.
+update public.tl_email_participante
+set dt_envio = now() - interval '2 hours'
+where tp_email = 'research_opened'
+  and sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+  and st_envio = 'ENVIADO';
+
 update public.survey_applications
 set closes_at = now() + interval '12 hours'
 where id = '00000000-0000-4000-8000-0000000000cc';
@@ -125,7 +145,8 @@ select is(
 select is(
   (
     select count(*)::integer from public.tl_email_participante
-    where tp_email = 'research_expiring_24h'
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+      and tp_email = 'research_expiring_24h'
       and sq_pessoa = '00000000-0000-4000-8000-000000000001'
   ),
   1,
@@ -135,12 +156,24 @@ select is(
 -- 6. Falha transitória: o registro FALHOU volta para a fila na execução seguinte.
 select lives_ok(
   $sql$
-    select public.fc_concluir_email_participante(sq_email, false, 'Falha simulada de rede')
+    select public.fc_concluir_email_participante(sq_email, co_reivindicacao, false, 'Falha simulada de rede')
     from public.tl_email_participante
-    where st_envio = 'PROCESSANDO'
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+      and st_envio = 'PROCESSANDO'
   $sql$,
   'registrar falha de envio não falha'
 );
+
+select is(
+  (select jsonb_array_length(public.fc_reivindicar_emails())),
+  0,
+  'falha não é repetida em laço apertado pela mesma execução'
+);
+
+update public.tl_email_participante
+set dt_atualizacao = now() - interval '6 minutes'
+where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+  and st_envio = 'FALHOU';
 
 select is(
   (select jsonb_array_length(public.fc_reivindicar_emails())),
@@ -152,12 +185,18 @@ select is(
 --    volta para a fila, mesmo com o registro rearmado.
 select lives_ok(
   $sql$
-    select public.fc_concluir_email_participante(sq_email, false, 'Falha simulada de rede')
+    select public.fc_concluir_email_participante(sq_email, co_reivindicacao, false, 'Falha simulada de rede')
     from public.tl_email_participante
-    where st_envio = 'PROCESSANDO'
+    where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+      and st_envio = 'PROCESSANDO'
   $sql$,
   'registrar a segunda falha não falha'
 );
+
+update public.tl_email_participante
+set dt_atualizacao = now() - interval '6 minutes'
+where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+  and st_envio = 'FALHOU';
 
 update public.application_participants
 set status = 'EXCLUDED'
@@ -168,6 +207,24 @@ select is(
   (select jsonb_array_length(public.fc_reivindicar_emails())),
   0,
   'participante removido do ciclo não recebe e-mail pendente'
+);
+
+-- 8. Uma falha permanente não é tentada indefinidamente a cada cron.
+update public.application_participants
+set status = 'ELIGIBLE'
+where application_id = '00000000-0000-4000-8000-0000000000cc'
+  and person_id = '00000000-0000-4000-8000-000000000001';
+
+update public.tl_email_participante
+set nu_tentativas = 5,
+    dt_atualizacao = now() - interval '6 minutes'
+where sq_aplicacao = '00000000-0000-4000-8000-0000000000cc'
+  and st_envio = 'FALHOU';
+
+select is(
+  (select jsonb_array_length(public.fc_reivindicar_emails())),
+  0,
+  'envio que atingiu cinco tentativas permanece fora da fila automática'
 );
 
 select * from finish();

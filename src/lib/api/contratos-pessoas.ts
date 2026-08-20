@@ -410,10 +410,17 @@ export type HistoricoDeEmails = {
   envios: EnvioDeEmail[];
 };
 
-/** Resultado de um lote de despacho. `remaining` avisa que pode haver mais. */
+/**
+ * Resultado de uma execução do despacho.
+ *
+ * Espelha `ParticipantEmailDispatchResult` do despachador, que já processa
+ * vários lotes por chamada (`batches`) dentro do próprio orçamento de tempo.
+ * `claimed` em zero é o sinal de fila vazia — é por ele que a tela sabe parar
+ * de insistir, já que não existe um `remaining` explícito.
+ */
 export type ResultadoDoDespacho =
   | { status: "skipped"; missingConfiguration: string[] }
-  | { status: "ok"; claimed: number; sent: number; failed: number; remaining: boolean };
+  | { status: "ok"; batches: number; claimed: number; sent: number; failed: number };
 
 /** Resultado do enfileiramento dirigido. `ignoradas` não é erro — ver a RPC. */
 export type ResultadoDoEnvioManual = {

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
+import { scheduleParticipantEmailDispatch } from "@/app/api/tarefas/emails/agendamento";
 import type { NotificacaoEmailEntrada } from "@/lib/api/contratos-construtor";
+
+export const maxDuration = 300;
 
 /**
  * Liga ou desliga o envio de e-mails aos participantes do ciclo.
@@ -39,6 +42,15 @@ export async function PUT(
   });
 
   if (error) return respostaDeErro(error, "PUT /api/avaliacoes/[id]/notificacoes");
+
+  // Ligar a opção num ciclo que já está OPEN não pode esperar o cron do dia
+  // seguinte — sem isto, o despacho só rodaria de novo na próxima abertura de
+  // ciclo (que já passou) ou no cron. `after()` roda depois da resposta; se o
+  // ciclo não estiver OPEN, fc_reivindicar_emails() simplesmente não reivindica
+  // nada; só ligar a opção agenda o trabalho.
+  if (corpo.enabled) {
+    scheduleParticipantEmailDispatch("notificacao");
+  }
 
   return NextResponse.json(data, {
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },

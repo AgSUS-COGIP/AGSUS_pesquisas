@@ -119,6 +119,12 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+/** Cabeçalho SMTP não pode herdar quebras de linha de texto administrável. */
+function emailSubject(prefix: string, applicationName: string) {
+  const normalizedName = applicationName.replace(/[\r\n]+/g, " ").trim();
+  return `${prefix}: ${normalizedName}`;
+}
+
 /**
  * E-mail é HTML de 2005: estilos inline, tabela nenhuma dispensável e nada de
  * CSS externo — clientes de e-mail não carregam folha de estilo.
@@ -169,10 +175,11 @@ function instructionBlock(instruction: string) {
 }
 
 function actionButton(url: string) {
+  const safeUrl = escapeHtml(url);
   return `<p style="margin:24px 0;">
-    <a href="${url}" style="display:inline-block;background-color:#003b70;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 24px;border-radius:8px;">Responder agora</a>
+    <a href="${safeUrl}" style="display:inline-block;background-color:#003b70;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 24px;border-radius:8px;">Responder agora</a>
   </p>
-  <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#64748b;">Se o botão não funcionar, copie e cole este endereço no navegador:<br />${url}</p>`;
+  <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#64748b;">Se o botão não funcionar, copie e cole este endereço no navegador:<br />${safeUrl}</p>`;
 }
 
 export function participantEmailContent(payload: ParticipantEmailPayload, responseUrl: string): ParticipantEmailContent {
@@ -188,7 +195,7 @@ export function participantEmailContent(payload: ParticipantEmailPayload, respon
   const eyebrow = `${product} · ${organization}`;
 
   if (payload.kind === "research_expiring_24h") {
-    const subject = `Últimas 24 horas para responder: ${payload.applicationName}`;
+    const subject = emailSubject("Últimas 24 horas para responder", payload.applicationName);
     const deadlineHtml = deadline
       ? `<p style="margin:0 0 8px;font-size:14px;line-height:22px;">O prazo termina em <strong>${escapeHtml(deadline)}</strong>.</p>`
       : "";
@@ -263,7 +270,7 @@ export function participantEmailContent(payload: ParticipantEmailPayload, respon
     return { subject, html, text };
   }
 
-  const subject = `Avaliação aberta para resposta: ${payload.applicationName}`;
+  const subject = emailSubject("Avaliação aberta para resposta", payload.applicationName);
   const deadlineHtml = deadline
     ? `<p style="margin:0 0 8px;font-size:14px;line-height:22px;">Você pode responder até <strong>${escapeHtml(deadline)}</strong>.</p>`
     : "";

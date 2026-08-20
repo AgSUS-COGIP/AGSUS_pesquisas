@@ -66,6 +66,17 @@ describe("participantEmailContent — abertura", () => {
     expect(hostile.html).not.toContain("<script>");
     expect(hostile.html).toContain("&lt;script&gt;");
   });
+
+  it("remove quebras de linha do assunto", () => {
+    const contentWithHeaderBreak = participantEmailContent(
+      { ...basePayload, applicationName: "Pesquisa\r\nBcc: externo@example.org" },
+      url,
+    );
+
+    expect(contentWithHeaderBreak.subject).toBe(
+      "Avaliação aberta para resposta: Pesquisa Bcc: externo@example.org",
+    );
+  });
 });
 
 describe("participantEmailContent — lembrete de 24 horas", () => {

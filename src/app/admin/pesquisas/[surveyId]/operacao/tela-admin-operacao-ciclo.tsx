@@ -209,9 +209,14 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     setWorking("EMAIL_NOTIFICATIONS");
     try {
       await definirNotificacaoEmail(surveyId, next);
-      toast.success(next
-        ? "Envio de e-mails ligado. Os participantes recebem o aviso de abertura e o lembrete das 24 horas finais."
-        : "Envio de e-mails desligado. Nenhum e-mail automático será enviado.");
+      const status = operations?.application?.status;
+      toast.success(!next
+        ? "Envio de e-mails desligado. Nenhum e-mail automático será enviado."
+        : status === "OPEN"
+          ? "Envio ligado. O aviso de abertura foi colocado em processamento."
+          : status === "SCHEDULED"
+            ? "Envio ligado. O ciclo ainda está agendado; nenhum e-mail é enviado antes da abertura."
+            : "Envio ligado. Os avisos começarão quando o ciclo for aberto.");
       await loadOperations();
     } catch (toggleError) {
       toast.error(errorMessageFromUnknown(toggleError));
@@ -262,6 +267,19 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     : operations.metrics.participants === 0 && !emailNotificationsEnabled
       ? "Vincule participantes ao ciclo para habilitar o envio — hoje não há destinatário."
       : null;
+  const emailNotificationDescription = !emailNotificationsEnabled
+    ? "Nenhum e-mail automático é enviado enquanto a opção estiver desmarcada."
+    : cycleStatus === "OPEN"
+      ? `${operations?.metrics.participants ?? 0} ${operations?.metrics.participants === 1 ? "participante vinculado receberá" : "participantes vinculados receberão"} os avisos deste ciclo no e-mail institucional.`
+      : cycleStatus === "SCHEDULED"
+        ? "O envio está habilitado, mas o aviso de abertura só entra na fila quando o ciclo abrir."
+        : "O envio está habilitado, mas nenhum aviso é enviado enquanto o ciclo não estiver aberto.";
+  const scheduledWindowMilliseconds = operations?.application?.opensAt && operations.application.closesAt
+    ? new Date(operations.application.closesAt).getTime() - new Date(operations.application.opensAt).getTime()
+    : null;
+  const scheduledEmailWindowIsShort = cycleStatus === "SCHEDULED"
+    && scheduledWindowMilliseconds !== null
+    && scheduledWindowMilliseconds < 24 * 60 * 60 * 1000;
 
   const periodAction = canReopen ? "REOPEN" : canSchedule ? "SCHEDULE" : "UPDATE_PERIOD";
   const periodActionLabel = {
@@ -517,9 +535,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <div className="mt-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
             <Checkbox
               label="Enviar e-mails aos participantes"
-              description={emailNotificationsEnabled
-                ? `${operations.metrics.participants} ${operations.metrics.participants === 1 ? "participante vinculado receberá" : "participantes vinculados receberão"} os avisos deste ciclo no e-mail institucional.`
-                : "Nenhum e-mail automático é enviado enquanto a opção estiver desmarcada."}
+              description={emailNotificationDescription}
               checked={emailNotificationsEnabled}
               disabled={emailNotificationsBlockedReason !== null || working !== null}
               onChange={(event) => void toggleEmailNotifications(event.target.checked)}
@@ -528,6 +544,11 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold leading-5 text-[var(--text-secondary)]">
                 <Lock className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
                 {emailNotificationsBlockedReason}
+              </p>
+            )}
+            {emailNotificationsEnabled && scheduledEmailWindowIsShort && (
+              <p role="status" className="mt-3 text-xs font-semibold leading-5 text-amber-800">
+                Este ciclo agendado fica aberto por menos de 24 horas. Com o processamento diário, ele pode encerrar antes do próximo despacho; para um teste imediato, use “Abrir agora”.
               </p>
             )}
           </div>

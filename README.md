@@ -206,7 +206,10 @@ Copie [.env.example](.env.example) para `.env.local` e preencha os valores.
 | `SUPABASE_URL` | Servidor | Não | Alternativa à variável pública nas rotas administrativas. |
 | `SUPABASE_SECRET_KEY` | **Servidor** | Sim (rotas admin) | Chave secreta moderna, usada por `createAdminSupabaseClient()`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Servidor** | Sim (rotas admin) | Nome legado, aceito como alternativa à anterior. |
-| `NEXT_PUBLIC_SITE_URL` | Navegador | Não | URL canônica de produção. |
+| `NEXT_PUBLIC_SITE_URL` | Navegador + servidor | Sim (e-mails) | URL canônica usada nos links enviados aos participantes. |
+| `SMTP_APP_PASSWORD` | **Servidor** | Sim (e-mails) | Senha de app da caixa Google Workspace; nunca use a senha normal da conta. |
+| `SMTP_USER` | **Servidor** | Não | Caixa que autentica no SMTP; padrão: remetente institucional configurado no código. |
+| `CRON_SECRET` | **Servidor** | Sim (e-mails) | Autoriza as chamadas do cron da Vercel a `/api/tarefas/emails`. |
 | `ALLOWED_INSTITUTIONAL_DOMAINS` | Banco de dados | Não | Lida pela função SQL de acesso institucional. Padrão: `agenciasus.org.br,agsus.org.br`. |
 
 > **Segurança.** `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` **nunca** podem receber o prefixo `NEXT_PUBLIC_`, ser importados por componentes de cliente nem ser gravados no repositório. Sem essas chaves a aplicação sobe, mas `/api/health` responde `503 degraded`.
