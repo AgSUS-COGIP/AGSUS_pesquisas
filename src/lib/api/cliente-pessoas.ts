@@ -7,8 +7,14 @@ import type {
   CandidatoDaEquipe,
   CicloDeLideranca,
   CicloDePesquisa,
+  DefinirTextosEmailEntrada,
   DefinirTextosMarcaEntrada,
   DefinirVinculoLiderancaEntrada,
+  EnviarEmailsEntrada,
+  HistoricoDeEmails,
+  PessoaDaAudiencia,
+  ResultadoDoDespacho,
+  ResultadoDoEnvioManual,
   EquipeDaLideranca,
   EventoAuditoriaPessoa,
   ParticipanteDaAvaliacao,
@@ -221,6 +227,69 @@ export function definirTextosDaMarca(entrada: DefinirTextosMarcaEntrada) {
     method: "PUT",
     body: JSON.stringify(entrada),
   });
+}
+
+// ── Central de e-mails ────────────────────────────────────────────────────────
+
+/**
+ * Define a instrução de acesso e o rodapé do e-mail aos participantes.
+ *
+ * Campo vazio restaura o padrão do código — nenhum e-mail sai sem explicar como
+ * acessar nem sem assinatura institucional.
+ */
+export function definirTextosDeEmail(entrada: DefinirTextosEmailEntrada) {
+  return chamar<unknown>("/api/plataforma/emails/textos", {
+    method: "PUT",
+    body: JSON.stringify(entrada),
+  });
+}
+
+/** Histórico de envios, com resumo por situação. Sem ciclo, traz a plataforma toda. */
+export function listarEnviosDeEmail(opcoes?: { avaliacao?: string | null; situacao?: string; limite?: number }) {
+  return chamar<HistoricoDeEmails>(
+    `/api/plataforma/emails${consulta({
+      avaliacao: opcoes?.avaliacao,
+      situacao: opcoes?.situacao,
+      limite: opcoes?.limite,
+    })}`,
+  );
+}
+
+/** Audiência elegível do ciclo, com a situação de resposta de cada pessoa. */
+export function listarAudienciaDeEmail(
+  avaliacao: string,
+  opcoes?: { situacao?: string; busca?: string; limite?: number },
+) {
+  return chamar<PessoaDaAudiencia[]>(
+    `/api/plataforma/emails/audiencia${consulta({
+      avaliacao,
+      situacao: opcoes?.situacao,
+      busca: opcoes?.busca,
+      limite: opcoes?.limite,
+    })}`,
+  );
+}
+
+/**
+ * Enfileira o lembrete dirigido. **Não envia** — quem envia é `despacharEmails`,
+ * pelo mesmo caminho dos automáticos.
+ */
+export function enviarEmailsParaPessoas(entrada: EnviarEmailsEntrada) {
+  return chamar<ResultadoDoEnvioManual>("/api/plataforma/emails/enviar", {
+    method: "POST",
+    body: JSON.stringify(entrada),
+  });
+}
+
+/**
+ * Processa **um lote** da fila e devolve o que aconteceu.
+ *
+ * `remaining` verdadeiro significa "pode haver mais" — a tela chama de novo até
+ * ele ficar falso. Cada chamada é curta de propósito: o SMTP é sequencial e mil
+ * mensagens não cabem numa invocação serverless.
+ */
+export function despacharEmails() {
+  return chamar<ResultadoDoDespacho>("/api/plataforma/emails/despachar", { method: "POST" });
 }
 
 /** Define a cor da barra lateral; `null` volta à cor institucional. */
