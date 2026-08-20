@@ -166,17 +166,17 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 `list_access_workspace()` · `fc_definir_perfil_pessoa(p_pessoa, p_perfil)` (substituiu `set_person_role`, que **não** foi removida — ver abaixo) · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
 
-### Notificação por e-mail — `20260818130000_notificar_participantes_por_email.sql`
+### Notificação por e-mail — `20260818130000` + `20260820153000`
 
-`survey_applications.st_notificacao_email` liga os avisos automáticos do ciclo, e `tl_email_participante` registra cada envio com chave única `(sq_aplicacao, sq_pessoa, tp_email)` — é a constraint, não o código da aplicação, que impede e-mail em dobro quando o processamento roda mais de uma vez. Tipos: `research_opened` (abertura) e `research_expiring_24h` (24 horas finais). A tabela fica sem grant para `anon`/`authenticated`.
+`survey_applications.st_notificacao_email` liga os avisos automáticos do ciclo, e `tl_email_participante` registra cada envio com chave única `(sq_aplicacao, sq_pessoa, tp_email)` — é a constraint, não o código da aplicação, que impede e-mail em dobro quando o processamento roda mais de uma vez. Tipos: `research_opened` (abertura) e `research_expiring_24h` (24 horas finais). O lembrete exige que o aviso de abertura tenha sido enviado há pelo menos uma hora, para ciclos curtos não receberem os dois simultaneamente. A tabela fica sem grant para `anon`/`authenticated`.
 
 | RPC | Uso |
 |---|---|
 | `fc_definir_notificacao_email(target_survey_id, target_enabled)` | Liga/desliga a opção do ciclo. Exige `can_manage_surveys()`; audita `SURVEY_EMAIL_NOTIFICATIONS_SET`. |
-| `fc_reivindicar_emails()` | **Service role apenas.** Materializa aberturas agendadas, rearma envios `FALHOU` cuja janela continua válida e reivindica os pendentes (claim-first, `on conflict do nothing`). Devolve array jsonb com o payload de cada envio. Só recebe quem tem vínculo `ELIGIBLE`/`INVITED`/`IN_PROGRESS`, pessoa ativa e e-mail com forma válida — quem concluiu não é lembrado. |
-| `fc_concluir_email_participante(target_email_id, target_success, target_error)` | **Service role apenas.** Grava o desfecho (`ENVIADO`/`FALHOU`). |
+| `fc_reivindicar_emails()` | **Service role apenas.** Materializa aberturas, cria pendências e entrega até 100 por token. `PROCESSANDO` expira em 15 minutos; `FALHOU` espera 5 minutos e tem no máximo 5 tentativas; `FOR UPDATE SKIP LOCKED` separa execuções concorrentes. |
+| `fc_concluir_email_participante(target_email_id, target_claim_token, target_success, target_error)` | **Service role apenas.** Só conclui uma linha enquanto o token da execução ainda é vigente. A assinatura anterior permanece temporariamente para bundles já publicados. |
 
-Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)); a janela tolera qualquer cadência de cron — uma execução por dia ainda cai dentro de qualquer janela de 24 horas. Teste de idempotência em `tests/email_participante_idempotencia.sql`.
+Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)). A chave única impede criar dois registros para o mesmo aviso; o token impede processamento concorrente. Como SMTP e confirmação no banco são sistemas distintos, uma interrupção exatamente entre os dois ainda pode exigir reconciliação operacional. Teste em `tests/email_participante_idempotencia.sql`.
 
 ### Service role apenas
 
