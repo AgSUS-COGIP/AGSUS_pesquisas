@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
+import { dispatchParticipantEmails } from "@/app/api/tarefas/emails/despachador";
 import type { NotificacaoEmailEntrada } from "@/lib/api/contratos-construtor";
 
 /**
@@ -39,6 +40,24 @@ export async function PUT(
   });
 
   if (error) return respostaDeErro(error, "PUT /api/avaliacoes/[id]/notificacoes");
+
+  // Ligar a opção num ciclo que já está OPEN não pode esperar o cron do dia
+  // seguinte — sem isto, o despacho só rodaria de novo na próxima abertura de
+  // ciclo (que já passou) ou no cron. `after()` roda depois da resposta; se o
+  // ciclo não estiver OPEN, fc_reivindicar_emails() simplesmente não reivindica
+  // nada, então disparar ao desligar (ou num rascunho) é inócuo.
+  if (corpo.enabled) {
+    after(async () => {
+      try {
+        const result = await dispatchParticipantEmails();
+        if (result.status === "skipped") {
+          console.warn("[emails] despacho pós-notificação pulado; configuração ausente:", result.missingConfiguration.join(", "));
+        }
+      } catch (dispatchError) {
+        console.error("[emails] despacho pós-notificação falhou:", dispatchError);
+      }
+    });
+  }
 
   return NextResponse.json(data, {
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
