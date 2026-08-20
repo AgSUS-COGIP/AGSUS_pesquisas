@@ -22,6 +22,18 @@ export type PlatformBranding = {
   accessGreeting: string;
   accessInstruction: string;
   /**
+   * Instrução de acesso e assinatura do e-mail aos participantes.
+   *
+   * Diferente dos textos da tela de acesso, estes **não** recebem padrão aqui:
+   * string vazia significa "não configurado", e quem aplica o padrão é
+   * `participantEmailContent()` no momento do envio. O motivo é evitar duas
+   * cópias do mesmo texto — se o padrão morasse também neste arquivo, uma
+   * alteração num lugar deixaria o outro mentindo, e o lugar que mente seria
+   * justamente a prévia da tela de configuração.
+   */
+  emailInstruction: string;
+  emailFooter: string;
+  /**
    * Cor de fundo da barra lateral.
    *
    * Nula mantém a cor institucional definida no CSS. Diferente de
@@ -62,6 +74,8 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   productDescription: "Sistema Integrado de Gestão de Avaliações",
   accessGreeting: "Seja bem-vindo(a) à AgSUS",
   accessInstruction: "Acesse com sua conta institucional.",
+  emailInstruction: "",
+  emailFooter: "",
   sidebarColor: null,
   logoUrl: "/agsus-logo.png",
   logoPath: null,
@@ -97,6 +111,10 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     productDescription: text(source.productDescription, DEFAULT_PLATFORM_BRANDING.productDescription).slice(0, 120),
     accessGreeting: text(source.accessGreeting, DEFAULT_PLATFORM_BRANDING.accessGreeting).slice(0, 80),
     accessInstruction: text(source.accessInstruction, DEFAULT_PLATFORM_BRANDING.accessInstruction).slice(0, 120),
+    // Vazio permanece vazio, de propósito: aqui "não configurado" é um estado
+    // real, e o padrão é aplicado no envio. Ver o comentário do tipo acima.
+    emailInstruction: text(source.emailInstruction, "").slice(0, 400),
+    emailFooter: text(source.emailFooter, "").slice(0, 400),
     // Cor malformada vira nula e a barra lateral mantém a cor institucional do
     // CSS — mesmo tratamento de `accessPanelColor`.
     sidebarColor: typeof source.sidebarColor === "string" && HEX_COLOR.test(source.sidebarColor)

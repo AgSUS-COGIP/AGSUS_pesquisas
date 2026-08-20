@@ -56,6 +56,9 @@ describe("platform navigation", () => {
       "/paineis",
       "/admin/pesquisas",
       "/admin/participantes",
+      // A central de e-mails fica sob ADMIN_SURVEYS: operar ciclo inclui avisar
+      // quem participa dele. Não é administração global.
+      "/admin/emails",
     ]);
   });
 

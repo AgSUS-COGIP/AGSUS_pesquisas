@@ -18,7 +18,7 @@ Princípios e tokens em [../../docs/design-system.md](../../docs/design-system.m
 components/
 ├── platform-shell.tsx            casca: sidebar, cabeçalho, drawer, logout
 ├── platform-skeleton.tsx         skeleton no formato da casca
-├── platform-icons.tsx            20 ícones SVG inline (navegação)
+├── platform-icons.tsx            21 ícones SVG inline (navegação)
 ├── platform-theme-toggle.tsx     ciclo automático → claro → escuro
 ├── platform-interaction-layer.tsx barra de progresso, voltar ao topo, atalhos
 ├── platform-logo.tsx             logotipo institucional resolvido da marca
@@ -166,7 +166,7 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `platform-branding`, `observability`, `utils`, `supabase/client`.
 - `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `class-variance-authority` (variantes).
 
-`platform-icons.tsx` é um conjunto **próprio** de 20 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
+`platform-icons.tsx` é um conjunto **próprio** de 21 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
 
 ## Convenções específicas
 

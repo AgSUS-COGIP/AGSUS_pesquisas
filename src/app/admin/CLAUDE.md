@@ -30,7 +30,8 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin/participantes/todos` | `participantes/todos/tela-admin-participantes-todos.tsx` | `ADMIN_PARTICIPANTS` | `list_admin_participant_applications`, `list_admin_application_participants`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
 | `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
-| `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` |
+| `/admin/emails` | `emails/tela-admin-emails.tsx` | `ADMIN_SURVEYS` | `/api/plataforma/emails` (`fc_listar_envios_email`), `…/audiencia` (`fc_listar_audiencia_email`), `…/enviar` (`fc_agendar_envio_manual`), `…/despachar`, `…/textos` (`fc_definir_textos_email`) |
+| `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` e as funções focadas de cada conjunto de campos (`fc_definir_textos_marca`, `fc_definir_cor_barra_lateral`, `fc_definir_visual_acesso`) |
 
 ## Fluxo interno
 
@@ -161,6 +162,42 @@ sucesso → queryClient.setQueryData(platformBrandingQueryKey, …)
 ```
 
 A marca resolvida é distribuída por `PlatformBrandingProvider` (ver [../../components/CLAUDE.md](../../components/CLAUDE.md)), então salvar aqui muda cabeçalho e logotipo de toda a aplicação sem recarregar.
+
+**Cada conjunto de campos tem a sua RPC e o seu botão.** `fc_atualizar_marca_plataforma` substitui a linha inteira, então omitir um campo o zeraria — por isso arte de fundo, cor do painel, cor da barra lateral, textos da tela de acesso e textos do e-mail têm, cada um, função própria no banco e rota REST própria. Ligar o "Salvar alterações" do rodapé a qualquer um deles faria a tela mostrar sucesso sem que o valor mudasse.
+
+### Central de e-mails (`/admin/emails`)
+
+Três painéis, cada um respondendo a uma pergunta diferente de quem opera. O seletor de ciclo é único e vale para os três.
+
+| Painel | Pergunta | RPC |
+|---|---|---|
+| **Enviar** | quem ainda não respondeu, e como aviso essas pessoas | `fc_listar_audiencia_email` → `fc_agendar_envio_manual` |
+| **Fila e histórico** | o que saiu, o que falhou e por quê | `fc_listar_envios_email` |
+| **Textos** | o que toda mensagem diz, em todo ciclo | `fc_definir_textos_email` |
+
+**Fica sob `ADMIN_SURVEYS`, não num módulo próprio.** Módulo novo exige mexer no `case` de `fc_obter_contexto_plataforma()` **e** em `ROLE_MODULES`, que precisam concordar — risco desproporcional para uma tela que trata da operação dos ciclos, exatamente o que esse módulo já governa.
+
+**A tela nasceu de três lacunas concretas** (`20260820120000_central_de_emails.sql`):
+
+1. Não havia como enviar para alguém em particular — o interruptor do ciclo é tudo ou nada. Testar exigia criar ciclo descartável.
+2. Não havia como ver o que aconteceu: `tl_email_participante` não tem grant nem leitor, e em 20/08/2026 a plataforma tinha **zero** envios registrados sem que nenhuma tela dissesse isso.
+3. O e-mail não se identificava — sem nome do sistema, sem explicar que o acesso é com a conta Google institucional.
+
+**O envio dirigido não envia: enfileira.** `fc_agendar_envio_manual` grava linhas `manual_reminder` e o despacho é o **mesmo** dos automáticos, com o mesmo registro de desfecho. É o que mantém uma fonte só de verdade sobre o que saiu. Consequência de desenho: `manual_reminder` fica **fora** do índice único (que virou parcial), porque um segundo lembrete à mesma pessoa é legítimo; contra o clique duplo, a RPC recusa quem já tem manual `PROCESSANDO`.
+
+**A fila é drenada em laço pela tela, não numa chamada só.** O SMTP é sequencial e mil mensagens não cabem numa invocação serverless — `drenarFila()` chama `POST …/despachar` repetidamente (teto de 60 voltas) enquanto o servidor devolver `remaining`, atualizando o progresso a cada volta. **O cron continua existindo como rede de segurança, não como caminho para volume.**
+
+**A tela nunca anuncia envio que não aconteceu.** `drenarFila()` devolve `pulado` a quem chamou, em vez de só emitir um toast: sem isso o chamador não distingue "a fila esvaziou" de "o servidor nem tentou", e anuncia sucesso com zero enviados — foi o que aconteceu em 20/08/2026, quando o despacho retornou 503 por falta de `SMTP_APP_PASSWORD` e a tela mostrou o erro **e em seguida** um "0 e-mails enviados". Hoje os quatro desfechos têm mensagem própria: pulado por configuração, falhas parciais, nada enviado, e sucesso.
+
+**"Ninguém entrou na fila" nomeia a causa provável.** A mais comum não é inelegibilidade — é já existir um lembrete aguardando envio, barrado pela proteção contra clique duplo. Culpar o cadastro manda quem opera investigar o lugar errado.
+
+**A confirmação diz o número.** Um clique aqui alcança pessoas reais e consome cota de envio da conta institucional; acima de 50 destinatários o diálogo usa `tone: "danger"`. E `ignoradas > 0` vira aviso explícito: a diferença entre solicitadas e enfileiradas não é erro (gente sem e-mail válido, fora do ciclo, ou já com lembrete na fila), mas esconder o número faria alguém concluir que enviou para 300 quando foram 287.
+
+**A prévia chama `participantEmailContent()`, o gerador real**, dentro de um `<iframe srcDoc sandbox="">`. Reproduzir o layout na tela divergiria do template no primeiro ajuste, e a divergência só apareceria na caixa de entrada de mil pessoas. O `iframe` também impede o CSS da aplicação de contaminar um HTML escrito para cliente de e-mail.
+
+**Os campos de texto nascem vazios quando nada foi configurado**, com o padrão no `placeholder`. O padrão interpola nome da organização e do produto: despejá-lo no campo faria toda instalação gravar uma cópia congelada, que pararia de acompanhar a marca no dia seguinte.
+
+Duas coisas que **não** ficam aqui, e a tela diz onde estão: ligar o aviso automático é decisão de cada ciclo (Propriedades), e a descrição da avaliação vem do construtor — criar campo de e-mail para ela daria dois lugares para a mesma frase.
 
 ## Regras de negócio específicas
 
