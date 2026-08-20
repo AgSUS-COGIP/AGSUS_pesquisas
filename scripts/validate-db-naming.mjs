@@ -90,6 +90,13 @@ const LEGACY_RESTORED_OBJECTS = {
   "supabase/migrations/20260820153000_corrigir_criacao_e_fila_emails.sql": {
     função: new Set(["create_survey_draft"]),
   },
+  // A exclusão definitiva de uma arquivada amplia o único caminho autorizado
+  // para remover estrutura publicada. O gatilho já existia antes desta
+  // migration e é referenciado pelas três triggers estruturais; renomeá-lo
+  // quebraria essa vinculação em bancos que já o possuem.
+  "supabase/migrations/20260820220000_exclusao_definitiva_de_arquivada.sql": {
+    função: new Set(["enforce_draft_survey_structure"]),
+  },
   // `set_person_role` convertida em ponte para `fc_definir_perfil_pessoa`.
   // Renomeá-la seria o mesmo que removê-la: bundles publicados a chamam pelo
   // nome, e é assim que a plataforma caiu em 10/08/2026. A migration não cria

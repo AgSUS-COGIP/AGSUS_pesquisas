@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ArchiveRestore, CalendarDays, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, Share2, SlidersHorizontal, X } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarDays, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, Share2, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/confirmation-provider";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, StatCard } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { duplicarAvaliacao, listarAvaliacoes, ErroDeApi } from "@/lib/api/cliente";
+import { duplicarAvaliacao, excluirAvaliacaoArquivada, listarAvaliacoes, ErroDeApi } from "@/lib/api/cliente";
 import { executarAcaoDoCiclo } from "@/lib/api/cliente-construtor";
 import { listarModelosDeAvaliacao } from "@/lib/api/cliente-paineis";
 import type { AvaliacaoGerenciada } from "@/lib/api/contratos";
@@ -102,6 +102,7 @@ export default function AdminSurveysPage() {
   const [search, setSearch] = useState("");
   const [cloningId, setCloningId] = useState<string | null>(null);
   const [archiveActionId, setArchiveActionId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showingArchived, setShowingArchived] = useState(false);
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const granted = guard.state === "granted";
@@ -203,6 +204,27 @@ export default function AdminSurveysPage() {
       toast.error(errorMessageFromUnknown(actionError));
     } finally {
       setArchiveActionId(null);
+    }
+  }
+
+  async function deleteArchivedSurvey(survey: ManagedSurvey) {
+    const confirmed = await confirm({
+      title: `Apagar definitivamente "${survey.name}"?`,
+      description: "Esta ação não pode ser desfeita. O ciclo, as respostas e todos os dados associados a esta avaliação serão removidos.",
+      confirmLabel: "Apagar definitivamente",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    setDeletingId(survey.surveyId);
+    try {
+      await excluirAvaliacaoArquivada(survey.surveyId);
+      toast.success("Avaliação apagada definitivamente.");
+      await loadSurveys(true);
+    } catch (deleteError) {
+      toast.error(errorMessageFromUnknown(deleteError));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -396,6 +418,8 @@ export default function AdminSurveysPage() {
                     cloning={cloningId === survey.surveyId}
                     onToggleArchive={toggleArchive}
                     archiving={archiveActionId === survey.surveyId}
+                    onDeleteArchived={deleteArchivedSurvey}
+                    deleting={deletingId === survey.surveyId}
                   />
                 </li>
               ))}
@@ -428,16 +452,18 @@ export default function AdminSurveysPage() {
   </PlatformShell>;
 }
 
-function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving }: {
+function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDeleteArchived, deleting }: {
   survey: ManagedSurvey;
   onClone: (survey: ManagedSurvey) => void;
   cloning: boolean;
   onToggleArchive: (survey: ManagedSurvey) => void;
   archiving: boolean;
+  onDeleteArchived: (survey: ManagedSurvey) => void;
+  deleting: boolean;
 }) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
   const archived = Boolean(survey.archivedAt);
-  const busy = cloning || archiving;
+  const busy = cloning || archiving || deleting;
 
   return (
     <article className={`flex h-full flex-col rounded-2xl border p-5 shadow-[var(--shadow-card)] transition ${archived ? "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]"}`}>
@@ -485,6 +511,15 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving }: {
               disabled: busy,
               title: "Criar um rascunho novo com a mesma estrutura — sem ciclo, participantes ou respostas",
             },
+            ...(archived ? [{
+              key: "delete-permanently",
+              label: "Apagar definitivamente",
+              icon: Trash2,
+              onSelect: () => onDeleteArchived(survey),
+              disabled: busy,
+              tone: "danger" as const,
+              title: "Remove a avaliação arquivada de forma irreversível",
+            }] : []),
           ]}
         />
       </div>
@@ -514,10 +549,10 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving }: {
         </p>
       </div>
 
-      {archiving && (
+      {(archiving || deleting) && (
         <p role="status" className="mt-4 flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
           <Hourglass className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
-          {archived ? "Restaurando..." : "Arquivando..."}
+          {deleting ? "Apagando definitivamente..." : archived ? "Restaurando..." : "Arquivando..."}
         </p>
       )}
 
