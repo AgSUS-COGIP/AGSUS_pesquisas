@@ -34,6 +34,44 @@ export const SMTP_CONFIG = {
   secure: true,
 } as const;
 
+type Environment = Readonly<Record<string, string | undefined>>;
+
+function configuredValue(environment: Environment, name: string) {
+  const value = environment[name]?.trim();
+  return value || undefined;
+}
+
+export function participantSiteUrl(environment: Environment = process.env) {
+  const value = configuredValue(environment, "NEXT_PUBLIC_SITE_URL");
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
+/** Diagnóstico sem expor o valor da credencial nem a URL configurada. */
+export function getEmailConfigurationStatus(environment: Environment = process.env) {
+  const hasAppPassword = Boolean(configuredValue(environment, "SMTP_APP_PASSWORD"));
+  const hasSiteUrl = Boolean(participantSiteUrl(environment));
+  const missingVariables: string[] = [];
+
+  if (!hasAppPassword) missingVariables.push("SMTP_APP_PASSWORD");
+  if (!hasSiteUrl) missingVariables.push("NEXT_PUBLIC_SITE_URL");
+
+  return {
+    configured: hasAppPassword && hasSiteUrl,
+    hasAppPassword,
+    hasSiteUrl,
+    missingVariables,
+  };
+}
+
 /**
  * Credenciais de autenticação SMTP.
  *
@@ -42,9 +80,14 @@ export const SMTP_CONFIG = {
  * variável de ambiente para o dia em que isso deixar de valer (ex.: uma conta
  * de serviço dedicada ao envio, diferente do remetente exibido).
  */
-export function smtpCredentials() {
+export function smtpCredentials(environment: Environment = process.env) {
+  // O Google exibe a senha de app em grupos separados por espaços. Removê-los
+  // aqui evita uma falha de autenticação quando o valor é copiado como aparece
+  // na tela; a credencial continua vindo exclusivamente do ambiente.
+  const pass = configuredValue(environment, "SMTP_APP_PASSWORD")?.replace(/\s+/g, "");
+
   return {
-    user: process.env.SMTP_USER || EMAIL_SENDER.address,
-    pass: process.env.SMTP_APP_PASSWORD,
+    user: configuredValue(environment, "SMTP_USER") || EMAIL_SENDER.address,
+    pass,
   };
 }

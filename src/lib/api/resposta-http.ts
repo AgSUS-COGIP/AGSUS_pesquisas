@@ -92,7 +92,7 @@ export function respostaDeErro(erro: ErroPostgres, contexto: string) {
     console.error(`[api] ${contexto}`, erro.code, erro.message, erro.details);
     const corpo: ErroApi = {
       mensagem: status === 501
-        ? "Este recurso ainda não está disponível neste ambiente."
+        ? "A função necessária não está disponível no banco deste ambiente. Confirme o deploy e as migrations."
         : "Não foi possível concluir a operação. Tente novamente em instantes.",
     };
     return NextResponse.json(corpo, { status });
