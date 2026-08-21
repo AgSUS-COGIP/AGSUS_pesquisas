@@ -300,7 +300,27 @@ export function definirCorDaBarraLateral(cor: string | null) {
   });
 }
 
-/** Liga/desliga a presença e restringe os perfis que entram no canal. */
+/**
+ * Registra a batida de presença de quem chamou.
+ *
+ * Não recebe pessoa: a identidade vem da sessão. Devolve `DISABLED` quando a
+ * presença está desligada na configuração — resposta normal, não erro.
+ */
+export function registrarPresenca() {
+  return chamar<{ status: string }>("/api/plataforma/presenca/batida", { method: "POST" });
+}
+
+/**
+ * Quem está online agora.
+ *
+ * Restrita pelo banco aos perfis configurados. Quem não pode ver recebe 403 —
+ * distinto de lista vazia, que significa "ninguém online".
+ */
+export function listarPresencaOnline() {
+  return chamar<unknown>("/api/plataforma/presenca/online");
+}
+
+/** Liga/desliga a presença e restringe os perfis que a visualizam. */
 export function definirPresencaOnline(ativa: boolean, perfis: string[]) {
   return chamar<unknown>("/api/plataforma/presenca", {
     method: "PUT",

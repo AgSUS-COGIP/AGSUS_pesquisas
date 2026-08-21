@@ -1,32 +1,68 @@
 import { describe, expect, it } from "vitest";
-import { normalizeOnlinePresenceState } from "./online-presence";
+import { normalizeOnlinePresenceList } from "./online-presence";
 
-describe("normalizeOnlinePresenceState", () => {
-  it("remove abas duplicadas da mesma pessoa e mantém a presença mais recente", () => {
-    expect(normalizeOnlinePresenceState({
-      pessoaA: [
-        { personId: "a", fullName: "Ana", profileLabel: "Participante", onlineAt: "2026-08-19T10:00:00Z" },
-        { personId: "a", fullName: "Ana Atualizada", profileLabel: "Participante", onlineAt: "2026-08-19T10:01:00Z" },
-      ],
-    })).toEqual([{
-      personId: "a",
-      fullName: "Ana Atualizada",
-      avatarUrl: null,
-      profileLabel: "Participante",
-      onlineAt: "2026-08-19T10:01:00Z",
-    }]);
+const linha = {
+  personId: "11111111-1111-1111-1111-111111111111",
+  fullName: "Maria da Silva",
+  avatarUrl: "https://lh3.googleusercontent.com/foto",
+  roleCode: "SURVEY_MANAGER",
+  onlineAt: "2026-08-21T13:00:00.000Z",
+};
+
+describe("normalizeOnlinePresenceList", () => {
+  it("traduz o código do perfil para o rótulo em português", () => {
+    expect(normalizeOnlinePresenceList([linha])).toEqual([
+      {
+        personId: linha.personId,
+        fullName: "Maria da Silva",
+        avatarUrl: linha.avatarUrl,
+        profileLabel: "Admin",
+        onlineAt: linha.onlineAt,
+      },
+    ]);
   });
 
-  it("descarta payload inválido e ordena as pessoas pelo nome", () => {
-    expect(normalizeOnlinePresenceState({
-      z: [{ personId: "z", fullName: "Zélia", avatarUrl: "https://example.com/z.png" }],
-      invalido: [{ personId: "sem-nome" }, null],
-      a: [{ personId: "a", fullName: "Álvaro" }],
-    }).map((person) => person.fullName)).toEqual(["Álvaro", "Zélia"]);
+  it("perfil ausente cai no piso do modelo, que é Participante", () => {
+    const [pessoa] = normalizeOnlinePresenceList([{ ...linha, roleCode: null }]);
+    expect(pessoa.profileLabel).toBe("Participante");
   });
 
-  it("devolve lista vazia para um estado inesperado", () => {
-    expect(normalizeOnlinePresenceState(null)).toEqual([]);
-    expect(normalizeOnlinePresenceState([])).toEqual([]);
+  it("código desconhecido aparece como veio, sem inventar rótulo", () => {
+    // Traduzir para o piso esconderia dado inesperado no banco — é melhor a
+    // interface mostrar algo estranho do que mentir sobre o perfil.
+    const [pessoa] = normalizeOnlinePresenceList([{ ...linha, roleCode: "AUDITOR" }]);
+    expect(pessoa.profileLabel).toBe("AUDITOR");
+  });
+
+  it("ordena por nome no padrão pt-BR", () => {
+    const lista = normalizeOnlinePresenceList([
+      { ...linha, personId: "a", fullName: "Ávila" },
+      { ...linha, personId: "b", fullName: "Ana" },
+      { ...linha, personId: "c", fullName: "Bruno" },
+    ]);
+    expect(lista.map((pessoa) => pessoa.fullName)).toEqual(["Ana", "Ávila", "Bruno"]);
+  });
+
+  it("descarta linha sem identificador ou sem nome", () => {
+    expect(normalizeOnlinePresenceList([
+      { ...linha, personId: null },
+      { ...linha, fullName: "   " },
+      linha,
+    ])).toHaveLength(1);
+  });
+
+  it("mantém uma entrada por pessoa mesmo se o banco repetir", () => {
+    expect(normalizeOnlinePresenceList([linha, linha])).toHaveLength(1);
+  });
+
+  it("degrada para lista vazia em qualquer entrada que não seja array", () => {
+    for (const valor of [null, undefined, {}, "texto", 7, { pessoas: [linha] }]) {
+      expect(normalizeOnlinePresenceList(valor)).toEqual([]);
+    }
+  });
+
+  it("avatar ausente vira nulo, não string vazia", () => {
+    const [pessoa] = normalizeOnlinePresenceList([{ ...linha, avatarUrl: "" }]);
+    expect(pessoa.avatarUrl).toBeNull();
   });
 });
