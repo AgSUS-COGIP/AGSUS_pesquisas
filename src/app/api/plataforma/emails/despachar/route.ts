@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { respostaDeFalha } from "@/lib/api/resposta-http";
 import { dispatchParticipantEmails } from "@/app/api/tarefas/emails/despachador";
 
 export const dynamic = "force-dynamic";
@@ -29,14 +30,14 @@ export async function POST() {
 
   if (contextoError) {
     console.error("POST /api/plataforma/emails/despachar:", contextoError.message);
-    return NextResponse.json({ error: "Não foi possível verificar a sua permissão." }, { status: 500 });
+    return respostaDeFalha(500, "Não foi possível verificar a sua permissão.");
   }
 
   const podeGerenciar = Boolean(
     contexto && typeof contexto === "object" && (contexto as Record<string, unknown>).canManageSurveys,
   );
   if (!podeGerenciar) {
-    return NextResponse.json({ error: "Acesso restrito à administração de avaliações." }, { status: 403 });
+    return respostaDeFalha(403, "Acesso restrito à administração de avaliações.");
   }
 
   try {
@@ -47,6 +48,6 @@ export async function POST() {
     });
   } catch (dispatchError) {
     console.error("POST /api/plataforma/emails/despachar:", dispatchError);
-    return NextResponse.json({ error: "Falha ao processar a fila de e-mails." }, { status: 500 });
+    return respostaDeFalha(500, "Falha ao processar a fila de e-mails.");
   }
 }

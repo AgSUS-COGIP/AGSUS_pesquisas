@@ -195,6 +195,21 @@ A configuração entra na reivindicação por `left join … on cfg.co_configura
 
 Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)). A chave única impede criar dois registros para o mesmo aviso; o token impede processamento concorrente. Como SMTP e confirmação no banco são sistemas distintos, uma interrupção exatamente entre os dois ainda pode exigir reconciliação operacional. Teste em `tests/email_participante_idempotencia.sql`.
 
+### Presença online — `20260821100000_presenca_online_com_rls.sql`
+
+`public.tb_presenca_online` guarda **uma linha por pessoa**, sobrescrita a cada batida: o histórico de quem esteve online é dado descartável, e acumulá-lo faria a tabela crescer sem limite. RLS habilitada e todos os privilégios revogados — o acesso é só pelas duas funções.
+
+| RPC | Uso |
+|---|---|
+| `fc_registrar_presenca()` | Registra a batida de **quem chamou** — não recebe identificador, porque rota com parâmetro exigiria verificar que o parâmetro é o próprio chamador. Devolve `DISABLED` (não erro) com a presença desligada na configuração. |
+| `fc_listar_presenca_online()` | Pessoas com batida nos últimos 2 minutos. Recusa quem não é perfil de visualização com **exceção**, não com lista vazia: a tela precisa distinguir "ninguém online" de "você não pode ver". |
+
+**As duas reusam os portões de `private`** (`can_track_platform_presence`, `can_view_platform_presence`) criados por `20260819135306`. Reimplementar a checagem de perfil aqui criaria a segunda fonte que divergiria da primeira na correção seguinte.
+
+**Por que a presença deixou de ser Realtime.** As políticas de `realtime.messages` estavam corretas — leitura e track separados, cada um com o seu portão. O problema é o protocolo: entrar num canal privado exige permissão de **leitura**, e sem entrar não há `track`. Logo o portão de leitura bloqueava o anúncio também, e quem não era perfil de visualização nunca aparecia **e** gerava erro de autorização a cada carregamento de página. Canal privado é a ferramenta errada para "escrever sem ler". As políticas ficam no banco, inertes, até o frontend antigo sair de circulação.
+
+> **`fc_obter_marca_plataforma()` voltou a devolver 17 chaves nesta migration.** As duas de presença (`onlinePresenceEnabled`, `onlinePresenceViewerRoles`) existiam em `20260819135306` e foram perdidas quando `20260820120000` redefiniu a função para acrescentar os textos de e-mail — a mesma classe de erro que apagou `nu_tentativas` da fila. O efeito não era cosmético: sem elas o cliente caía nos padrões do código e podia mostrar o indicador a um perfil que o banco recusa, **produzindo** parte do erro de autorização descrito acima. Terceira ocorrência do mesmo padrão em dois dias — antes de redefinir função, confira a lista de chaves que a versão viva devolve.
+
 ### Service role apenas
 
 `sync_people_base_rows(p_rows, p_batch_id)` e `sync_cddi_manager_rows(p_rows, p_batch_id)` — chamadas exclusivamente por `/api/admin/import-participants`. `fc_reivindicar_emails()` e `fc_concluir_email_participante(...)` — chamadas exclusivamente por `/api/tarefas/emails`.
