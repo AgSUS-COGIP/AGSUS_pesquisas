@@ -1,121 +1,220 @@
 -- Painel CDDI: submissão anulada não conta como concluída (AGS-01).
 --
--- `INVALIDATE` preserva `submitted_at` de propósito — a data é registro
--- histórico. O painel usava essa data como prova de conclusão, então anular a
--- resposta de alguém não a devolvia ao estado pendente: ela seguia concluída na
--- contagem, na curva de adesão e nas notas.
---
--- Este arquivo exercita o contrato que a correção estabelece. **Os quatro
--- primeiros testes falham contra a definição anterior** — é o que os torna
--- teste de regressão e não confirmação de comportamento já existente.
+-- O cenário é construído integralmente neste teste. Isso evita falso positivo
+-- quando o banco local não contém resposta enviada no seed e permite provar os
+-- três efeitos: situação do participante, série de eventos e resultado final.
 
 begin;
 
-select plan(7);
+select plan(10);
 
--- ---------------------------------------------------------------------------
--- Cenário: um ciclo, uma pessoa, uma autoavaliação enviada.
--- ---------------------------------------------------------------------------
+insert into auth.users (id, aud, role, email, created_at, updated_at)
+values (
+  '00000000-0000-4000-8000-00000000d001',
+  'authenticated',
+  'authenticated',
+  'painel-cddi-admin@agenciasus.org.br',
+  now(),
+  now()
+);
+
+insert into public.people (
+  id, auth_user_id, employee_number, full_name, institutional_email
+)
+values
+  (
+    '00000000-0000-4000-8000-00000000d002',
+    '00000000-0000-4000-8000-00000000d001',
+    'TESTE-CDDI-ADMIN',
+    'Administração CDDI de Teste',
+    'painel-cddi-admin@agenciasus.org.br'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000d003',
+    null,
+    'TESTE-CDDI-ALVO',
+    'Pessoa Avaliada de Teste',
+    'painel-cddi-alvo@agenciasus.org.br'
+  );
+
+insert into public.person_role_assignments (person_id, role_id)
+select '00000000-0000-4000-8000-00000000d002', id
+from public.system_roles
+where code = 'SURVEY_MANAGER';
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-00000000d001","role":"authenticated"}',
+  true
+);
+
 create temporary table alvo as
+select id as aplicacao
+from public.survey_applications
+where code = 'CDDI-2026'
+limit 1;
+
+select isnt(
+  (select aplicacao from alvo),
+  null,
+  'o ciclo CDDI-2026 existe no banco reconstruído'
+);
+
+insert into public.application_participants (
+  id, application_id, person_id, participant_role, status, started_at, completed_at
+)
 select
-  (select id from public.survey_applications where code = 'CDDI-2026' limit 1) as aplicacao,
-  (select ap.person_id
-   from public.application_participants ap
-   join public.submissions s
-     on s.application_id = ap.application_id
-    and coalesce(s.subject_person_id, s.respondent_person_id) = ap.person_id
-   where ap.application_id = (select id from public.survey_applications where code = 'CDDI-2026' limit 1)
-     and upper(s.status) = 'SUBMITTED'
-     and upper(s.submission_type) in ('AUTO', 'AUTOAVALIACAO', 'SELF')
-   limit 1) as pessoa;
+  '00000000-0000-4000-8000-00000000d004',
+  aplicacao,
+  '00000000-0000-4000-8000-00000000d003',
+  'RESPONDENT',
+  'COMPLETED',
+  now() - interval '2 hours',
+  now() - interval '1 hour'
+from alvo;
 
-select isnt((select pessoa from alvo), null,
-  'o cenário exige uma autoavaliação enviada no CDDI-2026');
+insert into public.submissions (
+  id, application_id, participant_id, respondent_person_id, subject_person_id,
+  submission_type, status, started_at, submitted_at, version, calculated_result
+)
+select
+  '00000000-0000-4000-8000-00000000d005',
+  aplicacao,
+  '00000000-0000-4000-8000-00000000d004',
+  '00000000-0000-4000-8000-00000000d003',
+  '00000000-0000-4000-8000-00000000d003',
+  'AUTO',
+  'SUBMITTED',
+  now() - interval '2 hours',
+  now() - interval '1 hour',
+  1,
+  4.2
+from alvo;
 
--- Lê o painel como administração, que é o escopo institucional.
-create or replace function pg_temp.concluiu(p_pessoa uuid)
-returns boolean language sql as $$
-  select coalesce((
-    select (linha->>'autoCompleted')::boolean
-    from jsonb_array_elements(
-      public.get_cddi_monitoring_dashboard_internal('CDDI-2026')->'participants'
-    ) as linha
-    where (linha->>'personId')::uuid = p_pessoa
-  ), false);
+insert into public.cddi_final_results (
+  id, application_id, subject_person_id, auto_submission_id,
+  auto_score, final_score, status, calculated_at
+)
+select
+  '00000000-0000-4000-8000-00000000d006',
+  aplicacao,
+  '00000000-0000-4000-8000-00000000d003',
+  '00000000-0000-4000-8000-00000000d005',
+  4.2,
+  4.2,
+  'CALCULATED',
+  now() - interval '50 minutes'
+from alvo;
+
+create or replace function pg_temp.linha_alvo()
+returns jsonb
+language sql
+as $$
+  select item
+  from jsonb_array_elements(
+    public.get_cddi_monitoring_dashboard_internal('CDDI-2026')->'participants'
+  ) item
+  where item->>'personId' = '00000000-0000-4000-8000-00000000d003'
+  limit 1;
 $$;
 
--- ---------------------------------------------------------------------------
--- Antes de anular: concluída.
--- ---------------------------------------------------------------------------
-select ok(pg_temp.concluiu((select pessoa from alvo)),
-  'autoavaliação enviada aparece como concluída');
+create or replace function pg_temp.eventos_alvo()
+returns integer
+language sql
+as $$
+  select count(*)::integer
+  from jsonb_array_elements(
+    public.get_cddi_monitoring_dashboard_internal('CDDI-2026')->'events'
+  ) evento
+  where evento->>'personId' = '00000000-0000-4000-8000-00000000d003';
+$$;
 
--- ---------------------------------------------------------------------------
--- Anula preservando a data, exatamente como `INVALIDATE` faz.
--- ---------------------------------------------------------------------------
+select is(
+  (pg_temp.linha_alvo()->>'autoCompleted')::boolean,
+  true,
+  'autoavaliação enviada aparece como concluída antes da anulação'
+);
+
+select is(
+  pg_temp.eventos_alvo(),
+  1,
+  'a resposta enviada aparece uma vez na série de eventos'
+);
+
+select is(
+  (pg_temp.linha_alvo()->>'finalScore')::numeric,
+  4.2::numeric,
+  'o resultado calculado aparece antes da anulação'
+);
+
+-- Mantém `submitted_at` e a nota para provar que o painel filtra pelo estado,
+-- não pela ausência física desses valores.
 update public.submissions
+set status = 'INVALIDATED',
+    submitted_at = now() + interval '1 hour'
+where id = '00000000-0000-4000-8000-00000000d005';
+
+update public.cddi_final_results
 set status = 'INVALIDATED'
-where application_id = (select aplicacao from alvo)
-  and coalesce(subject_person_id, respondent_person_id) = (select pessoa from alvo)
-  and upper(submission_type) in ('AUTO', 'AUTOAVALIACAO', 'SELF')
-  and upper(status) = 'SUBMITTED';
+where id = '00000000-0000-4000-8000-00000000d006';
 
 select isnt(
   (select submitted_at from public.submissions
-   where application_id = (select aplicacao from alvo)
-     and coalesce(subject_person_id, respondent_person_id) = (select pessoa from alvo)
-     and upper(status) = 'INVALIDATED'
-   limit 1),
+   where id = '00000000-0000-4000-8000-00000000d005'),
   null,
-  'a anulação preserva submitted_at — é o que tornava o defeito silencioso');
+  'a anulação preserva submitted_at'
+);
 
--- ---------------------------------------------------------------------------
--- REGRESSÃO: depois de anular, a pessoa volta a pendente.
--- Este é o teste que falha contra a definição anterior.
--- ---------------------------------------------------------------------------
-select ok(not pg_temp.concluiu((select pessoa from alvo)),
-  'submissão anulada deixa de contar como concluída');
-
--- ---------------------------------------------------------------------------
--- A série temporal também ignora o evento anulado.
--- ---------------------------------------------------------------------------
 select is(
-  (select count(*)::int
-   from jsonb_array_elements(
-     public.get_cddi_monitoring_dashboard_internal('CDDI-2026')->'timeline'
-   ) as dia
-   where (dia->>'total')::int < 0),
-  0,
-  'a curva de adesão não produz total negativo ao excluir o anulado');
+  (pg_temp.linha_alvo()->>'autoCompleted')::boolean,
+  false,
+  'submissão anulada deixa de contar como concluída'
+);
 
--- ---------------------------------------------------------------------------
--- Resultado final anulado não é lido como nota válida.
--- ---------------------------------------------------------------------------
 select is(
-  (select count(*)::int
-   from jsonb_array_elements(
-     public.get_cddi_monitoring_dashboard_internal('CDDI-2026')->'participants'
-   ) as linha
-   join public.cddi_final_results r
-     on r.subject_person_id = (linha->>'personId')::uuid
-    and r.application_id = (select aplicacao from alvo)
-   where upper(r.status) = 'INVALIDATED'
-     and linha->>'finalScore' is not null),
+  pg_temp.eventos_alvo(),
   0,
-  'nenhuma nota final anulada aparece no painel');
+  'evento anulado deixa de compor a série temporal'
+);
 
--- ---------------------------------------------------------------------------
--- Uma submissão válida posterior volta a ser a mais recente.
--- ---------------------------------------------------------------------------
+select is(
+  pg_temp.linha_alvo()->>'finalScore',
+  null::text,
+  'resultado final anulado deixa de aparecer como nota válida'
+);
+
+-- A anulada tem `submitted_at` futuro de propósito. Sem o filtro anterior ao
+-- `distinct on`, ela venceria esta nova resposta válida e o teste falharia.
 insert into public.submissions (
-  application_id, respondent_person_id, subject_person_id,
-  submission_type, status, submitted_at, version
+  id, application_id, participant_id, respondent_person_id, subject_person_id,
+  submission_type, status, started_at, submitted_at, version, calculated_result
 )
-select aplicacao, pessoa, pessoa, 'AUTO', 'SUBMITTED', timezone('utc', now()), 99
+select
+  '00000000-0000-4000-8000-00000000d007',
+  aplicacao,
+  '00000000-0000-4000-8000-00000000d004',
+  '00000000-0000-4000-8000-00000000d003',
+  '00000000-0000-4000-8000-00000000d003',
+  'AUTO',
+  'SUBMITTED',
+  now() - interval '10 minutes',
+  now(),
+  2,
+  4.5
 from alvo;
 
-select ok(pg_temp.concluiu((select pessoa from alvo)),
-  'envio novo após a anulação volta a contar como concluída');
+select is(
+  (pg_temp.linha_alvo()->>'autoCompleted')::boolean,
+  true,
+  'uma resposta válida posterior volta a marcar a autoavaliação como concluída'
+);
+
+select is(
+  pg_temp.eventos_alvo(),
+  1,
+  'a série contém apenas o novo envio válido'
+);
 
 select * from finish();
+
 rollback;
