@@ -118,7 +118,7 @@ declare
   v_result jsonb;
 begin
   if not (select private.can_view_platform_presence()) then
-    raise exception 'Acesso restrito aos perfis configurados para ver a presenca.';
+    raise exception 'Acesso restrito aos perfis configurados para ver a presença.';
   end if;
 
   select coalesce(jsonb_agg(to_jsonb(f) order by f."fullName", f."personId"), '[]'::jsonb)
