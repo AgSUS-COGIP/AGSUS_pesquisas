@@ -89,9 +89,8 @@ begin
 end;
 $$;
 
-revoke all on function public.fc_obter_form_anonimo(text), public.fc_iniciar_resp_anon(text), public.fc_gravar_resp_anon(uuid,text,uuid,uuid[],text,numeric,boolean,date,timestamptz,jsonb), public.fc_enviar_resp_anon(uuid,text) from public;
-grant execute on function public.fc_obter_form_anonimo(text), public.fc_iniciar_resp_anon(text), public.fc_gravar_resp_anon(uuid,text,uuid,uuid[],text,numeric,boolean,date,timestamptz,jsonb), public.fc_enviar_resp_anon(uuid,text) to anon;
-grant execute on function public.fc_obter_form_anonimo(text), public.fc_iniciar_resp_anon(text), public.fc_gravar_resp_anon(uuid,text,uuid,uuid[],text,numeric,boolean,date,timestamptz,jsonb), public.fc_enviar_resp_anon(uuid,text) to authenticated;
+revoke all on function public.fc_obter_form_anonimo(text), public.fc_iniciar_resp_anon(text), public.fc_gravar_resp_anon(uuid,text,uuid,uuid[],text,numeric,boolean,date,timestamptz,jsonb), public.fc_enviar_resp_anon(uuid,text) from public, anon, authenticated;
+grant execute on function public.fc_obter_form_anonimo(text), public.fc_iniciar_resp_anon(text), public.fc_gravar_resp_anon(uuid,text,uuid,uuid[],text,numeric,boolean,date,timestamptz,jsonb), public.fc_enviar_resp_anon(uuid,text) to service_role;
 
 -- Os dois pontos que oferecem "Copiar link" precisam receber a marca do
 -- ciclo. Mantemos as funções existentes e apenas acrescentamos o campo ao
