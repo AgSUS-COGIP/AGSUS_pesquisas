@@ -22,6 +22,7 @@ export type AvaliacaoGerenciada = {
   applicationStatus: string | null;
   opensAt: string | null;
   closesAt: string | null;
+  anonymous?: boolean;
   sections: number;
   questions: number;
   updatedAt: string;

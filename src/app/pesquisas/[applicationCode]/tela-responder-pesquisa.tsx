@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -21,9 +21,13 @@ import { buildSurveyRuleContext, normalizeSurveyRules, visibleSurveySections, ty
 import { SurveyBanner } from "@/components/survey-banner";
 import {
   enviarSubmissao,
+  enviarSubmissaoAnonima,
   gravarResposta,
+  gravarRespostaAnonima,
   iniciarOuRetomarSubmissao,
+  iniciarSubmissaoAnonima,
   obterFormulario,
+  obterFormularioAnonimo,
   obterRegrasDoCiclo,
 } from "@/lib/api/cliente-runtime";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -46,6 +50,8 @@ type SubmissionContext = {
   // desde `20260813220000`; era a tela que não lia o campo, e por isso quem
   // respondia não sabia que estava num ciclo anônimo.
   anonymous?: boolean;
+  /** Segredo efêmero devolvido somente pela jornada pública anônima. */
+  sessionToken?: string;
   submission: { id: string; status: string; submittedAt: string | null } | null;
   answers: Record<string, StoredSurveyAnswer>;
 };
@@ -66,8 +72,12 @@ function choiceClass(selected: boolean) {
 export default function GenericSurveyPage() {
   const confirm = useConfirm();
   const params = useParams<{ applicationCode: string }>();
+  const pathname = usePathname();
   const applicationCode = decodeURIComponent(params.applicationCode);
-  const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS);
+  const publicAnonymous = pathname.startsWith("/responder/");
+  // A rota /responder é pública para ciclos anônimos: não resolvemos o
+  // contexto institucional, pois sua ausência redirecionaria ao Google.
+  const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS, { enabled: !publicAnonymous });
   const granted = guard.state === "granted";
   const [definition, setDefinition] = useState<Definition | null>(null);
   const [rules, setRules] = useState<SurveyRule[]>([]);
@@ -90,7 +100,7 @@ export default function GenericSurveyPage() {
   }, [answers]);
 
   useEffect(() => {
-    if (!granted) return;
+    if (!granted && !publicAnonymous) return;
     let active = true;
 
     const load = async () => {
@@ -102,9 +112,9 @@ export default function GenericSurveyPage() {
         // submissão continuam obrigatórios — a rejeição deles é relançada
         // logo abaixo.
         const [formResult, submissionResult, rulesResult] = await Promise.allSettled([
-          obterFormulario(applicationCode),
-          iniciarOuRetomarSubmissao(applicationCode),
-          obterRegrasDoCiclo(applicationCode),
+          publicAnonymous ? obterFormularioAnonimo(applicationCode) : obterFormulario(applicationCode),
+          publicAnonymous ? iniciarSubmissaoAnonima(applicationCode) : iniciarOuRetomarSubmissao(applicationCode),
+          publicAnonymous ? Promise.resolve([]) : obterRegrasDoCiclo(applicationCode),
         ]);
         if (formResult.status === "rejected") throw formResult.reason;
         if (submissionResult.status === "rejected") throw submissionResult.reason;
@@ -141,7 +151,7 @@ export default function GenericSurveyPage() {
       active = false;
       Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
     };
-  }, [applicationCode, granted]);
+  }, [applicationCode, granted, publicAnonymous]);
 
   const allSections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   /**
@@ -187,7 +197,7 @@ export default function GenericSurveyPage() {
       // (`target_text`, `target_number`, …); o contrato da rota usa os nomes do
       // domínio, então a conversão acontece aqui.
       const payload = buildSurveyAnswerPayload(question.type, value);
-      await gravarResposta(submissionId, {
+      const payloadForApi = {
         questionId: question.id,
         optionIds: payload.target_option_ids,
         text: payload.target_text,
@@ -196,7 +206,14 @@ export default function GenericSurveyPage() {
         date: payload.target_date,
         datetime: payload.target_datetime,
         json: payload.target_json,
-      });
+      };
+      if (publicAnonymous) {
+        const token = (submission as SubmissionContext & { sessionToken?: string } | null)?.sessionToken;
+        if (!token) throw new Error("A sessão anônima expirou. Reabra o link para responder.");
+        await gravarRespostaAnonima(submissionId, token, payloadForApi);
+      } else {
+        await gravarResposta(submissionId, payloadForApi);
+      }
     }).catch((saveError) => {
       toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a resposta.");
       throw saveError;
@@ -289,7 +306,10 @@ export default function GenericSurveyPage() {
     setSubmitting(true);
     try {
       await flushPendingSaves();
-      const data = await enviarSubmissao(submission.submission.id);
+      const token = (submission as SubmissionContext & { sessionToken?: string }).sessionToken;
+      const data = publicAnonymous
+        ? await enviarSubmissaoAnonima(submission.submission.id, token ?? "")
+        : await enviarSubmissao(submission.submission.id);
       const submittedAt = data?.submittedAt ?? new Date().toISOString();
       setSubmission((current) => current ? {
         ...current,
@@ -305,7 +325,7 @@ export default function GenericSurveyPage() {
     }
   }
 
-  if (guard.state !== "granted") {
+  if (!publicAnonymous && guard.state !== "granted") {
     return <PlatformGuardState
       guard={guard}
       title="avaliação"
@@ -313,13 +333,13 @@ export default function GenericSurveyPage() {
       restrictedDescription="Seu perfil não possui acesso ao módulo de avaliações."
     />;
   }
-  if (loading) return <PlatformSkeleton title="Abrindo avaliação" />;
+  if (loading) return publicAnonymous ? <main className="mx-auto min-h-screen w-full max-w-5xl p-5"><PlatformSkeleton title="Abrindo avaliação" /></main> : <PlatformSkeleton title="Abrindo avaliação" />;
   if (!definition) return (
     <FullPageState
       title="Avaliação indisponível"
       description="O instrumento não está publicado ou você não possui acesso a ele."
-      actionHref="/pesquisas"
-      actionLabel="Voltar ao catálogo"
+      actionHref={publicAnonymous ? "/" : "/pesquisas"}
+      actionLabel={publicAnonymous ? "Voltar ao início" : "Voltar ao catálogo"}
     />
   );
 
@@ -337,8 +357,8 @@ export default function GenericSurveyPage() {
     ? currentSection.questions.filter((question) => question.required && !isSurveyAnswerComplete(question.type, answers[question.id])).length
     : 0;
 
-  return (
-    <PlatformShell user={guard.user} focus exitHref="/pesquisas" eyebrow={definition.survey.code} title={definition.application.name}>
+  const content = (
+    <>
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
           {visualIdentity.themeVariant === "CUSTOM" ? (
@@ -544,13 +564,13 @@ export default function GenericSurveyPage() {
                   : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Todas as respostas foram salvas automaticamente" : isSubmitted ? "Envio concluído" : "Somente leitura"}</>}
             </p>
             <div className="flex flex-wrap justify-end gap-2">
-              <Link
+              {!publicAnonymous && <Link
                 href="/pesquisas"
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
               >
                 <FileText className="h-4 w-4" aria-hidden="true" />
                 Catálogo
-              </Link>
+              </Link>}
               <Button variant="secondary" onClick={() => goToStep(currentStep - 1)} disabled={currentStep === 0 || submitting}>
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Anterior
@@ -591,6 +611,12 @@ export default function GenericSurveyPage() {
         </footer>
       </div>
       <CompletionCelebration open={celebrate} onClose={() => setCelebrate(false)} message="Sua resposta foi enviada. Obrigado por participar da avaliação institucional." />
-    </PlatformShell>
+    </>
   );
+
+  return publicAnonymous ? (
+    <main className="min-h-screen bg-[var(--surface-page)] px-4 py-8 sm:px-6">{content}</main>
+  ) : guard.state === "granted" ? (
+    <PlatformShell user={guard.user} focus exitHref="/pesquisas" eyebrow={definition.survey.code} title={definition.application.name}>{content}</PlatformShell>
+  ) : null;
 }

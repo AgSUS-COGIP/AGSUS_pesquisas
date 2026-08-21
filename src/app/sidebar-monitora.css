@@ -4,13 +4,15 @@
     --platform-sidebar-compact-width: 4.25rem;
   }
 
-  html,
-  body {
+  /* A rolagem interna existe apenas nas páginas com PlatformShell. Rotas
+     públicas, como /responder, usam a rolagem natural do documento. */
+  html:has(.platform-shell-content),
+  body:has(.platform-shell-content) {
     height: 100%;
     overflow: hidden;
   }
 
-  body {
+  body:has(.platform-shell-content) {
     overscroll-behavior: none;
   }
 

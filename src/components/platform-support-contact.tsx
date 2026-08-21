@@ -28,7 +28,7 @@ export function PlatformSupportContact() {
         target="_blank"
         rel="noopener noreferrer"
         title={`Abrir uma mensagem para ${PLATFORM_SUPPORT_EMAIL} no Gmail`}
-        className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+        className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
       >
         Abrir no Gmail
       </a>

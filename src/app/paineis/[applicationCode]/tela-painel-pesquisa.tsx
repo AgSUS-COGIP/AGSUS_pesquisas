@@ -25,8 +25,6 @@ type DashboardQuestion = {
   position: number;
   sectionTitle: string;
   responseCount: number;
-  /** Recorte pequeno demais para aparecer sem identificar quem respondeu. */
-  suppressed?: boolean;
   options: DashboardOption[];
   textResponses: TextResponse[];
 };
@@ -34,8 +32,6 @@ type DashboardData = {
   generatedAt: string;
   /** Ciclo anônimo: o painel agrega sem conseguir voltar à pessoa. */
   anonymous?: boolean;
-  /** Mínimo de respostas para um recorte poder aparecer. Zero em ciclo identificado. */
-  threshold?: number;
   application: {
     code: string;
     name: string;
@@ -112,7 +108,6 @@ export default function SurveyDashboardPage() {
 
   const { application, summary, questions } = dashboard;
   const isAnonymous = dashboard.anonymous === true;
-  const threshold = dashboard.threshold ?? 0;
 
   return (
     <PlatformShell user={user} eyebrow={application.surveyCode} title={application.name}>
@@ -136,25 +131,24 @@ export default function SurveyDashboardPage() {
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
           <div className="text-sm text-[var(--text-secondary)]">
             <strong className="block text-[var(--text-primary)]">Avaliação anônima</strong>
-            As respostas não estão ligadas a quem as enviou — nem no banco, nem aqui. O acompanhamento mostra quem já
-            concluiu, sem revelar o que respondeu. Perguntas com menos de {threshold} respostas ficam sem resultado até
-            alcançarem esse mínimo, porque num grupo pequeno o agregado identifica as pessoas por dedução.
+            As respostas não estão ligadas a quem as enviou — nem no banco, nem aqui. O painel mostra os resultados
+            agregados e as respostas abertas sem identificar a pessoa que as enviou.
           </div>
         </section>
       ) : null}
 
       <div className="monitor-kpi-grid mt-6" aria-label="Indicadores da avaliação">
-        <div className="monitor-kpi" data-tone="brand"><span className="monitor-kpi-label">Participantes</span><strong className="monitor-kpi-value">{summary.totalParticipants}</strong></div>
+        <div className="monitor-kpi" data-tone="brand"><span className="monitor-kpi-label">{isAnonymous ? "Respostas iniciadas" : "Participantes"}</span><strong className="monitor-kpi-value">{summary.totalParticipants}</strong></div>
         <div className="monitor-kpi" data-tone="success"><span className="monitor-kpi-label">Enviadas</span><strong className="monitor-kpi-value">{summary.submitted}</strong></div>
         <div className="monitor-kpi" data-tone="warning"><span className="monitor-kpi-label">Em andamento</span><strong className="monitor-kpi-value">{summary.drafts}</strong></div>
-        <div className="monitor-kpi" data-tone="danger"><span className="monitor-kpi-label">Não iniciadas</span><strong className="monitor-kpi-value">{summary.notStarted}</strong></div>
-        <div className="monitor-kpi" data-tone="brand"><span className="monitor-kpi-label">Taxa de conclusão</span><strong className="monitor-kpi-value">{summary.completionRate}%</strong></div>
+        {!isAnonymous && <div className="monitor-kpi" data-tone="danger"><span className="monitor-kpi-label">Não iniciadas</span><strong className="monitor-kpi-value">{summary.notStarted}</strong></div>}
+        {!isAnonymous && <div className="monitor-kpi" data-tone="brand"><span className="monitor-kpi-label">Taxa de conclusão</span><strong className="monitor-kpi-value">{summary.completionRate}%</strong></div>}
       </div>
 
       <section className="monitor-panel mt-6 overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--surface-card)]">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="p-5 sm:p-6"><div className="flex items-center justify-between gap-4"><div><p className="section-eyebrow">Progresso do ciclo</p><h2 className="mt-1 text-xl font-black text-[var(--text-primary)]">{summary.completionRate}% concluído</h2></div><CircleCheckBig className="h-7 w-7 text-[var(--status-success-text)]" /></div><div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--brand-solid),var(--brand-secondary))]" style={{ width: `${Math.min(100, Math.max(0, summary.completionRate))}%` }} /></div><p className="mt-3 text-sm text-[var(--text-secondary)]">{summary.submitted} de {summary.totalParticipants} participantes enviaram respostas.</p></div>
-          <div className="grid grid-cols-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] lg:border-l lg:border-t-0"><div className="flex flex-col justify-center p-5"><Clock3 className="h-5 w-5 text-amber-500" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.drafts}</strong><span className="text-xs text-[var(--text-secondary)]">em andamento</span></div><div className="flex flex-col justify-center border-l border-[var(--border-subtle)] p-5"><UsersRound className="h-5 w-5 text-slate-400" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.notStarted}</strong><span className="text-xs text-[var(--text-secondary)]">sem iniciar</span></div></div>
+          <div className={`grid border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] lg:border-l lg:border-t-0 ${isAnonymous ? "grid-cols-1" : "grid-cols-2"}`}><div className="flex flex-col justify-center p-5"><Clock3 className="h-5 w-5 text-amber-500" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.drafts}</strong><span className="text-xs text-[var(--text-secondary)]">em andamento</span></div>{!isAnonymous && <div className="flex flex-col justify-center border-l border-[var(--border-subtle)] p-5"><UsersRound className="h-5 w-5 text-slate-400" /><strong className="mt-3 text-2xl text-[var(--text-primary)]">{summary.notStarted}</strong><span className="text-xs text-[var(--text-secondary)]">sem iniciar</span></div>}</div>
         </div>
       </section>
 
@@ -184,20 +178,6 @@ export default function SurveyDashboardPage() {
               <Badge variant="neutral">{question.responseCount} resposta(s)</Badge>
             </div>
 
-            {question.suppressed ? (
-              /* Sem esta explicação, a supressão é indistinguível de "ninguém
-                 respondeu" — e a contagem ao lado do título contradiria a tela. */
-              <div className="mt-5 flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
-                <div className="text-sm text-[var(--text-secondary)]">
-                  <strong className="block text-[var(--text-primary)]">Resultado preservado por anonimato</strong>
-                  Esta pergunta tem {question.responseCount} resposta(s), menos que o mínimo de {threshold} exigido
-                  nesta avaliação anônima. Com um grupo pequeno, o resultado agregado permite deduzir quem respondeu
-                  o quê. Os números aparecem assim que o mínimo for alcançado.
-                </div>
-              </div>
-            ) : null}
-
             {question.options?.length ? <DistributionBars items={question.options} /> : null}
 
             {question.textResponses?.length ? (
@@ -205,12 +185,10 @@ export default function SurveyDashboardPage() {
                 <h3 className="text-sm font-black text-[var(--text-primary)]">Respostas abertas</h3>
                 <div className="mt-3 divide-y divide-[var(--border-subtle)] overflow-hidden rounded-xl border border-[var(--border-subtle)]">
                   {question.textResponses.map((response, responseIndex) => (
-                    <article key={`${question.id}-${responseIndex}`} className="bg-[var(--surface-card)] p-4">
+                    <article key={`${question.id}-${responseIndex}`} className="flex flex-col gap-3 bg-[var(--surface-card)] p-4 sm:flex-row sm:items-start sm:justify-between">
                       <p className="whitespace-pre-wrap text-sm leading-6 text-[var(--text-primary)]">{response.text}</p>
-                      {/* Ciclo anônimo não devolve horário — escrever "Enviada em
-                          Não informado" sugeriria dado faltando, não proteção. */}
                       {response.submittedAt ? (
-                        <p className="mt-2 text-xs text-[var(--text-secondary)]">Enviada em {formatDate(response.submittedAt)}</p>
+                        <p className="shrink-0 text-xs text-[var(--text-secondary)] sm:text-right">Enviada em {formatDate(response.submittedAt)}</p>
                       ) : null}
                     </article>
                   ))}
@@ -218,7 +196,7 @@ export default function SurveyDashboardPage() {
               </div>
             ) : null}
 
-            {!question.suppressed && !question.options?.length && !question.textResponses?.length ? (
+            {!question.options?.length && !question.textResponses?.length ? (
               <div className="mt-5 rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
                 Ainda não há respostas enviadas para esta pergunta.
               </div>

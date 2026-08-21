@@ -326,7 +326,6 @@ button.monitor-kpi:focus-visible { outline: 2px solid var(--kpi-accent); outline
   justify-content: space-between;
   gap: .5rem;
   margin-top: .25rem;
-  border-top: 1px solid var(--border-subtle);
   padding: .65rem .25rem .1rem;
   font-size: .72rem;
   color: var(--text-muted);

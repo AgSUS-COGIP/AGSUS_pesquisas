@@ -151,6 +151,7 @@ export type OperacaoCiclo = {
     opensAt: string | null;
     closesAt: string | null;
     allowDrafts: boolean;
+    anonymous?: boolean;
     accessMode?: string;
     /** Envio automático de e-mails aos participantes (abertura e 24 h finais). */
     emailNotifications?: boolean;

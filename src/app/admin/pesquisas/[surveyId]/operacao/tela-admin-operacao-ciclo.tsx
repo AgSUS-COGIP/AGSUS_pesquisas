@@ -337,13 +337,14 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     },
   ] : [];
 
-  // Link direto para responder: CDDI tem jornada própria; o restante usa o
-  // runtime genérico por código de aplicação. Quem abrir o link entra pelo
-  // login institucional e o banco (RLS) decide se pode responder.
+  // Ciclos anônimos têm jornada pública: o link não identifica quem responde.
+  // Os demais continuam passando pelo login institucional.
   const responseLink = operations?.application
     ? operations.survey.code === "CDDI"
       ? "/cddi"
-      : `/pesquisas/${encodeURIComponent(operations.application.code)}`
+      : operations.application.anonymous
+        ? `/responder/${encodeURIComponent(operations.application.code)}`
+        : `/pesquisas/${encodeURIComponent(operations.application.code)}`
     : null;
 
   return <PlatformShell
@@ -372,7 +373,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               const url = `${window.location.origin}${responseLink}`;
               if (!navigator.clipboard) { toast.error(`Copie o link manualmente: ${url}`); return; }
               void navigator.clipboard.writeText(url).then(
-                () => toast.success("Link de resposta copiado. Quem abrir entra pelo login institucional."),
+                () => toast.success(operations?.application?.anonymous ? "Link anônimo copiado. O formulário abre sem login." : "Link de resposta copiado. Quem abrir entra pelo login institucional."),
                 () => toast.error(`Não foi possível copiar. Link: ${url}`),
               );
             }}
