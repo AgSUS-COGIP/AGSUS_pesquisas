@@ -33,6 +33,14 @@ const prefixes = {
  * o padrão de docs/database-naming-standard.md continua obrigatório.
  */
 const LEGACY_RESTORED_OBJECTS = {
+  // Painel CDDI: a migration apenas **redefine** a função legada para deixar de
+  // contar submissão anulada como concluída (AGS-01). O nome excede 30
+  // caracteres porque é anterior ao padrão institucional, e é consumido por
+  // `get_cddi_monitoring_dashboard`; renomeá-lo aqui exigiria o procedimento de
+  // objeto legado inteiro, alheio à correção.
+  "supabase/migrations/20260821140000_painel_cddi_ignora_submissao_anulada.sql": {
+    "função": new Set(["get_cddi_monitoring_dashboard_internal"]),
+  },
   // Catálogo de módulos, de 20260731115500_platform_navigation_permissions.sql.
   // Restaurado em bancos onde aquela migration nunca rodou; ver
   // docs/operacao-permissoes.md.
