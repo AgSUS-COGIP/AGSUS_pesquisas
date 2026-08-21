@@ -46,6 +46,16 @@ export function statusDoErroPostgres(erro: ErroPostgres): number {
   const codigo = erro.code ?? "";
   const mensagem = erro.message ?? "";
 
+  // A família `PGRST301`–`PGRST303` é falha de **token**, não de permissão nem
+  // do servidor: JWT ausente, inválido ou expirado. Cair no 500 do fim desta
+  // função fazia sessão vencida parecer defeito da plataforma — a tela mostrava
+  // "erro interno" e a pessoa tentava de novo, sem nunca ser levada a entrar de
+  // volta. `401` é o que `ErroDeApi` traduz em reautenticação.
+  //
+  // A lista é explícita de propósito: mapear todo `PGRST*` para 401 confundiria
+  // função ausente (`PGRST202`, logo abaixo) com sessão expirada.
+  if (codigo === "PGRST301" || codigo === "PGRST302" || codigo === "PGRST303") return 401;
+
   // `42501` (insufficient_privilege) é o que a própria RLS levanta quando a
   // política barra a operação — a rede de proteção do banco atuando.
   if (codigo === "42501") return 403;
@@ -98,6 +108,15 @@ export function respostaDeErro(erro: ErroPostgres, contexto: string) {
     return NextResponse.json(corpo, { status });
   }
 
+  // 401 é a exceção à regra acima: a mensagem do PostgREST para token vencido
+  // ("JWT expired", "JWSError…") é interna, em inglês, e não diz à pessoa o que
+  // fazer. O detalhe fica no log; a tela recebe a frase que conduz à ação.
+  if (status === 401) {
+    console.warn(`[api] ${contexto}`, erro.code, erro.message);
+    const corpo: ErroApi = { mensagem: "A sua sessão expirou. Entre novamente para continuar." };
+    return NextResponse.json(corpo, { status });
+  }
+
   const corpo: ErroApi = {
     mensagem: erro.message?.trim() || "Não foi possível concluir a operação.",
   };
@@ -107,4 +126,20 @@ export function respostaDeErro(erro: ErroPostgres, contexto: string) {
 /** Resposta de pedido malformado, antes de qualquer ida ao banco. */
 export function respostaDeEntradaInvalida(mensagem: string) {
   return NextResponse.json({ mensagem } satisfies ErroApi, { status: 400 });
+}
+
+/**
+ * Recusa com mensagem própria, para o que não vem de erro do Postgres.
+ *
+ * Existe para acabar com o `NextResponse.json({ error: … })` escrito à mão nas
+ * rotas: `chamar()` lê **`mensagem`**, então `{ error }` fazia o texto ser
+ * descartado e a tela mostrar o genérico "Não foi possível concluir a operação"
+ * — que foi o que aconteceu na central de e-mails. O tipo `ErroApi` aqui é o
+ * que impede a divergência voltar.
+ *
+ * Para erro vindo do banco, use `respostaDeErro()`, que também classifica o
+ * status.
+ */
+export function respostaDeFalha(status: number, mensagem: string) {
+  return NextResponse.json({ mensagem } satisfies ErroApi, { status });
 }
