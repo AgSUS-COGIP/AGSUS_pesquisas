@@ -13,6 +13,19 @@ describe("statusDoErroPostgres", () => {
     expect(statusDoErroPostgres({ code: "42501", message: "new row violates row-level security policy" })).toBe(403);
   });
 
+  it("trata falha de token como 401, e não como erro interno", () => {
+    // Antes, sessão vencida caía no 500 do fim da função: a tela dizia "erro
+    // interno" e a pessoa tentava de novo em vez de ser levada a entrar.
+    expect(statusDoErroPostgres({ code: "PGRST301", message: "JWT expired" })).toBe(401);
+    expect(statusDoErroPostgres({ code: "PGRST302", message: "Anonymous access is disabled" })).toBe(401);
+    expect(statusDoErroPostgres({ code: "PGRST303", message: "JWSError JWSInvalidSignature" })).toBe(401);
+  });
+
+  it("não confunde função ausente com sessão expirada", () => {
+    // Mapear todo PGRST* para 401 faria migration não aplicada parecer logout.
+    expect(statusDoErroPostgres({ code: "PGRST202", message: "Could not find the function" })).not.toBe(401);
+  });
+
   it("trata função ausente do cache de esquema como 501", () => {
     expect(statusDoErroPostgres({ code: "PGRST202", message: "Could not find the function" })).toBe(501);
   });

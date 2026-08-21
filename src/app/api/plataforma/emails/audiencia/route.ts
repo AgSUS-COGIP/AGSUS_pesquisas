@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { respostaDeErro } from "@/lib/api/resposta-http";
+import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const avaliacao = request.nextUrl.searchParams.get("avaliacao");
   if (!avaliacao || !ehUuid(avaliacao)) {
-    return NextResponse.json({ error: "Informe o ciclo." }, { status: 400 });
+    return respostaDeEntradaInvalida("Informe o ciclo.");
   }
 
   const situacao = request.nextUrl.searchParams.get("situacao") ?? "ALL";
