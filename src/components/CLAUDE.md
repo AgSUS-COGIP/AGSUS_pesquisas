@@ -140,6 +140,29 @@ Todo o texto vem de [@/lib/anonymity](../lib/CLAUDE.md), e não das telas, **por
 
 Hoje é só `<div className="cddi-route-shell">{children}</div>` — componente de servidor, sem hook nem efeito. A versão anterior adicionava classes em `<html>`/`<body>` e usava um `MutationObserver` para distinguir a tela inicial da de formulário; isso foi removido junto com a correção de rolagem dos formulários, e o comportamento passou a ser inteiramente do CSS de `src/app/cddi/cddi-route.css`. **Não reintroduza observação de DOM aqui**: se a rolagem quebrar, a correção é no CSS da rota.
 
+### `OnlinePresenceIndicator`
+
+**Não usa Realtime, e a razão é de protocolo** (`20260821100000_presenca_online_com_rls.sql`). O desenho pretendido é "todos anunciam que estão online, só perfis configurados enxergam a lista", e canal Realtime privado não faz isso: o protocolo exige permissão de **leitura** para *entrar* no canal, e sem entrar não há como fazer `track`. Até 21/08/2026 o efeito era duplo — a lista mostrava **apenas** quem podia vê-la, e todos os demais registravam `Unauthorized: You do not have permissions to read from this Channel topic: platform-online` no log a cada carregamento de página. Recurso quebrado e barulhento ao mesmo tempo.
+
+Hoje são duas chamadas independentes, cada uma com o seu portão no banco:
+
+```text
+bater  → POST /api/plataforma/presenca/batida  → fc_registrar_presenca()
+         todo mundo, se a presença estiver ligada  (private.can_track_platform_presence)
+ler    → GET  /api/plataforma/presenca/online   → fc_listar_presenca_online()
+         só perfis configurados                   (private.can_view_platform_presence)
+```
+
+Três decisões que valem preservar:
+
+- **A batida acontece mesmo para quem não vê a lista** — é o que faz a pessoa aparecer para quem vê. Por isso o `if (!canView) return null` fica **depois** dos efeitos, nunca antes.
+- **Aba escondida não bate** (`document.visibilityState`). Presença deve refletir quem está de fato com a tela aberta, não abas esquecidas em segundo plano. Voltar para a aba atualiza na hora.
+- **Batida a cada 45 s, janela de 2 min no banco.** A folga absorve uma batida perdida sem a pessoa piscar para fora da lista. Encurtar o intervalo multiplica escrita sem ganho perceptível.
+
+Falha de presença é silenciosa de propósito: é recurso acessório, e não pode virar erro na tela nem relatório de observabilidade. O indicador apenas deixa de piscar verde.
+
+As políticas de `realtime.messages` **continuam existindo** no banco, inertes — removê-las antes de o frontend novo estar publicado tiraria a presença de quem hoje a vê. Podem sair numa limpeza posterior.
+
 ### `PlatformBrandingProvider`
 
 Carrega a marca institucional (nome da organização, nome do produto, cor principal, logotipo) por React Query sob `platformBrandingQueryKey`, com cache local em `localStorage` (`agsus-platform-branding-v1`) para não piscar o padrão na primeira pintura. `usePlatformBranding()` entrega `{ branding, loading }`; `/admin/configuracoes` grava e atualiza a chave por `setQueryData`, então a mudança aparece na casca sem recarregar. Valor inválido degrada para `DEFAULT_PLATFORM_BRANDING` via `normalizePlatformBranding()`.

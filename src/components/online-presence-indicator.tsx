@@ -1,10 +1,10 @@
 "use client";
 
 import { UsersRound } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { PersonAvatar } from "@/components/person-avatar";
-import { normalizeOnlinePresenceState, type OnlinePresencePerson } from "@/lib/online-presence";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { listarPresencaOnline, registrarPresenca } from "@/lib/api/cliente-pessoas";
+import { normalizeOnlinePresenceList, type OnlinePresencePerson } from "@/lib/online-presence";
 
 type PresenceUser = {
   id?: string;
@@ -14,57 +14,87 @@ type PresenceUser = {
   avatarUrl?: string | null;
 };
 
-const PLATFORM_PRESENCE_TOPIC = "platform-online";
+/**
+ * Intervalo da batida.
+ *
+ * O banco considera online quem bateu nos últimos 2 minutos, então 45 segundos
+ * dá margem para uma batida perdida sem a pessoa piscar para fora da lista.
+ * Baixar isso multiplica escrita sem melhorar nada perceptível.
+ */
+const HEARTBEAT_MS = 45_000;
 
-/** Mostra, em tempo real, as pessoas autenticadas com a plataforma aberta. */
+/**
+ * Mostra as pessoas autenticadas com a plataforma aberta.
+ *
+ * ## Por que não usa Realtime
+ *
+ * O desenho pretendido é "todos anunciam, só perfis configurados enxergam", e
+ * canal Realtime privado não faz isso: o protocolo exige permissão de leitura
+ * para **entrar** no canal, e sem entrar não se consegue anunciar. Até
+ * 21/08/2026 a consequência era dupla — a lista mostrava apenas quem podia
+ * vê-la, e todos os demais registravam `Unauthorized` no log a cada
+ * carregamento de página.
+ *
+ * Hoje são duas chamadas independentes: **bater** (todo mundo, se a presença
+ * estiver ligada) e **ler** (só quem tem permissão). A autorização de cada uma
+ * é do banco, pelos mesmos portões que as políticas do Realtime usavam.
+ *
+ * A batida acontece mesmo para quem não vê a lista — é o que faz a pessoa
+ * aparecer para quem vê. Por isso o `return null` de `canView` fica **depois**
+ * dos efeitos, e não antes.
+ */
 export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser; canView: boolean }) {
   const [people, setPeople] = useState<OnlinePresencePerson[]>([]);
-  const [connected, setConnected] = useState(false);
+  const [beating, setBeating] = useState(false);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const presenceKey = user.id ?? user.institutionalEmail ?? null;
+  const identified = Boolean(user.id ?? user.institutionalEmail);
+
+  const beat = useCallback(async () => {
+    try {
+      const resultado = await registrarPresenca();
+      setBeating(resultado?.status === "OK");
+    } catch {
+      // Presença é acessório: falhar aqui não pode virar erro na tela nem
+      // relatório de observabilidade. O indicador apenas deixa de piscar verde.
+      setBeating(false);
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    try {
+      setPeople(normalizeOnlinePresenceList(await listarPresencaOnline()));
+    } catch {
+      // Inclui o 403 de quem não tem permissão. Silencioso de propósito: o
+      // componente já não é renderizado para essa pessoa.
+      setPeople([]);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!presenceKey) return;
-
-    const supabase = createBrowserSupabaseClient();
-    const channel = supabase.channel(PLATFORM_PRESENCE_TOPIC, {
-      config: {
-        private: true,
-        presence: { key: presenceKey },
-      },
-    });
+    if (!identified) return;
     let active = true;
 
-    const sync = () => {
-      if (active) setPeople(normalizeOnlinePresenceState(channel.presenceState()));
+    const tick = () => {
+      // Aba escondida não bate: presença deve refletir quem está de fato com a
+      // tela aberta, não quantas abas esquecidas alguém deixou em segundo plano.
+      if (document.visibilityState !== "visible") return;
+      void beat();
+      if (canView) void load();
     };
 
-    if (canView) channel.on("presence", { event: "sync" }, sync);
-
-    channel.subscribe((status) => {
-        if (!active) return;
-        if (status === "SUBSCRIBED") {
-          setConnected(true);
-          void channel.track({
-            personId: presenceKey,
-            fullName: user.fullName,
-            avatarUrl: user.avatarUrl ?? null,
-            profileLabel: user.profileLabel,
-            onlineAt: new Date().toISOString(),
-          });
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          setConnected(false);
-        }
-      });
+    tick();
+    const timer = window.setInterval(() => { if (active) tick(); }, HEARTBEAT_MS);
+    // Voltar para a aba atualiza na hora, em vez de esperar o próximo intervalo.
+    document.addEventListener("visibilitychange", tick);
 
     return () => {
       active = false;
-      void channel.untrack();
-      void supabase.removeChannel(channel);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
     };
-  }, [canView, presenceKey, user.avatarUrl, user.fullName, user.profileLabel]);
+  }, [beat, canView, identified, load]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,12 +112,12 @@ export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser;
     };
   }, [open]);
 
-  const count = people.length;
-  const label = connected
-    ? `${count} ${count === 1 ? "pessoa online" : "pessoas online"}`
-    : "Conectando presença";
-
   if (!canView) return null;
+
+  const count = people.length;
+  const label = beating
+    ? `${count} ${count === 1 ? "pessoa online" : "pessoas online"}`
+    : "Sincronizando presença";
 
   return (
     <div ref={containerRef} className="relative">
@@ -99,9 +129,9 @@ export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser;
         aria-controls={open ? listId : undefined}
         className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-2.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)]"
       >
-        <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.14)]" : "bg-slate-300"}`} aria-hidden="true" />
+        <span className={`h-2.5 w-2.5 rounded-full ${beating ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.14)]" : "bg-slate-300"}`} aria-hidden="true" />
         <UsersRound className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden xl:inline" aria-live="polite">{connected ? `${count} online` : "Conectando"}</span>
+        <span className="hidden xl:inline" aria-live="polite">{beating ? `${count} online` : "Sincronizando"}</span>
       </button>
 
       {open ? (
@@ -111,7 +141,7 @@ export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser;
         >
           <div className="border-b border-[var(--border-subtle)] px-4 py-3">
             <strong className="block text-sm text-[var(--text-primary)]">Pessoas online</strong>
-            <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">Atualizado automaticamente enquanto a plataforma estiver aberta.</span>
+            <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">Atualizado a cada 45 segundos enquanto a plataforma estiver aberta.</span>
           </div>
           {people.length ? (
             <ul className="max-h-80 overflow-y-auto p-2">
@@ -129,7 +159,7 @@ export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser;
               ))}
             </ul>
           ) : (
-            <p className="px-4 py-5 text-sm text-[var(--text-secondary)]">{connected ? "Nenhuma presença sincronizada ainda." : "Conectando ao serviço de presença…"}</p>
+            <p className="px-4 py-5 text-sm text-[var(--text-secondary)]">{beating ? "Ninguém mais com a plataforma aberta agora." : "Sincronizando presença…"}</p>
           )}
         </div>
       ) : null}
