@@ -41,6 +41,7 @@ Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recur
 | Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo`, `…/notificacoes` | `cliente-construtor.ts` |
 | Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
 | Central de e-mails | `/api/plataforma/emails`, `…/audiencia`, `…/enviar`, `…/despachar`, `…/textos` | `cliente-pessoas.ts` |
+| Presença online | `/api/plataforma/presenca` (configuração), `…/batida` (registrar a própria), `…/online` (quem está) | `cliente-pessoas.ts` |
 | Equipe | `/api/equipe`, `…/ciclos`, `…/candidatos`, `…/membros` | `cliente-pessoas.ts` |
 | Jornada de resposta | `/api/formularios/[codigo]`, `/api/submissoes/**`, `/api/ciclos/[codigo]/regras`, `/api/meu/**` | `cliente-runtime.ts` |
 | CDDI | `/api/cddi/ciclo-vigente`, `…/identidade`, `…/submissoes/**` | `cliente-runtime.ts` |
