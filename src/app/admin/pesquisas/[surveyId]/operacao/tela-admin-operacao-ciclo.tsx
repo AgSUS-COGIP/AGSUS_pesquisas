@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/form-controls";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -400,7 +401,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         <PageHeader
           eyebrow={`${operations.survey.code} · Ciclo ${operations.application?.code ?? "não configurado"}`}
           title="Propriedades do ciclo"
-          description="Publique a versão, defina o período de resposta e controle a abertura e o encerramento. Toda operação é validada no banco e registrada em auditoria."
+          description="Publique a versão, defina o período e controle abertura e encerramento."
           actions={<>
             <Badge variant={cycleStatusVariant(cycleStatus)} title={`Código interno do ciclo: ${cycleStatus ?? "—"}`}>
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -410,27 +411,33 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               <FileStack className="h-3.5 w-3.5" aria-hidden="true" />
               Versão {operations.version.number} · {versionStatusLabel(versionStatus).toLocaleLowerCase("pt-BR")}
             </Badge>
+            {operations.application?.anonymous && (
+              <Badge variant="info" title="Quem responde não é identificado; o vínculo é destruído no envio.">
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                Anônima
+              </Badge>
+            )}
           </>}
         />
 
-        <section aria-label="Números do ciclo" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {/*
-            Um número só, como nos outros três cartões. "13 / 52" com a legenda
-            "seções e perguntas" lia como fração de progresso — 13 de 52 —
-            quando são duas grandezas diferentes. O tamanho do instrumento é o
-            número de perguntas; quantas seções o organizam é detalhe, e desce
-            para a legenda.
-          */}
+        {/*
+          Tira de números, não quatro cartões soltos: cada um só tinha um
+          rótulo, um número e uma linha de legenda — pouca informação para o
+          peso visual de borda + sombra + raio repetidos quatro vezes. O
+          `gap-px` sobre fundo `--border-subtle` desenha os divisores finos
+          sem precisar de borda em cada célula.
+        */}
+        <Surface aria-label="Números do ciclo" className="grid grid-cols-1 gap-px overflow-hidden bg-[var(--border-subtle)] p-0 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={ListChecks}
             label="Estrutura"
             value={operations.metrics.questions}
             description={`${operations.metrics.questions === 1 ? "pergunta" : "perguntas"} em ${operations.metrics.sections} ${operations.metrics.sections === 1 ? "seção" : "seções"} · ${operations.metrics.requiredQuestions} ${operations.metrics.requiredQuestions === 1 ? "obrigatória" : "obrigatórias"}`}
           />
-          <MetricCard icon={Users2} label="Participantes" value={operations.metrics.participants} description={operations.metrics.participants ? "pessoas vinculadas a este ciclo" : "nenhuma pessoa vinculada ainda"} href="/admin/participantes" hrefLabel="Gerenciar público" />
-          <MetricCard icon={Clock3} label="Em preenchimento" value={operations.metrics.draftSubmissions} description="respostas iniciadas e ainda não enviadas" />
-          <MetricCard icon={CheckCircle2} label="Respostas enviadas" value={operations.metrics.submittedSubmissions} description="submissões concluídas e registradas" tone="success" />
-        </section>
+          <MetricCard icon={Users2} label="Participantes" value={operations.metrics.participants} description={operations.metrics.participants ? "vinculadas a este ciclo" : "nenhuma vinculada ainda"} href="/admin/participantes" hrefLabel="Gerenciar" />
+          <MetricCard icon={Clock3} label="Em preenchimento" value={operations.metrics.draftSubmissions} description="iniciadas, não enviadas" />
+          <MetricCard icon={CheckCircle2} label="Respostas enviadas" value={operations.metrics.submittedSubmissions} description="concluídas e registradas" tone="success" />
+        </Surface>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.05fr]">
           <ReadinessChecklist issues={operations.issues} surveyId={surveyId} />
@@ -518,15 +525,16 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           </Surface>
         </div>
 
-        <Surface className="p-6">
+        {!operations.application?.anonymous && <Surface className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Notificações</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Avisos por e-mail aos participantes</h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                Com a opção ligada, cada participante recebe dois avisos automáticos: um quando o ciclo abre e outro nas 24 horas
-                finais antes do encerramento — cada um, no máximo uma vez. Quem já enviou a resposta não recebe o lembrete.
-              </p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Avisos por e-mail aos participantes</h3>
+                <InfoTooltip id="notificacoes-explicacao">
+                  Com a opção ligada, cada participante recebe dois avisos automáticos: um quando o ciclo abre e outro nas 24 horas finais antes do encerramento — cada um, no máximo uma vez. Quem já enviou a resposta não recebe o lembrete.
+                </InfoTooltip>
+              </div>
             </div>
             {emailNotificationsEnabled
               ? <Badge variant="success"><Mail className="h-3.5 w-3.5" aria-hidden="true" />Envio ligado</Badge>
@@ -553,14 +561,16 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               </p>
             )}
           </div>
-        </Surface>
+        </Surface>}
 
         <Surface className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Ciclo de vida</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Operações disponíveis</h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Cada operação depende do estado atual. Quando estiver indisponível, o motivo aparece logo abaixo do botão.</p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Operações disponíveis</h3>
+                <InfoTooltip id="operacoes-explicacao">Cada operação depende do estado atual. Quando estiver indisponível, o motivo aparece logo abaixo do botão.</InfoTooltip>
+              </div>
             </div>
           </div>
 
@@ -634,9 +644,7 @@ function OperationsSkeleton() {
     <div className="space-y-6" aria-live="polite" aria-busy="true">
       <span className="sr-only">Carregando as propriedades do ciclo.</span>
       <Skeleton className="h-24 w-full rounded-2xl" />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-2xl" />)}
-      </div>
+      <Skeleton className="h-20 w-full rounded-2xl" />
       <div className="grid gap-6 xl:grid-cols-2">
         <Skeleton className="h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
@@ -655,17 +663,19 @@ function MetricCard({ icon: Icon, label, value, description, tone = "neutral", h
   hrefLabel?: string;
 }) {
   return (
-    <article className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
+    <article className="flex flex-col gap-1.5 bg-[var(--surface-card)] p-4">
       <div className="flex items-center gap-2">
-        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone === "success" ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--brand-primary)]"}`}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
+        <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${tone === "success" ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--brand-primary)]"}`}>
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
         <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">{label}</p>
       </div>
-      <strong className="mt-3 block text-3xl font-semibold tracking-tight text-[var(--brand-primary)]">{value}</strong>
-      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <strong className="text-2xl font-semibold tracking-tight text-[var(--brand-primary)]">{value}</strong>
+        <span className="text-xs leading-5 text-[var(--text-secondary)]">{description}</span>
+      </div>
       {href && hrefLabel && (
-        <Link href={href} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">
+        <Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">
           {hrefLabel}
           <ArrowLeft className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
         </Link>
@@ -688,8 +698,10 @@ function PeriodField({ id, label, hint, value, min, disabled, error, onChange }:
   const errorId = `${id}-erro`;
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">{label}</label>
-      <p id={hintId} className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{hint}</p>
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">{label}</label>
+        <InfoTooltip id={hintId}>{hint}</InfoTooltip>
+      </div>
       <input
         id={id}
         type="datetime-local"

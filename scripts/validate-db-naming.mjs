@@ -203,6 +203,13 @@ const LEGACY_RESTORED_OBJECTS = {
       "get_survey_operations",
     ]),
   },
+  // Checklist deixa de cobrar "nenhum participante vinculado" em ciclo
+  // anônimo: a jornada pública nem consulta application_participants. Mesma
+  // política das demais redefinições de `get_survey_operations` — função
+  // legada consumida pelo nome pela tela de propriedades já publicada.
+  "supabase/migrations/20260821170000_checklist_ignora_publico_anonimo.sql": {
+    função: new Set(["get_survey_operations"]),
+  },
 };
 
 function isLegacyRestored(file, kind, name) {
