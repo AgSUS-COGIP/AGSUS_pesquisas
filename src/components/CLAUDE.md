@@ -52,6 +52,7 @@ components/
     ├── dialog.tsx       Dialog  (<dialog> nativo) — homônimo, comportamento diferente
     ├── page-navigation.tsx Breadcrumbs · PageActions
     ├── skeleton.tsx     Skeleton · TextSkeleton
+    ├── tooltip.tsx      InfoTooltip  (selo "i" com balão no hover/foco)
     └── tabs.tsx         Tabs  (não utilizado)
 ```
 
@@ -72,6 +73,7 @@ components/
 <EmptyState title description icon? action? />
 <ErrorSummary errors={string[]} title? />
 <Input label hint? error? … />                        // idem Textarea, Select, Checkbox, Radio
+<InfoTooltip id="…-hint" label?="Mais informações" side?="bottom|top">{texto}</InfoTooltip>
 
 <FullPageState tone="restricted|error|empty" title description action? />
 <PlatformGuardState guard={usePlatformGuard(…)} title restrictedTitle? restrictedDescription? unidentifiedTitle? />
@@ -149,6 +151,12 @@ Carrega a marca institucional (nome da organização, nome do produto, cor princ
 Substitui `window.confirm` em toda a aplicação. `await confirm({ title, description?, confirmLabel?, tone? })` devolve `boolean`; `tone: "danger"` marca ação irreversível. É montado por `AppProviders`, portanto qualquer componente de cliente pode chamar o hook. Como devolve promise, o padrão nas telas é `if (!(await confirm({ … }))) return;`.
 
 **Com `prompt`, o diálogo também colhe a justificativa** e devolve o texto no lugar de `true` — `false` continua significando desistência, então o mesmo `if (!(await confirm({ … }))) return;` serve aos dois casos, e nenhuma chamada existente muda. `prompt: { label, placeholder?, hint?, minLength? }`; a validação é `confirmationReasonError()` de [@/lib/confirmation-prompt](../lib/CLAUDE.md), função pura e testada. Isso substituiu o `window.prompt` que a tela de remoção de respostas usava: ele abre fora da aplicação, ignora o tema, pode estar bloqueado no navegador e — o pior — não validava nada, então a pessoa confirmava o irreversível e só depois o banco recusava o motivo curto. **`minLength` tem de espelhar o mínimo da RPC**; divergir devolve o erro ao ponto que a validação existe para evitar.
+
+### `InfoTooltip`
+
+Componente de servidor (sem hook): o balão abre por CSS puro, `group-hover`/`group-focus-within` sobre um wrapper `group relative`, não por estado em React. `aria-describedby` do botão aponta para o texto **sempre**, independente do hover — leitor de tela lê a descrição ao focar o botão, mesmo com o balão em `opacity-0` (nunca `display:none`, que apagaria o texto da árvore de acessibilidade). Por ser de servidor, não gera `id` com `useId()`; quem chama passa um `id` explícito, na mesma convenção manual de `PeriodField` (`${id}-hint`).
+
+Existe para texto de apoio que não precisa ficar sempre visível — título de seção com uma frase de contexto, hint de campo. **Não** substitui a nota de "por que este botão está indisponível": essa continua sempre visível, sem exigir hover (ver `ActionCard` em `tela-admin-operacao-ciclo.tsx`).
 
 ### `OverlayPanel`
 
