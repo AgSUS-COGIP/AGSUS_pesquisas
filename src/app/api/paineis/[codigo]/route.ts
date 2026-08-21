@@ -5,10 +5,8 @@ import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-ht
 /**
  * Painel de resultados de um ciclo, pelo código da aplicação.
  *
- * O limiar de anonimato é aplicado dentro de `fc_obter_painel_pesquisa`: num
- * ciclo anônimo com poucas respostas o banco suprime o recorte. Subir essa
- * decisão para a rota faria o dado que o limiar protege trafegar até aqui
- * antes de alguém decidir escondê-lo.
+ * Em ciclos anônimos, a RPC devolve apenas dados sem identidade de quem
+ * respondeu; a rota repassa o agregado ao painel administrativo.
  */
 export const dynamic = "force-dynamic";
 

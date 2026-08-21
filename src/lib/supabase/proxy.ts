@@ -25,7 +25,10 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/background/");
+  return PUBLIC_PATHS.has(pathname)
+    || pathname.startsWith("/api/background/")
+    || pathname.startsWith("/responder/")
+    || pathname.startsWith("/api/pesquisas-anonimas/");
 }
 
 // Rota de API responde em JSON, inclusive quando recusa.

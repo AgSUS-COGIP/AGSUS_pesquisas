@@ -49,6 +49,30 @@ export function enviarSubmissao(submissaoId: string) {
   });
 }
 
+/** Jornada sem login, exclusiva para ciclos explicitamente anônimos. */
+export function obterFormularioAnonimo(codigoAplicacao: string) {
+  return chamar<unknown>(`/api/pesquisas-anonimas/${encodeURIComponent(codigoAplicacao)}`);
+}
+
+export function iniciarSubmissaoAnonima(codigoAplicacao: string) {
+  return chamar<unknown>(`/api/pesquisas-anonimas/${encodeURIComponent(codigoAplicacao)}/submissoes`, { method: "POST" });
+}
+
+export function gravarRespostaAnonima(submissaoId: string, token: string, resposta: RespostaEntrada) {
+  return chamar<unknown>(`/api/pesquisas-anonimas/submissoes/${submissaoId}/respostas`, {
+    method: "PUT",
+    headers: { "X-Anonymous-Session": token },
+    body: JSON.stringify(resposta),
+  });
+}
+
+export function enviarSubmissaoAnonima(submissaoId: string, token: string) {
+  return chamar<{ submittedAt?: string }>(`/api/pesquisas-anonimas/submissoes/${submissaoId}/envio`, {
+    method: "POST",
+    headers: { "X-Anonymous-Session": token },
+  });
+}
+
 /** Catálogo de avaliações da pessoa autenticada. */
 export function listarMeuCatalogo() {
   return chamar<SurveyCatalogItem[]>("/api/meu/catalogo");

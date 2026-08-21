@@ -130,12 +130,19 @@ export function invalidatePlatformContext() {
  * Sessão ausente ou expirada redireciona para `/acesso` em vez de expor erro:
  * nenhuma tela autenticada tem o que mostrar sem contexto.
  */
-export function usePlatformContext() {
+export function usePlatformContext(enabled = true) {
   const [context, setContext] = useState<PlatformContext | null>(() => cachedContext);
-  const [loading, setLoading] = useState(!cachedContext);
+  const [loading, setLoading] = useState(enabled && !cachedContext);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Jornadas públicas reutilizam componentes da plataforma, mas não podem
+    // sequer tentar resolver a identidade institucional: sem sessão, essa
+    // resolução redireciona para /acesso por definição.
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     const load = async () => {
       try {
@@ -153,7 +160,7 @@ export function usePlatformContext() {
     };
     void load();
     return () => { active = false; };
-  }, []);
+  }, [enabled]);
 
   return { context, loading, error };
 }
@@ -173,8 +180,11 @@ export function usePlatformContext() {
  * Sem `requiredModule`, basta estar identificado — o caso de `/perfil` e da
  * moldura do CDDI, abertas a qualquer pessoa com cadastro ativo.
  */
-export function usePlatformGuard(requiredModule?: PlatformModule): PlatformGuardDecision {
-  const { context, loading, error } = usePlatformContext();
+export function usePlatformGuard(
+  requiredModule?: PlatformModule,
+  options: { enabled?: boolean } = {},
+): PlatformGuardDecision {
+  const { context, loading, error } = usePlatformContext(options.enabled ?? true);
   return useMemo(
     () => resolvePlatformGuard({ context, loading, error, requiredModule }),
     [context, loading, error, requiredModule],

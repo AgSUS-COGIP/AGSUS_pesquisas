@@ -42,22 +42,21 @@ function daysUntilExpiration(archivedAt: string) {
 /**
  * Copia o link direto de resposta da avaliação.
  *
- * Quem abre o link entra pelo login institucional e o banco decide se pode
- * responder — o link não dá acesso por si só, apenas encurta o caminho.
+ * Ciclos anônimos abrem numa jornada pública; os demais exigem login.
  */
 function copyResponseLink(survey: ManagedSurvey) {
   if (!survey.applicationCode) {
     toast.error("Este instrumento ainda não tem ciclo configurado.");
     return;
   }
-  const path = survey.code === "CDDI" ? "/cddi" : `/pesquisas/${encodeURIComponent(survey.applicationCode)}`;
+  const path = survey.code === "CDDI" ? "/cddi" : survey.anonymous ? `/responder/${encodeURIComponent(survey.applicationCode)}` : `/pesquisas/${encodeURIComponent(survey.applicationCode)}`;
   const url = `${window.location.origin}${path}`;
   if (!navigator.clipboard) {
     toast.error(`Copie o link manualmente: ${url}`);
     return;
   }
   void navigator.clipboard.writeText(url).then(
-    () => toast.success("Link de resposta copiado. Quem abrir entra pelo login institucional."),
+    () => toast.success(survey.anonymous ? "Link anônimo copiado. O formulário abre sem login." : "Link de resposta copiado. Quem abrir entra pelo login institucional."),
     () => toast.error(`Não foi possível copiar. Link: ${url}`),
   );
 }

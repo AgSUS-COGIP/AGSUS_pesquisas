@@ -50,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="min-h-full" suppressHydrationWarning>
+    <html lang="pt-BR" className="min-h-full" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className="min-h-screen font-sans font-medium antialiased">
         <Script
           id="agsus-theme-preference"

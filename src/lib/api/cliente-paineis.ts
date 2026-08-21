@@ -3,8 +3,7 @@ import { chamar } from "./requisicao";
 /**
  * Chamadas dos painéis e da galeria de modelos.
  *
- * O que o banco suprime por limiar de anonimato já chega suprimido: a camada
- * não reconstrói recorte nenhum.
+ * Ciclos anônimos chegam agregados e sem identidade de quem respondeu.
  */
 
 /** Painel de resultados de um ciclo, pelo código da aplicação. */
