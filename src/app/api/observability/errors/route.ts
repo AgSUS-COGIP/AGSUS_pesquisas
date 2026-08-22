@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import {
+  CorpoJsonExcedidoError,
+  CorpoJsonInvalidoError,
+  lerJsonLimitado,
+} from "@/lib/api/corpo-json-limitado";
 import { normalizeErrorReference } from "@/lib/observability-reference";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const ALLOWED_TYPES = new Set(["CLIENTE", "SERVIDOR", "REDE", "BANCO", "DESCONHECIDO"]);
+const MAX_REPORT_BYTES = 16_384;
 
 // Requisição sem `Origin` é aceita de propósito: `fetch(keepalive)` disparado
 // durante o descarregamento da página pode omitir o header, e é justamente esse
@@ -49,19 +55,18 @@ function cleanContext(value: unknown) {
  * Responde `202` com a referência exibida ao usuário, para correlação com o
  * suporte. O `upsert` por `co_referencia` com `ignoreDuplicates` torna o envio
  * idempotente: o mesmo erro reportado por mais de um boundary grava uma só linha.
+ *
+ * Como esta rota precisa funcionar antes do login, ela é pública. Por isso o
+ * limite de 16 KiB é aplicado sobre os bytes efetivamente lidos da stream, não
+ * só sobre `Content-Length`: um cliente adversarial pode omitir esse cabeçalho.
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
   }
 
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (contentLength > 16_384) {
-    return NextResponse.json({ error: "Relatório excede o limite permitido." }, { status: 413 });
-  }
-
   try {
-    const payload = await request.json() as Record<string, unknown>;
+    const payload = await lerJsonLimitado<Record<string, unknown>>(request, MAX_REPORT_BYTES);
     // Não passa por `cleanText`: a referência é gerada pela plataforma, não é
     // texto de usuário, e o sanitizador a corrompia. Ver `observability-reference`.
     const reference = normalizeErrorReference(payload.reference);
@@ -115,6 +120,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ reference }, { status: 202 });
   } catch (error) {
+    if (error instanceof CorpoJsonExcedidoError) {
+      return NextResponse.json({ error: "Relatório excede o limite permitido." }, { status: 413 });
+    }
+    if (error instanceof CorpoJsonInvalidoError) {
+      return NextResponse.json({ error: "Relatório inválido." }, { status: 400 });
+    }
+
     console.error("Relatório de observabilidade inválido", error);
     return NextResponse.json({ error: "Relatório inválido." }, { status: 400 });
   }

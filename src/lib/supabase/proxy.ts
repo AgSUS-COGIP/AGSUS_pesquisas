@@ -31,6 +31,17 @@ function isPublicPath(pathname: string) {
     || pathname.startsWith("/api/pesquisas-anonimas/");
 }
 
+function isPublicRequest(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // A marca institucional precisa ser lida antes do login. Somente o GET é
+  // público: o PUT continua atravessando a autenticação do proxy e a própria
+  // RPC de escrita permanece restrita a `authenticated`/administradores.
+  if (request.method === "GET" && pathname === "/api/plataforma/marca") return true;
+
+  return isPublicPath(pathname);
+}
+
 // Rota de API responde em JSON, inclusive quando recusa.
 //
 // Redirecionar `/api/**` para `/acesso` produz um defeito difícil de ler: o
@@ -76,10 +87,10 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const pathname = request.nextUrl.pathname;
-  const publicPath = isPublicPath(pathname);
+  const publicRequest = isPublicRequest(request);
 
   if (!url || !publishableKey) {
-    if (publicPath) return addResponseHeaders(NextResponse.next({ request }));
+    if (publicRequest) return addResponseHeaders(NextResponse.next({ request }));
 
     return addResponseHeaders(new NextResponse("Serviço temporariamente indisponível.", {
       status: 503,
@@ -89,10 +100,10 @@ export async function updateSession(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
-  // Não há motivo para consultar Auth em health checks, cron, observabilidade ou
-  // jornadas anônimas. Além de reduzir latência, isso impede que tráfego público
-  // concorra com o limite de Auth das jornadas autenticadas.
-  if (publicPath && pathname !== "/acesso") {
+  // Não há motivo para consultar Auth em health checks, cron, observabilidade,
+  // leitura da marca ou jornadas anônimas. Além de reduzir latência, isso impede
+  // que tráfego público concorra com o limite de Auth das jornadas autenticadas.
+  if (publicRequest && pathname !== "/acesso") {
     return addResponseHeaders(response);
   }
 
@@ -115,7 +126,7 @@ export async function updateSession(request: NextRequest) {
   const { data, error } = await supabase.auth.getClaims();
   const authenticated = Boolean(data?.claims?.sub) && !error;
 
-  if (!authenticated && !publicPath) {
+  if (!authenticated && !publicRequest) {
     if (isApiPath(pathname)) {
       return addResponseHeaders(NextResponse.json(
         { mensagem: "Sua sessão expirou. Entre novamente para continuar." },
