@@ -1,14 +1,15 @@
 -- Auditoria de seguranca 2026-08-22.
 --
--- Mantemos os nomes legados destas RPCs porque ja sao contratos da aplicacao.
--- Novos objetos devem seguir o padrao institucional de nomenclatura AgSUS; uma
--- renomeacao em massa aqui quebraria clientes e deve ser tratada em migracao
--- dedicada, com compatibilidade e catalogacao formal da excecao.
+-- Em vez de ampliar a lista de excecoes ao padrao institucional, esta migration
+-- cria contratos FC_ em portugues para os tres fluxos corrigidos e retira a
+-- execucao autenticada dos nomes legados. Isso permite corrigir bancos que
+-- divergiram do historico de migrations sem quebrar o formato REST consumido
+-- pelas telas.
 
 -- ---------------------------------------------------------------------------
--- 1. Formulario do respondente: metadados de calculo permanecem no servidor.
+-- 1. Formulario do respondente: metadados de calculo ficam somente no servidor.
 -- ---------------------------------------------------------------------------
-create or replace function public.get_public_survey_form(target_application_code text)
+create or replace function public.fc_obter_formulario_publico(target_application_code text)
 returns jsonb
 language sql
 security definer
@@ -93,13 +94,46 @@ as $function$
   limit 1;
 $function$;
 
-revoke all on function public.get_public_survey_form(text) from public, anon;
-grant execute on function public.get_public_survey_form(text) to authenticated;
+revoke all on function public.fc_obter_formulario_publico(text) from public, anon;
+grant execute on function public.fc_obter_formulario_publico(text) to authenticated;
+
+-- A jornada anonima entra por uma RPC service_role. O contrato intermediario
+-- permanece inacessivel ao cliente e passa a reutilizar o formulario saneado.
+create or replace function public.fc_obter_form_anonimo(target_application_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_application public.survey_applications%rowtype;
+begin
+  select *
+  into v_application
+  from public.survey_applications
+  where code = btrim(target_application_code)
+  limit 1;
+
+  if v_application.id is null
+     or not v_application.anonymous
+     or not public.application_accepts_responses(v_application.id) then
+    return null;
+  end if;
+
+  return public.fc_obter_formulario_publico(target_application_code);
+end;
+$function$;
+
+revoke all on function public.fc_obter_form_anonimo(text) from public, anon, authenticated, service_role;
+
+-- O nome legado deixa de ser uma superficie chamavel por usuarios. Mantemos o
+-- objeto somente para compatibilidade interna com migrations antigas.
+revoke all on function public.get_public_survey_form(text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 2. Busca administrativa: limitar linhas antes do jsonb_agg.
+-- 2. Busca administrativa: limitar linhas ANTES do jsonb_agg.
 -- ---------------------------------------------------------------------------
-create or replace function public.search_platform_admin_people(
+create or replace function public.fc_pesquisar_pessoa_admin(
   target_search text default null::text,
   target_limit integer default 80
 )
@@ -159,13 +193,14 @@ begin
 end;
 $function$;
 
-revoke all on function public.search_platform_admin_people(text, integer) from public, anon;
-grant execute on function public.search_platform_admin_people(text, integer) to authenticated;
+revoke all on function public.fc_pesquisar_pessoa_admin(text, integer) from public, anon;
+grant execute on function public.fc_pesquisar_pessoa_admin(text, integer) to authenticated;
+revoke all on function public.search_platform_admin_people(text, integer) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3. Auditoria por pessoa: limitar eventos antes do jsonb_agg.
+-- 3. Auditoria por pessoa: limitar eventos ANTES do jsonb_agg.
 -- ---------------------------------------------------------------------------
-create or replace function public.list_platform_admin_person_audit(
+create or replace function public.fc_listar_auditoria_pessoa(
   target_person_id uuid,
   target_limit integer default 30
 )
@@ -216,5 +251,6 @@ begin
 end;
 $function$;
 
-revoke all on function public.list_platform_admin_person_audit(uuid, integer) from public, anon;
-grant execute on function public.list_platform_admin_person_audit(uuid, integer) to authenticated;
+revoke all on function public.fc_listar_auditoria_pessoa(uuid, integer) from public, anon;
+grant execute on function public.fc_listar_auditoria_pessoa(uuid, integer) to authenticated;
+revoke all on function public.list_platform_admin_person_audit(uuid, integer) from public, anon, authenticated;
