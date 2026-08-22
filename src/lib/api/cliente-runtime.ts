@@ -103,7 +103,7 @@ type BootstrapCacheEntry = {
 
 // Cache curtíssimo, usado apenas para coalescer as quatro funções que a tela
 // chama durante a mesma montagem. Não é cache de dados da avaliação: depois de
-// 5 s uma nova navegação volta ao servidor e reidrata respostas atualizadas.
+// 5 s da conclusão uma nova navegação volta ao servidor e reidrata respostas.
 const CDDI_BOOTSTRAP_COALESCE_MS = 5_000;
 const bootstrapCddiAutoPorCiclo = new Map<string, BootstrapCacheEntry>();
 let bootstrapCddiAutoVigente: BootstrapCacheEntry | null = null;
@@ -137,16 +137,22 @@ export function obterBootstrapCddiAuto(codigoCiclo?: string | null) {
   });
   const entry: BootstrapCacheEntry = {
     promise,
-    expiresAt: Date.now() + CDDI_BOOTSTRAP_COALESCE_MS,
+    // Enquanto a requisição estiver pendente, ela nunca expira. O TTL curto só
+    // começa após a resposta, evitando abrir um segundo bootstrap se o primeiro
+    // levar mais de cinco segundos sob carga ou rede lenta.
+    expiresAt: Number.POSITIVE_INFINITY,
   };
 
   if (code) bootstrapCddiAutoPorCiclo.set(code, entry);
   else bootstrapCddiAutoVigente = entry;
 
   void promise.then((data) => {
+    entry.expiresAt = Date.now() + CDDI_BOOTSTRAP_COALESCE_MS;
     bootstrapCddiAutoPorCiclo.set(data.applicationCode, entry);
   }).catch(() => {
-    if (code) bootstrapCddiAutoPorCiclo.delete(code);
+    if (code && bootstrapCddiAutoPorCiclo.get(code) === entry) {
+      bootstrapCddiAutoPorCiclo.delete(code);
+    }
     if (!code && bootstrapCddiAutoVigente === entry) bootstrapCddiAutoVigente = null;
   });
 
