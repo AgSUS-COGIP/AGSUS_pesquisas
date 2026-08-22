@@ -1,8 +1,8 @@
 name: Temporary migration name generator
 
 on:
-  push:
-    branches: [fix/public-branding-hardening]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
