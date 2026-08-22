@@ -1,0 +1,73 @@
+import { NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { respostaDeEntradaInvalida, respostaDeErro } from "@/lib/api/resposta-http";
+
+/**
+ * Bootstrap da autoavaliação do CDDI em uma única ida do navegador ao servidor.
+ *
+ * Antes, a tela resolvia o ciclo e depois abria três requests paralelos para
+ * formulário, submissão e identidade. Cada request atravessava o proxy de Auth,
+ * multiplicando validação de sessão e overhead HTTP. Aqui o ciclo é resolvido
+ * uma vez e as três RPCs independentes rodam em paralelo no servidor.
+ */
+export async function POST(request: Request) {
+  let corpo: { applicationCode?: unknown };
+  try {
+    corpo = await request.json() as { applicationCode?: unknown };
+  } catch {
+    return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
+  }
+
+  const requestedCode = typeof corpo.applicationCode === "string"
+    ? corpo.applicationCode.trim()
+    : "";
+
+  const supabase = await createServerSupabaseClient();
+  let applicationCode = requestedCode;
+
+  if (!applicationCode) {
+    const { data: cycleData, error: cycleError } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
+    if (cycleError) return respostaDeErro(cycleError, "POST /api/cddi/bootstrap [ciclo]");
+
+    const cycle = cycleData as { code?: string } | null;
+    if (!cycle?.code) {
+      return NextResponse.json(
+        { mensagem: "Você ainda não faz parte de um ciclo do CDDI. Procure a administração se acredita que isso é um engano." },
+        { status: 404 },
+      );
+    }
+    applicationCode = cycle.code;
+  }
+
+  const [formResult, submissionResult, identityResult] = await Promise.all([
+    supabase.rpc("get_public_survey_form", {
+      target_application_code: applicationCode,
+    }),
+    supabase.rpc("start_or_resume_my_cddi_submission", {
+      target_application_code: applicationCode,
+      target_submission_type: "AUTO",
+      target_subject_person_id: null,
+    }),
+    supabase.rpc("get_my_cddi_identity", {
+      target_application_code: applicationCode,
+    }),
+  ]);
+
+  if (formResult.error) return respostaDeErro(formResult.error, "POST /api/cddi/bootstrap [formulário]");
+  if (submissionResult.error) return respostaDeErro(submissionResult.error, "POST /api/cddi/bootstrap [submissão]");
+  if (identityResult.error) return respostaDeErro(identityResult.error, "POST /api/cddi/bootstrap [identidade]");
+
+  if (!formResult.data) {
+    return NextResponse.json(
+      { mensagem: "A avaliação ainda não está publicada." },
+      { status: 404 },
+    );
+  }
+
+  return NextResponse.json({
+    applicationCode,
+    form: formResult.data,
+    submission: submissionResult.data,
+    identity: identityResult.data,
+  });
+}
