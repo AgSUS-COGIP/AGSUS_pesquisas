@@ -18,12 +18,12 @@ export async function GET(request: Request) {
   // sempre no corpo, mesmo quando é o padrão — o PostgREST resolve a função
   // pelo conjunto de argumentos, e alternar entre dois conjuntos faria a mesma
   // rota depender de duas resoluções distintas.
-  const limite = Number.isFinite(limiteBruto) && limiteBruto > 0 && limiteBruto <= 500
+  const limite = Number.isFinite(limiteBruto) && limiteBruto > 0 && limiteBruto <= 250
     ? Math.trunc(limiteBruto)
     : 50;
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("search_platform_admin_people", {
+  const { data, error } = await supabase.rpc("fc_pesquisar_pessoa_admin", {
     target_search: busca,
     target_limit: limite,
   });

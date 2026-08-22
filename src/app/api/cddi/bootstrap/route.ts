@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   const [formResult, submissionResult, identityResult] = await Promise.all([
-    supabase.rpc("get_public_survey_form", {
+    supabase.rpc("fc_obter_formulario_publico", {
       target_application_code: applicationCode,
     }),
     supabase.rpc("start_or_resume_my_cddi_submission", {
