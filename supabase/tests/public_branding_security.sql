@@ -10,7 +10,16 @@ select ok(
 );
 
 select ok(
-  not has_function_privilege('public', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
+  not exists (
+    select 1
+    from pg_catalog.pg_proc p
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+    ) acl
+    where p.oid = 'public.fc_obter_marca_plataforma()'::regprocedure
+      and acl.grantee = 0
+      and acl.privilege_type = 'EXECUTE'
+  ),
   'PUBLIC nao herda execucao da RPC completa da marca'
 );
 
