@@ -108,11 +108,13 @@ select is(
 );
 
 -- ---------------------------------------------------------------------------
--- 5. Só a marca da plataforma é executável por anon
+-- 5. Só os contratos de marca explicitamente públicos são executáveis por anon
 --
--- `fc_obter_marca_plataforma()` precisa ser pública: é ela que entrega
--- logotipo, nome institucional e cor para a tela de acesso, onde ninguém está
--- autenticado ainda. Não devolve dado pessoal.
+-- `fc_obter_marca_publica()` é o contrato visual mínimo para a tela de acesso.
+-- `fc_obter_marca_plataforma()` permanece temporariamente permitido apenas
+-- durante a etapa de expansão do rollout: a versão anterior da aplicação ainda
+-- pode depender dele se a migration chegar antes do deploy. A etapa de contrato
+-- seguinte revogará essa exceção legada.
 --
 -- Qualquer outra função `security definer` alcançável por `anon` é exposição —
 -- o teste falha e nomeia a função, em vez de só contar.
@@ -125,10 +127,10 @@ select is(
     where namespace.nspname = 'public'
       and proc.prosecdef = true
       and has_function_privilege('anon', proc.oid, 'execute')
-      and proc.proname <> 'fc_obter_marca_plataforma'
+      and proc.proname not in ('fc_obter_marca_plataforma', 'fc_obter_marca_publica')
   ),
   '',
-  'nenhuma função security definer além da marca da plataforma é executável por anon'
+  'nenhuma função security definer além dos contratos públicos de marca é executável por anon'
 );
 
 -- ---------------------------------------------------------------------------
