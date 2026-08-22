@@ -16,12 +16,12 @@ export async function GET(
   }
 
   const limiteBruto = Number(new URL(request.url).searchParams.get("limite"));
-  const limite = Number.isFinite(limiteBruto) && limiteBruto > 0 && limiteBruto <= 200
+  const limite = Number.isFinite(limiteBruto) && limiteBruto > 0 && limiteBruto <= 100
     ? Math.trunc(limiteBruto)
     : 30;
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("list_platform_admin_person_audit", {
+  const { data, error } = await supabase.rpc("fc_listar_auditoria_pessoa", {
     target_person_id: id,
     target_limit: limite,
   });
