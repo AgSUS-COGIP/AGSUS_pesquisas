@@ -12,7 +12,13 @@ import type { SurveyCatalogItem } from "@/lib/survey-catalog";
  */
 
 /** Definição publicada do formulário, pelo código da aplicação. */
-export function obterFormulario(codigoAplicacao: string) {
+export async function obterFormulario(codigoAplicacao: string) {
+  // A autoavaliação chama esta função antes de abrir a submissão dentro do
+  // mesmo `Promise.all`. Ceder uma microtask permite que a chamada de submissão
+  // registre o bootstrap consolidado e evita um GET redundante.
+  await Promise.resolve();
+  const bootstrap = bootstrapCddiAutoDoCiclo(codigoAplicacao);
+  if (bootstrap) return (await bootstrap).form;
   return chamar<unknown>(`/api/formularios/${encodeURIComponent(codigoAplicacao)}`);
 }
 
@@ -83,13 +89,85 @@ export function listarMeuCatalogo() {
 // O CDDI tem funções próprias porque a submissão carrega tipo (autoavaliação ou
 // chefia) e, no segundo caso, a pessoa avaliada.
 
-/** Ciclo vigente do CDDI para a pessoa autenticada. */
+export type BootstrapCddiAuto = {
+  applicationCode: string;
+  form: unknown;
+  submission: unknown;
+  identity: unknown;
+};
+
+type BootstrapCacheEntry = {
+  promise: Promise<BootstrapCddiAuto>;
+  expiresAt: number;
+};
+
+// Cache curtíssimo, usado apenas para coalescer as chamadas que a tela faz
+// durante a mesma montagem. Não é cache de dados da avaliação: depois de 5 s da
+// conclusão uma nova navegação volta ao servidor e reidrata respostas.
+const CDDI_BOOTSTRAP_COALESCE_MS = 5_000;
+const bootstrapCddiAutoPorCiclo = new Map<string, BootstrapCacheEntry>();
+let bootstrapCddiAutoVigente: BootstrapCacheEntry | null = null;
+
+function bootstrapCddiAutoDoCiclo(codigoCiclo: string) {
+  const entry = bootstrapCddiAutoPorCiclo.get(codigoCiclo);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    bootstrapCddiAutoPorCiclo.delete(codigoCiclo);
+    return null;
+  }
+  return entry.promise;
+}
+
+/**
+ * Resolve ciclo, formulário, submissão e identidade da autoavaliação em uma
+ * única chamada HTTP. As RPCs independentes são paralelizadas pela rota.
+ */
+export function obterBootstrapCddiAuto(codigoCiclo?: string | null) {
+  const code = codigoCiclo?.trim() || "";
+  const existing = code ? bootstrapCddiAutoDoCiclo(code) : (
+    bootstrapCddiAutoVigente && bootstrapCddiAutoVigente.expiresAt > Date.now()
+      ? bootstrapCddiAutoVigente.promise
+      : null
+  );
+  if (existing) return existing;
+
+  const promise = chamar<BootstrapCddiAuto>("/api/cddi/bootstrap", {
+    method: "POST",
+    body: JSON.stringify({ applicationCode: code || null }),
+  });
+  const entry: BootstrapCacheEntry = {
+    promise,
+    // Enquanto a requisição estiver pendente, ela nunca expira. O TTL curto só
+    // começa após a resposta, evitando abrir um segundo bootstrap se o primeiro
+    // levar mais de cinco segundos sob carga ou rede lenta.
+    expiresAt: Number.POSITIVE_INFINITY,
+  };
+
+  if (code) bootstrapCddiAutoPorCiclo.set(code, entry);
+  else bootstrapCddiAutoVigente = entry;
+
+  void promise.then((data) => {
+    entry.expiresAt = Date.now() + CDDI_BOOTSTRAP_COALESCE_MS;
+    bootstrapCddiAutoPorCiclo.set(data.applicationCode, entry);
+  }).catch(() => {
+    if (code && bootstrapCddiAutoPorCiclo.get(code) === entry) {
+      bootstrapCddiAutoPorCiclo.delete(code);
+    }
+    if (!code && bootstrapCddiAutoVigente === entry) bootstrapCddiAutoVigente = null;
+  });
+
+  return promise;
+}
+
+/** Ciclo vigente do CDDI para a pessoa autenticada. Esta consulta não cria submissão. */
 export function obterCicloCddiVigente() {
   return chamar<{ code: string }>("/api/cddi/ciclo-vigente");
 }
 
 /** Identificação institucional no ciclo, incluindo a chefia vinculada. */
 export function obterIdentidadeCddi(codigoCiclo: string) {
+  const bootstrap = bootstrapCddiAutoDoCiclo(codigoCiclo);
+  if (bootstrap) return bootstrap.then((data) => data.identity);
   return chamar<unknown>(`/api/cddi/identidade?ciclo=${encodeURIComponent(codigoCiclo)}`);
 }
 
@@ -99,6 +177,10 @@ export function iniciarOuRetomarSubmissaoCddi(entrada: {
   submissionType: TipoSubmissaoCddi;
   subjectPersonId?: string | null;
 }) {
+  if (entrada.submissionType === "AUTO" && !entrada.subjectPersonId) {
+    return obterBootstrapCddiAuto(entrada.applicationCode).then((data) => data.submission);
+  }
+
   return chamar<unknown>("/api/cddi/submissoes", {
     method: "POST",
     body: JSON.stringify({

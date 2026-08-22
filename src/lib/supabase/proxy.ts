@@ -53,12 +53,21 @@ function addResponseHeaders(response: NextResponse) {
 }
 
 /**
- * Renova a sessão Supabase a cada requisição e guarda as rotas privadas.
+ * Renova a sessão Supabase quando necessário e guarda as rotas privadas.
  *
  * Executada pelo middleware (`src/proxy.ts`). Três efeitos:
- * 1. atualiza os cookies de sessão, para que a sessão não expire durante o uso;
+ * 1. valida o JWT e atualiza cookies quando o SDK precisar renovar a sessão;
  * 2. redireciona anônimo em rota privada para `/acesso`, preservando o destino;
  * 3. aplica cabeçalhos de segurança em toda resposta.
+ *
+ * `getClaims()` valida a assinatura do token com JWKS cacheável quando o projeto
+ * usa chave assimétrica. Diferente de `getUser()`, isso evita uma chamada ao
+ * Auth server em cada request privada — especialmente importante quando uma tela
+ * dispara várias APIs em paralelo.
+ *
+ * Rotas públicas que não precisam saber se existe sessão pulam a validação por
+ * completo. `/acesso` é a exceção porque redireciona uma sessão válida para
+ * `/area`.
  *
  * Sem as variáveis públicas configuradas, rota privada responde 503 em vez de
  * falhar de forma opaca.
@@ -66,7 +75,8 @@ function addResponseHeaders(response: NextResponse) {
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const publicPath = isPublicPath(request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+  const publicPath = isPublicPath(pathname);
 
   if (!url || !publishableKey) {
     if (publicPath) return addResponseHeaders(NextResponse.next({ request }));
@@ -78,6 +88,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   let response = NextResponse.next({ request });
+
+  // Não há motivo para consultar Auth em health checks, cron, observabilidade ou
+  // jornadas anônimas. Além de reduzir latência, isso impede que tráfego público
+  // concorra com o limite de Auth das jornadas autenticadas.
+  if (publicPath && pathname !== "/acesso") {
+    return addResponseHeaders(response);
+  }
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -95,11 +112,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data, error } = await supabase.auth.getUser();
-  const authenticated = Boolean(data.user) && !error;
+  const { data, error } = await supabase.auth.getClaims();
+  const authenticated = Boolean(data?.claims?.sub) && !error;
 
   if (!authenticated && !publicPath) {
-    if (isApiPath(request.nextUrl.pathname)) {
+    if (isApiPath(pathname)) {
       return addResponseHeaders(NextResponse.json(
         { mensagem: "Sua sessão expirou. Entre novamente para continuar." },
         { status: 401 },
@@ -109,11 +126,11 @@ export async function updateSession(request: NextRequest) {
     const destination = request.nextUrl.clone();
     destination.pathname = "/acesso";
     destination.search = "";
-    destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    destination.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return addResponseHeaders(NextResponse.redirect(destination));
   }
 
-  if (authenticated && request.nextUrl.pathname === "/acesso") {
+  if (authenticated && pathname === "/acesso") {
     const destination = request.nextUrl.clone();
     destination.pathname = "/area";
     destination.search = "";
