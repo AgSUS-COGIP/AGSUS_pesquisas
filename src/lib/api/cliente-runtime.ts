@@ -83,6 +83,24 @@ export function listarMeuCatalogo() {
 // O CDDI tem funções próprias porque a submissão carrega tipo (autoavaliação ou
 // chefia) e, no segundo caso, a pessoa avaliada.
 
+export type BootstrapCddiAuto = {
+  applicationCode: string;
+  form: unknown;
+  submission: unknown;
+  identity: unknown;
+};
+
+/**
+ * Resolve ciclo, formulário, submissão e identidade da autoavaliação em uma
+ * única chamada HTTP. As RPCs independentes são paralelizadas pela rota.
+ */
+export function obterBootstrapCddiAuto(codigoCiclo?: string | null) {
+  return chamar<BootstrapCddiAuto>("/api/cddi/bootstrap", {
+    method: "POST",
+    body: JSON.stringify({ applicationCode: codigoCiclo?.trim() || null }),
+  });
+}
+
 /** Ciclo vigente do CDDI para a pessoa autenticada. */
 export function obterCicloCddiVigente() {
   return chamar<{ code: string }>("/api/cddi/ciclo-vigente");
