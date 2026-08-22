@@ -4,24 +4,39 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
 
+const COLUNAS_MARCA_PUBLICA = [
+  "no_organizacao",
+  "no_produto",
+  "ds_produto",
+  "tx_url_logotipo",
+  "tx_caminho_logotipo",
+  "co_cor_principal",
+  "co_cor_barra_lateral",
+  "tx_url_fundo_acesso",
+  "tx_caminho_fundo_acesso",
+  "co_cor_painel_acesso",
+  "tx_saudacao_acesso",
+  "tx_instrucao_acesso",
+].join(",");
+
 function marcaPublica(value: unknown) {
   const source = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
 
   return {
-    organizationName: source.organizationName ?? null,
-    productName: source.productName ?? null,
-    productDescription: source.productDescription ?? null,
-    logoUrl: source.logoUrl ?? null,
-    logoPath: source.logoPath ?? null,
-    primaryColor: source.primaryColor ?? null,
-    sidebarColor: source.sidebarColor ?? null,
-    accessBackgroundUrl: source.accessBackgroundUrl ?? null,
-    accessBackgroundPath: source.accessBackgroundPath ?? null,
-    accessPanelColor: source.accessPanelColor ?? null,
-    accessGreeting: source.accessGreeting ?? null,
-    accessInstruction: source.accessInstruction ?? null,
+    organizationName: source.no_organizacao ?? null,
+    productName: source.no_produto ?? null,
+    productDescription: source.ds_produto ?? null,
+    logoUrl: source.tx_url_logotipo ?? null,
+    logoPath: source.tx_caminho_logotipo ?? null,
+    primaryColor: source.co_cor_principal ?? null,
+    sidebarColor: source.co_cor_barra_lateral ?? null,
+    accessBackgroundUrl: source.tx_url_fundo_acesso ?? null,
+    accessBackgroundPath: source.tx_caminho_fundo_acesso ?? null,
+    accessPanelColor: source.co_cor_painel_acesso ?? null,
+    accessGreeting: source.tx_saudacao_acesso ?? null,
+    accessInstruction: source.tx_instrucao_acesso ?? null,
   };
 }
 
@@ -31,8 +46,9 @@ function marcaPublica(value: unknown) {
  * O GET precisa existir antes do login, mas a RPC completa tambem carrega
  * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
  * preserva o contrato completo usado pelas telas administrativas. Sem sessao
- * valida, a rota usa o cliente interno apenas no servidor e devolve uma lista
- * explicita de campos visuais, sem tornar a RPC completa executavel por `anon`.
+ * valida, a rota consulta apenas as colunas visuais pelo cliente interno do
+ * servidor. Assim o rollout funciona antes e depois da migration que revoga a
+ * RPC completa de `anon`, sem expor configuracoes operacionais no Data API.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -46,7 +62,11 @@ export async function GET() {
   }
 
   const admin = createAdminSupabaseClient();
-  const { data, error } = await admin.rpc("fc_obter_marca_plataforma");
+  const { data, error } = await admin
+    .from("tb_config_plataforma")
+    .select(COLUNAS_MARCA_PUBLICA)
+    .eq("co_configuracao", 1)
+    .maybeSingle();
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
