@@ -13,9 +13,9 @@ import type { SurveyCatalogItem } from "@/lib/survey-catalog";
 
 /** Definição publicada do formulário, pelo código da aplicação. */
 export async function obterFormulario(codigoAplicacao: string) {
-  // A autoavaliação antiga chama esta função antes de abrir a submissão dentro
-  // do mesmo `Promise.all`. Ceder uma microtask permite que a chamada de
-  // submissão registre o bootstrap consolidado e evita um GET redundante.
+  // A autoavaliação chama esta função antes de abrir a submissão dentro do
+  // mesmo `Promise.all`. Ceder uma microtask permite que a chamada de submissão
+  // registre o bootstrap consolidado e evita um GET redundante.
   await Promise.resolve();
   const bootstrap = bootstrapCddiAutoDoCiclo(codigoAplicacao);
   if (bootstrap) return (await bootstrap).form;
@@ -101,9 +101,9 @@ type BootstrapCacheEntry = {
   expiresAt: number;
 };
 
-// Cache curtíssimo, usado apenas para coalescer as quatro funções que a tela
-// chama durante a mesma montagem. Não é cache de dados da avaliação: depois de
-// 5 s da conclusão uma nova navegação volta ao servidor e reidrata respostas.
+// Cache curtíssimo, usado apenas para coalescer as chamadas que a tela faz
+// durante a mesma montagem. Não é cache de dados da avaliação: depois de 5 s da
+// conclusão uma nova navegação volta ao servidor e reidrata respostas.
 const CDDI_BOOTSTRAP_COALESCE_MS = 5_000;
 const bootstrapCddiAutoPorCiclo = new Map<string, BootstrapCacheEntry>();
 let bootstrapCddiAutoVigente: BootstrapCacheEntry | null = null;
@@ -159,10 +159,9 @@ export function obterBootstrapCddiAuto(codigoCiclo?: string | null) {
   return promise;
 }
 
-/** Ciclo vigente do CDDI para a pessoa autenticada. */
-export async function obterCicloCddiVigente() {
-  const bootstrap = await obterBootstrapCddiAuto();
-  return { code: bootstrap.applicationCode };
+/** Ciclo vigente do CDDI para a pessoa autenticada. Esta consulta não cria submissão. */
+export function obterCicloCddiVigente() {
+  return chamar<{ code: string }>("/api/cddi/ciclo-vigente");
 }
 
 /** Identificação institucional no ciclo, incluindo a chefia vinculada. */
