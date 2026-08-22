@@ -1,23 +1,55 @@
 import { NextResponse } from "next/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
 
+function marcaPublica(value: unknown) {
+  const source = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+  return {
+    organizationName: source.organizationName ?? null,
+    productName: source.productName ?? null,
+    productDescription: source.productDescription ?? null,
+    logoUrl: source.logoUrl ?? null,
+    logoPath: source.logoPath ?? null,
+    primaryColor: source.primaryColor ?? null,
+    sidebarColor: source.sidebarColor ?? null,
+    accessBackgroundUrl: source.accessBackgroundUrl ?? null,
+    accessBackgroundPath: source.accessBackgroundPath ?? null,
+    accessPanelColor: source.accessPanelColor ?? null,
+    accessGreeting: source.accessGreeting ?? null,
+    accessInstruction: source.accessInstruction ?? null,
+  };
+}
+
 /**
  * Marca institucional da plataforma.
  *
- * Alimenta `PlatformBrandingProvider`, montado em toda página. Sem sessão o
- * middleware devolve 401 antes de a rota executar e o provider degrada para
- * `DEFAULT_PLATFORM_BRANDING` — sem prejuízo, porque a única tela anônima
- * (`/acesso`) é Server Component e lê a marca com cliente próprio.
+ * O GET precisa existir antes do login, mas a RPC completa tambem carrega
+ * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
+ * preserva o contrato completo usado pelas telas administrativas. Sem sessao
+ * valida, a rota usa o cliente interno apenas no servidor e devolve uma lista
+ * explicita de campos visuais, sem tornar a RPC completa executavel por `anon`.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const authenticated = Boolean(claimsData?.claims?.sub) && !claimsError;
 
+  if (authenticated) {
+    const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
+    if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
+    return NextResponse.json(data);
+  }
+
+  const admin = createAdminSupabaseClient();
+  const { data, error } = await admin.rpc("fc_obter_marca_plataforma");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
-  return NextResponse.json(data);
+  return NextResponse.json(marcaPublica(data));
 }
 
 /**
