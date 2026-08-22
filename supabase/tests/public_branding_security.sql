@@ -1,12 +1,12 @@
--- A configuracao completa da marca nao e superficie anonima do Data API.
+-- Primeira etapa do rollout expand/contract da marca publica.
 
 begin;
 
-select plan(4);
+select plan(6);
 
 select ok(
-  not has_function_privilege('anon', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
-  'anon nao executa a RPC completa da marca'
+  has_function_privilege('anon', 'public.fc_obter_marca_publica()'::regprocedure, 'execute'),
+  'anon executa somente o novo contrato visual'
 );
 
 select ok(
@@ -16,11 +16,30 @@ select ok(
     cross join lateral pg_catalog.aclexplode(
       coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
     ) acl
-    where p.oid = 'public.fc_obter_marca_plataforma()'::regprocedure
+    where p.oid = 'public.fc_obter_marca_publica()'::regprocedure
       and acl.grantee = 0
       and acl.privilege_type = 'EXECUTE'
   ),
-  'PUBLIC nao herda execucao da RPC completa da marca'
+  'PUBLIC nao herda execucao da RPC visual'
+);
+
+select ok(
+  position('tx_instrucao_email' in lower(pg_catalog.pg_get_functiondef('public.fc_obter_marca_publica()'::regprocedure))) = 0
+  and position('tx_rodape_email' in lower(pg_catalog.pg_get_functiondef('public.fc_obter_marca_publica()'::regprocedure))) = 0
+  and position('fl_presenca_online_ativa' in lower(pg_catalog.pg_get_functiondef('public.fc_obter_marca_publica()'::regprocedure))) = 0
+  and position('tx_perfis_visualizacao_presenca' in lower(pg_catalog.pg_get_functiondef('public.fc_obter_marca_publica()'::regprocedure))) = 0,
+  'definicao publica nao le configuracoes operacionais'
+);
+
+select ok(
+  not (coalesce(public.fc_obter_marca_publica(), '{}'::jsonb) ?| array[
+    'emailInstruction',
+    'emailFooter',
+    'onlinePresenceEnabled',
+    'onlinePresenceViewerRoles',
+    'updatedAt'
+  ]),
+  'payload visual nao contem configuracoes operacionais'
 );
 
 select ok(
@@ -29,8 +48,8 @@ select ok(
 );
 
 select ok(
-  has_function_privilege('service_role', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
-  'service_role pode ler a marca no servidor para a resposta publica saneada'
+  has_function_privilege('anon', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
+  'contrato legado permanece anonimo apenas durante a etapa de expansao'
 );
 
 select * from finish();
