@@ -3,9 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { type PlatformModule } from "@/lib/platform-modules";
 import { resolvePlatformGuard, type PlatformGuardDecision } from "@/lib/platform-guard";
-// O cliente Supabase permanece aqui apenas para `auth.getUser()`: sessão é
-// autenticação, não acesso a dados.
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { chamar, ErroDeApi } from "@/lib/api/requisicao";
 import { errorMessageFromUnknown } from "@/lib/observability";
 
@@ -42,11 +39,14 @@ type AccessResolution = {
 // abrir várias telas não repete a resolução de permissões. Após alterar papel,
 // módulo ou avatar, chame `invalidatePlatformContext()`.
 const CONTEXT_TTL = 2 * 60_000;
+const AVATAR_SYNC_TTL = 30 * 60_000;
 let cachedContext: PlatformContext | null = null;
 let cachedAt = 0;
 // Requisição em voo compartilhada: várias instâncias montadas no mesmo ciclo
 // (por exemplo cada PersonAvatar da página) aguardam a mesma promessa.
 let pendingContext: Promise<PlatformContext> | null = null;
+let pendingAvatarSync: Promise<void> | null = null;
+let avatarSyncedAt = 0;
 
 async function loadContextFromDatabase() {
   try {
@@ -57,16 +57,24 @@ async function loadContextFromDatabase() {
   }
 }
 
-// A foto é acessório: falha de sincronização não pode impedir o acesso, então o
-// erro fica apenas em aviso. Sessão expirada (401) é silenciada porque o fluxo
-// principal já vai tratá-la redirecionando para /acesso.
+// A foto é acessório: falha de sincronização não pode impedir o acesso. Ela não
+// participa mais do caminho crítico do contexto e é deduplicada por módulo para
+// não gerar um POST a cada navegação entre telas.
 async function syncGoogleAvatar() {
   try {
     await chamar("/api/meu/avatar-google", { method: "POST" });
+    avatarSyncedAt = Date.now();
   } catch (error) {
     if (error instanceof ErroDeApi && error.exigeAutenticacao) return;
     console.warn("Não foi possível sincronizar a foto da conta Google.", errorMessageFromUnknown(error));
   }
+}
+
+function syncGoogleAvatarInBackground() {
+  if (pendingAvatarSync || Date.now() - avatarSyncedAt < AVATAR_SYNC_TTL) return;
+  pendingAvatarSync = syncGoogleAvatar().finally(() => {
+    pendingAvatarSync = null;
+  });
 }
 
 async function provisionInstitutionalAccess() {
@@ -85,11 +93,9 @@ async function fetchPlatformContext() {
   if (pendingContext) return pendingContext;
 
   pendingContext = (async () => {
-    const supabase = createBrowserSupabaseClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error("AUTH_REQUIRED");
-
-    await syncGoogleAvatar();
+    // `/api/meu/contexto` já é uma rota privada: o proxy valida/renova a sessão
+    // antes de chegar ao handler e devolve 401 quando ela não existe. Repetir
+    // `auth.getUser()` no navegador aqui só adicionava outra ida ao Auth server.
     let resolved = await loadContextFromDatabase();
 
     // Primeiro acesso: a conta autenticou no Google mas ainda não está ligada a
@@ -97,7 +103,6 @@ async function fetchPlatformContext() {
     // e-mail quando existe cadastro prévio ou cria um cadastro mínimo.
     if (resolved?.status === "UNLINKED") {
       await provisionInstitutionalAccess();
-      await syncGoogleAvatar();
       resolved = await loadContextFromDatabase();
     }
 
@@ -107,6 +112,7 @@ async function fetchPlatformContext() {
 
     cachedContext = resolved;
     cachedAt = Date.now();
+    syncGoogleAvatarInBackground();
     return resolved;
   })().finally(() => { pendingContext = null; });
 
