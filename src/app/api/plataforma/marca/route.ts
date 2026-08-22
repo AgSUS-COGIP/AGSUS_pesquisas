@@ -1,23 +1,7 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
-
-const COLUNAS_MARCA_PUBLICA = [
-  "no_organizacao",
-  "no_produto",
-  "ds_produto",
-  "tx_url_logotipo",
-  "tx_caminho_logotipo",
-  "co_cor_principal",
-  "co_cor_barra_lateral",
-  "tx_url_fundo_acesso",
-  "tx_caminho_fundo_acesso",
-  "co_cor_painel_acesso",
-  "tx_saudacao_acesso",
-  "tx_instrucao_acesso",
-].join(",");
 
 function marcaPublica(value: unknown) {
   const source = value && typeof value === "object" && !Array.isArray(value)
@@ -25,18 +9,18 @@ function marcaPublica(value: unknown) {
     : {};
 
   return {
-    organizationName: source.no_organizacao ?? null,
-    productName: source.no_produto ?? null,
-    productDescription: source.ds_produto ?? null,
-    logoUrl: source.tx_url_logotipo ?? null,
-    logoPath: source.tx_caminho_logotipo ?? null,
-    primaryColor: source.co_cor_principal ?? null,
-    sidebarColor: source.co_cor_barra_lateral ?? null,
-    accessBackgroundUrl: source.tx_url_fundo_acesso ?? null,
-    accessBackgroundPath: source.tx_caminho_fundo_acesso ?? null,
-    accessPanelColor: source.co_cor_painel_acesso ?? null,
-    accessGreeting: source.tx_saudacao_acesso ?? null,
-    accessInstruction: source.tx_instrucao_acesso ?? null,
+    organizationName: source.organizationName ?? null,
+    productName: source.productName ?? null,
+    productDescription: source.productDescription ?? null,
+    logoUrl: source.logoUrl ?? null,
+    logoPath: source.logoPath ?? null,
+    primaryColor: source.primaryColor ?? null,
+    sidebarColor: source.sidebarColor ?? null,
+    accessBackgroundUrl: source.accessBackgroundUrl ?? null,
+    accessBackgroundPath: source.accessBackgroundPath ?? null,
+    accessPanelColor: source.accessPanelColor ?? null,
+    accessGreeting: source.accessGreeting ?? null,
+    accessInstruction: source.accessInstruction ?? null,
   };
 }
 
@@ -45,10 +29,14 @@ function marcaPublica(value: unknown) {
  *
  * O GET precisa existir antes do login, mas a RPC completa tambem carrega
  * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
- * preserva o contrato completo usado pelas telas administrativas. Sem sessao
- * valida, a rota consulta apenas as colunas visuais pelo cliente interno do
- * servidor. Assim o rollout funciona antes e depois da migration que revoga a
- * RPC completa de `anon`, sem expor configuracoes operacionais no Data API.
+ * preserva o contrato completo usado pelas telas administrativas.
+ *
+ * Para a jornada anonima, o consumidor prefere `fc_obter_marca_publica`, que
+ * contem somente campos visuais. O fallback para a RPC legada existe apenas
+ * durante o rollout expand/contract: se o codigo chegar antes da migration,
+ * filtra o retorno no servidor; se a migration chegar primeiro, a versao antiga
+ * do aplicativo continua funcionando ate o deploy. Depois de esta versao estar
+ * em producao, uma migration separada podera revogar `anon` da RPC completa.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -61,12 +49,16 @@ export async function GET() {
     return NextResponse.json(data);
   }
 
-  const admin = createAdminSupabaseClient();
-  const { data, error } = await admin
-    .from("tb_config_plataforma")
-    .select(COLUNAS_MARCA_PUBLICA)
-    .eq("co_configuracao", 1)
-    .maybeSingle();
+  const { data: publicData, error: publicError } = await supabase.rpc("fc_obter_marca_publica");
+  if (!publicError) return NextResponse.json(marcaPublica(publicData));
+
+  // PGRST202 = a migration que cria a RPC nova ainda nao chegou ao banco.
+  // Qualquer outro erro e real e nao deve ser mascarado pelo fallback.
+  if (publicError.code !== "PGRST202") {
+    return respostaDeErro(publicError, "GET /api/plataforma/marca");
+  }
+
+  const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
