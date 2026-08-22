@@ -1,20 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Unica lista de rotas acessiveis sem sessao. Tudo o que nao estiver aqui exige
-// autenticacao — o padrao e fechado, de modo que uma rota nova nasce protegida.
+// Única lista de rotas acessíveis sem sessão. Tudo o que não estiver aqui exige
+// autenticação — o padrão é fechado, de modo que uma rota nova nasce protegida.
 //
-// `/api/observability/errors` esta aqui por necessidade, nao por descuido:
-// `ClientErrorReporter` e montado em toda pagina, inclusive `/acesso`, que e
-// anonima. Sem esta entrada, o relatorio do erro que impede alguem de entrar
-// seria redirecionado para a propria tela de login e nunca chegaria. A rota se
+// `/api/observability/errors` está aqui por necessidade, não por descuido:
+// `ClientErrorReporter` é montado em toda página, inclusive `/acesso`, que é
+// anônima. Sem esta entrada, o relatório do erro que impede alguém de entrar
+// seria redirecionado para a própria tela de login e nunca chegaria. A rota se
 // defende por outros meios — checagem de mesma origem e limite de 16 KB na
-// propria rota — e grava numa tabela sem leitura para `authenticated`.
+// própria rota — e grava numa tabela sem leitura para `authenticated`.
 //
-// `/api/tarefas/emails` tambem e necessidade: quem a chama e o cron da
-// Vercel, que nao tem sessao institucional. A rota se defende sozinha pelo
+// `/api/tarefas/emails` também é necessidade: quem a chama é o cron da
+// Vercel, que não tem sessão institucional. A rota se defende sozinha pelo
 // `CRON_SECRET` (sem o segredo correto, 401; sem o segredo configurado, 503)
-// e toda a decisao de negocio fica em RPC restrita ao service role.
+// e toda a decisão de negócio fica em RPC restrita ao service role.
 const PUBLIC_PATHS = new Set([
   "/",
   "/acesso",
@@ -33,11 +33,11 @@ function isPublicPath(pathname: string) {
 
 // Rota de API responde em JSON, inclusive quando recusa.
 //
-// Redirecionar `/api/**` para `/acesso` produz um defeito dificil de ler: o
+// Redirecionar `/api/**` para `/acesso` produz um defeito difícil de ler: o
 // `fetch` do navegador **segue** o redirect sozinho, a resposta chega como 200
 // com o HTML da tela de login, e `response.json()` falha com "Unexpected token
-// '<'" — mensagem que nao menciona sessao expirada em lugar nenhum. Com 401 a
-// tela distingue sessao perdida de falha de servidor e manda a pessoa entrar
+// '<'" — mensagem que não menciona sessão expirada em lugar nenhum. Com 401 a
+// tela distingue sessão perdida de falha de servidor e manda a pessoa entrar
 // de novo.
 function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
@@ -53,23 +53,23 @@ function addResponseHeaders(response: NextResponse) {
 }
 
 /**
- * Renova a sessao Supabase quando necessario e guarda as rotas privadas.
+ * Renova a sessão Supabase quando necessário e guarda as rotas privadas.
  *
- * Executada pelo middleware (`src/proxy.ts`). Tres efeitos:
- * 1. valida o JWT e atualiza cookies quando o SDK precisar renovar a sessao;
- * 2. redireciona anonimo em rota privada para `/acesso`, preservando o destino;
- * 3. aplica cabecalhos de seguranca em toda resposta.
+ * Executada pelo middleware (`src/proxy.ts`). Três efeitos:
+ * 1. valida o JWT e atualiza cookies quando o SDK precisar renovar a sessão;
+ * 2. redireciona anônimo em rota privada para `/acesso`, preservando o destino;
+ * 3. aplica cabeçalhos de segurança em toda resposta.
  *
- * `getClaims()` valida a assinatura do token com JWKS cacheavel quando o projeto
- * usa chave assimetrica. Diferente de `getUser()`, isso evita uma chamada ao
+ * `getClaims()` valida a assinatura do token com JWKS cacheável quando o projeto
+ * usa chave assimétrica. Diferente de `getUser()`, isso evita uma chamada ao
  * Auth server em cada request privada — especialmente importante quando uma tela
- * dispara varias APIs em paralelo.
+ * dispara várias APIs em paralelo.
  *
- * Rotas publicas que nao precisam saber se existe sessao pulam a validacao por
- * completo. `/acesso` e a excecao porque redireciona uma sessao valida para
+ * Rotas públicas que não precisam saber se existe sessão pulam a validação por
+ * completo. `/acesso` é a exceção porque redireciona uma sessão válida para
  * `/area`.
  *
- * Sem as variaveis publicas configuradas, rota privada responde 503 em vez de
+ * Sem as variáveis públicas configuradas, rota privada responde 503 em vez de
  * falhar de forma opaca.
  */
 export async function updateSession(request: NextRequest) {
@@ -81,7 +81,7 @@ export async function updateSession(request: NextRequest) {
   if (!url || !publishableKey) {
     if (publicPath) return addResponseHeaders(NextResponse.next({ request }));
 
-    return addResponseHeaders(new NextResponse("Servico temporariamente indisponivel.", {
+    return addResponseHeaders(new NextResponse("Serviço temporariamente indisponível.", {
       status: 503,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     }));
@@ -89,8 +89,8 @@ export async function updateSession(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
-  // Nao ha motivo para consultar Auth em health checks, cron, observabilidade ou
-  // jornadas anonimas. Alem de reduzir latencia, isso impede que trafego publico
+  // Não há motivo para consultar Auth em health checks, cron, observabilidade ou
+  // jornadas anônimas. Além de reduzir latência, isso impede que tráfego público
   // concorra com o limite de Auth das jornadas autenticadas.
   if (publicPath && pathname !== "/acesso") {
     return addResponseHeaders(response);
@@ -101,8 +101,8 @@ export async function updateSession(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      // Os cookies renovados precisam ser gravados na requisicao (para o restante
-      // desta execucao) e numa resposta recriada (para chegarem ao navegador).
+      // Os cookies renovados precisam ser gravados na requisição (para o restante
+      // desta execução) e numa resposta recriada (para chegarem ao navegador).
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
@@ -118,7 +118,7 @@ export async function updateSession(request: NextRequest) {
   if (!authenticated && !publicPath) {
     if (isApiPath(pathname)) {
       return addResponseHeaders(NextResponse.json(
-        { mensagem: "Sua sessao expirou. Entre novamente para continuar." },
+        { mensagem: "Sua sessão expirou. Entre novamente para continuar." },
         { status: 401 },
       ));
     }
