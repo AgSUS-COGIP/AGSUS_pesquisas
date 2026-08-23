@@ -23,12 +23,15 @@ function firstForwardedAddress(value: string | null) {
 /**
  * Produz uma chave pseudonimizada para controle de abuso sem persistir o IP.
  *
- * Em Vercel, `x-forwarded-for` é preenchido na borda. Fora dela usamos
- * `x-real-ip`; a ausência de ambos cai em uma chave comum, ainda sujeita ao
- * limite e portanto fail-safe contra clientes que tentem omitir identificação.
+ * Em Vercel, `x-vercel-forwarded-for` representa o IP público do cliente e não
+ * depende de um eventual proxy colocado à frente do deployment. Mantemos
+ * `x-forwarded-for` e `x-real-ip` como fallbacks para desenvolvimento/outros
+ * ambientes. A ausência de todos cai em uma chave comum, ainda sujeita ao
+ * limite e portanto fail-safe contra clientes sem identificação de rede.
  */
 export function publicRequestKey(request: Request, discriminator = "") {
   const address =
+    firstForwardedAddress(request.headers.get("x-vercel-forwarded-for")) ||
     firstForwardedAddress(request.headers.get("x-forwarded-for")) ||
     firstForwardedAddress(request.headers.get("x-real-ip")) ||
     "unknown";
