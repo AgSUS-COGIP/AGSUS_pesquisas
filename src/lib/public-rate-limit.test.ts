@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicRequestKey } from "@/lib/public-rate-limit";
+import { publicRequestKey } from "./public-rate-limit";
 
 describe("publicRequestKey", () => {
   it("prioriza o IP encaminhado pela Vercel sobre headers genéricos", () => {
