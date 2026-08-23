@@ -1,6 +1,6 @@
 begin;
 
-select plan(18);
+select plan(19);
 
 select ok(
   (select relrowsecurity from pg_catalog.pg_class where oid = 'public.tb_limite_requisicao_publica'::regclass),
@@ -120,6 +120,24 @@ select ok(
 select ok(
   has_function_privilege('service_role', 'public.fc_srv_concluir_email(uuid,uuid,boolean,text)', 'execute'),
   'service_role executa a conclusão reivindicada do backend'
+);
+
+select is(
+  (select count(*)::bigint
+   from pg_catalog.pg_class
+   where relkind = 'i'
+     and relname in (
+       'in_perm_mod_concedido_por',
+       'in_perm_mod_codigo',
+       'in_perfil_mod_codigo',
+       'in_bilhete_anon_pessoa',
+       'in_cond_regra_opcao',
+       'in_config_plat_usuario_alt',
+       'in_regra_cond_usuario_inc',
+       'in_email_part_pessoa'
+     )),
+  8::bigint,
+  'as oito FKs apontadas pelo Advisor possuem índices de cobertura'
 );
 
 select * from finish();
