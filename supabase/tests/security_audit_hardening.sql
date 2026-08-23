@@ -1,6 +1,6 @@
 begin;
 
-select plan(19);
+select plan(22);
 
 select ok(
   (select relrowsecurity from pg_catalog.pg_class where oid = 'public.tb_limite_requisicao_publica'::regclass),
@@ -138,6 +138,42 @@ select is(
      )),
   8::bigint,
   'as oito FKs apontadas pelo Advisor possuem índices de cobertura'
+);
+
+select is(
+  (select count(*)::bigint
+   from pg_catalog.pg_policies
+   where schemaname = 'public'
+     and tablename = 'answers'
+     and cmd = 'SELECT'
+     and 'authenticated' = any (roles)
+     and permissive = 'PERMISSIVE'),
+  1::bigint,
+  'answers possui uma única política permissiva de SELECT para authenticated'
+);
+
+select is(
+  (select count(*)::bigint
+   from pg_catalog.pg_policies
+   where schemaname = 'public'
+     and tablename = 'submissions'
+     and cmd = 'SELECT'
+     and 'authenticated' = any (roles)
+     and permissive = 'PERMISSIVE'),
+  1::bigint,
+  'submissions possui uma única política permissiva de SELECT para authenticated'
+);
+
+select is(
+  (select count(*)::bigint
+   from pg_catalog.pg_policies
+   where schemaname = 'public'
+     and tablename = 'submissions'
+     and cmd = 'UPDATE'
+     and 'authenticated' = any (roles)
+     and permissive = 'PERMISSIVE'),
+  1::bigint,
+  'submissions possui uma única política permissiva de UPDATE para authenticated'
 );
 
 select * from finish();
