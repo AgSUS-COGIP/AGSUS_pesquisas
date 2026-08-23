@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(18);
 
 select ok(
   (select relrowsecurity from pg_catalog.pg_class where oid = 'public.tb_limite_requisicao_publica'::regclass),
@@ -89,7 +89,37 @@ select ok(
 
 select ok(
   has_function_privilege('service_role', 'public.fc_reivindicar_emails()', 'execute'),
-  'service_role preserva o contrato do worker de e-mail'
+  'service_role preserva a função de domínio do worker de e-mail'
+);
+
+select ok(
+  not has_function_privilege('authenticated', 'public.fc_srv_reivindicar_emails()', 'execute'),
+  'authenticated não executa o contrato de backend da fila de e-mail'
+);
+
+select ok(
+  has_function_privilege('service_role', 'public.fc_srv_reivindicar_emails()', 'execute'),
+  'service_role executa o contrato de backend da fila de e-mail'
+);
+
+select ok(
+  not has_function_privilege('authenticated', 'public.fc_srv_concluir_email(uuid,boolean,text)', 'execute'),
+  'authenticated não executa a conclusão simples do backend'
+);
+
+select ok(
+  has_function_privilege('service_role', 'public.fc_srv_concluir_email(uuid,boolean,text)', 'execute'),
+  'service_role executa a conclusão simples do backend'
+);
+
+select ok(
+  not has_function_privilege('authenticated', 'public.fc_srv_concluir_email(uuid,uuid,boolean,text)', 'execute'),
+  'authenticated não executa a conclusão reivindicada do backend'
+);
+
+select ok(
+  has_function_privilege('service_role', 'public.fc_srv_concluir_email(uuid,uuid,boolean,text)', 'execute'),
+  'service_role executa a conclusão reivindicada do backend'
 );
 
 select * from finish();
