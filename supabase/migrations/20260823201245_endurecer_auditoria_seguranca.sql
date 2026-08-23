@@ -3,7 +3,8 @@
 -- 1. adiciona um contador durável para rate limiting de rotas públicas;
 -- 2. reduz a ACL das RPCs exclusivas do worker de e-mail;
 -- 3. fecha FKs sem índice apontadas pelo Advisor;
--- 4. mantém toda a superfície nova fora do alcance de anon/authenticated.
+-- 4. consolida políticas RLS permissivas equivalentes;
+-- 5. mantém toda a superfície nova fora do alcance de anon/authenticated.
 
 create table if not exists public.tb_limite_requisicao_publica (
   no_escopo varchar(80) not null,
@@ -218,5 +219,88 @@ create index if not exists in_regra_cond_usuario_inc
 
 create index if not exists in_email_part_pessoa
   on public.tl_email_participante (sq_pessoa);
+
+-- As políticas abaixo eram permissivas e portanto já se combinavam por OR.
+-- Mantemos exatamente esse OR em uma única política por operação. Isso elimina
+-- a avaliação duplicada apontada pelo Advisor sem ampliar o conjunto de linhas
+-- acessíveis. No UPDATE, a regra do bilhete também é repetida em WITH CHECK,
+-- reproduzindo a semântica do PostgreSQL quando a política original omitira o
+-- WITH CHECK e herdava a própria expressão USING.
+drop policy if exists answers_select_bilhete on public.answers;
+drop policy if exists answers_select_authorized on public.answers;
+create policy answers_select_authorized on public.answers
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from public.submissions s
+      where s.id = answers.submission_id
+        and (
+          s.respondent_person_id = public.current_person_id()
+          or (select public.can_manage_surveys())
+        )
+    )
+    or exists (
+      select 1
+      from public.tb_bilhete_anonimo b
+      where b.sq_submissao = answers.submission_id
+        and b.sq_pessoa = public.current_person_id()
+    )
+  );
+
+drop policy if exists submissions_select_bilhete on public.submissions;
+drop policy if exists submissions_select_authorized on public.submissions;
+create policy submissions_select_authorized on public.submissions
+  for select to authenticated
+  using (
+    respondent_person_id = public.current_person_id()
+    or (select public.can_manage_surveys())
+    or exists (
+      select 1
+      from public.tb_bilhete_anonimo b
+      where b.sq_submissao = submissions.id
+        and b.sq_pessoa = public.current_person_id()
+    )
+  );
+
+drop policy if exists submissions_update_bilhete on public.submissions;
+drop policy if exists submissions_update_own_draft on public.submissions;
+create policy submissions_update_own_draft on public.submissions
+  for update to authenticated
+  using (
+    public.can_manage_surveys()
+    or (
+      respondent_person_id = public.current_person_id()
+      and status = 'DRAFT'
+      and public.application_accepts_responses(application_id)
+    )
+    or (
+      status = 'DRAFT'
+      and exists (
+        select 1
+        from public.tb_bilhete_anonimo b
+        where b.sq_submissao = submissions.id
+          and b.sq_pessoa = public.current_person_id()
+      )
+    )
+  )
+  with check (
+    public.can_manage_surveys()
+    or (
+      respondent_person_id = public.current_person_id()
+      and status = any (array['DRAFT'::text, 'SUBMITTED'::text])
+      and public.can_access_application(application_id)
+      and public.application_accepts_responses(application_id)
+    )
+    or (
+      status = 'DRAFT'
+      and exists (
+        select 1
+        from public.tb_bilhete_anonimo b
+        where b.sq_submissao = submissions.id
+          and b.sq_pessoa = public.current_person_id()
+      )
+    )
+  );
 
 notify pgrst, 'reload schema';
