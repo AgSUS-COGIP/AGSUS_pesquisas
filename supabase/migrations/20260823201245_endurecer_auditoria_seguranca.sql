@@ -2,7 +2,8 @@
 --
 -- 1. adiciona um contador durável para rate limiting de rotas públicas;
 -- 2. reduz a ACL das RPCs exclusivas do worker de e-mail;
--- 3. mantém toda a superfície nova fora do alcance de anon/authenticated.
+-- 3. fecha FKs sem índice apontadas pelo Advisor;
+-- 4. mantém toda a superfície nova fora do alcance de anon/authenticated.
 
 create table if not exists public.tb_limite_requisicao_publica (
   no_escopo varchar(80) not null,
@@ -190,5 +191,32 @@ revoke all on function public.fc_srv_concluir_email(uuid, uuid, boolean, text)
   from public, anon, authenticated;
 grant execute on function public.fc_srv_concluir_email(uuid, uuid, boolean, text)
   to service_role;
+
+-- Índices de cobertura das oito FKs apontadas pelo Advisor. São índices simples
+-- e não mudam a semântica de RLS ou integridade; reduzem scans em joins e ações
+-- referenciais sobre as tabelas relacionadas.
+create index if not exists in_perm_mod_concedido_por
+  on public.person_module_permissions (granted_by);
+
+create index if not exists in_perm_mod_codigo
+  on public.person_module_permissions (module_code);
+
+create index if not exists in_perfil_mod_codigo
+  on public.role_module_permissions (module_code);
+
+create index if not exists in_bilhete_anon_pessoa
+  on public.tb_bilhete_anonimo (sq_pessoa);
+
+create index if not exists in_cond_regra_opcao
+  on public.tb_condicao_regra (sq_opcao);
+
+create index if not exists in_config_plat_usuario_alt
+  on public.tb_config_plataforma (au_usuario_alteracao);
+
+create index if not exists in_regra_cond_usuario_inc
+  on public.tb_regra_condicional (au_usuario_inclusao);
+
+create index if not exists in_email_part_pessoa
+  on public.tl_email_participante (sq_pessoa);
 
 notify pgrst, 'reload schema';
