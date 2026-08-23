@@ -23,9 +23,9 @@ export const revalidate = 60;
  * cookie tira a rota da geração estática — com ele, o `revalidate` acima não
  * teria efeito nenhum e a página continuaria dinâmica.
  *
- * Aqui não há sessão a considerar: `/acesso` é público e
- * `fc_obter_marca_plataforma()` é executável por `anon`. Nenhum dado pessoal
- * trafega nesta chamada.
+ * Aqui não há sessão a considerar: `/acesso` é público e consome apenas
+ * `fc_obter_marca_publica()`, o contrato visual mínimo liberado para `anon`.
+ * Nenhuma configuração operacional ou dado pessoal trafega nesta chamada.
  */
 async function fetchBranding() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,7 +34,7 @@ async function fetchBranding() {
 
   try {
     const supabase = createClient(url, key, { auth: { persistSession: false } });
-    const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
+    const { data, error } = await supabase.rpc("fc_obter_marca_publica");
     if (error || !data) return DEFAULT_PLATFORM_BRANDING;
     return normalizePlatformBranding(data);
   } catch {
