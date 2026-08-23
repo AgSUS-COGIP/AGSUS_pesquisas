@@ -8,14 +8,16 @@ on:
       - .github/workflows/temp-generate-branding-migration-name.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Supabase CLI
+        with:
+          ref: fix/public-branding-hardening
+      - name: Generate migration name with Supabase CLI
         shell: bash
         run: |
           set -euo pipefail
@@ -26,5 +28,17 @@ jobs:
           tar -xzf /tmp/supabase.tar.gz -C /tmp supabase
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
           supabase --version
+
+          old_path="supabase/migrations/20260822182831_restringir_marca_publica.sql"
           supabase migration new restringir_marca_publica_expansao
-          find supabase/migrations -maxdepth 1 -type f -name '*_restringir_marca_publica_expansao.sql' -printf '%f\n'
+          new_path="$(find supabase/migrations -maxdepth 1 -type f -name '*_restringir_marca_publica_expansao.sql' | sort | tail -n 1)"
+          test -n "${new_path}"
+          cat "${old_path}" > "${new_path}"
+          rm "${old_path}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/migrations
+          git commit -m "chore(db): reordenar migration de marca publica"
+          git push origin HEAD:fix/public-branding-hardening
+          echo "generated=${new_path}"
