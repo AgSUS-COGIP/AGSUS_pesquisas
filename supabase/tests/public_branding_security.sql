@@ -1,4 +1,4 @@
--- Primeira etapa do rollout expand/contract da marca publica.
+-- Estado final do rollout expand/contract da marca publica.
 
 begin;
 
@@ -6,7 +6,7 @@ select plan(6);
 
 select ok(
   has_function_privilege('anon', 'public.fc_obter_marca_publica()'::regprocedure, 'execute'),
-  'anon executa somente o novo contrato visual'
+  'anon executa o contrato visual minimo'
 );
 
 select ok(
@@ -48,8 +48,8 @@ select ok(
 );
 
 select ok(
-  has_function_privilege('anon', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
-  'contrato legado permanece anonimo apenas durante a etapa de expansao'
+  not has_function_privilege('anon', 'public.fc_obter_marca_plataforma()'::regprocedure, 'execute'),
+  'anon nao executa mais o contrato completo da marca'
 );
 
 select * from finish();
