@@ -123,4 +123,72 @@ revoke execute on function public.fc_concluir_email_participante(uuid, uuid, boo
 grant execute on function public.fc_concluir_email_participante(uuid, uuid, boolean, text)
   to service_role;
 
+-- Contratos explícitos do backend. O prefixo fc_srv_* identifica para o gate de
+-- RPC que estas entradas devem ser chamáveis por service_role, não por usuários
+-- autenticados. As funções de domínio permanecem separadas e com sua própria
+-- guarda, evitando conceder EXECUTE a authenticated só para satisfazer tooling.
+create or replace function public.fc_srv_reivindicar_emails()
+returns jsonb
+language sql
+security definer
+set search_path to 'pg_catalog', 'public', 'auth'
+as $function$
+  select public.fc_reivindicar_emails();
+$function$;
+
+revoke all on function public.fc_srv_reivindicar_emails()
+  from public, anon, authenticated;
+grant execute on function public.fc_srv_reivindicar_emails()
+  to service_role;
+
+create or replace function public.fc_srv_concluir_email(
+  target_email_id uuid,
+  target_success boolean,
+  target_error text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public', 'auth'
+as $function$
+begin
+  perform public.fc_concluir_email_participante(
+    target_email_id,
+    target_success,
+    target_error
+  );
+end;
+$function$;
+
+revoke all on function public.fc_srv_concluir_email(uuid, boolean, text)
+  from public, anon, authenticated;
+grant execute on function public.fc_srv_concluir_email(uuid, boolean, text)
+  to service_role;
+
+create or replace function public.fc_srv_concluir_email(
+  target_email_id uuid,
+  target_claim_token uuid,
+  target_success boolean,
+  target_error text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public', 'auth'
+as $function$
+begin
+  perform public.fc_concluir_email_participante(
+    target_email_id,
+    target_claim_token,
+    target_success,
+    target_error
+  );
+end;
+$function$;
+
+revoke all on function public.fc_srv_concluir_email(uuid, uuid, boolean, text)
+  from public, anon, authenticated;
+grant execute on function public.fc_srv_concluir_email(uuid, uuid, boolean, text)
+  to service_role;
+
 notify pgrst, 'reload schema';
