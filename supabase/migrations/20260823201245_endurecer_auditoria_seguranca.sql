@@ -14,7 +14,7 @@ create table if not exists public.tb_limite_requisicao_publica (
   constraint ck_limite_req_publica_contagem check (nu_requisicoes > 0)
 );
 
-create index if not exists ix_limite_req_publica_janela
+create index if not exists in_limite_req_publica_janela
   on public.tb_limite_requisicao_publica (dt_janela);
 
 alter table public.tb_limite_requisicao_publica enable row level security;
