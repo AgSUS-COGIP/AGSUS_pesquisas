@@ -1,0 +1,30 @@
+name: TEMP generate branding migration name
+
+on:
+  push:
+    branches:
+      - fix/public-branding-hardening
+    paths:
+      - .github/workflows/temp-generate-branding-migration-name.yml
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="2.109.1"
+          curl --fail --silent --show-error --location \
+            -o /tmp/supabase.tar.gz \
+            "https://github.com/supabase/cli/releases/download/v${version}/supabase_${version}_linux_amd64.tar.gz"
+          tar -xzf /tmp/supabase.tar.gz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase migration new restringir_marca_publica_expansao
+          find supabase/migrations -maxdepth 1 -type f -name '*_restringir_marca_publica_expansao.sql' -printf '%f\n'
