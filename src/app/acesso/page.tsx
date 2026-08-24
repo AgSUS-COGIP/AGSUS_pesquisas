@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { normalizePlatformBranding, DEFAULT_PLATFORM_BRANDING } from "@/lib/platform-branding";
+import { createPublicSupabaseClient } from "@/lib/supabase/public";
 import AccessScreen from "./tela-acesso";
 
 /*
@@ -17,23 +17,19 @@ import AccessScreen from "./tela-acesso";
 export const revalidate = 60;
 
 /**
- * Cliente anônimo, sem cookies.
+ * Marca pública carregada por um cliente sem cookies.
  *
- * `createServerSupabaseClient()` lê `cookies()`, e **qualquer** leitura de
- * cookie tira a rota da geração estática — com ele, o `revalidate` acima não
- * teria efeito nenhum e a página continuaria dinâmica.
- *
- * Aqui não há sessão a considerar: `/acesso` é público e consome apenas
- * `fc_obter_marca_publica()`, o contrato visual mínimo liberado para `anon`.
- * Nenhuma configuração operacional ou dado pessoal trafega nesta chamada.
+ * A página de acesso é pública e não deve se tornar dinâmica por ler sessão.
+ * O mesmo cliente é usado pela API quando ela cai no ramo anônimo, garantindo
+ * que um cookie inválido nunca seja anexado a `fc_obter_marca_publica()`.
  */
 async function fetchBranding() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return DEFAULT_PLATFORM_BRANDING;
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    return DEFAULT_PLATFORM_BRANDING;
+  }
 
   try {
-    const supabase = createClient(url, key, { auth: { persistSession: false } });
+    const supabase = createPublicSupabaseClient();
     const { data, error } = await supabase.rpc("fc_obter_marca_publica");
     if (error || !data) return DEFAULT_PLATFORM_BRANDING;
     return normalizePlatformBranding(data);
