@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createPublicSupabaseClient } from "@/lib/supabase/public";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
@@ -31,25 +32,24 @@ function marcaPublica(value: unknown) {
  * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
  * preserva o contrato completo usado pelas telas administrativas.
  *
- * Para a jornada anonima, o consumidor prefere `fc_obter_marca_publica`, que
- * contem somente campos visuais. O fallback para a RPC legada existe apenas
- * durante o rollout expand/contract: se o codigo chegar antes da migration,
- * filtra o retorno no servidor; se a migration chegar primeiro, a versao antiga
- * do aplicativo continua funcionando ate o deploy. Depois de esta versao estar
- * em producao, uma migration separada podera revogar `anon` da RPC completa.
+ * Quando não há uma sessão válida, a consulta pública usa um cliente Supabase
+ * separado e sem cookies. Reutilizar o cliente de sessão nesse ramo fazia um
+ * cookie antigo ou inválido ser enviado ao PostgREST; a chamada então recebia
+ * 401 antes mesmo de a ACL `anon` de `fc_obter_marca_publica` ser considerada.
  */
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const sessionSupabase = await createServerSupabaseClient();
+  const { data: claimsData, error: claimsError } = await sessionSupabase.auth.getClaims();
   const authenticated = Boolean(claimsData?.claims?.sub) && !claimsError;
 
   if (authenticated) {
-    const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
+    const { data, error } = await sessionSupabase.rpc("fc_obter_marca_plataforma");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
     return NextResponse.json(data);
   }
 
-  const { data: publicData, error: publicError } = await supabase.rpc("fc_obter_marca_publica");
+  const publicSupabase = createPublicSupabaseClient();
+  const { data: publicData, error: publicError } = await publicSupabase.rpc("fc_obter_marca_publica");
   if (!publicError) return NextResponse.json(marcaPublica(publicData));
 
   // PGRST202 = a migration que cria a RPC nova ainda nao chegou ao banco.
@@ -58,7 +58,10 @@ export async function GET() {
     return respostaDeErro(publicError, "GET /api/plataforma/marca");
   }
 
-  const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
+  // Compatibilidade de rollout apenas. O cliente continua anônimo e sem cookies:
+  // se `anon` já tiver sido revogado da RPC completa, a resposta correta é erro,
+  // não a reutilização silenciosa de um JWT inválido.
+  const { data, error } = await publicSupabase.rpc("fc_obter_marca_plataforma");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
