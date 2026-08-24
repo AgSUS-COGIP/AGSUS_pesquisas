@@ -69,7 +69,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = pg_catalog, public, auth
-as $$;
+as $$
 begin
   -- A ACL abaixo é a barreira principal. A claim é defesa em profundidade:
   -- ausência de JWT/role é recusada, nunca promovida implicitamente a
