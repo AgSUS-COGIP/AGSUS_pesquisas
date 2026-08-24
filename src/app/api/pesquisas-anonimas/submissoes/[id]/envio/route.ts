@@ -7,7 +7,7 @@ import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = (await params).id;
   const token = request.headers.get("X-Anonymous-Session")?.trim() ?? "";
-  if (!ehUuid(id) || !token) return respostaDeEntradaInvalida("Sessão anônima inválida.");
+  if (!ehUuid(id) || !ehUuid(token)) return respostaDeEntradaInvalida("Sessão anônima inválida.");
 
   const limitResponse = await publicRateLimitResponse(request, {
     scope: "anon-submission-send",

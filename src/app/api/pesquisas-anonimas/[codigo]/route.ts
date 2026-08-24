@@ -6,8 +6,8 @@ import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ codigo: string }> }) {
-  const codigo = decodeURIComponent((await params).codigo).trim();
-  if (!codigo) return respostaDeEntradaInvalida("Informe o código da avaliação.");
+  const codigo = (await params).codigo.trim();
+  if (!codigo || codigo.length > 120) return respostaDeEntradaInvalida("Informe um código de avaliação válido.");
 
   const limitResponse = await publicRateLimitResponse(request, {
     scope: "anon-form-read",
