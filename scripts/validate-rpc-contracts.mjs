@@ -13,7 +13,9 @@
  *
  * O PostgREST resolve a função pelo **nome e pelo conjunto de argumentos
  * nomeados**. Errar o nome de um argumento produz exatamente o mesmo erro que
- * apagar a função, então os dois são verificados aqui.
+ * apagar a função, então os dois são verificados aqui. O papel também faz
+ * parte do contrato: clientes comuns usam `authenticated`; clientes criados
+ * por `createAdminSupabaseClient()` usam `service_role`.
  *
  * Como as assinaturas chegam
  * --------------------------
@@ -34,6 +36,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
 
@@ -57,7 +60,7 @@ const NOTE = 2;
  * com o estado aberto; é isso que `íntegro` denuncia, e o arquivo vira
  * "não verificável" em vez de gerar acusação falsa.
  */
-function classificar(fonte) {
+export function classificar(fonte) {
   const marca = new Uint8Array(fonte.length);
   const modelos = [];
   let estado = "codigo";
@@ -273,7 +276,7 @@ function ramosDoTernario(texto) {
 }
 
 /** Nomes de função possíveis para o primeiro argumento de `.rpc(...)`. */
-function resolverNomes(expressao, fonte, marca) {
+export function resolverNomes(expressao, fonte, marca) {
   const literal = LITERAL.exec(expressao);
   if (literal) return [literal[1] ?? literal[2] ?? literal[3]];
 
@@ -382,6 +385,19 @@ function combinar(nomes, conjuntos) {
   return null;
 }
 
+/** Papel assumido pelo cliente que aparece imediatamente antes de `.rpc(`. */
+export function papelDaChamada(fonte, marca, pontoDaChamada) {
+  let inicio = pontoDaChamada;
+  while (inicio > 0 && /[\w$]/.test(fonte[inicio - 1])) inicio -= 1;
+  const receptor = fonte.slice(inicio, pontoDaChamada);
+  if (!IDENTIFICADOR.test(receptor)) return "authenticated";
+
+  const inicializacao = lerInicializacao(fonte, marca, receptor);
+  return inicializacao?.startsWith("createAdminSupabaseClient(")
+    ? "service_role"
+    : "authenticated";
+}
+
 async function listarFontes(diretorio) {
   const entradas = await readdir(diretorio, { withFileTypes: true });
   const arquivos = [];
@@ -402,7 +418,7 @@ function linhaDe(fonte, indice) {
   return linha;
 }
 
-function conferir(chamada, assinaturas) {
+export function conferir(chamada, assinaturas) {
   const sobrecargas = assinaturas.get(chamada.nome);
   if (!sobrecargas) {
     return `a função \`${chamada.nome}\` não existe no banco. Ou a migration que a cria não foi escrita, ou ela foi removida enquanto o frontend ainda a chama.`;
@@ -411,9 +427,9 @@ function conferir(chamada, assinaturas) {
   // Argumentos ilegíveis não impedem a checagem que mais importa: nome
   // inexistente é a falha de 10/08, e ele aqui é literal.
   if (chamada.argumentos === null) {
-    return sobrecargas.some((sobrecarga) => sobrecarga.executavel)
+    return sobrecargas.some((sobrecarga) => sobrecarga.executavel[chamada.papel])
       ? null
-      : `\`${chamada.nome}\` existe, mas \`authenticated\` não tem EXECUTE. A chamada falha por permissão.`;
+      : `\`${chamada.nome}\` existe, mas \`${chamada.papel}\` não tem EXECUTE. A chamada falha por permissão.`;
   }
 
   const passados = new Set(chamada.argumentos);
@@ -432,8 +448,8 @@ function conferir(chamada, assinaturas) {
     return `\`${chamada.nome}\` foi chamada com (${enviado}), mas o banco declara ${oferta}. O PostgREST resolve pelo nome dos argumentos: divergência aqui devolve o mesmo "Could not find the function" de função inexistente.`;
   }
 
-  if (!compativeis.some((sobrecarga) => sobrecarga.executavel)) {
-    return `\`${chamada.nome}\` existe, mas \`authenticated\` não tem EXECUTE. A chamada falha por permissão. Conceda o grant na migration que cria a função.`;
+  if (!compativeis.some((sobrecarga) => sobrecarga.executavel[chamada.papel])) {
+    return `\`${chamada.nome}\` existe, mas \`${chamada.papel}\` não tem EXECUTE. A chamada falha por permissão. Conceda o grant na migration que cria a função.`;
   }
 
   return null;
@@ -453,7 +469,10 @@ async function main() {
     lista.push({
       parametros: registro.parametros ?? [],
       obrigatorios: registro.obrigatorios ?? [],
-      executavel: registro.executavel === true,
+      executavel: {
+        authenticated: registro.executavel_authenticated === true,
+        service_role: registro.executavel_service_role === true,
+      },
     });
     assinaturas.set(registro.nome, lista);
   }
@@ -505,7 +524,9 @@ async function main() {
         continue;
       }
 
+      const papel = papelDaChamada(fonte, marca, i);
       for (const chamada of chamadas) {
+        chamada.papel = papel;
         nomesVistos.add(chamada.nome);
         chamadasVerificadas += 1;
         if (chamada.argumentos === null) argumentosNaoLidos += 1;
@@ -535,11 +556,13 @@ async function main() {
     ? ` Em ${argumentosNaoLidos} delas, só o nome foi conferido.`
     : "";
   console.log(
-    `Contratos de RPC conferidos: ${chamadasVerificadas} chamada(s), ${nomesVistos.size} função(ões) distinta(s), todas presentes no banco e chamáveis por authenticated.${ressalva}`,
+    `Contratos de RPC conferidos: ${chamadasVerificadas} chamada(s), ${nomesVistos.size} função(ões) distinta(s), todas presentes no banco e chamáveis pelo papel de cada cliente.${ressalva}`,
   );
 }
 
-main().catch((error) => {
-  console.error("Não foi possível validar os contratos de RPC.", error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error("Não foi possível validar os contratos de RPC.", error);
+    process.exitCode = 1;
+  });
+}
