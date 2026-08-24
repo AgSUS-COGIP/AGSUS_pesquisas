@@ -8,7 +8,7 @@ begin;
 --   2. dar índice à varredura periódica por updated_at;
 --   3. não tratar ausência de claim como service_role no invólucro interno.
 
-create index if not exists submissions_anon_draft_retention_idx
+create index if not exists in_sub_anon_rasc_updated
   on public.submissions (updated_at)
   where status = 'DRAFT'
     and (metadata->>'origin') = 'PUBLIC_ANONYMOUS_LINK'
@@ -69,7 +69,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = pg_catalog, public, auth
-as $$
+as $$;
 begin
   -- A ACL abaixo é a barreira principal. A claim é defesa em profundidade:
   -- ausência de JWT/role é recusada, nunca promovida implicitamente a
@@ -85,7 +85,7 @@ $$;
 revoke all on function public.fc_srv_expirar_rascunhos_anon() from public, anon, authenticated;
 grant execute on function public.fc_srv_expirar_rascunhos_anon() to service_role;
 
-comment on index public.submissions_anon_draft_retention_idx is
+comment on index public.in_sub_anon_rasc_updated is
   'Acelera a expiração de DRAFT público anônimo sem qualquer vínculo de identidade, ordenado pelo último uso.';
 
 notify pgrst, 'reload schema';
@@ -94,7 +94,7 @@ commit;
 
 -- Rollback desta migration complementar:
 -- begin;
---   drop index if exists public.submissions_anon_draft_retention_idx;
+--   drop index if exists public.in_sub_anon_rasc_updated;
 --   -- As definições anteriores das duas funções estão em
 --   -- 20260824120000_expirar_rascunhos_anonimos.sql. Em rollback completo da
 --   -- funcionalidade, remover também fc_srv_expirar_rascunhos_anon(),
