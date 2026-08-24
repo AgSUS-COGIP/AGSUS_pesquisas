@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FilePlus2, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -17,7 +17,7 @@ import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
+import { criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
 import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
@@ -206,6 +206,29 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     await runAction(action);
   }
 
+  // Não reaproveita runAction: a operação não passa por manage_survey_cycle,
+  // e sim por fc_criar_nova_versao_pesquisa — outra RPC, outro contrato.
+  async function runCreateNewVersion() {
+    const confirmed = await confirm({
+      title: "Criar nova versão?",
+      description: `A versão ${operations?.version.number ?? ""} publicada será descontinuada, e um novo ciclo em rascunho nasce junto — configure período e público antes de publicá-lo.`,
+      confirmLabel: "Criar nova versão",
+      tone: "primary",
+    });
+    if (!confirmed) return;
+
+    setWorking("NEW_VERSION");
+    try {
+      await criarNovaVersaoPesquisa(surveyId);
+      toast.success("Nova versão criada em rascunho. Configure o período e o público antes de publicar.");
+      await loadOperations();
+    } catch (actionError) {
+      toast.error(errorMessageFromUnknown(actionError));
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function toggleEmailNotifications(next: boolean) {
     setWorking("EMAIL_NOTIFICATIONS");
     try {
@@ -324,6 +347,18 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
         ? "O checklist ainda aponta pendências que impedem a abertura."
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
+    },
+    {
+      action: "NEW_VERSION",
+      label: "Criar nova versão",
+      icon: FilePlus2,
+      description: "Cria uma nova versão em rascunho com a mesma estrutura, e um novo ciclo em rascunho para configurar período e público.",
+      tone: "secondary",
+      available: versionStatus === "PUBLISHED"
+        && (!operations.application || ["CLOSED", "CANCELLED"].includes(cycleStatus ?? "")),
+      blockedReason: versionStatus !== "PUBLISHED"
+        ? "Publique a versão atual antes de criar a próxima."
+        : `Encerre o ciclo atual (está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}) antes de criar uma nova versão.`,
     },
     {
       action: "INTERRUPT",
@@ -582,6 +617,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {cycleActions.map((item) => {
               const isInterrupt = item.action === "INTERRUPT";
+              const isNewVersion = item.action === "NEW_VERSION";
               const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
               return (
                 <li key={item.action}>
@@ -589,7 +625,11 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
                     item={item}
                     working={isWorking}
                     busy={working !== null}
-                    onRun={() => (isInterrupt ? setInterruptDialogOpen(true) : void runAction(item.action))}
+                    onRun={() => (isInterrupt
+                      ? setInterruptDialogOpen(true)
+                      : isNewVersion
+                        ? void runCreateNewVersion()
+                        : void runAction(item.action))}
                   />
                 </li>
               );

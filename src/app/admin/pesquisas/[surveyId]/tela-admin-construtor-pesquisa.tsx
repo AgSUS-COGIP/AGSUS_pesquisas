@@ -712,9 +712,17 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                   <Plus className="h-5 w-5" aria-hidden="true" /> Nova seção
                 </Button>
               ) : (
-                <div className="flex max-w-sm items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
-                  <p className="text-sm leading-5"><strong className="block">Conteúdo imutável</strong>Crie uma nova versão para realizar alterações.</p>
+                <div className="flex max-w-sm flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                    <p className="text-sm leading-5"><strong className="block">Conteúdo imutável</strong>Esta versão foi publicada. Para alterar, crie uma nova versão em Propriedades do ciclo.</p>
+                  </div>
+                  <Link
+                    href={`/admin/pesquisas/${surveyId}/operacao`}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-700 px-3.5 text-xs font-bold text-white transition hover:bg-emerald-800"
+                  >
+                    Ir para Propriedades do ciclo
+                  </Link>
                 </div>
               )}
             </div>
