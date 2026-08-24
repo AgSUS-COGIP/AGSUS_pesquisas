@@ -39,11 +39,6 @@ export function duplicarAvaliacao(id: string, entrada: DuplicarAvaliacaoEntrada 
   });
 }
 
-/** Exclui uma avaliação em rascunho. O banco recusa se houver resposta. */
-export function excluirAvaliacao(id: string) {
-  return chamar<unknown>(`/api/avaliacoes/${id}`, { method: "DELETE" });
-}
-
 /**
  * Exclui definitivamente uma avaliação já arquivada.
  *

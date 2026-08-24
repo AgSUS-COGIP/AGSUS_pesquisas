@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FilePlus2, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -17,7 +17,7 @@ import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
+import { criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
 import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
@@ -206,6 +206,29 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     await runAction(action);
   }
 
+  // Não reaproveita runAction: a operação não passa por manage_survey_cycle,
+  // e sim por fc_criar_nova_versao_pesquisa — outra RPC, outro contrato.
+  async function runCreateNewVersion() {
+    const confirmed = await confirm({
+      title: "Criar nova versão?",
+      description: `A versão ${operations?.version.number ?? ""} publicada será descontinuada, e um novo ciclo em rascunho nasce junto — configure período e público antes de publicá-lo.`,
+      confirmLabel: "Criar nova versão",
+      tone: "primary",
+    });
+    if (!confirmed) return;
+
+    setWorking("NEW_VERSION");
+    try {
+      await criarNovaVersaoPesquisa(surveyId);
+      toast.success("Nova versão criada em rascunho. Configure o período e o público antes de publicar.");
+      await loadOperations();
+    } catch (actionError) {
+      toast.error(errorMessageFromUnknown(actionError));
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function toggleEmailNotifications(next: boolean) {
     setWorking("EMAIL_NOTIFICATIONS");
     try {
@@ -326,6 +349,18 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
     },
     {
+      action: "NEW_VERSION",
+      label: "Criar nova versão",
+      icon: FilePlus2,
+      description: "Cria uma nova versão em rascunho com a mesma estrutura, e um novo ciclo em rascunho para configurar período e público.",
+      tone: "secondary",
+      available: versionStatus === "PUBLISHED"
+        && (!operations.application || ["CLOSED", "CANCELLED"].includes(cycleStatus ?? "")),
+      blockedReason: versionStatus !== "PUBLISHED"
+        ? "Publique a versão atual antes de criar a próxima."
+        : `Encerre o ciclo atual (está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}) antes de criar uma nova versão.`,
+    },
+    {
       action: "INTERRUPT",
       label: "Interromper avaliação",
       icon: AlertCircle,
@@ -337,6 +372,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         : "Um ciclo encerrado não precisa ser interrompido.",
     },
   ] : [];
+
+  const blockedActions = cycleActions.filter((item) => !item.available);
 
   // Ciclos anônimos têm jornada pública: o link não identifica quem responde.
   // Os demais continuam passando pelo login institucional.
@@ -563,39 +600,54 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           </div>
         </Surface>}
 
-        <Surface className="p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Ciclo de vida</p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Operações disponíveis</h3>
-                <InfoTooltip id="operacoes-explicacao">Cada operação depende do estado atual. Quando estiver indisponível, o motivo aparece logo abaixo do botão.</InfoTooltip>
-              </div>
-            </div>
-          </div>
-
-          {versionStatus === "DRAFT" && !operations.readyToPublish && <p role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-sm leading-6 text-[var(--status-danger-text)]">
+        <div>
+          {versionStatus === "DRAFT" && !operations.readyToPublish && <p role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-sm leading-6 text-[var(--status-danger-text)]">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <span><strong className="font-semibold">Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio indicado" : "bloqueios indicados"} no checklist antes de publicar esta versão.</span>
           </p>}
 
-          <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <ul aria-label="Operações do ciclo" className="flex flex-wrap items-center gap-2">
             {cycleActions.map((item) => {
               const isInterrupt = item.action === "INTERRUPT";
+              const isNewVersion = item.action === "NEW_VERSION";
               const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
               return (
-                <li key={item.action}>
-                  <ActionCard
+                <li key={item.action} className="flex">
+                  <ActionButton
                     item={item}
                     working={isWorking}
                     busy={working !== null}
-                    onRun={() => (isInterrupt ? setInterruptDialogOpen(true) : void runAction(item.action))}
+                    onRun={() => (isInterrupt
+                      ? setInterruptDialogOpen(true)
+                      : isNewVersion
+                        ? void runCreateNewVersion()
+                        : void runAction(item.action))}
                   />
                 </li>
               );
             })}
           </ul>
-        </Surface>
+
+          {/* Os motivos de bloqueio saem de baixo de cada botão e viram uma lista
+              só. Embaixo do botão, a frase era mais larga que ele, invadia o
+              vizinho e deixava a fileira com alturas desiguais; aqui cada linha
+              nomeia a ação a que se refere e continua ligada a ela por
+              `aria-describedby`, sem exigir hover. */}
+          {blockedActions.length > 0 && (
+            <ul className="mt-4 space-y-1.5 border-t border-[var(--border-subtle)] pt-4">
+              {blockedActions.map((item) => (
+                <li
+                  key={item.action}
+                  id={`acao-${item.action}-nota`}
+                  className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]"
+                >
+                  <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                  <span><span className="font-semibold text-[var(--text-primary)]">{item.label}:</span> {item.blockedReason}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <Dialog
           open={interruptDialogOpen}
@@ -722,35 +774,71 @@ function PeriodField({ id, label, hint, value, min, disabled, error, onChange }:
 }
 
 /**
- * Botão de operação com a explicação sempre visível — o que a ação faz quando
- * está disponível, por que não está quando indisponível.
+ * Botão de operação, sem cartão em volta — pensado para uma fileira compacta de
+ * ações, no formato de barra de ferramentas. O que a ação faz vira tooltip no
+ * hover/foco (como `InfoTooltip`, CSS puro por `group`/`group-hover`/
+ * `group-focus-within`), e por isso o componente não renderiza texto nenhum
+ * abaixo: manter alturas iguais é o que evita a fileira ficar irregular.
+ *
+ * O tooltip existe para **toda** ação, disponível ou não — ver o comentário
+ * junto do balão para as duas armadilhas que isso envolve (recorte pela barra
+ * lateral e hover em botão `disabled`).
+ *
+ * O motivo de estar indisponível **não** vem para cá — ele continua sempre
+ * visível, sem exigir hover (ver `components/CLAUDE.md`), mas na lista única
+ * abaixo da fileira, montada por quem chama. Embaixo de cada botão a frase era
+ * mais larga que ele e invadia o vizinho.
  */
-function ActionCard({ item, working, busy, onRun }: { item: CycleAction; working: boolean; busy: boolean; onRun: () => void }) {
+function ActionButton({ item, working, busy, onRun }: { item: CycleAction; working: boolean; busy: boolean; onRun: () => void }) {
   const Icon = item.icon;
+  const descriptionId = `acao-${item.action}-descricao`;
   const noteId = `acao-${item.action}-nota`;
   const disabled = busy || !item.available;
   const isDangerSoft = item.tone === "danger-soft";
 
   return (
-    <div className={`flex h-full flex-col rounded-2xl border p-4 transition ${item.available ? "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]" : "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]"}`}>
+    <span className="group relative inline-flex">
       <Button
-        fullWidth
         variant={isDangerSoft ? "danger-outline" : (item.tone as "primary" | "secondary" | "danger")}
         onClick={onRun}
         disabled={disabled}
-        aria-describedby={noteId}
-        title={item.available ? item.description : item.blockedReason}
+        // A descrição descreve a ação sempre — inclusive bloqueada. Quando está
+        // bloqueada, soma-se o motivo, que vive na lista abaixo da fileira.
+        aria-describedby={item.available ? descriptionId : `${descriptionId} ${noteId}`}
+        className="rounded-full shadow-[0_1px_2px_rgba(15,23,42,.06)]"
       >
         {working ? <Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
         {working ? "Processando..." : item.label}
       </Button>
-      <p id={noteId} className={`mt-3 flex items-start gap-1.5 text-xs leading-5 ${item.available ? "text-[var(--text-secondary)]" : "font-semibold text-[var(--text-secondary)]"}`}>
-        {item.available
-          ? <Info className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-          : <Lock className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />}
-        {item.available ? item.description : item.blockedReason}
-      </p>
-    </div>
+
+      {/*
+        Ancorado pela borda **esquerda** do botão, não centralizado.
+
+        `.platform-shell-content` é `position: fixed` com `overflow-x: hidden`
+        (ver `src/app/sidebar-monitora.css`), e isso tem duas consequências: ele
+        é um contexto de empilhamento próprio, então nenhum `z-index` daqui de
+        dentro vence a barra lateral em `z-50`; e o que passa da borda é
+        recortado. Centralizado (`left-1/2 -translate-x-1/2`), o balão de um
+        botão à esquerda avançava para fora e aparecia cortado sob a barra.
+        Alinhado à esquerda do botão, ele só cresce para a direita, onde há a
+        largura do conteúdo inteira.
+
+        O balão é renderizado **mesmo com o botão desativado**: saber o que a
+        ação faz não deveria depender de ela estar disponível agora. Com o botão
+        `disabled` o hover chega a este `span` (o botão tem
+        `disabled:pointer-events-none`, então o teste de acerto sobe para o pai),
+        e é por isso que `group-hover` continua funcionando. O foco, não —
+        elemento `disabled` não é focável —, e é justamente por isso que o motivo
+        do bloqueio nunca vive só aqui.
+      */}
+      <span
+        id={descriptionId}
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-[60] mt-2 w-64 max-w-[calc(100vw-3rem)] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 text-xs leading-5 text-[var(--text-secondary)] opacity-0 shadow-[0_18px_45px_-20px_rgba(15,23,42,.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {item.description}
+      </span>
+    </span>
   );
 }
 

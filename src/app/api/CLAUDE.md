@@ -39,7 +39,7 @@ Todas exigem sessão e seguem as quatro regras transversais. Agrupadas por recur
 | Recurso | Rotas | Cliente |
 |---|---|---|
 | Avaliações | `/api/avaliacoes`, `/api/avaliacoes/[id]`, `…/copia` | `cliente.ts` |
-| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo`, `…/notificacoes` | `cliente-construtor.ts` |
+| Construtor | `…/[id]/construtor`, `…/secoes`, `…/perguntas`, `…/itens/copia`, `…/itens/ordem`, `…/regras`, `…/identidade-visual`, `…/ciclo`, `…/notificacoes`, `…/versoes` | `cliente-construtor.ts` |
 | Público e pessoas | `…/[id]/participantes`, `…/pessoas-disponiveis`, `/api/pessoas/**`, `/api/plataforma/**` | `cliente-pessoas.ts` |
 | Central de e-mails | `/api/plataforma/emails`, `…/audiencia`, `…/enviar`, `…/despachar`, `…/textos` | `cliente-pessoas.ts` |
 | Presença online | `/api/plataforma/presenca` (configuração), `…/batida` (registrar a própria), `…/online` (quem está) | `cliente-pessoas.ts` |

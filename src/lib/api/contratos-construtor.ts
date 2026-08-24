@@ -187,6 +187,19 @@ export type NotificacaoEmailEntrada = {
   enabled: boolean;
 };
 
+/** Retorno de `POST /api/avaliacoes/[id]/versoes`. */
+export type NovaVersaoPesquisa = {
+  status: string;
+  surveyId: string;
+  versionId: string;
+  versionNumber: number;
+  applicationId: string;
+  applicationCode: string;
+  sections: number;
+  questions: number;
+  rules: number;
+};
+
 /**
  * Regra condicional de exibição, no formato de `fc_listar_regras_condicionais`.
  *

@@ -5,6 +5,7 @@ import type {
   DirecaoItemConstrutor,
   IdentidadeVisual,
   IdentidadeVisualAplicacao,
+  NovaVersaoPesquisa,
   OperacaoCiclo,
   PerguntaAtualizacaoEntrada,
   PerguntaEntrada,
@@ -125,6 +126,16 @@ export function executarAcaoDoCiclo(avaliacaoId: string, entrada: AcaoCicloEntra
   return chamar<unknown>(`/api/avaliacoes/${avaliacaoId}/ciclo`, {
     method: "POST",
     body: JSON.stringify(entrada),
+  });
+}
+
+/**
+ * Cria uma nova versão em rascunho, a partir da versão publicada e do ciclo já
+ * encerrado. A versão e o ciclo atuais são aposentados na mesma operação.
+ */
+export function criarNovaVersaoPesquisa(avaliacaoId: string) {
+  return chamar<NovaVersaoPesquisa>(`/api/avaliacoes/${avaliacaoId}/versoes`, {
+    method: "POST",
   });
 }
 
