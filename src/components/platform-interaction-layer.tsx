@@ -28,7 +28,6 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
   const router = useRouter();
   const [showTop, setShowTop] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
-  const [pageVisible, setPageVisible] = useState(true);
   const previousPath = useRef(pathname);
   const allowedShortcuts = useMemo(() => shortcuts.filter((item) => modules.includes(item.module)), [modules]);
 
@@ -47,13 +46,8 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
     if (previousPath.current === pathname) return;
     previousPath.current = pathname;
     setTransitioning(true);
-    setPageVisible(false);
-    const frame = window.requestAnimationFrame(() => setPageVisible(true));
     const timeout = window.setTimeout(() => setTransitioning(false), 360);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeout);
-    };
+    return () => window.clearTimeout(timeout);
   }, [pathname]);
 
   useEffect(() => {
@@ -75,11 +69,14 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
     <>
       <div aria-hidden="true" className={`pointer-events-none fixed inset-x-0 top-0 z-[150] h-[3px] origin-left bg-gradient-to-r from-cyan-400 via-emerald-400 to-blue-500 transition-all duration-300 ${transitioning ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"}`} />
 
-      {/* O aviso de offline é responsabilidade única do NetworkStatusBanner —
-          antes os dois componentes exibiam banners simultâneos. */}
-      <div className={`transition-opacity duration-300 motion-reduce:transition-none ${pageVisible ? "opacity-100" : "opacity-0"}`}>
-        {children}
-      </div>
+      {/*
+        A troca de rota não altera a opacidade da aplicação. Antes este wrapper
+        ia a `opacity-0` e voltava em 300 ms a cada pathname novo, apagando
+        inclusive sidebar e cabeçalho e produzindo uma piscada perceptível.
+        A barrinha de progresso acima já comunica a transição sem desmontar ou
+        esconder a interface estável.
+      */}
+      <div>{children}</div>
 
       <button
         type="button"
