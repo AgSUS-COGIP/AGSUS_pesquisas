@@ -22,6 +22,12 @@ function resposta(status: number, corpo: unknown = null) {
   return new Response(corpo === null ? "" : JSON.stringify(corpo), { status });
 }
 
+/** 401 que o servidor marcou como recuperável por renovação. */
+const SESSAO_RENOVAVEL = { mensagem: "A sua sessão expirou.", codigo: "SESSAO_RENOVAVEL" };
+
+/** 401 que renovar não conserta: assinatura inválida, relógio adiantado. */
+const SESSAO_NAO_RENOVAVEL = { mensagem: "A sua sessão expirou." };
+
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -58,7 +64,7 @@ describe("chamar — sessão expirada", () => {
   it("renova uma vez e repete a chamada quando o 401 é de token", async () => {
     const { chamar } = await carregarTransporte();
     fetchMock
-      .mockImplementationOnce(() => Promise.resolve(resposta(401, { mensagem: "A sua sessão expirou." })))
+      .mockImplementationOnce(() => Promise.resolve(resposta(401, SESSAO_RENOVAVEL)))
       .mockImplementationOnce(() => Promise.resolve(resposta(200, { ok: true })));
     refreshSession.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
 
@@ -70,7 +76,7 @@ describe("chamar — sessão expirada", () => {
 
   it("não repete indefinidamente: o segundo 401 sobe como erro", async () => {
     const { chamar, ErroDeApi } = await carregarTransporte();
-    fetchMock.mockResolvedValue(resposta(401, { mensagem: "A sua sessão expirou." }));
+    fetchMock.mockResolvedValue(resposta(401, SESSAO_RENOVAVEL));
     refreshSession.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
 
     await expect(chamar("/api/exemplo")).rejects.toBeInstanceOf(ErroDeApi);
@@ -84,7 +90,7 @@ describe("chamar — sessão expirada", () => {
 
   it("não repete quando a renovação falha", async () => {
     const { chamar } = await carregarTransporte();
-    fetchMock.mockResolvedValue(resposta(401, { mensagem: "A sua sessão expirou." }));
+    fetchMock.mockResolvedValue(resposta(401, SESSAO_RENOVAVEL));
     refreshSession.mockResolvedValue({ data: { session: null }, error: { message: "sem refresh token" } });
 
     await expect(chamar("/api/exemplo")).rejects.toMatchObject({ status: 401 });
@@ -94,7 +100,7 @@ describe("chamar — sessão expirada", () => {
   it("chamadas paralelas compartilham uma única renovação", async () => {
     const { chamar } = await carregarTransporte();
     fetchMock.mockImplementation(() =>
-      Promise.resolve(refreshSession.mock.calls.length ? resposta(200, { ok: true }) : resposta(401, { mensagem: "expirou" })),
+      Promise.resolve(refreshSession.mock.calls.length ? resposta(200, { ok: true }) : resposta(401, SESSAO_RENOVAVEL)),
     );
     refreshSession.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
 
@@ -104,11 +110,34 @@ describe("chamar — sessão expirada", () => {
 
   it("não tenta renovar quando o corpo não pode ser reenviado", async () => {
     const { chamar } = await carregarTransporte();
-    fetchMock.mockResolvedValue(resposta(401, { mensagem: "expirou" }));
+    fetchMock.mockResolvedValue(resposta(401, SESSAO_RENOVAVEL));
 
     await expect(chamar("/api/exemplo", { method: "POST", body: new FormData() })).rejects.toMatchObject({ status: 401 });
     expect(refreshSession).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("401 sem a marca de renovável não renova nem repete", async () => {
+    const { chamar } = await carregarTransporte();
+    fetchMock.mockImplementation(() => Promise.resolve(resposta(401, SESSAO_NAO_RENOVAVEL)));
+
+    await expect(chamar("/api/exemplo")).rejects.toMatchObject({ status: 401 });
+    // Assinatura invalida e relogio adiantado continuam falhando depois de
+    // renovar: o token novo nasce com o mesmo defeito. Repetir ali so' gastaria
+    // uma ida ao servidor, e zerar a sessao local puniria quem nao precisava.
+    expect(refreshSession).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("expõe sessaoRenovavel apenas no 401 marcado", async () => {
+    const { chamar } = await carregarTransporte();
+    fetchMock.mockImplementation(() => Promise.resolve(resposta(401, SESSAO_NAO_RENOVAVEL)));
+    await expect(chamar("/api/exemplo")).rejects.toMatchObject({ sessaoRenovavel: false });
+
+    fetchMock.mockImplementation(() => Promise.resolve(resposta(401, SESSAO_RENOVAVEL)));
+    refreshSession.mockResolvedValue({ data: { session: null }, error: { message: "sem refresh token" } });
+    await expect(chamar("/api/exemplo")).rejects.toMatchObject({ sessaoRenovavel: true });
   });
 
   it("403 não aciona renovação", async () => {

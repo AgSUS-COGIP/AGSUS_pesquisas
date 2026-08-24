@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { statusDoErroPostgres } from "./resposta-http";
+import { respostaDeErro, statusDoErroPostgres } from "./resposta-http";
 
 /**
  * A tabela de tradução é a parte da camada REST que mais merece teste: um erro
@@ -65,5 +65,35 @@ describe("statusDoErroPostgres", () => {
     // Um erro de infraestrutura que por acaso contenha "não localizada" na
     // mensagem não pode virar 404.
     expect(statusDoErroPostgres({ code: "42501", message: "Avaliação não localizada." })).toBe(403);
+  });
+});
+
+describe("respostaDeErro — marca de sessão renovável", () => {
+  /*
+    Os três códigos viram 401, mas só um deles melhora com uma renovação. A
+    marca é o que impede o cliente de gastar renovação e repetição num 401 que
+    vai falhar igual — e é aqui, no servidor, que a distinção existe: a tela só
+    enxerga o status.
+  */
+  async function corpoDe(erro: { code: string; message: string }) {
+    return (await respostaDeErro(erro, "teste").json()) as { mensagem: string; codigo?: string };
+  }
+
+  it("marca PGRST301 (JWT expirado) como renovável", async () => {
+    expect(await corpoDe({ code: "PGRST301", message: "JWT expired" }))
+      .toMatchObject({ codigo: "SESSAO_RENOVAVEL" });
+  });
+
+  it("não marca assinatura inválida nem acesso anônimo desabilitado", async () => {
+    // Renovar devolve um token emitido pela mesma chave: falharia igual.
+    expect(await corpoDe({ code: "PGRST303", message: "JWSError JWSInvalidSignature" }))
+      .not.toHaveProperty("codigo");
+    expect(await corpoDe({ code: "PGRST302", message: "Anonymous access is disabled" }))
+      .not.toHaveProperty("codigo");
+  });
+
+  it("continua devolvendo a frase que conduz à ação, sem o texto interno do PostgREST", async () => {
+    const corpo = await corpoDe({ code: "PGRST301", message: "JWT expired" });
+    expect(corpo.mensagem).toBe("A sua sessão expirou. Entre novamente para continuar.");
   });
 });

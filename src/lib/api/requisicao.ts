@@ -1,5 +1,5 @@
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import type { ErroApi } from "./contratos";
+import { ERRO_SESSAO_RENOVAVEL, type CodigoDeErroApi, type ErroApi } from "./contratos";
 
 /**
  * Transporte compartilhado dos clientes da API REST.
@@ -21,12 +21,26 @@ import type { ErroApi } from "./contratos";
 export class ErroDeApi extends Error {
   readonly status: number;
   readonly referencia?: string;
+  readonly codigo?: CodigoDeErroApi;
 
-  constructor(status: number, mensagem: string, referencia?: string) {
+  constructor(status: number, mensagem: string, referencia?: string, codigo?: CodigoDeErroApi) {
     super(mensagem);
     this.name = "ErroDeApi";
     this.status = status;
     this.referencia = referencia;
+    this.codigo = codigo;
+  }
+
+  /**
+   * Sessão que uma renovação pode recuperar.
+   *
+   * É mais estreito do que `exigeAutenticacao`, e a diferença é o ponto: nem
+   * todo 401 melhora com um token novo. Assinatura inválida e relógio adiantado
+   * continuam falhando depois de renovar, então repetir ali só adiciona uma ida
+   * ao servidor antes do mesmo erro.
+   */
+  get sessaoRenovavel() {
+    return this.status === 401 && this.codigo === ERRO_SESSAO_RENOVAVEL;
   }
 
   /** Sessão expirada — a tela deve mandar a pessoa entrar de novo. */
@@ -126,14 +140,47 @@ async function reiniciarSessaoLocal() {
 export async function chamar<T>(caminho: string, init?: RequestInit): Promise<T> {
   let resposta = await executar(caminho, init);
 
+  /*
+    A repetição é restrita ao 401 que o servidor marcou como renovável.
+
+    Antes bastava ser 401. Só que 401 cobre coisas que renovar não conserta —
+    assinatura inválida, token malformado, relógio adiantado — e nesses casos a
+    renovação e a repetição eram trabalho garantidamente perdido, além de zerar
+    a sessão local de quem talvez não precisasse perdê-la.
+
+    O servidor é quem sabe distinguir: `PGRST301` (expirado) e o 401 do
+    middleware viram `SESSAO_RENOVAVEL`; o resto, não. Ler o corpo antes de
+    decidir custa uma leitura a mais, e é o que evita a repetição inútil.
+  */
   if (resposta.status === 401 && corpoPodeSerReenviado(init?.body)) {
-    if (await renovarSessaoUmaVez()) {
-      resposta = await executar(caminho, init);
+    const renovavel = await marcadaComoRenovavel(resposta);
+    if (renovavel) {
+      if (await renovarSessaoUmaVez()) {
+        resposta = await executar(caminho, init);
+      }
+      if (resposta.status === 401) await reiniciarSessaoLocal();
     }
-    if (resposta.status === 401) await reiniciarSessaoLocal();
   }
 
   return interpretar<T>(resposta);
+}
+
+/**
+ * Lê o corpo do 401 sem consumi-lo para quem vem depois.
+ *
+ * `Response` entrega o corpo uma única vez, e `interpretar()` ainda vai
+ * precisar dele para montar a mensagem do erro. `clone()` é o que permite
+ * inspecionar agora e continuar tendo o original intacto — sem isso, decidir
+ * aqui deixaria a tela sem texto de erro.
+ */
+async function marcadaComoRenovavel(resposta: Response) {
+  try {
+    const corpo = (await resposta.clone().json()) as ErroApi | null;
+    return corpo?.codigo === ERRO_SESSAO_RENOVAVEL;
+  } catch {
+    // Corpo ausente ou não-JSON: sem marca, sem repetição.
+    return false;
+  }
 }
 
 async function executar(caminho: string, init?: RequestInit): Promise<Response> {
@@ -178,6 +225,7 @@ async function interpretar<T>(resposta: Response): Promise<T> {
       resposta.status,
       erro?.mensagem?.trim() || "Não foi possível concluir a operação.",
       erro?.referencia,
+      erro?.codigo,
     );
   }
 
