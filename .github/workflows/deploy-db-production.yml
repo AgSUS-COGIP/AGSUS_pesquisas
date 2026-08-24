@@ -1,29 +1,34 @@
 name: Deploy database migrations to production
 
-# O QUE ESTE WORKFLOW NAO GARANTE
+# ORDEM DE DEPLOY: migration -> contrato -> aplicacao
 #
-# Ele aplica as migrations e so' termina verde se o contrato de RPC existir no
-# banco. Isso NAO e' o portao de ordem de deploy, e tratar como se fosse seria
-# repetir 10/08/2026 achando que o problema esta' resolvido.
+# Este workflow e a Vercel sao disparados pelo MESMO `push` para `main`, em
+# sistemas diferentes. Sozinho, ele nao impede a aplicacao de subir enquanto as
+# migrations ainda estao sendo aplicadas — e foi essa janela que produziu
+# PGRST202 em producao em 10/08/2026 e de novo em 20/08/2026.
 #
-# O motivo e' o gatilho: este workflow roda em `push` para `main`, e a Vercel
-# tambem publica em `push` para `main`. Os dois comecam juntos, em sistemas
-# diferentes, sem nenhum ponto de sincronizacao. Um Action nao consegue segurar
-# uma publicacao da Vercel: quem decide isso e' a propria Vercel.
+# Um Action nao consegue segurar uma publicacao da Vercel: quem decide se um
+# build acontece e' a propria Vercel. Quem fecha a ordem, entao, e'
+# `scripts/vercel-ignore-build.mjs` — o Ignored Build Step do projeto. Ele le o
+# resultado DESTE workflow para o MESMO SHA e so' libera o build de producao
+# depois do sucesso; commit que nao toca em `supabase/migrations/` passa direto,
+# e preview de pull request nunca e' barrado.
 #
-# So' existem dois jeitos de fechar de verdade, e os dois sao configuracao fora
-# deste arquivo:
+# O comando ja' esta' ligado pelo repositorio: `ignoreCommand` em vercel.json,
+# que sobrescreve o Ignored Build Step do painel. Falta uma unica configuracao
+# fora daqui, porque segredo nao se versiona:
 #
-#   1. Ignored Build Step na Vercel — um comando que consulta o resultado deste
-#      workflow para o commit e sai 0 (nao publica) enquanto ele nao terminar.
-#      Precisa de token de leitura da API do GitHub no ambiente de build.
-#   2. Desligar a integracao Git da Vercel e publicar por `vercel deploy --prod`
-#      num job que declare `needs: deploy`. Faz a ordem virar dependencia
-#      explicita, ao custo de perder preview automatico de pull request.
+#   Vercel -> Settings -> Environments -> Production -> Environment Variables
+#   GITHUB_DEPLOY_GATE_TOKEN = token do GitHub com leitura de actions e contents
 #
-# Enquanto nenhum dos dois estiver ligado, a ordem continua sendo procedimento
-# humano: aplicar as migrations e confirmar este workflow verde ANTES de mesclar
-# o frontend que depende delas.
+# Sem o token, commit que altera migration e' BARRADO — o portao falha fechado
+# de proposito. Build barrado nao se perde: com este workflow verde, Redeploy no
+# mesmo commit passa a seguir.
+#
+# Alternativa nao adotada: desligar a integracao Git da Vercel e publicar por
+# `vercel deploy --prod` num job com `needs: deploy`. Tornaria a ordem uma
+# dependencia explicita, ao custo de perder o preview automatico de pull
+# request — que hoje e' onde a revisao visual acontece.
 
 on:
   push:
