@@ -96,4 +96,20 @@ jobs:
         run: |
           set -euo pipefail
           supabase migration list
+          # Segundo dry-run: se ainda restar migration pendente depois do push,
+          # o push nao concluiu o que prometeu e a aplicacao nao pode ser
+          # promovida sobre este estado.
           supabase db push --dry-run
+
+      # Smoke test de contrato: as RPCs que a aplicacao chama pelo nome existem
+      # neste banco? E a checagem que faltava — `npm run db:rpc` prova que o
+      # repositorio e coerente consigo mesmo, nao que o ambiente recebeu as
+      # migrations. Foi essa lacuna que produziu PGRST202 em producao duas vezes.
+      - name: Smoke test do contrato de RPC
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/smoke-rpc-contract.mjs
