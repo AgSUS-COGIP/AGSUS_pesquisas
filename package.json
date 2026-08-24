@@ -16,7 +16,8 @@
     "db:naming": "node scripts/validate-db-naming.mjs",
     "db:migrations": "node scripts/validate-migrations.mjs",
     "db:rpc": "node scripts/validate-rpc-contracts.mjs",
-    "db:smoke": "node scripts/smoke-rpc-contract.mjs"
+    "db:smoke": "node scripts/smoke-rpc-contract.mjs",
+    "db:migration-smoke": "node scripts/smoke-migration-alignment.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
