@@ -76,7 +76,7 @@ describe("chamar — sessão expirada", () => {
 
   it("uma ocorrência futura pode limpar a sessão local novamente", async () => {
     const { chamar } = await carregarTransporte();
-    fetchMock.mockResolvedValue(resposta(401, SESSAO_RENOVAVEL));
+    fetchMock.mockImplementation(() => Promise.resolve(resposta(401, SESSAO_RENOVAVEL)));
     refreshSession.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
 
     await expect(chamar("/api/primeira")).rejects.toMatchObject({ status: 401 });
