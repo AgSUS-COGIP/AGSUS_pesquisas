@@ -101,14 +101,21 @@ select ok(
   'o ciclo novo nasce sem período — o operador configura antes de publicar'
 );
 
+-- A contagem é da versão mais recente, então a escolha da versão precisa
+-- acontecer **antes** do agregado: `count(*)` com `order by` sobre coluna não
+-- agrupada é erro de SQL, não desempate. A subconsulta resolve qual versão
+-- interessa e o agregado conta só as perguntas dela.
 select is(
   (
     select count(*)::integer
     from public.survey_questions q
-    join public.survey_versions v on v.id = q.survey_version_id
-    where v.survey_id = (select id from public.surveys where code = 'TESTE-NOVAVERSAO-1')
-    order by v.version_number desc
-    limit 1
+    where q.survey_version_id = (
+      select v.id
+      from public.survey_versions v
+      where v.survey_id = (select id from public.surveys where code = 'TESTE-NOVAVERSAO-1')
+      order by v.version_number desc
+      limit 1
+    )
   ),
   1,
   'a estrutura de perguntas é copiada para a versão nova'
