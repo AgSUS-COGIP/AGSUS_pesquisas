@@ -18,9 +18,6 @@ import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
-// O cliente Supabase permanece na tela apenas para `auth.getUser()`: sessão é
-// autenticação, não acesso a dados.
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   enviarSubmissaoCddi,
   gravarRespostaCddi,
@@ -31,7 +28,9 @@ import {
 } from "@/lib/api/cliente-runtime";
 import { DEFAULT_CDDI_VISUAL_IDENTITY, resolveSurveyVisualIdentity } from "@/lib/survey-visual-identity";
 
-type Option = { id: string; code: string; label: string; value: string; score: number | null; position: number };
+// `score` não entra aqui: o peso da alternativa é do cálculo do CDDI, que roda
+// no banco. Declará-lo sugeriria que a tela pontua respostas — ela não pontua.
+type Option = { id: string; code: string; label: string; value: string; position: number };
 type Question = { id: string; code: string; title: string; description: string | null; type: string; required: boolean; position: number; validation?: Record<string, unknown>; settings: Record<string, unknown>; options: Option[] };
 type Section = { id: string; code: string; title: string; description: string | null; position: number; questions: Question[] };
 type FormDefinition = { application: { id: string; code: string; name: string; status: string; opensAt: string | null; closesAt: string | null; settings?: unknown }; survey: { name: string; description: string | null }; sections: Section[] };
@@ -124,13 +123,52 @@ export default function CddiFormPage() {
     latestAnswers.current = answers;
   }, [answers]);
 
+  /*
+    Descarrega os debounces pendentes ao desmontar.
+
+    Estava dentro do efeito de carregamento, que agora espera a guarda e pode
+    sair mais cedo — e uma saída antecipada deixaria de registrar esta limpeza,
+    vazando `setTimeout` de gravação. São assuntos distintos: um depende da
+    guarda, o outro só do ciclo de vida da tela.
+  */
   useEffect(() => {
+    const timersToClear = saveTimers.current;
+    return () => {
+      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  /*
+    A sessão é resolvida pela guarda, não por uma segunda verificação aqui.
+
+    Esta tela chamava `auth.getUser()` antes de carregar e redirecionava para
+    /acesso por conta própria. Só que `usePlatformGuard()` acima já resolveu a
+    identidade — e `usePlatformContext` já redireciona sozinho em
+    `AUTH_REQUIRED`. Eram duas idas ao Auth server e dois caminhos de
+    redirecionamento para a mesma decisão; quando divergissem, o defeito
+    apareceria como piscada de tela ou volta ao login com sessão válida.
+
+    Vale aqui a regra que o restante das telas já segue: **consulta só depois
+    da guarda**. Sem módulo exigido, os estados possíveis são carregando, não
+    identificada e liberada — `restricted` não ocorre.
+  */
+  const estadoDaGuarda = guard.state;
+  const mensagemDaGuarda = guard.state === "unidentified" ? guard.message : null;
+
+  useEffect(() => {
+    if (estadoDaGuarda === "loading") return;
+
+    if (estadoDaGuarda !== "granted") {
+      // Sem cadastro institucional não há o que carregar: dizer o motivo é
+      // melhor do que deixar a tela girando para sempre.
+      setMessageType("error");
+      setMessage(mensagemDaGuarda || "Não foi possível identificar o seu cadastro institucional.");
+      setLoading(false);
+      return;
+    }
+
     const load = async () => {
       try {
-        const supabase = createBrowserSupabaseClient();
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) { window.location.replace("/acesso"); return; }
-
         /*
          * O ciclo deixou de estar escrito aqui. `CDDI-2026` aparecia nestas três
          * chamadas, e com a segunda edição a tela continuaria buscando a
@@ -176,11 +214,7 @@ export default function CddiFormPage() {
       } finally { setLoading(false); }
     };
     void load();
-    const timersToClear = saveTimers.current;
-    return () => {
-      Object.values(timersToClear).forEach((timer) => window.clearTimeout(timer));
-    };
-  }, []);
+  }, [estadoDaGuarda, mensagemDaGuarda]);
 
   const sections = useMemo(() => definition?.sections ?? [], [definition?.sections]);
   // 0..N-1 = competências; N = revisão. Os dados funcionais permanecem no
