@@ -1,8 +1,14 @@
 # Proteção de branch e ordem de deploy — configuração fora do repositório
 
-Este arquivo existe porque duas correções da revisão técnica **não se resolvem
-com código**. São ajustes na configuração do GitHub e da Vercel, e ficam
-registrados aqui para que a decisão não se perca numa conversa.
+Este arquivo existe porque parte da segurança de deploy **não mora no
+repositório**: são segredos e ajustes nos painéis do GitHub e da Vercel. Código
+não consegue registrá-los, e conversa não é lugar de guardá-los — quando a
+configuração falta, o sintoma aparece meses depois, na forma de um deploy que
+simplesmente não acontece ou de um esquema que ficou para trás.
+
+O portão de ordem de deploy em si **já está no repositório** (seção 2). O que
+está aqui é o que ele precisa encontrar configurado para funcionar, e o que
+acontece quando não encontra.
 
 Quem aplicar, marque a data e o responsável ao final.
 
@@ -50,54 +56,90 @@ falha nomeando cada uma.
 
 Isso bloqueia o **workflow do banco**. Não bloqueia a **promoção da aplicação**.
 
-### O que falta, e por que não dá para resolver por código
+### O portão existe, e mora no repositório
 
-A Vercel publica por conta própria a cada push na `main`, sem esperar por
-GitHub Actions. Um push que traga frontend novo e migration nova dispara os dois
-em paralelo — e a aplicação costuma subir primeiro, porque o build é mais
-rápido que aplicar migration. É exatamente essa corrida que produziu
-`PGRST202` em 10/08 e em 20/08/2026.
+A Vercel publica por conta própria a cada push na `main`, sem esperar por GitHub
+Actions. Um push que traga frontend novo e migration nova dispara os dois em
+paralelo — e a aplicação costuma subir primeiro, porque o build é mais rápido
+que aplicar migration. É exatamente essa corrida que produziu `PGRST202` em
+10/08 e em 20/08/2026.
 
-Escolha **uma** das duas saídas:
+Um Action não consegue segurar uma publicação da Vercel: quem decide se um build
+acontece é a própria Vercel. Por isso o portão é a decisão dela, delegada ao
+repositório — `scripts/vercel-ignore-build.mjs`, ligado por `ignoreCommand` em
+`vercel.json`.
 
-**A. Ignored Build Step na Vercel** *(recomendada)*
+Ele fica **no repositório**, e não em Project Settings → Git → Ignored Build
+Step, porque `ignoreCommand` sobrescreve aquela configuração e é versionado
+junto com o código: quem lê o repositório vê o portão, e mudá-lo passa por
+revisão em vez de acontecer num painel sem histórico.
 
-Em **Project Settings → Git → Ignored Build Step**, comando que só permite o
-build quando o contrato está íntegro:
+O portão pergunta pelo **estado acumulado** do banco, não pelo conteúdo do
+commit. A distinção não é acadêmica: perguntar "este commit altera
+`supabase/migrations/`?" deixa passar migration de commit anterior que nunca foi
+aplicada — e aí todo commit seguinte que não toque no banco publica livre. Foi o
+que aconteceu depois do merge da #59.
 
-```bash
-node scripts/smoke-rpc-contract.mjs
-```
+**Atenção à semântica invertida.** No Ignored Build Step, `exit 0` **cancela** o
+build e `exit 1` deixa seguir — o contrário da convenção Unix. Quem "corrigir"
+os dois inverte o portão sem quebrar nada visivelmente. Os testes em
+`scripts/vercel-ignore-build.test.mjs` existem por causa disso, e afirmam o
+código de saída, não a mensagem.
 
-Exige `SUPABASE_URL` e `SUPABASE_SECRET_KEY` disponíveis no ambiente de build.
-Sai com `0` quando o contrato está completo — e a Vercel prossegue apenas nesse
-caso.
+### O que precisa estar configurado fora do repositório
 
-**Limitação honesta:** isso confere o contrato **antes** do build, então uma
-migration que ainda esteja sendo aplicada nesse instante produz um falso
-negativo e cancela um deploy legítimo. É preferível ao inverso — deploy
-incompatível no ar —, mas quem operar precisa saber que "build cancelado" pode
-significar "tente de novo em um minuto".
+Duas plataformas, e a falta em qualquer uma delas tem sintoma próprio.
 
-**B. Deployment Protection por check do GitHub**
+**Na Vercel** — Settings → Environment Variables, escopo **Production**:
 
-Configurar a Vercel para aguardar os checks obrigatórios da `main`. Depende do
-plano contratado; conferir se está disponível no plano atual (o projeto está em
-**Hobby**, e recursos de proteção de deployment costumam exigir plano pago).
+| Variável | Para quê | Se faltar |
+|---|---|---|
+| `GITHUB_DEPLOY_GATE_TOKEN` | ler o resultado do workflow e os arquivos do commit | commit com migration é **barrado** (falha fechada) |
+| `SUPABASE_SERVICE_ROLE_KEY` | consultar o contrato no banco | **todo** deploy de produção é barrado |
+| `NEXT_PUBLIC_SUPABASE_URL` | idem | idem |
 
-### Enquanto nenhuma das duas estiver ativa
+O token do GitHub é *fine-grained*, restrito a `AGSUS_pesquisas`, com **Actions:
+Read-only** e **Contents: Read-only**. Organização exige aprovação de owner em
+`Settings → Personal access tokens → Pending requests`; enquanto pendente ele
+responde 401 e o portão barra.
 
-A ordem segura é **manual**, e vale registrar em cada publicação:
+**Ele expira.** No dia do vencimento, deploy que altere migration para de
+acontecer, e o sintoma vai parecer misterioso meses depois. A pista está no log
+do build: `[gate] BUILD BARRADO — não foi possível verificar o contrato`.
 
-```text
-1. mesclar a migration na main
-2. aguardar o workflow "Deploy database migrations to production" concluir
-3. conferir que o passo de smoke test passou
-4. só então mesclar o frontend que depende dela
-```
+**No GitHub** — environment `production`, em Settings → Environments:
 
-Separar em dois PRs — banco primeiro, aplicação depois — é o que torna essa
-ordem possível sem depender de disciplina no momento do merge.
+| Segredo | Usado por |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | `supabase link` e `db push` |
+| `PRODUCTION_DB_PASSWORD` | idem |
+| `PRODUCTION_SUPABASE_URL` | smoke test de contrato, depois do push |
+| `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` | idem |
+
+**Os quatro são cobrados no primeiro passo do workflow**, antes de qualquer
+`db push`. Isso é deliberado: cobrar os dois últimos apenas no passo que os usa
+significaria descobrir a ausência **depois** de as migrations já terem sido
+aplicadas — o banco mudaria e o portão que autoriza a promoção nunca chegaria a
+rodar.
+
+A consequência precisa estar clara para quem for diagnosticar: **se algum dos
+quatro faltar, o job falha em `Validate deployment credentials` e as migrations
+não são aplicadas.** O sintoma é silencioso do lado de fora — o merge acontece,
+o código sobe, e o esquema fica para trás. Aconteceu no merge da #59, e as duas
+migrations tiveram de ser aplicadas à mão.
+
+A resposta certa nesse caso é **cadastrar os segredos que faltam**, nunca
+afrouxar a checagem: ela existe justamente para a falha aparecer antes de tocar
+em produção, e não depois.
+
+### Quando o portão barrar
+
+Build barrado não se perde. Depois de `deploy-db-production.yml` ficar verde,
+**Redeploy** no mesmo commit passa pelo portão de novo e agora segue.
+
+Separar em dois PRs — banco primeiro, aplicação depois — continua sendo a
+prática recomendada: reduz a janela em que o portão precisa esperar, e torna
+óbvio, na revisão, o que muda esquema e o que muda interface.
 
 ---
 
@@ -119,5 +161,35 @@ olhar o banco.
 | Item | Aplicado em | Por |
 |---|---|---|
 | Proteção da `main` | | |
-| Ignored Build Step ou Deployment Protection | | |
+| Vercel · `GITHUB_DEPLOY_GATE_TOKEN` (Production) | 24/08/2026 | |
+| Vercel · token aprovado na organização | 24/08/2026 | |
+| GitHub · `SUPABASE_ACCESS_TOKEN` | | |
+| GitHub · `PRODUCTION_DB_PASSWORD` | | |
+| GitHub · `PRODUCTION_SUPABASE_URL` | | |
+| GitHub · `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` | | |
 | Monitor apontado para `readiness` | | |
+
+O token do GitHub vence em **24/08/2027**. Renová-lo antes disso evita a falha
+descrita na seção 2 — deploy de migration barrado sem causa aparente.
+
+## Ocorrências
+
+**24/08/2026 — migrations da #59 não foram aplicadas pelo workflow.**
+O merge aconteceu, o código subiu, e `fc_srv_verificar_contrato_rpc` e
+`fc_srv_registrar_transporte` não existiam em produção. Foram aplicadas à mão
+pelo SQL Editor, com registro em `supabase_migrations.schema_migrations` no mesmo
+script — sem esse registro, o histórico afirmaria que as duas nunca rodaram e o
+próximo `db push` tentaria aplicá-las de novo.
+
+Diagnóstico do que falhou no workflow: **pendente**. A hipótese é ausência de
+`PRODUCTION_SUPABASE_URL` e `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` no environment
+`production`, barrando em `Validate deployment credentials` antes do `db push` —
+checagem acrescentada na mesma revisão. Confirmar no log do Actions e preencher
+a tabela acima é o que impede a repetição.
+
+**Como conferir se uma função chegou ao banco, sem service role.** Chamar a RPC
+com as chaves públicas e ler o código de erro: `42501` significa que ela existe e
+o papel foi barrado; `PGRST202` significa que o PostgREST não a resolveu. Os dois
+não são intercambiáveis, e `PGRST202` **não** prova ausência — ele também aparece
+quando o conjunto de argumentos nomeados diverge da assinatura. Sonda sem os
+argumentos certos produz falso negativo.
