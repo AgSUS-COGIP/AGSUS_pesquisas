@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "db:naming": "node scripts/validate-db-naming.mjs",
     "db:migrations": "node scripts/validate-migrations.mjs",
-    "db:rpc": "node scripts/validate-rpc-contracts.mjs"
+    "db:rpc": "node scripts/validate-rpc-contracts.mjs",
+    "db:smoke": "node scripts/smoke-rpc-contract.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -27,7 +28,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "lucide-react": "^1.27.0",
-    "next": "16.3.1",
+    "next": "16.3.2",
     "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -43,7 +44,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "9.39.1",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.0",
     "vitest": "^3.2.4"

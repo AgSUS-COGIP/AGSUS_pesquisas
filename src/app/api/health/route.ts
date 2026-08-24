@@ -1,33 +1,32 @@
 import { NextResponse } from "next/server";
-import { getEmailConfigurationStatus } from "@/config/email";
-import { getAdminSupabaseConfigurationStatus } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Health check público deliberadamente mínimo.
+ * Liveness: o processo está de pé e servindo.
  *
- * O endpoint precisa indicar disponibilidade para monitores externos, mas não
- * deve revelar quais integrações, credenciais ou variáveis estão ausentes. O
- * diagnóstico detalhado permanece nos logs e nas ferramentas operacionais.
+ * ## Por que deixou de checar configuração
+ *
+ * Antes esta rota respondia `503` quando faltava alguma variável — e isso
+ * confunde as duas perguntas que um monitor faz. "Está viva?" e "está pronta
+ * para receber tráfego?" têm respostas e consequências diferentes: um
+ * orquestrador **reinicia** o que não está vivo, e apenas **tira do balanço** o
+ * que não está pronto. Devolver 503 por variável ausente pedia reinício para um
+ * problema que reinício não resolve.
+ *
+ * Pior: com todas as variáveis presentes ela respondia `ok` mesmo com o banco
+ * incompatível — que é exatamente o estado que produziu `PGRST202` em produção
+ * duas vezes. O check dizia "ok" enquanto a plataforma quebrava.
+ *
+ * A pergunta de prontidão passou para `/api/health/readiness`, que fala com o
+ * banco. Esta aqui não toca em rede: se o processo consegue responder, está
+ * viva, e é só isso que ela afirma.
  */
-export async function GET() {
-  const publicConfigured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim(),
-  );
-  const adminConfigured = getAdminSupabaseConfigurationStatus().configured;
-  const emailConfigured = getEmailConfigurationStatus().configured;
-  const cronConfigured = Boolean(process.env.CRON_SECRET?.trim());
-  const configured = publicConfigured && adminConfigured && emailConfigured && cronConfigured;
-
+export function GET() {
   return NextResponse.json(
+    { status: "ok", service: "agsus-pesquisas" },
     {
-      status: configured ? "ok" : "degraded",
-      service: "agsus-pesquisas",
-    },
-    {
-      status: configured ? 200 : 503,
+      status: 200,
       headers: {
         "Cache-Control": "no-store, max-age=0",
         "X-Content-Type-Options": "nosniff",
