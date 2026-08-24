@@ -4,8 +4,8 @@ import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-ht
 import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 
 export async function POST(request: Request, { params }: { params: Promise<{ codigo: string }> }) {
-  const codigo = decodeURIComponent((await params).codigo).trim();
-  if (!codigo) return respostaDeEntradaInvalida("Informe o código da avaliação.");
+  const codigo = (await params).codigo.trim();
+  if (!codigo || codigo.length > 120) return respostaDeEntradaInvalida("Informe um código de avaliação válido.");
 
   const limitResponse = await publicRateLimitResponse(request, {
     scope: "anon-submission-start",

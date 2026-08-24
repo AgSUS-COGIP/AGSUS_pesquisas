@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
-import { ehUuid } from "@/lib/api/validacao";
-import type { RespostaEntrada } from "@/lib/api/contratos-runtime";
+import { ehEntradaDeResposta, ehUuid, erroNaEntradaDeResposta } from "@/lib/api/validacao";
 
 /**
  * Grava a resposta de uma pergunta.
@@ -26,15 +25,15 @@ export async function PUT(
     return respostaDeEntradaInvalida("Identificador de submissão inválido.");
   }
 
-  let corpo: RespostaEntrada;
+  let corpo: unknown;
   try {
-    corpo = await request.json() as RespostaEntrada;
+    corpo = await request.json();
   } catch {
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
 
-  if (!ehUuid(corpo.questionId)) {
-    return respostaDeEntradaInvalida("Identificador de pergunta inválido.");
+  if (!ehEntradaDeResposta(corpo)) {
+    return respostaDeEntradaInvalida(erroNaEntradaDeResposta(corpo) ?? "Resposta inválida.");
   }
 
   const supabase = await createServerSupabaseClient();

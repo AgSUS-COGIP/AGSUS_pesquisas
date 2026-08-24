@@ -14,7 +14,7 @@ Expor o acesso ao banco como rotas REST e executar o que **não pode** acontecer
 
 Estas quatro decisões são **transversais**: valem para as ~50 rotas de domínio e por isso estão aqui, uma vez, em vez de repetidas no cabeçalho de cada arquivo. Um comentário local só se justifica quando a rota **foge** delas.
 
-1. **Sessão do usuário, nunca service role.** Toda rota de domínio usa `createServerSupabaseClient()` — chave publicável com o cookie de quem chamou. RLS e as checagens dentro das RPCs continuam valendo, então defeito na rota não vira vazamento. `createAdminSupabaseClient()` fica restrito às rotas de infraestrutura que operam sem sessão por necessidade: `/api/observability/errors` e `/api/tarefas/emails`.
+1. **Sessão do usuário, nunca service role.** Toda rota autenticada de domínio usa `createServerSupabaseClient()` — chave publicável com o cookie de quem chamou. RLS e as checagens dentro das RPCs continuam valendo, então defeito na rota não vira vazamento. `createAdminSupabaseClient()` fica restrito às rotas de infraestrutura que operam sem sessão por necessidade e à jornada pública anônima, descrita abaixo.
 2. **A regra de negócio não sobe para a rota.** O handler valida **forma** (campo presente, UUID bem formado) e chama a RPC. Período, escopo, papel, anonimato e integridade são revalidados pelo banco, que é a autoridade. Repetir a regra aqui criaria duas fontes que divergiriam na primeira correção.
 3. **Erro do Postgres vira status HTTP** por `respostaDeErro()` (`@/lib/api/resposta-http`), único tradutor. Em 4xx a mensagem do banco é repassada — as RPCs escrevem em português voltado ao operador; em 5xx não, porque pode carregar nome de coluna ou dado de outra pessoa.
 4. **Leitura que materializa estado não é cacheável.** `get_survey_operations`, `list_my_survey_catalog` e `get_public_survey_form` chamam `fc_abrir_ciclos_agendados()` antes de responder — a abertura de ciclo agendado é preguiçosa, já que o projeto não tem job agendado. As rotas que as expõem declaram `export const dynamic = "force-dynamic"`.
@@ -29,6 +29,7 @@ Não seguem as regras acima — cada uma tem autorização própria, pelo motivo
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. Usa service role. |
 | `/api/tarefas/emails` | `GET` | Node (`force-dynamic`) | `Authorization: Bearer CRON_SECRET` | Envia abertura e lembrete de 24 h em lotes reivindicados por token, com pool SMTP e concorrência limitada. Também roda por `after()` ao abrir o ciclo ou ligar a opção. |
 | `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
+| `/api/pesquisas-anonimas/**` | `GET/POST/PUT` | Node | token efêmero por submissão nas mutações | Jornada pública de ciclos anônimos. Usa service role apenas para chamar entradas `fc_srv_*`, inacessíveis ao navegador; as RPCs de domínio chamadas por elas também não concedem `EXECUTE` a `authenticated`. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
 ## Rotas de domínio
@@ -114,7 +115,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - [@/lib/supabase/server](../../lib/CLAUDE.md) — `createServerSupabaseClient()`, cliente por cookie. **É o cliente de toda rota de domínio.**
 - [@/lib/api/resposta-http](../../lib/CLAUDE.md) — `respostaDeErro()`, `respostaDeEntradaInvalida()`, `statusDoErroPostgres()`.
 - [@/lib/api/validacao](../../lib/CLAUDE.md) — `ehUuid()`.
-- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, e só por `/api/observability/errors`, `/api/health` e `/api/tarefas/emails`.**
+- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, por `/api/observability/errors`, `/api/health`, `/api/tarefas/emails` e `/api/pesquisas-anonimas/**`.**
 - [@/lib/auth-callback](../../lib/CLAUDE.md) — `safeAuthNext()`, `pkceExchangeOptions()`.
 
 ## Convenções específicas
@@ -127,7 +128,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 ## Pontos de atenção
 
-- **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição. **Rota de domínio não usa esse cliente** — trocar `createServerSupabaseClient()` por ele numa rota existente desliga a RLS daquele caminho sem que nada falhe visivelmente.
+- **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição. **Rota autenticada de domínio não usa esse cliente.** A exceção pública `/api/pesquisas-anonimas/**` só chama as quatro entradas `fc_srv_*`, que delegam a RPCs de domínio e são restritas ao `service_role`.
 - **Rota de API responde JSON, inclusive ao recusar.** O middleware devolve `401` em `/api/**` no lugar do redirecionamento para `/acesso`. Sem isso o `fetch` segue o redirect sozinho, a resposta chega `200` com o HTML do login e `response.json()` falha com `Unexpected token '<'` — mensagem que não menciona sessão expirada. A distinção está em `isApiPath()` (`@/lib/supabase/proxy`).
 - `createAdminSupabaseClient()` lança `AdminSupabaseConfigurationError` se faltar URL ou chave; aceita `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` (nome moderno tem precedência).
 - `/auth/confirm` fixa `ALLOWED_DOMAIN = "agenciasus.org.br"` no código, enquanto a camada SQL aceita a lista de `ALLOWED_INSTITUTIONAL_DOMAINS`. Uma conta `@agsus.org.br` passaria no banco e seria rejeitada aqui.
