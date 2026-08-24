@@ -102,12 +102,29 @@ function createSmtpTransport() {
 
 type SmtpTransport = ReturnType<typeof createSmtpTransport>;
 
+/**
+ * Identificador determinístico da mensagem, derivado do id da linha.
+ *
+ * Determinístico é o ponto: se a mesma linha for despachada duas vezes, as duas
+ * mensagens carregam o **mesmo** `Message-ID`, e servidores de e-mail
+ * costumam descartar a repetição. É a única proteção contra duplicata que
+ * continua valendo depois que a mensagem saiu daqui — dentro do banco a
+ * proteção é o identificador gravado antes do envio.
+ *
+ * O domínio vem do remetente institucional, como manda a RFC 5322.
+ */
+function messageIdDe(emailId: string) {
+  const dominio = EMAIL_SENDER.address.split("@")[1] ?? "agenciasus.org.br";
+  return `<envio-${emailId}@${dominio}>`;
+}
+
 async function sendViaSmtp(
   smtp: SmtpTransport,
   to: string,
   subject: string,
   html: string,
   text: string,
+  messageId: string,
 ) {
   await smtp.sendMail({
     from: `"${EMAIL_SENDER.name}" <${EMAIL_SENDER.address}>`,
@@ -115,6 +132,7 @@ async function sendViaSmtp(
     subject,
     html,
     text,
+    messageId,
   });
 }
 
@@ -205,8 +223,43 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
         const url = surveyResponseUrl(siteUrl, email);
         const content = participantEmailContent(email, url);
 
+        const messageId = messageIdDe(email.id);
+
+        /*
+          Carimba o identificador **antes** de enviar.
+
+          É o que permite distinguir, depois, "o SMTP aceitou e a confirmação se
+          perdeu" de "nunca chegou ao SMTP". Sem isso, a expiração do lease
+          devolvia os dois casos para a fila e reenviava para quem já recebeu.
+
+          `EXPIRADO` significa que o lease venceu entre reivindicar e enviar:
+          outra execução já pode ter assumido esta linha, então enviar agora
+          duplicaria. Aborta sem marcar falha — a linha segue seu curso normal.
+        */
+        if (email.claimToken) {
+          const { data: transporte, error: erroTransporte } = await supabase.rpc(
+            "fc_srv_registrar_transporte",
+            {
+              target_email_id: email.id,
+              target_claim_token: email.claimToken,
+              target_message_id: messageId,
+            },
+          );
+
+          if (erroTransporte) {
+            failed += 1;
+            console.error("[emails] falha ao registrar transporte", email.id, erroTransporte.message);
+            return;
+          }
+
+          if ((transporte as { status?: string } | null)?.status !== "OK") {
+            console.warn("[emails] lease expirou antes do envio; abortando", email.id);
+            return;
+          }
+        }
+
         try {
-          await sendViaSmtp(smtp, email.personEmail, content.subject, content.html, content.text);
+          await sendViaSmtp(smtp, email.personEmail, content.subject, content.html, content.text, messageId);
         } catch (sendError) {
           failed += 1;
           const message = sendError instanceof Error ? sendError.message : "Falha desconhecida no envio.";
