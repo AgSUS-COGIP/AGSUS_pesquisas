@@ -31,7 +31,7 @@ select ok(
     from pg_catalog.pg_indexes
     where schemaname = 'public'
       and tablename = 'submissions'
-      and indexname = 'submissions_anon_draft_retention_idx'
+      and indexname = 'in_sub_anon_rasc_updated'
   ),
   'há índice dedicado à varredura de retenção anônima'
 );
