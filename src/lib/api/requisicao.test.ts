@@ -1,11 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/*
-  O estado da renovação é de módulo — uma promise compartilhada e a marca de
-  sessão já reiniciada. Sem `resetModules` entre os casos, o primeiro teste que
-  reinicia a sessão deixaria os seguintes sem nunca reiniciar, e o resultado
-  dependeria da ordem de execução.
-*/
 const refreshSession = vi.fn();
 const signOut = vi.fn();
 
@@ -22,12 +16,8 @@ function resposta(status: number, corpo: unknown = null) {
   return new Response(corpo === null ? "" : JSON.stringify(corpo), { status });
 }
 
-/** 401 que o servidor marcou como recuperável por renovação. */
 const SESSAO_RENOVAVEL = { mensagem: "A sua sessão expirou.", codigo: "SESSAO_RENOVAVEL" };
-
-/** 401 que renovar não conserta: assinatura inválida, relógio adiantado. */
 const SESSAO_NAO_RENOVAVEL = { mensagem: "A sua sessão expirou." };
-
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -36,8 +26,6 @@ beforeEach(() => {
   signOut.mockReset();
   signOut.mockResolvedValue({ error: null });
   vi.stubGlobal("fetch", fetchMock);
-  // O transporte só renova sessão no navegador, e a suíte roda em Node. Sem
-  // este `window`, todo caso de renovação passaria por não fazer nada.
   vi.stubGlobal("window", {});
 });
 
@@ -61,7 +49,7 @@ describe("corpoPodeSerReenviado", () => {
 });
 
 describe("chamar — sessão expirada", () => {
-  it("renova uma vez e repete a chamada quando o 401 é de token", async () => {
+  it("renova uma vez e repete a chamada quando o 401 é renovável", async () => {
     const { chamar } = await carregarTransporte();
     fetchMock
       .mockImplementationOnce(() => Promise.resolve(resposta(401, SESSAO_RENOVAVEL)))
@@ -82,10 +70,20 @@ describe("chamar — sessão expirada", () => {
     await expect(chamar("/api/exemplo")).rejects.toBeInstanceOf(ErroDeApi);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    // Zera a sessão local uma vez, para /acesso não devolver a pessoa à
-    // aplicação com a sessão morta ainda gravada.
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("uma ocorrência futura pode limpar a sessão local novamente", async () => {
+    const { chamar } = await carregarTransporte();
+    fetchMock.mockResolvedValue(resposta(401, SESSAO_RENOVAVEL));
+    refreshSession.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
+
+    await expect(chamar("/api/primeira")).rejects.toMatchObject({ status: 401 });
+    await Promise.resolve();
+    await expect(chamar("/api/segunda")).rejects.toMatchObject({ status: 401 });
+
+    expect(signOut).toHaveBeenCalledTimes(2);
   });
 
   it("não repete quando a renovação falha", async () => {
@@ -122,9 +120,6 @@ describe("chamar — sessão expirada", () => {
     fetchMock.mockImplementation(() => Promise.resolve(resposta(401, SESSAO_NAO_RENOVAVEL)));
 
     await expect(chamar("/api/exemplo")).rejects.toMatchObject({ status: 401 });
-    // Assinatura invalida e relogio adiantado continuam falhando depois de
-    // renovar: o token novo nasce com o mesmo defeito. Repetir ali so' gastaria
-    // uma ida ao servidor, e zerar a sessao local puniria quem nao precisava.
     expect(refreshSession).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(signOut).not.toHaveBeenCalled();
