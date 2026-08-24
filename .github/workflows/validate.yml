@@ -46,6 +46,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Validate migration identifiers
         run: npm run db:migrations
 
@@ -72,11 +75,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # A action `supabase/setup-cli` baixa o binário sem repetir a tentativa: um
-      # soquete fechado no meio do download derruba o passo, e todos os seguintes
-      # falham com `supabase: command not found` (código 127). Aconteceu nas
-      # execuções #66, #67 e #69, com o mesmo commit passando na #68 — falha de
-      # rede, não do banco. O download aqui é o mesmo, mas insiste antes de desistir.
       - name: Configure Supabase CLI
         env:
           SUPABASE_CLI_VERSION: "2.109.1"
@@ -100,17 +98,10 @@ jobs:
             echo "Não foi possível baixar a Supabase CLI ${SUPABASE_CLI_VERSION}." >&2
             exit 1
           fi
-          # A CLI são **dois** binários que precisam ficar lado a lado: `supabase`
-          # é um shim que encaminha a maioria dos comandos para `supabase-go`.
-          # Instalar só o primeiro passa em `--version` e em `init`, e falha em
-          # `start` com "Could not find the `supabase-go` binary".
           tar -xzf /tmp/supabase.tar.gz -C /tmp supabase supabase-go
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
           sudo install -m 0755 /tmp/supabase-go /usr/local/bin/supabase-go
           supabase --version
-          # `start --help` obriga o shim a resolver o `supabase-go`, o que
-          # `--version` sozinho não faz: a instalação incompleta seria detectada
-          # aqui, e não três passos adiante.
           supabase start --help >/dev/null
 
       - name: Initialize local Supabase configuration
@@ -128,10 +119,6 @@ jobs:
       - name: Database and RLS tests
         run: supabase test db
 
-      # A única porta que confere frontend contra banco. Ela mora aqui, e não no
-      # job `application`, porque só aqui existe o esquema real reconstruído a
-      # partir das migrations — comparar contra um retrato versionado seria
-      # comparar contra algo que envelhece sozinho.
       - name: Validate RPC contracts against the rebuilt schema
         run: |
           set -euo pipefail
@@ -139,8 +126,6 @@ jobs:
             echo "psql não está disponível no runner; sem ele não há como ler as assinaturas." >&2
             exit 1
           }
-          # `supabase/config.toml` não é versionado: o `init` do passo anterior o
-          # cria com as portas padrão, então 54322 é o banco local desta execução.
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             --no-psqlrc --quiet --tuples-only --no-align \
             --file scripts/dump-rpc-signatures.sql > /tmp/rpc-signatures.json
@@ -150,8 +135,6 @@ jobs:
           }
           RPC_SIGNATURES=/tmp/rpc-signatures.json node scripts/validate-rpc-contracts.mjs
 
-      # Sem a guarda, a limpeza também falha com 127 quando a CLI não instalou, e
-      # o erro real fica atrás de dois erros que só são consequência dele.
       - name: Stop local Supabase
         if: always()
         run: command -v supabase >/dev/null && supabase stop --no-backup || true
