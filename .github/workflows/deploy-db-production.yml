@@ -1,5 +1,30 @@
 name: Deploy database migrations to production
 
+# O QUE ESTE WORKFLOW NAO GARANTE
+#
+# Ele aplica as migrations e so' termina verde se o contrato de RPC existir no
+# banco. Isso NAO e' o portao de ordem de deploy, e tratar como se fosse seria
+# repetir 10/08/2026 achando que o problema esta' resolvido.
+#
+# O motivo e' o gatilho: este workflow roda em `push` para `main`, e a Vercel
+# tambem publica em `push` para `main`. Os dois comecam juntos, em sistemas
+# diferentes, sem nenhum ponto de sincronizacao. Um Action nao consegue segurar
+# uma publicacao da Vercel: quem decide isso e' a propria Vercel.
+#
+# So' existem dois jeitos de fechar de verdade, e os dois sao configuracao fora
+# deste arquivo:
+#
+#   1. Ignored Build Step na Vercel — um comando que consulta o resultado deste
+#      workflow para o commit e sai 0 (nao publica) enquanto ele nao terminar.
+#      Precisa de token de leitura da API do GitHub no ambiente de build.
+#   2. Desligar a integracao Git da Vercel e publicar por `vercel deploy --prod`
+#      num job que declare `needs: deploy`. Faz a ordem virar dependencia
+#      explicita, ao custo de perder preview automatico de pull request.
+#
+# Enquanto nenhum dos dois estiver ligado, a ordem continua sendo procedimento
+# humano: aplicar as migrations e confirmar este workflow verde ANTES de mesclar
+# o frontend que depende delas.
+
 on:
   push:
     branches: [main]
@@ -27,6 +52,11 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      # Prefixo SMOKE_ de proposito: `SUPABASE_URL` no escopo do job entraria no
+      # ambiente do Supabase CLI, que le variaveis com esse prefixo. Os nomes
+      # que o script espera sao mapeados no passo do smoke, e so' la'.
+      SMOKE_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+      SMOKE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -39,6 +69,13 @@ jobs:
           missing=()
           [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN")
           [ -n "${SUPABASE_DB_PASSWORD:-}" ] || missing+=("PRODUCTION_DB_PASSWORD")
+          # Os segredos do smoke sao cobrados AQUI, e nao no passo que os usa.
+          # Cobra-los la' significaria descobrir a ausencia depois de `db push`
+          # ja' ter aplicado as migrations: o banco mudaria e o portao que
+          # deveria autorizar a promocao nunca chegaria a rodar. Falhar antes de
+          # tocar em producao e' a unica ordem segura.
+          [ -n "${SMOKE_SUPABASE_URL:-}" ] || missing+=("PRODUCTION_SUPABASE_URL")
+          [ -n "${SMOKE_SUPABASE_SERVICE_ROLE_KEY:-}" ] || missing+=("PRODUCTION_SUPABASE_SERVICE_ROLE_KEY")
           if [ "${#missing[@]}" -gt 0 ]; then
             printf 'Segredos ausentes para deploy do banco: %s\n' "${missing[*]}" >&2
             echo 'Cadastre-os no environment/repository secrets do GitHub antes de liberar migrations para producao.' >&2
@@ -108,8 +145,8 @@ jobs:
       - name: Smoke test do contrato de RPC
         shell: bash
         env:
-          SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ env.SMOKE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SMOKE_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           node scripts/smoke-rpc-contract.mjs
