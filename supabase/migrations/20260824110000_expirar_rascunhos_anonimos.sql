@@ -171,7 +171,14 @@ begin
 end;
 $$;
 
+-- O grant a service_role e' explicito, e nao herdado do default privilege do
+-- projeto. Esta funcao e' chamada de dentro de after(), com o erro reduzido a
+-- console.warn para que a faxina nunca derrube a jornada de quem responde —
+-- entao uma ACL faltando nao apareceria em lugar nenhum: a rota continuaria
+-- respondendo 200 e a expiracao simplesmente nunca aconteceria. Depender de
+-- configuracao fora da migration e' o que torna essa falha invisivel.
 revoke all on function public.fc_srv_expirar_rascunhos_anon() from public, anon, authenticated;
+grant execute on function public.fc_srv_expirar_rascunhos_anon() to service_role;
 
 comment on function public.fc_srv_expirar_rascunhos_anon() is
   'Service role apenas. Dispara a expiração de rascunhos anônimos; chamada pela rota do formulário público.';
