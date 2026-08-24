@@ -179,7 +179,7 @@ Substitui `window.confirm` em toda a aplicação. `await confirm({ title, descri
 
 Componente de servidor (sem hook): o balão abre por CSS puro, `group-hover`/`group-focus-within` sobre um wrapper `group relative`, não por estado em React. `aria-describedby` do botão aponta para o texto **sempre**, independente do hover — leitor de tela lê a descrição ao focar o botão, mesmo com o balão em `opacity-0` (nunca `display:none`, que apagaria o texto da árvore de acessibilidade). Por ser de servidor, não gera `id` com `useId()`; quem chama passa um `id` explícito, na mesma convenção manual de `PeriodField` (`${id}-hint`).
 
-Existe para texto de apoio que não precisa ficar sempre visível — título de seção com uma frase de contexto, hint de campo. **Não** substitui a nota de "por que este botão está indisponível": essa continua sempre visível, sem exigir hover (ver `ActionCard` em `tela-admin-operacao-ciclo.tsx`).
+Existe para texto de apoio que não precisa ficar sempre visível — título de seção com uma frase de contexto, hint de campo. **Não** substitui a nota de "por que este botão está indisponível": essa continua sempre visível, sem exigir hover (ver `ActionButton` em `tela-admin-operacao-ciclo.tsx` — o botão inteiro, e não um selo "i" à parte, é quem revela a `description` no hover/foco; só `blockedReason` foge da regra e fica sempre visível).
 
 ### `OverlayPanel`
 
