@@ -26,96 +26,43 @@
  * `ready`/`degraded`, aqui o detalhe é o produto: o canal é o log do CI.
  */
 
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { lerContratoCritico, variavel, verificarContrato } from "./lib/contrato-rpc.mjs";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/**
- * Lê a lista do TypeScript em vez de duplicá-la aqui.
- *
- * Duas cópias do contrato divergiriam na primeira RPC nova — e a divergência
- * seria silenciosa, que é o pior tipo. O arquivo é uma lista de literais, então
- * extrair por regex é suficiente e evita depender de um passo de build.
- */
-function lerContrato() {
-  const fonte = readFileSync(join(RAIZ, "src/lib/rpc-criticas.ts"), "utf8");
-  const bloco = fonte.match(/RPCS_CRITICAS\s*=\s*\[([\s\S]*?)\]\s*as const/);
-  if (!bloco) throw new Error("Não foi possível ler RPCS_CRITICAS de src/lib/rpc-criticas.ts");
-
-  /*
-    Os comentários saem antes da extração.
-
-    O padrão casa qualquer literal entre aspas dentro do bloco, e o bloco tem
-    comentários explicando por que cada nome está ali. Bastava um deles citar
-    uma RPC entre aspas duplas para o smoke passar a exigir do banco uma função
-    que ninguém chama — e o portão de deploy barraria uma publicação correta,
-    ou, pior, mediria contrato diferente do que a aplicação usa.
-
-    Não é hipótese: o comentário sobre `fc_obter_formulario_publico` foi escrito
-    logo abaixo, e só não quebrou porque usa crase.
-  */
-  const semComentarios = bloco[1]
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/\/\/[^\n]*/g, " ");
-
-  const nomes = [...semComentarios.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
-  if (!nomes.length) throw new Error("RPCS_CRITICAS está vazia.");
-  return nomes;
-}
-
-function variavel(...nomes) {
-  for (const nome of nomes) {
-    const valor = process.env[nome];
-    if (valor && valor.trim()) return valor.trim();
-  }
-  return "";
-}
-
+/*
+  A leitura do contrato e a consulta ao banco moram em ./lib/contrato-rpc.mjs,
+  compartilhadas com o portao de deploy (vercel-ignore-build.mjs). Sao a mesma
+  pergunta feita dos dois lados: aqui depois de aplicar as migrations, la' antes
+  de publicar a aplicacao. Duas copias divergiriam na primeira correcao, e a
+  divergencia apareceria como um deploy aprovado por um criterio e recusado pelo
+  outro, sem nada explicando por que.
+*/
 async function principal() {
-  const url = variavel("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL");
-  const chave = variavel("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY");
-
-  if (!url || !chave) {
-    console.error("Faltam SUPABASE_URL e SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY).");
-    process.exitCode = 1;
-    return;
-  }
-
-  const nomes = lerContrato();
-  const resposta = await fetch(`${url.replace(/\/+$/, "")}/rest/v1/rpc/fc_srv_verificar_contrato_rpc`, {
-    method: "POST",
-    headers: {
-      apikey: chave,
-      Authorization: `Bearer ${chave}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ p_nomes: nomes }),
+  const resultado = await verificarContrato({
+    url: variavel("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+    chave: variavel("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
+    nomes: lerContratoCritico(RAIZ),
   });
 
-  const texto = await resposta.text();
+  if (resultado.situacao === "compativel") {
+    console.log(`Contrato de RPC íntegro: ${resultado.conferidas} função(ões) conferida(s).`);
+    return;
+  }
 
-  if (!resposta.ok) {
-    // A própria função de verificação pode faltar — e isso **é** o defeito que
-    // o script procura, não um erro de infraestrutura a ser tolerado.
-    console.error(`Verificação de contrato falhou (HTTP ${resposta.status}): ${texto}`);
-    console.error("Se o erro citar fc_srv_verificar_contrato_rpc, a migration que a cria não foi aplicada.");
+  if (resultado.situacao === "indisponivel") {
+    console.error(`Verificação de contrato falhou: ${resultado.motivo}`);
+    if (resultado.detalhe) console.error(resultado.detalhe);
     process.exitCode = 1;
     return;
   }
 
-  const resultado = JSON.parse(texto);
-  if (resultado?.compatible) {
-    console.log(`Contrato de RPC íntegro: ${resultado.checked} função(ões) conferida(s).`);
-    return;
-  }
-
-  const ausentes = Array.isArray(resultado?.missing) ? resultado.missing : [];
-  console.error(`Contrato de RPC incompleto: ${ausentes.length} de ${resultado?.checked} ausente(s).`);
-  for (const nome of ausentes) console.error(`  - ${nome}`);
+  console.error(`Contrato de RPC incompleto: ${resultado.ausentes.length} de ${resultado.conferidas} ausente(s).`);
+  for (const nome of resultado.ausentes) console.error(`  - ${nome}`);
   console.error("");
-  console.error("A aplicação NÃO deve ser promovida neste estado: publicar agora reproduz");
+  console.error("A aplicacao NAO deve ser promovida neste estado: publicar agora reproduz");
   console.error("o PGRST202 que derrubou a plataforma em 10/08/2026 e em 20/08/2026.");
   process.exitCode = 1;
 }

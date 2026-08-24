@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { lerContratoCritico, variavel, verificarContrato } from "./lib/contrato-rpc.mjs";
+
 /**
  * Portão de ordem de deploy: a aplicação não é promovida antes do banco.
  *
@@ -8,17 +12,34 @@
  * para `main`, em sistemas diferentes, sem ponto de sincronização. Nada impedia
  * a aplicação de subir enquanto as migrations ainda estavam sendo aplicadas —
  * e é exatamente essa janela que produziu `PGRST202 — Could not find the
- * function … in the schema cache` em produção em 10/08/2026 e de novo em
- * 20/08/2026.
+ * function … in the schema cache` em produção em 10/08/2026 e 20/08/2026.
  *
  * Um GitHub Action não consegue segurar uma publicação da Vercel: quem decide
  * se um build acontece é a Vercel. Este script é a decisão dela, delegada ao
  * repositório por `ignoreCommand` em `vercel.json`.
  *
- * Ele fica **no repositório**, e não em Settings → Git → Ignored Build Step,
- * porque `ignoreCommand` sobrescreve aquela configuração e é versionado junto
- * com o código: quem lê o repositório vê o portão, e mudá-lo passa por revisão
- * em vez de acontecer num painel sem histórico.
+ * ## Por que a pergunta mudou
+ *
+ * A primeira versão perguntava **"este commit altera `supabase/migrations/`?"**
+ * e, em caso afirmativo, esperava o workflow. Isso deixa passar o caso que
+ * importa: se a migration de um commit anterior nunca foi aplicada, todo commit
+ * seguinte que não toque no banco passa livre — e a aplicação é promovida sobre
+ * um esquema incompatível sem nada reclamar. Foi o que aconteceu depois do
+ * merge da #59: as migrations não chegaram a produção, e o commit seguinte
+ * publicaria normalmente.
+ *
+ * A pergunta certa não é sobre o commit, é sobre o **estado acumulado**:
+ * *o banco de produção já suporta a versão que estou prestes a publicar?*
+ * Quem responde é o próprio banco, pela mesma verificação do readiness —
+ * `fc_srv_verificar_contrato_rpc` contra `RPCS_CRITICAS`.
+ *
+ * As duas checagens convivem, e cada uma cobre o furo da outra:
+ *
+ *   · o **contrato** pega migration não aplicada de qualquer commit, inclusive
+ *     antigo, mas só enxerga o que se manifesta como função ausente;
+ *   · a **espera pelo workflow** pega migration que muda tabela, coluna ou
+ *     política sem criar função — invisível para o contrato — e evita publicar
+ *     no meio de um `db push` em andamento.
  *
  * ## A semântica é invertida, e errar aqui inverte o portão
  *
@@ -28,54 +49,38 @@
  *     exit 1  →  build **continua**
  *
  * É o contrário da convenção de processo Unix, e trocar os dois transformaria
- * este arquivo num portão que promove exatamente quando deveria barrar. Por
- * isso os retornos aqui passam por `seguir()` e `barrar()`, nomeados pelo
- * efeito, e nunca por `process.exit` solto.
+ * este arquivo num portão que promove exatamente quando deveria barrar.
  *
- * ## Ordem das decisões
+ * ## Falha fechada
  *
- *   1. Não é produção  → segue. Preview de pull request não promove nada, e
- *      barrá-lo tiraria a revisão visual que hoje existe.
- *   2. O commit não mexe em `supabase/migrations/` → segue. O workflow de banco
- *      só roda quando há migration; esperar por uma execução que nunca vai
- *      existir travaria todo deploy de frontend.
- *   3. Mexe em migration → espera o workflow daquele **mesmo SHA** concluir com
- *      sucesso. Falhou, foi cancelado ou estourou o tempo → barra.
+ * Sem credencial para perguntar — ao GitHub ou ao banco — a resposta é barrar.
+ * Um portão que se desliga sozinho quando falta configuração não é portão. O
+ * preço é uma publicação perdida, recuperável com **Redeploy**; o preço do
+ * contrário é a aplicação no ar sobre um banco que não a suporta.
  *
- * ## Falha fechada, e só onde importa
+ * Variáveis usadas, todas já existentes no projeto:
  *
- * Sem `GITHUB_DEPLOY_GATE_TOKEN`, um commit que mexe em migration é **barrado**.
- * Deixar passar seria manter aberto o risco que o portão existe para fechar, e
- * um portão que se desliga sozinho quando a configuração falta não é portão.
- * Commit que não toca no banco continua publicando normalmente, então a falta
- * do segredo nunca paralisa a entrega inteira — só a classe de deploy perigosa.
- *
- * O token precisa de leitura de `actions` e `contents` neste repositório.
- * Build barrado não se perde: depois do workflow verde, **Redeploy** no commit
- * passa por aqui de novo e agora segue.
+ *   GITHUB_DEPLOY_GATE_TOKEN                       leitura de actions e contents
+ *   SUPABASE_URL | NEXT_PUBLIC_SUPABASE_URL        banco de produção
+ *   SUPABASE_SECRET_KEY | SUPABASE_SERVICE_ROLE_KEY
  */
 
 const ESPERA_MAXIMA_MS = 10 * 60 * 1000;
 const INTERVALO_MS = 15 * 1000;
 const WORKFLOW = "deploy-db-production.yml";
+const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /*
   As decisões são **devolvidas**, não executadas com `process.exit()`.
 
-  `process.exit()` derruba o processo com o socket do fetch ainda fechando —
-  no Windows isso vira `Assertion failed` do libuv e o processo termina com
-  **127**. A Vercel leria 127 como "diferente de 0", ou seja, *seguir*: o portão
-  promoveria a aplicação exatamente no caso em que não conseguiu consultar o
-  GitHub. O desfecho mais perigoso sairia do modo mais silencioso possível.
-
-  Devolvendo o código e deixando `process.exitCode` valer, o processo termina
-  quando o laço de eventos esvazia — com o código certo, em qualquer sistema.
+  `process.exit()` derruba o processo com o socket do fetch ainda fechando — no
+  Windows isso vira `Assertion failed` do libuv e o processo termina com **127**.
+  A Vercel leria 127 como diferente de 0, ou seja, *seguir*: o portão promoveria
+  a aplicação exatamente no caso em que não conseguiu consultar nada. O desfecho
+  mais perigoso sairia do modo mais silencioso possível.
 */
-const SEGUIR = { codigo: 1, rotulo: "BUILD SEGUE" };
-const BARRAR = { codigo: 0, rotulo: "BUILD BARRADO" };
-
-const seguir = (motivo) => ({ ...SEGUIR, motivo });
-const barrar = (motivo) => ({ ...BARRAR, motivo });
+const seguir = (motivo) => ({ codigo: 1, rotulo: "BUILD SEGUE", motivo });
+const barrar = (motivo) => ({ codigo: 0, rotulo: "BUILD BARRADO", motivo });
 
 const {
   VERCEL_ENV,
@@ -96,9 +101,7 @@ async function buscar(caminho) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
-  if (!resposta.ok) {
-    throw new Error(`GitHub respondeu ${resposta.status} em ${caminho}`);
-  }
+  if (!resposta.ok) throw new Error(`GitHub respondeu ${resposta.status} em ${caminho}`);
   return resposta.json();
 }
 
@@ -107,60 +110,26 @@ async function mexeEmMigrations() {
   return (commit.files ?? []).some((f) => String(f.filename).startsWith("supabase/migrations/"));
 }
 
-async function execucaoDoCommit() {
-  const dados = await buscar(`/actions/workflows/${WORKFLOW}/runs?head_sha=${sha}&per_page=1`);
-  return dados.workflow_runs?.[0] ?? null;
-}
-
-async function decidir() {
-  if (VERCEL_ENV !== "production") {
-    return seguir(`ambiente "${VERCEL_ENV ?? "desconhecido"}" não promove produção`);
-  }
-
-  if (!sha || !owner || !repo) {
-    // Sem saber qual commit é, não há como consultar o workflow dele. Produção
-    // sem essa informação é o caso em que barrar é a única resposta honesta.
-    return barrar("faltam VERCEL_GIT_COMMIT_SHA/REPO_OWNER/REPO_SLUG para identificar o commit");
-  }
-
+async function esperarWorkflow() {
   const inicio = Date.now();
 
-  if (!token) {
-    /*
-      Sem token não dá para saber se o commit mexe em migration, e a resposta
-      muda conforme isso. Barrar é a leitura segura: no pior caso perde-se uma
-      publicação de frontend, recuperável com um Redeploy; a alternativa é
-      promover a aplicação sobre um banco que ainda não recebeu as migrations,
-      que é a falha que derrubou a plataforma duas vezes.
-    */
-    return barrar(`GITHUB_DEPLOY_GATE_TOKEN ausente — cadastre-o nas variáveis de ambiente do projeto na Vercel (leitura de actions e contents)`);
-  }
-
-  if (!(await mexeEmMigrations())) {
-    return seguir("o commit não altera supabase/migrations/");
-  }
-
-  console.log(`[gate] ${sha.slice(0, 7)} altera migrations; aguardando ${WORKFLOW}.`);
-
   for (;;) {
-    const execucao = await execucaoDoCommit();
+    const dados = await buscar(`/actions/workflows/${WORKFLOW}/runs?head_sha=${sha}&per_page=1`);
+    const execucao = dados.workflow_runs?.[0] ?? null;
 
     if (execucao?.status === "completed") {
-      if (execucao.conclusion === "success") {
-        return seguir(`${WORKFLOW} concluiu com sucesso neste commit`);
-      }
-      return barrar(`${WORKFLOW} terminou como "${execucao.conclusion}" — corrija e refaça o deploy`);
+      return execucao.conclusion === "success"
+        ? null
+        : `${WORKFLOW} terminou como "${execucao.conclusion}" — corrija e refaça o deploy`;
     }
 
     if (Date.now() - inicio > ESPERA_MAXIMA_MS) {
       // Estado desconhecido não é estado bom. A execução pode nem ter sido
-      // criada (workflow desabilitado, push sem Actions) — e nesse caso esperar
-      // mais não muda nada.
-      return barrar(
-        execucao
-          ? `${WORKFLOW} continua "${execucao.status}" após 10 minutos`
-          : `nenhuma execução de ${WORKFLOW} apareceu para este commit em 10 minutos`,
-      );
+      // criada (workflow desabilitado, Actions fora do ar), e nesse caso
+      // esperar mais não muda nada.
+      return execucao
+        ? `${WORKFLOW} continua "${execucao.status}" após 10 minutos`
+        : `nenhuma execução de ${WORKFLOW} apareceu para este commit em 10 minutos`;
     }
 
     process.stdout.write(".");
@@ -168,10 +137,54 @@ async function decidir() {
   }
 }
 
+async function decidir() {
+  if (VERCEL_ENV !== "production") {
+    // Preview de pull request não promove nada, e barrá-lo tiraria a revisão
+    // visual que hoje existe.
+    return seguir(`ambiente "${VERCEL_ENV ?? "desconhecido"}" não promove produção`);
+  }
+
+  if (!sha || !owner || !repo) {
+    return barrar("faltam VERCEL_GIT_COMMIT_SHA/REPO_OWNER/REPO_SLUG para identificar o commit");
+  }
+
+  if (!token) {
+    return barrar("GITHUB_DEPLOY_GATE_TOKEN ausente — cadastre-o nas variáveis de ambiente do projeto na Vercel");
+  }
+
+  // 1. Este commit está aplicando migrations agora? Se sim, espere terminar,
+  //    para não publicar no meio de um `db push`.
+  if (await mexeEmMigrations()) {
+    console.log(`[gate] ${sha.slice(0, 7)} altera migrations; aguardando ${WORKFLOW}.`);
+    const falha = await esperarWorkflow();
+    if (falha) return barrar(falha);
+  }
+
+  // 2. Independentemente deste commit: o banco suporta a versão que vai subir?
+  //    É esta pergunta que pega migration antiga que nunca foi aplicada.
+  const resultado = await verificarContrato({
+    url: variavel("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+    chave: variavel("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
+    nomes: lerContratoCritico(RAIZ),
+  });
+
+  if (resultado.situacao === "incompleto") {
+    for (const nome of resultado.ausentes) console.log(`[gate]   ausente: ${nome}`);
+    return barrar(
+      `o banco de produção não tem ${resultado.ausentes.length} de ${resultado.conferidas} função(ões) do contrato — aplique as migrations antes de publicar`,
+    );
+  }
+
+  if (resultado.situacao === "indisponivel") {
+    return barrar(`não foi possível verificar o contrato no banco (${resultado.motivo})`);
+  }
+
+  return seguir(`contrato íntegro: ${resultado.conferidas} função(ões) conferida(s) no banco de produção`);
+}
+
 const decisao = await decidir().catch((erro) =>
-  // Falha ao consultar o GitHub deixa o portão sem informação. Mesma regra do
-  // token ausente: sem saber, não promove.
-  barrar(`não foi possível consultar o GitHub (${erro instanceof Error ? erro.message : erro})`),
+  // Sem informação, não promove. Mesma regra do token ausente.
+  barrar(`falha ao avaliar o portão (${erro instanceof Error ? erro.message : erro})`),
 );
 
 console.log(`[gate] ${decisao.rotulo} — ${decisao.motivo}`);
