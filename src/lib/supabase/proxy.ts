@@ -20,6 +20,7 @@ const PUBLIC_PATHS = new Set([
   "/acesso",
   "/auth/confirm",
   "/api/health",
+  "/api/health/readiness",
   "/api/observability/errors",
   "/api/tarefas/emails",
 ]);
@@ -31,7 +32,7 @@ function isPublicPath(pathname: string) {
     || pathname.startsWith("/api/pesquisas-anonimas/");
 }
 
-function isPublicRequest(request: NextRequest) {
+export function isPublicRequest(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // A marca institucional precisa ser lida antes do login. Somente o GET é

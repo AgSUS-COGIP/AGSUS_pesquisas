@@ -2,25 +2,24 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
+import { normalizePlatformBranding } from "@/lib/platform-branding";
 
 function marcaPublica(value: unknown) {
-  const source = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  const source = normalizePlatformBranding(value);
 
   return {
-    organizationName: source.organizationName ?? null,
-    productName: source.productName ?? null,
-    productDescription: source.productDescription ?? null,
-    logoUrl: source.logoUrl ?? null,
-    logoPath: source.logoPath ?? null,
-    primaryColor: source.primaryColor ?? null,
-    sidebarColor: source.sidebarColor ?? null,
-    accessBackgroundUrl: source.accessBackgroundUrl ?? null,
-    accessBackgroundPath: source.accessBackgroundPath ?? null,
-    accessPanelColor: source.accessPanelColor ?? null,
-    accessGreeting: source.accessGreeting ?? null,
-    accessInstruction: source.accessInstruction ?? null,
+    organizationName: source.organizationName,
+    productName: source.productName,
+    productDescription: source.productDescription,
+    logoUrl: source.logoUrl,
+    logoPath: source.logoPath,
+    primaryColor: source.primaryColor,
+    sidebarColor: source.sidebarColor,
+    accessBackgroundUrl: source.accessBackgroundUrl,
+    accessBackgroundPath: source.accessBackgroundPath,
+    accessPanelColor: source.accessPanelColor,
+    accessGreeting: source.accessGreeting,
+    accessInstruction: source.accessInstruction,
   };
 }
 
@@ -46,7 +45,7 @@ export async function GET() {
   if (authenticated) {
     const { data, error } = await supabase.rpc("fc_obter_marca_plataforma");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
-    return NextResponse.json(data);
+    return NextResponse.json(normalizePlatformBranding(data));
   }
 
   const { data: publicData, error: publicError } = await supabase.rpc("fc_obter_marca_publica");
