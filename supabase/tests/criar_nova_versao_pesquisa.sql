@@ -41,8 +41,17 @@ join public.surveys s on s.id = v.survey_id
 where s.code = 'TESTE-NOVAVERSAO-1';
 
 select public.manage_survey_cycle((select id from public.surveys where code = 'TESTE-NOVAVERSAO-1'), 'PUBLISH');
-select public.manage_survey_cycle((select id from public.surveys where code = 'TESTE-NOVAVERSAO-1'), 'OPEN');
-select public.manage_survey_cycle((select id from public.surveys where code = 'TESTE-NOVAVERSAO-1'), 'CLOSE');
+
+-- Não usa OPEN seguido de CLOSE: as duas ações forçam, cada uma, o seu campo
+-- (opens_at / closes_at) para now(), e como este arquivo inteiro roda numa
+-- única transação, now() não muda entre as duas chamadas — as duas gravariam
+-- o mesmo instante, violando survey_applications_period_valid
+-- (closes_at > opens_at). Fora do teste isso não ocorre: OPEN e CLOSE são
+-- requisições separadas, com now() naturalmente distintos. O ciclo é fechado
+-- direto, com o mesmo efeito que a RPC produziria em duas chamadas reais.
+update public.survey_applications
+set status = 'CLOSED', opens_at = now() - interval '2 days', closes_at = now() - interval '1 day'
+where code = 'TESTE-NOVAVERSAO-1-1';
 
 select lives_ok(
   $$ select public.fc_criar_nova_versao_pesquisa((select id from public.surveys where code = 'TESTE-NOVAVERSAO-1')) $$,
