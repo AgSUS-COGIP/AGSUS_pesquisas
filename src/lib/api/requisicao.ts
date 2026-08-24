@@ -1,61 +1,107 @@
-import type { ErroApi } from "./contratos";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { ERRO_SESSAO_RENOVAVEL, type CodigoDeErroApi, type ErroApi } from "./contratos";
 
-/**
- * Transporte compartilhado dos clientes da API REST.
- *
- * Os clientes (`cliente.ts`, `cliente-pessoas.ts`, …) são divididos por
- * domínio, mas todos falam com a API pelo mesmo `chamar()`: montar a URL, ler o
- * corpo, distinguir erro de dado e traduzir status em mensagem acontece aqui, e
- * não repetido em cada tela. É o que mantém o formato do que trafega declarado
- * num lugar só, em vez de recortado por tela.
- */
-
-/**
- * Erro de chamada à API, com o status HTTP preservado.
- *
- * É pelo status que a tela decide o tratamento: 403 mostra a guarda de acesso,
- * 404 mostra estado vazio, 401 manda entrar de novo — distinção que uma
- * mensagem de erro solta não permite fazer.
- */
 export class ErroDeApi extends Error {
   readonly status: number;
   readonly referencia?: string;
+  readonly codigo?: CodigoDeErroApi;
 
-  constructor(status: number, mensagem: string, referencia?: string) {
+  constructor(status: number, mensagem: string, referencia?: string, codigo?: CodigoDeErroApi) {
     super(mensagem);
     this.name = "ErroDeApi";
     this.status = status;
     this.referencia = referencia;
+    this.codigo = codigo;
   }
 
-  /** Sessão expirada — a tela deve mandar a pessoa entrar de novo. */
+  get sessaoRenovavel() {
+    return this.status === 401 && this.codigo === ERRO_SESSAO_RENOVAVEL;
+  }
+
   get exigeAutenticacao() {
     return this.status === 401;
   }
 
-  /** Autorização negada — a tela deve apresentar a guarda, não um toast. */
   get exigePermissao() {
     return this.status === 403;
   }
 
-  /** Recurso ausente neste ambiente: migration não aplicada. */
   get indisponivelNoAmbiente() {
     return this.status === 501;
   }
 }
 
-/**
- * Executa a chamada e converte falha em `ErroDeApi`.
- *
- * `credentials: "same-origin"` é explícito porque a sessão vive em cookie e a
- * rota depende dele para autenticar como o usuário — é esse cookie que mantém
- * a RLS aplicável do outro lado.
- */
-export async function chamar<T>(caminho: string, init?: RequestInit): Promise<T> {
-  let resposta: Response;
+export function corpoPodeSerReenviado(corpo: BodyInit | null | undefined) {
+  return corpo == null || typeof corpo === "string";
+}
 
+let renovacaoEmVoo: Promise<boolean> | null = null;
+let reinicioEmVoo: Promise<void> | null = null;
+
+async function renovarSessaoUmaVez(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  renovacaoEmVoo ??= (async () => {
+    try {
+      const { data, error } = await createBrowserSupabaseClient().auth.refreshSession();
+      return Boolean(data.session) && !error;
+    } catch {
+      return false;
+    } finally {
+      queueMicrotask(() => { renovacaoEmVoo = null; });
+    }
+  })();
+
+  return renovacaoEmVoo;
+}
+
+async function reiniciarSessaoLocal() {
+  if (typeof window === "undefined") return;
+
+  reinicioEmVoo ??= (async () => {
+    try {
+      await createBrowserSupabaseClient().auth.signOut({ scope: "local" });
+    } catch {
+      // Melhor esforço: uma falha ao limpar a sessão local não pode mascarar o
+      // 401 original nem encerrar sessões em outros dispositivos.
+    } finally {
+      // Chamadas paralelas compartilham a mesma limpeza; uma ocorrência futura
+      // pode tentar novamente, sem ficar bloqueada pela vida inteira do módulo.
+      queueMicrotask(() => { reinicioEmVoo = null; });
+    }
+  })();
+
+  return reinicioEmVoo;
+}
+
+export async function chamar<T>(caminho: string, init?: RequestInit): Promise<T> {
+  let resposta = await executar(caminho, init);
+
+  if (resposta.status === 401 && corpoPodeSerReenviado(init?.body)) {
+    const renovavel = await marcadaComoRenovavel(resposta);
+    if (renovavel) {
+      if (await renovarSessaoUmaVez()) {
+        resposta = await executar(caminho, init);
+      }
+      if (resposta.status === 401) await reiniciarSessaoLocal();
+    }
+  }
+
+  return interpretar<T>(resposta);
+}
+
+async function marcadaComoRenovavel(resposta: Response) {
   try {
-    resposta = await fetch(caminho, {
+    const corpo = (await resposta.clone().json()) as ErroApi | null;
+    return corpo?.codigo === ERRO_SESSAO_RENOVAVEL;
+  } catch {
+    return false;
+  }
+}
+
+async function executar(caminho: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(caminho, {
       ...init,
       credentials: "same-origin",
       headers: {
@@ -65,16 +111,13 @@ export async function chamar<T>(caminho: string, init?: RequestInit): Promise<T>
       },
     });
   } catch {
-    // Falha de rede não tem status HTTP. `0` distingue "não chegou ao
-    // servidor" de qualquer resposta que o servidor tenha dado.
     throw new ErroDeApi(0, "Não foi possível falar com o servidor. Verifique sua conexão.");
   }
+}
 
+async function interpretar<T>(resposta: Response): Promise<T> {
   if (resposta.status === 204) return undefined as T;
 
-  // Corpo pode não ser JSON quando algo falha antes da rota — um erro de
-  // plataforma da Vercel, por exemplo. Tratar isso como JSON malformado
-  // esconderia o status real, que é a informação útil.
   const texto = await resposta.text();
   let corpo: unknown = null;
   if (texto.trim()) {
@@ -93,6 +136,7 @@ export async function chamar<T>(caminho: string, init?: RequestInit): Promise<T>
       resposta.status,
       erro?.mensagem?.trim() || "Não foi possível concluir a operação.",
       erro?.referencia,
+      erro?.codigo,
     );
   }
 
