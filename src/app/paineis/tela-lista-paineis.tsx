@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ArrowRight, FileText, Gauge, Radio } from "lucide-react";
-import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
+import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -28,6 +29,41 @@ function isCddiSurvey(survey: ManagedSurvey) {
 
 async function fetchManagedSurveys() {
   return listarAvaliacoes();
+}
+
+function DashboardsContentSkeleton() {
+  return (
+    <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando painéis" className="space-y-6">
+      <Surface className="p-5">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="space-y-3">
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-8 w-72 max-w-full" />
+            <Skeleton className="h-4 w-full max-w-2xl" />
+            <Skeleton className="h-4 w-4/5 max-w-xl" />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} className="h-[72px] min-w-24 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </Surface>
+
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-44" />
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-[88px] w-full rounded-2xl" />
+      </div>
+
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-44" />
+        <Skeleton className="h-6 w-52" />
+        <Skeleton className="h-[144px] w-full rounded-2xl" />
+      </div>
+      <span className="sr-only">Carregando painéis</span>
+    </div>
+  );
 }
 
 export default function DashboardsPage() {
@@ -52,9 +88,15 @@ export default function DashboardsPage() {
     />;
   }
 
-  if (surveysQuery.isLoading) return <PlatformSkeleton title="Carregando painéis" />;
-
   const { user } = guard;
+
+  if (surveysQuery.isLoading) {
+    return (
+      <PlatformShell user={user} eyebrow="Visualizações autorizadas" title="Painéis">
+        <DashboardsContentSkeleton />
+      </PlatformShell>
+    );
+  }
 
   const dashboardSurveys = surveys.filter((survey) => (
     survey.applicationCode
