@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
 
 // Única lista de rotas acessíveis sem sessão. Tudo o que não estiver aqui exige
 // autenticação — o padrão é fechado, de modo que uma rota nova nasce protegida.
@@ -128,8 +129,17 @@ export async function updateSession(request: NextRequest) {
 
   if (!authenticated && !publicRequest) {
     if (isApiPath(pathname)) {
+      /*
+        Renovável de propósito: aqui o middleware não conseguiu **ler** uma
+        sessão válida do cookie, e é exatamente o caso em que o refresh token
+        guardado no navegador ainda pode valer. Diferente dos 401 vindos do
+        PostgREST por assinatura inválida, que renovar não conserta.
+      */
       return addResponseHeaders(NextResponse.json(
-        { mensagem: "Sua sessão expirou. Entre novamente para continuar." },
+        {
+          mensagem: "Sua sessão expirou. Entre novamente para continuar.",
+          codigo: ERRO_SESSAO_RENOVAVEL,
+        } satisfies ErroApi,
         { status: 401 },
       ));
     }

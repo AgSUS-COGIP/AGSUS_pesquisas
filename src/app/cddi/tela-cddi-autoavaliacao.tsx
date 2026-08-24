@@ -206,7 +206,7 @@ export default function CddiFormPage() {
         setSavedAt(context.submission?.updatedAt ?? null);
         if (context.status === "PERIOD_CLOSED") {
           setMessageType("warning");
-          setMessage("O período do CDDI 2026 está encerrado. O modo de consulta permanece disponível conforme suas permissões.");
+          setMessage(`O período de ${rawDefinition.application.name} está encerrado. O modo de consulta permanece disponível conforme suas permissões.`);
         }
       } catch (error) {
         setMessageType("error");
@@ -354,9 +354,23 @@ export default function CddiFormPage() {
     } finally { setSubmitting(false); }
   }
 
-  if (loading) return <CddiPlatformFrame title="CDDI 2026"><CddiLoadingState /></CddiPlatformFrame>;
+  /*
+    O titulo vem do ciclo, nao do calendario.
+
+    "CDDI 2026" estava escrito em quatro lugares desta tela. O ciclo ja' deixou
+    de ser fixo no codigo — quem o resolve e' /api/cddi/ciclo-vigente —, mas o
+    rotulo continuava anunciando 2026 mesmo depois de a pessoa abrir outra
+    edicao. Na segunda edicao a tela mostraria o formulario certo sob um titulo
+    errado, que e' pior do que nao ter titulo.
+
+    O padrao e' so' "CDDI": enquanto carrega, e quando o carregamento falhou,
+    nao se sabe qual ciclo e' — e nomear um seria afirmar o que nao se sabe.
+  */
+  const tituloDoCiclo = definition?.application.name ?? "CDDI";
+
+  if (loading) return <CddiPlatformFrame title={tituloDoCiclo}><CddiLoadingState /></CddiPlatformFrame>;
   if (!definition || !identity) return (
-    <CddiPlatformFrame title="CDDI 2026">
+    <CddiPlatformFrame title={tituloDoCiclo}>
       <div className="grid min-h-[60vh] place-items-center px-6">
         <section className="max-w-xl rounded-2xl border border-[var(--status-danger-border)] bg-[var(--surface-card)] p-8 shadow-[var(--shadow-card)]">
           <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Não foi possível abrir o CDDI</h2>
@@ -381,7 +395,7 @@ export default function CddiFormPage() {
   );
 
   if (screen === "home") return (
-    <CddiPlatformFrame title="CDDI 2026">
+    <CddiPlatformFrame title={tituloDoCiclo}>
       <div className="min-h-[60vh] text-[var(--text-primary)]">
         <div className="mx-auto max-w-[960px] space-y-4">
           <section className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[5px] bg-[var(--surface-card)] shadow-[var(--shadow-card)]" style={{ borderTopColor: CDDI_RULE }}>
@@ -396,7 +410,7 @@ export default function CddiFormPage() {
               <h2 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{visualIdentity.heroTitle}</h2>
               <p className="mt-3 max-w-3xl whitespace-pre-line break-words leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
               <p className="mt-2 leading-7 text-[var(--text-secondary)]">Você fará uma <strong className="font-semibold text-[var(--text-primary)]">autoavaliação</strong>, e sua <strong className="font-semibold text-[var(--text-primary)]">chefia direta</strong> fará a avaliação correspondente. As respostas são consolidadas para apoiar o diálogo e o desenvolvimento contínuo.</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Ciclo 2026 · acesso restrito aos participantes cadastrados.</p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">{definition.application.name} · acesso restrito aos participantes cadastrados.</p>
 
               <dl className="mt-5 grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] sm:items-center">
                 <PersonAvatar fullName={person.fullName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />

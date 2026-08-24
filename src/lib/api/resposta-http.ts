@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ErroApi } from "./contratos";
+import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "./contratos";
 
 /**
  * Tradução de erro do PostgreSQL para status HTTP.
@@ -113,7 +113,24 @@ export function respostaDeErro(erro: ErroPostgres, contexto: string) {
   // fazer. O detalhe fica no log; a tela recebe a frase que conduz à ação.
   if (status === 401) {
     console.warn(`[api] ${contexto}`, erro.code, erro.message);
-    const corpo: ErroApi = { mensagem: "A sua sessão expirou. Entre novamente para continuar." };
+
+    /*
+      Só `PGRST301` — "JWT expired" — é marcado como renovável.
+
+      `PGRST302` e `PGRST303` também viram 401, mas não são a mesma coisa:
+      são token ausente, malformado ou com assinatura inválida. Renovar não
+      conserta nenhum deles, porque o token novo é emitido pela mesma chave e
+      falharia igual. Marcá-los aqui faria o cliente gastar uma renovação e uma
+      repetição para chegar ao mesmo 401.
+
+      O mesmo vale para relógio adiantado ("issued at future"): o token novo
+      nasce com `iat` no futuro pelo mesmo relógio. O que resolve ali é tempo
+      passar, não repetir na hora — então também não entra.
+    */
+    const corpo: ErroApi = {
+      mensagem: "A sua sessão expirou. Entre novamente para continuar.",
+      ...(erro.code === "PGRST301" ? { codigo: ERRO_SESSAO_RENOVAVEL } : {}),
+    };
     return NextResponse.json(corpo, { status });
   }
 
