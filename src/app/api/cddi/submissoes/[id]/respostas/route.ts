@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
-import { ehUuid } from "@/lib/api/validacao";
+import { ehObjeto, ehUuid } from "@/lib/api/validacao";
 
 /**
  * Grava a resposta de uma pergunta do CDDI.
@@ -25,6 +25,8 @@ export async function PUT(
   } catch {
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
+
+  if (!ehObjeto(corpo)) return respostaDeEntradaInvalida("Informe os dados da resposta em um objeto JSON.");
 
   if (!ehUuid(corpo.questionId)) {
     return respostaDeEntradaInvalida("Identificador de pergunta inválido.");

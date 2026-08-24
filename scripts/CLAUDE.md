@@ -58,14 +58,16 @@ Em falha, define `process.exitCode = 1` (não usa `process.exit`, para permitir 
 3. resolve o nome: literal, ou `const x = cond ? "a" : "b"`
    resolve os argumentos: literal de objeto, ternário de objetos, const local,
    espalhamento (`...outroObjeto`) de const local
-4. confronta com pg_proc: a função existe? o conjunto de argumentos resolve
-   alguma sobrecarga? `authenticated` tem EXECUTE?
-5. o que não conseguiu ler, imprime
+4. infere o papel pelo cliente (`createAdminSupabaseClient()` → `service_role`;
+   demais clientes → `authenticated`)
+5. confronta com pg_proc: a função existe? o conjunto de argumentos resolve
+   alguma sobrecarga? o papel efetivamente usado tem EXECUTE?
+6. o que não conseguiu ler, imprime
 ```
 
 **Por que ela vive no job `database` e não no `application`.** Só depois de `supabase db reset` existe o esquema real que as migrations produzem. Comparar contra um retrato versionado seria comparar contra um arquivo que envelhece sozinho — exatamente o problema que a porta existe para evitar. E escrever um parser de SQL nosso obrigaria a reimplementar `create or replace`, `drop` e resolução de sobrecarga para chegar ao mesmo lugar que o PostgreSQL já calculou.
 
-**Três falhas, um erro só.** O PostgREST devolve `Could not find the function … in the schema cache` tanto para função inexistente quanto para nome de argumento divergente — ele resolve a chamada pelo conjunto de argumentos nomeados. Por isso os dois são cobrados aqui, junto com a terceira variante, que dá 403 em vez de 404: a função existe e `authenticated` não tem `EXECUTE`. Nenhuma das três aparece em `typecheck`, `lint`, `test` ou `build`; o acoplamento é por string, e nenhuma dessas ferramentas lê SQL. Foi assim que a plataforma caiu em 10/08/2026.
+**Três falhas, um erro só.** O PostgREST devolve `Could not find the function … in the schema cache` tanto para função inexistente quanto para nome de argumento divergente — ele resolve a chamada pelo conjunto de argumentos nomeados. Por isso os dois são cobrados aqui, junto com a terceira variante, que dá 403 em vez de 404: a função existe, mas o papel do cliente (`authenticated` ou `service_role`) não tem `EXECUTE`. Nenhuma das três aparece em `typecheck`, `lint`, `test` ou `build`; o acoplamento é por string, e nenhuma dessas ferramentas lê SQL. Foi assim que a plataforma caiu em 10/08/2026.
 
 **O que ela não lê, ela declara.** Chamada cujos argumentos vêm do retorno de uma função (`...buildSurveyAnswerPayload(...)`) não é resolvível estaticamente. Nesse caso o **nome** continua sendo conferido — é ele a falha de 10/08 — e a chamada aparece na lista "não verificáveis" da saída, com o total repetido no resumo final. Silêncio ali leria como cobertura; a lista é o que impede isso.
 
@@ -106,7 +108,9 @@ Linhas de definição que começam com `constraint`, `primary`, `foreign`, `uniq
 
 ## Interfaces públicas
 
-Nenhuma. São executáveis de linha de comando, não módulos importáveis.
+Nenhuma para a aplicação. O validador RPC exporta apenas os analisadores puros
+usados por `validate-rpc-contracts.test.mjs`; sua execução principal continua
+restrita à invocação direta pela linha de comando.
 
 **Contrato de saída:** código `0` em sucesso, `1` em falha; mensagens de erro em `stderr`, sucesso em `stdout`.
 

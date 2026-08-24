@@ -22,12 +22,10 @@ export async function DELETE(
 
   const supabase = await createServerSupabaseClient();
   const arquivada = new URL(request.url).searchParams.get("arquivada") === "true";
-  const { data, error } = await supabase.rpc(
-    arquivada ? "fc_excluir_pesquisa_arquivada" : "fc_excluir_pesquisa_rascunho",
-    {
+  const rpc = arquivada ? "fc_excluir_pesquisa_arquivada" : "fc_excluir_pesquisa_rascunho";
+  const { data, error } = await supabase.rpc(rpc, {
     p_pesquisa: id,
-    },
-  );
+  });
 
   if (error) return respostaDeErro(error, "DELETE /api/avaliacoes/[id]");
 
