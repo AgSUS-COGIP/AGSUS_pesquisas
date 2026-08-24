@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(26);
 
 select ok(
   (select relrowsecurity from pg_catalog.pg_class where oid = 'public.tb_limite_requisicao_publica'::regclass),
@@ -174,6 +174,33 @@ select is(
      and permissive = 'PERMISSIVE'),
   1::bigint,
   'submissions possui uma única política permissiva de UPDATE para authenticated'
+);
+
+-- A ACL das funcoes internas criadas pela PR de deploy/idempotencia.
+--
+-- Sao afirmacoes de regressao, nao cobertura nova: o que motivou escreve-las
+-- foi a redefinicao de fc_reivindicar_emails reconceder execute a authenticated
+-- sem conflito e sem historico. Redefinir funcao nao preserva a ACL anterior,
+-- entao o unico jeito de a proxima redefinicao nao repetir o erro em silencio e'
+-- o teste cobrar o estado final.
+select ok(
+  not has_function_privilege('authenticated', 'public.fc_srv_verificar_contrato_rpc(text[])', 'execute'),
+  'authenticated nao executa a verificacao de contrato de RPC'
+);
+
+select ok(
+  has_function_privilege('service_role', 'public.fc_srv_verificar_contrato_rpc(text[])', 'execute'),
+  'service_role executa a verificacao de contrato de RPC'
+);
+
+select ok(
+  not has_function_privilege('authenticated', 'public.fc_srv_registrar_transporte(uuid,uuid,text)', 'execute'),
+  'authenticated nao executa o registro de transporte de e-mail'
+);
+
+select ok(
+  has_function_privilege('service_role', 'public.fc_srv_registrar_transporte(uuid,uuid,text)', 'execute'),
+  'service_role executa o registro de transporte de e-mail'
 );
 
 select * from finish();
