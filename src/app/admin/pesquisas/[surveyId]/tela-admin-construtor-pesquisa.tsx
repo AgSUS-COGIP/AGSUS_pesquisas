@@ -2,7 +2,6 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlignLeft,
   ArrowDown,
@@ -59,7 +58,6 @@ import {
 } from "@/lib/survey-builder";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { cycleStatusLabel } from "@/lib/survey-status-labels";
-import { excluirAvaliacao } from "@/lib/api/cliente";
 import {
   atualizarPergunta,
   atualizarSecao,
@@ -172,7 +170,6 @@ function UnsavedChangesNotice() {
 
 export default function SurveyBuilderPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const confirm = useConfirm();
-  const router = useRouter();
   const { surveyId } = use(params);
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
@@ -185,7 +182,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [questionErrors, setQuestionErrors] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
-  const [surveyDeleteOpen, setSurveyDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [itemOperation, setItemOperation] = useState<string | null>(null);
   const [rules, setRules] = useState<RegraCondicional[]>([]);
@@ -526,28 +522,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     }
   }
 
-  async function deleteSurvey() {
-    if (working) return;
-    setWorking(true);
-    try {
-      await excluirAvaliacao(surveyId);
-      toast.success("Avaliação excluída.");
-      setSurveyDeleteOpen(false);
-      // A tela deixa de existir depois da navegação, mas `working` é liberado
-      // no `finally` de qualquer forma: se o push demorar ou não desmontar o
-      // componente, o construtor não pode ficar com todos os botões travados.
-      router.push("/admin/pesquisas");
-    } catch (deleteError) {
-      // O banco recusa avaliação publicada ou com respostas, e a razão vem na
-      // própria mensagem — é ela que explica ao operador por que não deu. A
-      // rota preserva essa mensagem em 409, distinta do 403 de quem não é
-      // administrador.
-      toast.error(errorMessageFromUnknown(deleteError));
-    } finally {
-      setWorking(false);
-    }
-  }
-
   function openMoveQuestion(sourceSectionId: string, question: Question) {
     const targets = questionMoveTargets(
       builder?.sections ?? [],
@@ -712,9 +686,17 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                   <Plus className="h-5 w-5" aria-hidden="true" /> Nova seção
                 </Button>
               ) : (
-                <div className="flex max-w-sm items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
-                  <p className="text-sm leading-5"><strong className="block">Conteúdo imutável</strong>Crie uma nova versão para realizar alterações.</p>
+                <div className="flex max-w-sm flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                    <p className="text-sm leading-5"><strong className="block">Conteúdo imutável</strong>Esta versão foi publicada. Para alterar, crie uma nova versão em Propriedades do ciclo.</p>
+                  </div>
+                  <Link
+                    href={`/admin/pesquisas/${surveyId}/operacao`}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-700 px-3.5 text-xs font-bold text-white transition hover:bg-emerald-800"
+                  >
+                    Ir para Propriedades do ciclo
+                  </Link>
                 </div>
               )}
             </div>
@@ -1164,31 +1146,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
             )}
           </div>
 
-          {/* Zona destrutiva no fim da página, longe das ações do dia a dia: a
-              exclusão só faz sentido enquanto a versão é rascunho — publicada, a
-              estrutura é referência histórica de quem respondeu e o banco
-              recusa. Fora do rascunho a seção nem aparece. */}
-          {isDraft && (
-            <section className="mt-8 rounded-3xl border border-red-200 bg-red-50/60 p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-black text-red-900">Excluir formulário</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-red-800">
-                    Remove definitivamente a avaliação, o ciclo, as seções, as perguntas e as alternativas. A exclusão é recusada se a avaliação já tiver sido publicada ou já possuir respostas.
-                  </p>
-                </div>
-                <Button
-                  variant="danger"
-                  className="shrink-0"
-                  disabled={working}
-                  onClick={() => setSurveyDeleteOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Excluir formulário
-                </Button>
-              </div>
-            </section>
-          )}
         </>
       )}
 
@@ -1415,36 +1372,6 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               <Button variant="danger" disabled={working} onClick={() => void deleteQuestion()}>
                 {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Excluir pergunta
-              </Button>
-            </div>
-          </div>
-        )}
-      </Dialog>
-
-      <Dialog
-        open={surveyDeleteOpen}
-        onOpenChange={(open) => { if (!open && !working) setSurveyDeleteOpen(false); }}
-        eyebrow="Ação permanente"
-        // O nome do formulário vai no título da confirmação: quem chega aqui
-        // precisa reconhecer o que está apagando antes de confirmar.
-        title={`Você tem certeza que quer excluir o formulário ${builder?.survey.name ?? ""}?`}
-        description="A avaliação, o ciclo, as seções, as perguntas e as alternativas serão removidos definitivamente. A exclusão é recusada se a avaliação já tiver sido publicada ou já possuir respostas."
-        className="max-w-lg"
-      >
-        {builder && (
-          <div>
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[.12em] text-red-700">{builder.survey.code}</p>
-              <p className="mt-2 text-sm font-semibold text-red-950">{builder.survey.name}</p>
-              <p className="mt-2 text-xs leading-5 text-red-900">
-                {builder.sections.length} {builder.sections.length === 1 ? "seção" : "seções"} · {totalQuestions} {totalQuestions === 1 ? "pergunta" : "perguntas"}
-              </p>
-            </div>
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="secondary" disabled={working} onClick={() => { if (!working) setSurveyDeleteOpen(false); }}>Cancelar</Button>
-              <Button variant="danger" disabled={working} onClick={() => void deleteSurvey()}>
-                {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Excluir formulário
               </Button>
             </div>
           </div>
