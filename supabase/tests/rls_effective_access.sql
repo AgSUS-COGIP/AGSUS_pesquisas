@@ -12,7 +12,7 @@
 
 begin;
 
-select plan(9);
+select plan(10);
 
 -- ---------------------------------------------------------------------------
 -- 1. Tabela alcançável pela API tem política, não apenas RLS ligada
@@ -127,6 +127,27 @@ select is(
   ),
   '',
   'nenhuma função security definer além do contrato visual mínimo da marca é executável por anon'
+);
+
+-- A jornada anônima passa pelas entradas `fc_srv_*` do backend. As funções de
+-- domínio chamadas por elas não podem continuar expostas a uma sessão comum,
+-- ou seria possível pular a validação e os controles do Route Handler.
+select is(
+  (
+    select count(*)::bigint
+    from pg_catalog.pg_proc proc
+    join pg_catalog.pg_namespace namespace on namespace.oid = proc.pronamespace
+    where namespace.nspname = 'public'
+      and proc.proname in (
+        'fc_obter_form_anonimo',
+        'fc_iniciar_resp_anon',
+        'fc_gravar_resp_anon',
+        'fc_enviar_resp_anon'
+      )
+      and has_function_privilege('authenticated', proc.oid, 'execute')
+  ),
+  0::bigint,
+  'RPCs de domínio da jornada anônima não são executáveis por authenticated'
 );
 
 -- ---------------------------------------------------------------------------
