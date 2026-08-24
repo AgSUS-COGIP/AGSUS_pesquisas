@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
-import { ehUuid } from "@/lib/api/validacao";
+import { ehObjeto, ehUuid } from "@/lib/api/validacao";
 import type { TipoSubmissaoCddi } from "@/lib/api/contratos-runtime";
 
 /**
@@ -23,6 +23,8 @@ export async function POST(request: Request) {
   } catch {
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
+
+  if (!ehObjeto(corpo)) return respostaDeEntradaInvalida("Informe os dados da submissão em um objeto JSON.");
 
   const applicationCode = typeof corpo.applicationCode === "string" ? corpo.applicationCode.trim() : "";
   if (!applicationCode) {

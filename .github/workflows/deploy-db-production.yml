@@ -1,5 +1,35 @@
 name: Deploy database migrations to production
 
+# ORDEM DE DEPLOY: migration -> contrato -> aplicacao
+#
+# Este workflow e a Vercel sao disparados pelo MESMO `push` para `main`, em
+# sistemas diferentes. Sozinho, ele nao impede a aplicacao de subir enquanto as
+# migrations ainda estao sendo aplicadas — e foi essa janela que produziu
+# PGRST202 em producao em 10/08/2026 e de novo em 20/08/2026.
+#
+# Um Action nao consegue segurar uma publicacao da Vercel: quem decide se um
+# build acontece e' a propria Vercel. Quem fecha a ordem, entao, e'
+# `scripts/vercel-ignore-build.mjs` — o Ignored Build Step do projeto. Ele le o
+# resultado DESTE workflow para o MESMO SHA e so' libera o build de producao
+# depois do sucesso; commit que nao toca em `supabase/migrations/` passa direto,
+# e preview de pull request nunca e' barrado.
+#
+# O comando ja' esta' ligado pelo repositorio: `ignoreCommand` em vercel.json,
+# que sobrescreve o Ignored Build Step do painel. Falta uma unica configuracao
+# fora daqui, porque segredo nao se versiona:
+#
+#   Vercel -> Settings -> Environments -> Production -> Environment Variables
+#   GITHUB_DEPLOY_GATE_TOKEN = token do GitHub com leitura de actions e contents
+#
+# Sem o token, commit que altera migration e' BARRADO — o portao falha fechado
+# de proposito. Build barrado nao se perde: com este workflow verde, Redeploy no
+# mesmo commit passa a seguir.
+#
+# Alternativa nao adotada: desligar a integracao Git da Vercel e publicar por
+# `vercel deploy --prod` num job com `needs: deploy`. Tornaria a ordem uma
+# dependencia explicita, ao custo de perder o preview automatico de pull
+# request — que hoje e' onde a revisao visual acontece.
+
 on:
   push:
     branches: [main]
@@ -27,6 +57,11 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      # Prefixo SMOKE_ de proposito: `SUPABASE_URL` no escopo do job entraria no
+      # ambiente do Supabase CLI, que le variaveis com esse prefixo. Os nomes
+      # que o script espera sao mapeados no passo do smoke, e so' la'.
+      SMOKE_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+      SMOKE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -39,6 +74,13 @@ jobs:
           missing=()
           [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN")
           [ -n "${SUPABASE_DB_PASSWORD:-}" ] || missing+=("PRODUCTION_DB_PASSWORD")
+          # Os segredos do smoke sao cobrados AQUI, e nao no passo que os usa.
+          # Cobra-los la' significaria descobrir a ausencia depois de `db push`
+          # ja' ter aplicado as migrations: o banco mudaria e o portao que
+          # deveria autorizar a promocao nunca chegaria a rodar. Falhar antes de
+          # tocar em producao e' a unica ordem segura.
+          [ -n "${SMOKE_SUPABASE_URL:-}" ] || missing+=("PRODUCTION_SUPABASE_URL")
+          [ -n "${SMOKE_SUPABASE_SERVICE_ROLE_KEY:-}" ] || missing+=("PRODUCTION_SUPABASE_SERVICE_ROLE_KEY")
           if [ "${#missing[@]}" -gt 0 ]; then
             printf 'Segredos ausentes para deploy do banco: %s\n' "${missing[*]}" >&2
             echo 'Cadastre-os no environment/repository secrets do GitHub antes de liberar migrations para producao.' >&2
@@ -96,4 +138,20 @@ jobs:
         run: |
           set -euo pipefail
           supabase migration list
+          # Segundo dry-run: se ainda restar migration pendente depois do push,
+          # o push nao concluiu o que prometeu e a aplicacao nao pode ser
+          # promovida sobre este estado.
           supabase db push --dry-run
+
+      # Smoke test de contrato: as RPCs que a aplicacao chama pelo nome existem
+      # neste banco? E a checagem que faltava — `npm run db:rpc` prova que o
+      # repositorio e coerente consigo mesmo, nao que o ambiente recebeu as
+      # migrations. Foi essa lacuna que produziu PGRST202 em producao duas vezes.
+      - name: Smoke test do contrato de RPC
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ env.SMOKE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SMOKE_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/smoke-rpc-contract.mjs
