@@ -100,6 +100,7 @@ end;
 $$;
 
 revoke all on function public.fc_srv_registrar_transporte(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.fc_srv_registrar_transporte(uuid, uuid, text) to service_role;
 
 comment on function public.fc_srv_registrar_transporte(uuid, uuid, text) is
   'Service role apenas. Carimba o identificador da mensagem antes do envio. Devolve EXPIRADO quando o lease já venceu — nesse caso o envio deve ser abortado.';
@@ -298,8 +299,17 @@ begin
 end;
 $function$;
 
-revoke all on function public.fc_reivindicar_emails() from public, anon;
-grant execute on function public.fc_reivindicar_emails() to authenticated;
+-- fc_reivindicar_emails e' contrato interno do worker: so' service_role executa.
+--
+-- Redefinir a funcao NAO preserva a ACL anterior, entao o bloco de grants
+-- precisa ser reafirmado a cada redefinicao. O bloco copiado das migrations de
+-- agosto ainda concedia a authenticated, e reaplica-lo aqui desfazia em
+-- silencio o endurecimento de 20260823201245 -- exatamente a classe de erro que
+-- supabase/CLAUDE.md descreve: redefinicao de funcao e' onde trabalho anterior
+-- se perde sem conflito e sem historico. O teste 9 de
+-- security_audit_hardening.sql e' quem barra a volta.
+revoke all on function public.fc_reivindicar_emails() from public, anon, authenticated;
+grant execute on function public.fc_reivindicar_emails() to service_role;
 
 notify pgrst, 'reload schema';
 

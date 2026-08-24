@@ -71,7 +71,12 @@ begin
 end;
 $$;
 
+-- O grant a service_role e' explicito, e nao herdado do default privilege do
+-- projeto: e' esta funcao que o smoke test de deploy chama como service role,
+-- entao depender de configuracao fora da migration faria o portao do deploy
+-- falhar num ambiente reconstruido do zero -- que e' exatamente o que o CI faz.
 revoke all on function public.fc_srv_verificar_contrato_rpc(text[]) from public, anon, authenticated;
+grant execute on function public.fc_srv_verificar_contrato_rpc(text[]) to service_role;
 
 comment on function public.fc_srv_verificar_contrato_rpc(text[]) is
   'Service role apenas. Devolve quais das funções informadas não existem neste banco. Alimenta o readiness e o smoke test de deploy.';

@@ -43,7 +43,24 @@ function lerContrato() {
   const fonte = readFileSync(join(RAIZ, "src/lib/rpc-criticas.ts"), "utf8");
   const bloco = fonte.match(/RPCS_CRITICAS\s*=\s*\[([\s\S]*?)\]\s*as const/);
   if (!bloco) throw new Error("Não foi possível ler RPCS_CRITICAS de src/lib/rpc-criticas.ts");
-  const nomes = [...bloco[1].matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
+
+  /*
+    Os comentários saem antes da extração.
+
+    O padrão casa qualquer literal entre aspas dentro do bloco, e o bloco tem
+    comentários explicando por que cada nome está ali. Bastava um deles citar
+    uma RPC entre aspas duplas para o smoke passar a exigir do banco uma função
+    que ninguém chama — e o portão de deploy barraria uma publicação correta,
+    ou, pior, mediria contrato diferente do que a aplicação usa.
+
+    Não é hipótese: o comentário sobre `fc_obter_formulario_publico` foi escrito
+    logo abaixo, e só não quebrou porque usa crase.
+  */
+  const semComentarios = bloco[1]
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+
+  const nomes = [...semComentarios.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
   if (!nomes.length) throw new Error("RPCS_CRITICAS está vazia.");
   return nomes;
 }

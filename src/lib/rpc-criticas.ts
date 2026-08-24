@@ -33,7 +33,21 @@ export const RPCS_CRITICAS = [
 
   // Catálogo e runtime genérico de resposta.
   "list_my_survey_catalog",
-  "get_public_survey_form",
+  /*
+    O nome é `fc_obter_formulario_publico`, e não `get_public_survey_form`.
+
+    `20260822150000_security_audit_followup.sql` criou a primeira e **revogou**
+    a segunda de `authenticated`; as rotas (`/api/formularios/[codigo]` e o
+    bootstrap do CDDI) chamam a nova. Listar a antiga aqui era pior do que não
+    listar nada: a função continua existindo no banco, então o readiness
+    passaria verde num ambiente onde a que a aplicação realmente usa não
+    existisse — a verificação diria "compatível" no exato caso que ela foi
+    escrita para pegar.
+
+    Regra que isto impõe ao manifesto: o nome conferido tem de ser o nome que
+    aparece num `supabase.rpc(...)` do código, não o da migration que o criou.
+  */
+  "fc_obter_formulario_publico",
   "start_or_resume_my_survey_submission",
   "save_my_survey_answer",
   "submit_my_survey_submission",
