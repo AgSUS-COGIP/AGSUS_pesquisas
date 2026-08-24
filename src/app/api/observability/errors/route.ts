@@ -6,25 +6,21 @@ import {
 } from "@/lib/api/corpo-json-limitado";
 import { normalizeErrorReference } from "@/lib/observability-reference";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 
 const ALLOWED_TYPES = new Set(["CLIENTE", "SERVIDOR", "REDE", "BANCO", "DESCONHECIDO"]);
 const MAX_REPORT_BYTES = 16_384;
 
 // Requisição sem `Origin` é aceita de propósito: `fetch(keepalive)` disparado
-// durante o descarregamento da página pode omitir o header, e é justamente esse
-// relatório — o do erro que derrubou a navegação — que mais interessa.
+// durante o descarregamento da página pode omitir o header. O rate limit abaixo
+// cobre também clientes sem Origin para que esta compatibilidade não vire uma
+// porta de spam contra a tabela de observabilidade.
 function isSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   return new URL(origin).host === new URL(request.url).host;
 }
 
-// Sanitização repetida no servidor, embora o cliente já a aplique: a rota é
-// pública para a mesma origem e não pode confiar no que recebe.
-//
-// Truncar antes das regex (e não depois) limita o custo ao `maxLength`
-// declarado; os padrões evitam classes de caracteres que se sobrepõem para não
-// sofrer backtracking catastrófico (ReDoS) em entradas adversariais.
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value
@@ -49,49 +45,28 @@ function cleanContext(value: unknown) {
   );
 }
 
-/**
- * Registra um relatório técnico de erro em `tl_erro_aplicacao`.
- *
- * Responde `202` com a referência exibida ao usuário, para correlação com o
- * suporte. O `upsert` por `co_referencia` com `ignoreDuplicates` torna o envio
- * idempotente: o mesmo erro reportado por mais de um boundary grava uma só linha.
- *
- * Como esta rota precisa funcionar antes do login, ela é pública. Por isso o
- * limite de 16 KiB é aplicado sobre os bytes efetivamente lidos da stream, não
- * só sobre `Content-Length`: um cliente adversarial pode omitir esse cabeçalho.
- */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
   }
 
+  const limitResponse = await publicRateLimitResponse(request, {
+    scope: "observability-error",
+    limit: 120,
+    windowSeconds: 300,
+  });
+  if (limitResponse) return limitResponse;
+
   try {
     const payload = await lerJsonLimitado<Record<string, unknown>>(request, MAX_REPORT_BYTES);
-    // Não passa por `cleanText`: a referência é gerada pela plataforma, não é
-    // texto de usuário, e o sanitizador a corrompia. Ver `observability-reference`.
     const reference = normalizeErrorReference(payload.reference);
     const tipoRecebido = cleanText(payload.type, 40).toUpperCase();
     const httpStatus = typeof payload.httpStatus === "number" ? payload.httpStatus : null;
 
-    // Sem referência não há como correlacionar nem deduplicar, e ela é o único
-    // campo que a plataforma sempre produz. É o que resta como requisito.
     if (!reference) {
       return NextResponse.json({ error: "Relatório inválido." }, { status: 400 });
     }
 
-    /*
-      Rota, mensagem e tipo ausentes deixaram de derrubar o relatório.
-
-      Nem todo erro consegue se descrever: `window.onerror` disparado por script
-      de outra origem entrega "Script error." sem mais nada, e valor não-Error
-      lançado numa promise pode não render mensagem alguma. Recusar esses
-      relatórios apagava justamente o registro de que **algo** falhou — o
-      contrário do que esta rota existe para fazer. Some o sintoma junto com a
-      descrição dele.
-
-      O que não se sabe entra como texto explícito, para ninguém ler o vazio como
-      se fosse informação.
-    */
     const route = cleanText(payload.route, 200) || "(rota não informada)";
     const message = cleanText(payload.message, 1000) || "(erro sem mensagem)";
     const type = ALLOWED_TYPES.has(tipoRecebido) ? tipoRecebido : "DESCONHECIDO";

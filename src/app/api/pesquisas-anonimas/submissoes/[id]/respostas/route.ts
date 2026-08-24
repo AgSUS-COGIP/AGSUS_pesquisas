@@ -7,6 +7,7 @@ import {
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
+import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 import type { RespostaEntrada } from "@/lib/api/contratos-runtime";
 
 // O maior campo textual aceito pelo banco tem 12 KiB. A folga acomoda JSON,
@@ -18,6 +19,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const id = (await params).id;
   const token = request.headers.get("X-Anonymous-Session")?.trim() ?? "";
   if (!ehUuid(id) || !token) return respostaDeEntradaInvalida("Sessão anônima inválida.");
+
+  const limitResponse = await publicRateLimitResponse(request, {
+    scope: "anon-answer-write",
+    limit: 600,
+    windowSeconds: 300,
+    discriminator: id,
+  });
+  if (limitResponse) return limitResponse;
 
   let body: RespostaEntrada;
   try {

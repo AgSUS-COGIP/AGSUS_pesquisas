@@ -17,7 +17,7 @@ import {
 /**
  * Despacho dos e-mails automáticos aos participantes.
  *
- * Quem decide o que enviar é o banco: `fc_reivindicar_emails()`
+ * Quem decide o que enviar é o banco: `fc_srv_reivindicar_emails()`
  * aplica as regras de negócio (ciclo aberto, opção ligada, participante
  * elegível, janela de 24 horas) e entrega um lote com token exclusivo. A chave
  * única impede criar o mesmo aviso duas vezes; o token impede duas execuções
@@ -29,8 +29,8 @@ import {
  * deliberada para não depender de conta externa nova.
  *
  * Uma falha individual não interrompe o restante: o desfecho de cada envio é
- * registrado por `fc_concluir_email_participante`, e o que falhou volta à
- * fila na próxima execução, enquanto a janela do tipo continuar válida.
+ * registrado por `fc_srv_concluir_email`, e o que falhou volta à fila na
+ * próxima execução, enquanto a janela do tipo continuar válida.
  */
 
 type PendingEmail = {
@@ -162,7 +162,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     // janela. Depois da migration, todo payload traz claimToken e usa a
     // confirmação protegida contra execuções concorrentes.
     if (email.claimToken) {
-      return supabase.rpc("fc_concluir_email_participante", {
+      return supabase.rpc("fc_srv_concluir_email", {
         target_email_id: email.id,
         target_claim_token: email.claimToken,
         target_success: success,
@@ -170,7 +170,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       });
     }
 
-    return supabase.rpc("fc_concluir_email_participante", {
+    return supabase.rpc("fc_srv_concluir_email", {
       target_email_id: email.id,
       target_success: success,
       target_error: errorMessage,
@@ -186,7 +186,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       batches < MAX_BATCHES_PER_DISPATCH &&
       Date.now() - startedAt < DISPATCH_TIME_BUDGET_MS
     ) {
-      const { data, error } = await supabase.rpc("fc_reivindicar_emails");
+      const { data, error } = await supabase.rpc("fc_srv_reivindicar_emails");
       if (error) {
         throw new Error(`Não foi possível reivindicar os e-mails pendentes: ${error.message}`);
       }
