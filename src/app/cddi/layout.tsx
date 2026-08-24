@@ -4,7 +4,13 @@ import { DEFAULT_PLATFORM_BRANDING, platformBrandingTitle } from "@/lib/platform
 import "./cddi-route.css";
 
 export const metadata: Metadata = {
-  title: `CDDI 2026 | ${platformBrandingTitle(DEFAULT_PLATFORM_BRANDING)}`,
+  /*
+    Sem o ano. Este metadata e' estatico — resolvido no servidor, antes de a
+    tela saber qual ciclo a pessoa vai abrir —, entao qualquer ano escrito aqui
+    vira mentira na edicao seguinte, e numa aba do navegador ninguem confere.
+    O ciclo concreto aparece no titulo da propria tela, que o carrega do banco.
+  */
+  title: `CDDI | ${platformBrandingTitle(DEFAULT_PLATFORM_BRANDING)}`,
   description: "Ciclo de Devolutivas e Desenvolvimento Individual da AgSUS.",
 };
 

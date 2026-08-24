@@ -6,7 +6,9 @@ export default function CddiError({ reset }: { error: Error & { digest?: string 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-xl rounded-3xl border border-red-200 bg-white p-8 shadow-xl">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">CDDI 2026</p>
+        {/* Sem o ano: este boundary aparece justamente quando a tela NAO conseguiu
+            carregar o ciclo, entao nomear um seria afirmar o que nao se sabe. */}
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">CDDI</p>
         <h1 className="mt-2 text-3xl font-black text-[var(--primary-dark)]">Não foi possível abrir o formulário</h1>
         <p className="mt-4 leading-7 text-slate-600">Tente carregar novamente. Caso o erro continue, registre o horário e encaminhe à equipe responsável.</p>
         <div className="mt-6 flex flex-wrap gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -175,13 +175,46 @@ export default function PlatformSettingsPage() {
   const watchedOrganization = useWatch({ control: form.control, name: "organizationName" }) || branding.organizationName;
   const watchedColor = useWatch({ control: form.control, name: "primaryColor" }) || branding.primaryColor;
 
+  /*
+    Sincroniza o formulário com a marca vinda do servidor — sem apagar o que
+    está sendo digitado.
+
+    O efeito anterior dependia de `[branding, form]`, e `branding` é objeto
+    novo a cada resposta do React Query. Como várias ações desta tela gravam a
+    marca e atualizam o cache (cor da barra lateral, arte de acesso, textos do
+    e-mail), qualquer uma delas disparava `form.reset` e **apagava o nome ou a
+    cor que a pessoa havia acabado de escrever** — sem aviso, sem desfazer.
+
+    Duas mudanças fecham isso:
+
+      · as dependências são os **valores**, não o objeto;
+      · o reset é pulado enquanto o formulário estiver sujo.
+
+    Editar não é perder: quem tem alteração pendente mantém o que escreveu, e o
+    indicador de "alterações não salvas" continua avisando. A sincronização volta
+    a acontecer assim que o formulário ficar limpo.
+  */
+  const ultimoSincronizado = useRef<FormValues | null>(null);
+  const formularioSujo = form.formState.isDirty;
+
   useEffect(() => {
-    form.reset({
+    const valores: FormValues = {
       organizationName: branding.organizationName,
       productName: branding.productName,
       primaryColor: branding.primaryColor,
-    });
-  }, [branding, form]);
+    };
+
+    const anterior = ultimoSincronizado.current;
+    const mudou = !anterior
+      || anterior.organizationName !== valores.organizationName
+      || anterior.productName !== valores.productName
+      || anterior.primaryColor !== valores.primaryColor;
+
+    if (!mudou || formularioSujo) return;
+
+    ultimoSincronizado.current = valores;
+    form.reset(valores);
+  }, [branding.organizationName, branding.productName, branding.primaryColor, form, formularioSujo]);
 
   useEffect(() => {
     setPresenceEnabled(branding.onlinePresenceEnabled);
@@ -495,25 +528,56 @@ export default function PlatformSettingsPage() {
     }
   }, [branding, queryClient, loadGallery]);
 
+  /*
+    Restaurar a arte padrão são duas operações, e só uma delas é a restauração.
+
+    A que importa é a configuração deixar de apontar para a imagem: feito isso,
+    a tela de acesso já mostra a arte institucional. Apagar o arquivo do storage
+    é faxina — evita imagem órfã que configuração nenhuma referencia.
+
+    As duas estavam no mesmo `try`, e a consequência era uma mensagem falsa:
+    falha ao apagar o arquivo virava "Não foi possível restaurar a arte padrão",
+    quando a arte **já estava** restaurada. Quem operasse tentaria de novo, e a
+    segunda tentativa falharia igual — o arquivo continuaria lá, e a
+    configuração já estava certa desde a primeira.
+
+    O cache também era atualizado só depois da remoção, então a mesma falha
+    deixava a prévia exibindo o fundo antigo, contradizendo o banco.
+
+    Agora a ordem é: gravar, refletir, anunciar — e então limpar, avisando sobre
+    o arquivo que ficou, que é o que de fato não aconteceu. A remoção continua
+    vindo **depois** da gravação: na ordem inversa, uma falha ao gravar deixaria
+    a tela apontando para imagem que não existe mais.
+  */
   const clearAccessBackground = useCallback(async () => {
     setUploadingBackground(true);
-    const supabase = createBrowserSupabaseClient();
+    const caminhoAnterior = branding.accessBackgroundPath;
     try {
       await definirFundoDeAcesso(null, null);
-      // O arquivo antigo sai do storage só depois de a configuração deixar de
-      // apontar para ele: na ordem inversa, uma falha na gravação deixaria a
-      // tela apontando para imagem que não existe mais.
-      if (branding.accessBackgroundPath) {
-        await supabase.storage.from("platform-assets").remove([branding.accessBackgroundPath]);
-      }
       queryClient.setQueryData(platformBrandingQueryKey, { ...branding, accessBackgroundUrl: null, accessBackgroundPath: null });
       toast.success("Arte institucional padrão restaurada.");
     } catch (clearError) {
       toast.error(errorMessageFromUnknown(clearError) || "Não foi possível restaurar a arte padrão.");
+      setUploadingBackground(false);
+      return;
+    }
+
+    try {
+      if (caminhoAnterior) {
+        const { error: removeError } = await createBrowserSupabaseClient()
+          .storage.from("platform-assets").remove([caminhoAnterior]);
+        if (removeError) throw removeError;
+        await loadGallery();
+      }
+    } catch (cleanupError) {
+      // A restauração valeu; o que sobrou foi o arquivo. A galéria mostra a
+      // imagem, então é de lá que ela pode ser removida na mão.
+      console.warn("Falha ao remover a arte anterior do storage.", cleanupError);
+      toast.warning("Arte padrão restaurada, mas a imagem anterior continua na galeria. Remova-a por lá quando quiser.");
     } finally {
       setUploadingBackground(false);
     }
-  }, [branding, queryClient]);
+  }, [branding, queryClient, loadGallery]);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -524,6 +588,21 @@ export default function PlatformSettingsPage() {
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(platformBrandingQueryKey, updated);
+      /*
+        Reset **depois** da gravação confirmada, com o que o servidor devolveu.
+
+        Antes quem limpava o formulário era o efeito de sincronização — e era
+        justamente ele o defeito. Com o efeito passando a respeitar edição
+        pendente, sem este reset o formulário ficaria sujo para sempre depois de
+        salvar, e o indicador de alterações pendentes mentiria.
+      */
+      const salvos: FormValues = {
+        organizationName: updated.organizationName,
+        productName: updated.productName,
+        primaryColor: updated.primaryColor,
+      };
+      ultimoSincronizado.current = salvos;
+      form.reset(salvos);
       toast.success("Identidade da plataforma atualizada.");
     },
     onError: (saveError) => {

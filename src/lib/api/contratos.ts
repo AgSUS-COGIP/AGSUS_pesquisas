@@ -53,7 +53,28 @@ export type DuplicarAvaliacaoEntrada = {
  * dizendo o que aconteceu. `referencia` correlaciona com a observabilidade
  * quando o erro é de servidor.
  */
+/**
+ * Corpo de erro devolvido por qualquer rota.
+ *
+ * `codigo` existe para um caso só: distinguir, dentro dos 401, aqueles que uma
+ * renovação de sessão pode resolver dos que ela não resolve. Sem ele o cliente
+ * só enxerga "401" e trata token expirado e assinatura inválida do mesmo jeito
+ * — renovando e repetindo numa situação em que repetir nunca vai funcionar.
+ */
 export type ErroApi = {
   mensagem: string;
   referencia?: string;
+  codigo?: CodigoDeErroApi;
 };
+
+/**
+ * Sessão vencida que a renovação **pode** resolver: existe um refresh token
+ * válido do outro lado, e um token novo passa a ser aceito.
+ *
+ * Não cobre assinatura inválida nem relógio adiantado: nos dois casos o token
+ * novo nasce com o mesmo defeito do anterior, e repetir só gasta uma ida ao
+ * servidor antes de falhar igual.
+ */
+export const ERRO_SESSAO_RENOVAVEL = "SESSAO_RENOVAVEL" as const;
+
+export type CodigoDeErroApi = typeof ERRO_SESSAO_RENOVAVEL;
