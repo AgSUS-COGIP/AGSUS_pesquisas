@@ -149,16 +149,8 @@ supabase/.temp/
 supabase/.branches/
 supabase/config.toml
 
-# Claude Code — configuração local da ferramenta (ex.: launch.json usado para
-# subir o dev server nos testes). Não faz parte do projeto.
+# Claude Code — configuração local da ferramenta. Não faz parte do projeto.
 .claude/
 
 # RTK — configuração e estado locais da ferramenta.
 /.rtk/
-
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/

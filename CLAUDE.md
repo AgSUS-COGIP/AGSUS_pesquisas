@@ -12,7 +12,6 @@ Este arquivo é o índice. **Carregue apenas o `CLAUDE.md` do módulo em que voc
 | [src/components/CLAUDE.md](src/components/CLAUDE.md) | Casca visual, design system, blocos administrativos |
 | [src/lib/CLAUDE.md](src/lib/CLAUDE.md) | Domínio no cliente, contexto de plataforma, clientes Supabase |
 | [supabase/CLAUDE.md](supabase/CLAUDE.md) | Migrations, RLS, RPCs — **onde vivem as regras de negócio** |
-| [tests/CLAUDE.md](tests/CLAUDE.md) | Playwright E2E, fixtures e autenticação exclusiva de teste |
 | [scripts/CLAUDE.md](scripts/CLAUDE.md) | Quality gates de banco e CI |
 | [docs/CLAUDE.md](docs/CLAUDE.md) | Decisões de produto, dados e design |
 
@@ -111,10 +110,6 @@ Invariantes a preservar:
 npm ci                    # instalar (reproduz o lockfile)
 npm run dev               # desenvolvimento em :3000
 npm run build             # build de produção
-npm test                  # Vitest: testes unitários
-npm run test:watch        # Vitest em modo observação
-npm run test:e2e          # Playwright: jornadas E2E no Chromium
-npm run test:e2e:ui       # Playwright em modo interativo
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run db:migrations     # timestamps das migrations
@@ -123,16 +118,6 @@ npm run db:rpc            # chamadas supabase.rpc(...) contra as assinaturas do 
 ```
 
 `build` e `dev` exigem `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-
-## Estratégia de testes
-
-- **Vitest é o runner de unidade.** Os testes ficam junto do código em `src/**/*.{test,spec}.{ts,tsx}` e nos quality gates Node em `scripts/**/*.{test,spec}.mjs`.
-- **Playwright é o único runner E2E.** Os specs ficam em `tests/**/*.spec.ts`, usam Chromium e exercitam a aplicação Next.js contra um Supabase local.
-- **pgTAP testa o banco.** Os arquivos ficam em `supabase/tests/*.sql` e rodam com `supabase test db` após `supabase db reset`.
-- `vitest.config.ts` limita a coleta do Vitest às duas primeiras localizações de unidade; sem esse `include`, o padrão do Vitest tentaria executar os specs do Playwright.
-- O Playwright exige `.env.test.local` apontando para um Supabase local e `E2E_TEST_LOGIN_ENABLED=true`. A rota `/api/teste-e2e/login` nunca pode ser habilitada em produção; ela também se desliga quando `VERCEL_ENV` existe.
-
-Preparação e comandos completos: seção **Testes** do [README.md](README.md).
 
 ### Limpar o cache do Turbopack — **pare o servidor antes**
 
