@@ -4,6 +4,8 @@
 // `/api/observability/errors` recebe erros inclusive da tela anônima de acesso e
 // se defende por mesma origem, limite de corpo e uma tabela sem leitura pública.
 // `/api/tarefas/emails` recebe o cron da Vercel e valida o `CRON_SECRET` na rota.
+// `/api/teste-e2e/login` cria a sessão que o Playwright ainda não possui e se
+// desliga fora do ambiente local pela variável dedicada e por `VERCEL_ENV`.
 const PUBLIC_PATHS = new Set([
   "/",
   "/acesso",
@@ -12,6 +14,7 @@ const PUBLIC_PATHS = new Set([
   "/api/health/readiness",
   "/api/observability/errors",
   "/api/tarefas/emails",
+  "/api/teste-e2e/login",
 ]);
 
 function isPublicPath(pathname: string) {
