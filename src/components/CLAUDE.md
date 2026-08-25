@@ -99,10 +99,8 @@ const { branding, loading } = usePlatformBranding();   // platform-branding-prov
 4. estado compacto lido do atributo data-agsus-sidebar-compact no <html>
    (já definido pelo script beforeInteractive do layout raiz — sem flash)
 5. alternar compacto grava em localStorage e no atributo do documento
-6. PlatformCommandMenu recebe os mesmos `modules` — a paleta (Ctrl+K) nunca
-   oferece destino que a navegação esconde
-7. troca de rota fecha o drawer móvel (useEffect em pathname)
-8. logout: auth.signOut({ scope: "local" }) → window.location.replace("/acesso")
+6. troca de rota fecha o drawer móvel (useEffect em pathname)
+7. logout: auth.signOut({ scope: "local" }) → window.location.replace("/acesso")
 ```
 
 Estrutura acessível: skip link (`#conteudo-principal`), `<aside aria-label="Navegação principal">`, `aria-current="page"` no item ativo, `<main tabIndex={-1}>`. Em modo compacto os rótulos somem e vão para `title` + `aria-label` (`"Rótulo: descrição"`).
@@ -195,7 +193,7 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 ## Dependências
 
 - [@/lib](../lib/CLAUDE.md) — `platform-navigation`, `platform-sidebar`, `platform-theme`, `platform-context`, `platform-branding`, `observability`, `utils`, `supabase/client`.
-- `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `cmdk` (paleta de comandos), `class-variance-authority` (variantes).
+- `@tanstack/react-query` (contexto de marca e catálogo), `lucide-react` (ícones de conteúdo), `sonner` (toasts), `class-variance-authority` (variantes).
 
 `platform-icons.tsx` é um conjunto **próprio** de 21 SVGs usado apenas na navegação, para manter traço e peso consistentes. Ícones de conteúdo vêm de `lucide-react`.
 
@@ -216,5 +214,4 @@ Focus trap completo: guarda o elemento focado, trava o scroll do `body`, foca o 
 - `PlatformInteractionLayer` é montado por `AppProviders` **sem** a prop `modules`, então os atalhos `Alt+1..4` / `Alt+A` nunca ativam.
 - `PlatformInteractionLayer` e `NetworkStatusBanner` exibem, cada um, seu próprio aviso de offline — ambos ficam visíveis simultaneamente.
 - `PersonAvatar` chama `usePlatformContext()`, portanto **cada instância** participa do ciclo do contexto. O cache de 2 min evita requisições repetidas, mas o componente não é adequado a listas muito longas fora do contexto autenticado.
-- Não utilizados: `admin-participants-table.tsx`, `ui/tabs.tsx`. Ver melhorias no [README](../../README.md). `platform-command-menu.tsx` deixou de ser código morto — `PlatformShell` passou a renderizá-lo com os `modules` do usuário. `cddi-visual-banner.tsx` (sem consumidores) foi removido.
 - **Removidos.** `admin-module-page.tsx`: a casca administrativa genérica que ele propunha virou a dupla `usePlatformGuard()` + `PlatformGuardState`, adotada por todas as rotas. `avatar-uploader.tsx`, `avatar-studio.tsx` e `avatar-identity-picker.tsx`: a foto de perfil passou a vir automaticamente da conta Google, sem escolha na interface — a migration `20260805194500_block_uploaded_profile_photos.sql` já bloqueava fotos enviadas no banco.

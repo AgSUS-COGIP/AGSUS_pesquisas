@@ -12,6 +12,7 @@ Este arquivo é o índice. **Carregue apenas o `CLAUDE.md` do módulo em que voc
 | [src/components/CLAUDE.md](src/components/CLAUDE.md) | Casca visual, design system, blocos administrativos |
 | [src/lib/CLAUDE.md](src/lib/CLAUDE.md) | Domínio no cliente, contexto de plataforma, clientes Supabase |
 | [supabase/CLAUDE.md](supabase/CLAUDE.md) | Migrations, RLS, RPCs — **onde vivem as regras de negócio** |
+| [tests/CLAUDE.md](tests/CLAUDE.md) | Playwright E2E, fixtures e autenticação exclusiva de teste |
 | [scripts/CLAUDE.md](scripts/CLAUDE.md) | Quality gates de banco e CI |
 | [docs/CLAUDE.md](docs/CLAUDE.md) | Decisões de produto, dados e design |
 
@@ -110,7 +111,10 @@ Invariantes a preservar:
 npm ci                    # instalar (reproduz o lockfile)
 npm run dev               # desenvolvimento em :3000
 npm run build             # build de produção
-npm test                  # Vitest (115 testes)
+npm test                  # Vitest: testes unitários
+npm run test:watch        # Vitest em modo observação
+npm run test:e2e          # Playwright: jornadas E2E no Chromium
+npm run test:e2e:ui       # Playwright em modo interativo
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run db:migrations     # timestamps das migrations
@@ -119,6 +123,16 @@ npm run db:rpc            # chamadas supabase.rpc(...) contra as assinaturas do 
 ```
 
 `build` e `dev` exigem `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+
+## Estratégia de testes
+
+- **Vitest é o runner de unidade.** Os testes ficam junto do código em `src/**/*.{test,spec}.{ts,tsx}` e nos quality gates Node em `scripts/**/*.{test,spec}.mjs`.
+- **Playwright é o único runner E2E.** Os specs ficam em `tests/**/*.spec.ts`, usam Chromium e exercitam a aplicação Next.js contra um Supabase local.
+- **pgTAP testa o banco.** Os arquivos ficam em `supabase/tests/*.sql` e rodam com `supabase test db` após `supabase db reset`.
+- `vitest.config.ts` limita a coleta do Vitest às duas primeiras localizações de unidade; sem esse `include`, o padrão do Vitest tentaria executar os specs do Playwright.
+- O Playwright exige `.env.test.local` apontando para um Supabase local e `E2E_TEST_LOGIN_ENABLED=true`. A rota `/api/teste-e2e/login` nunca pode ser habilitada em produção; ela também se desliga quando `VERCEL_ENV` existe.
+
+Preparação e comandos completos: seção **Testes** do [README.md](README.md).
 
 ### Limpar o cache do Turbopack — **pare o servidor antes**
 
@@ -159,7 +173,7 @@ Ao diagnosticar erro de servidor em desenvolvimento, o log útil é `.next/dev/l
 - **Remover uma RPC quebra todo bundle já publicado que a chamava.** Frontend e banco são acoplados pelo nome da função: apagar uma RPC antes de o frontend novo estar no ar derruba a plataforma inteira com `Could not find the function … in the schema cache`. A ordem é **publicar o frontend, confirmar que está no ar, e só então aplicar a migration que remove a função antiga** — ou manter a antiga como ponte delegando à nova. Aconteceu em 10/08/2026 com `get_my_platform_context`; o procedimento está em [docs/operacao-permissoes.md](docs/operacao-permissoes.md). Hoje o CI barra o caso mais grosseiro dessa classe: `npm run db:rpc` confere cada `supabase.rpc(...)` contra o esquema reconstruído pelas migrations ([scripts/CLAUDE.md](scripts/CLAUDE.md)). Ele **não** substitui a ordem de publicação — sabe o que o repositório declara, não o que já está no ar.
 - **O banco de produção já divergiu do histórico de migrations.** `supabase_migrations.schema_migrations` pode afirmar que uma migration rodou sem que os objetos dela existam (SQL aplicado direto não deixa registro). Antes de aplicar migration em produção, confronte histórico e esquema real com as queries de [docs/operacao-permissoes.md](docs/operacao-permissoes.md).
 - **O CDDI tem jornada própria** (`/cddi`) por causa do vínculo institucional de chefia e da avaliação de liderança. A chefia **não é selecionada pelo participante**: vem de `cddi_leadership_links` (importação da base oficial ou correção administrativa). Outras avaliações usam o runtime genérico (`/pesquisas/[applicationCode]`). Não unifique sem revisar as regras do módulo.
-- Existe código não utilizado e duplicação conhecida — consulte "Observações e Melhorias Sugeridas" no [README.md](README.md) antes de assumir que um componente está em uso.
+- Há duplicações e melhorias conhecidas — consulte "Observações e Melhorias Sugeridas" no [README.md](README.md) antes de ampliar uma abstração existente.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
