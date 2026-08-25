@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // do mesmo jeito que os testes pgTAP fazem dentro de uma transação, só que
 // aqui não há rollback: o servidor Next.js precisa ver os dados depois que a
 // fixture termina. Por isso cada execução usa um sufixo único (timestamp +
-// aleatório) em código/e-mail/matrícula, e `teardownParticipantSurveyFixture`
+// UUID criptográfico) em código/e-mail/matrícula, e `teardownParticipantSurveyFixture`
 // desfaz o que foi criado.
 //
 // Ignora RPC de propósito: `create_survey_draft`/`manage_survey_cycle`
@@ -34,7 +34,7 @@ function admin(): SupabaseClient {
 }
 
 function runSuffix() {
-  return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  return `${Date.now()}-${randomUUID()}`;
 }
 
 async function insertOne<T>(table: string, values: Record<string, unknown>, select = "id"): Promise<T> {
