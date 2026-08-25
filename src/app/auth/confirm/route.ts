@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pkceExchangeOptions, safeAuthNext } from "@/lib/auth-callback";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { pkceExchangeOptions, safeAuthNext } from "../../../lib/auth-callback";
+import { createServerSupabaseClient } from "../../../lib/supabase/server";
 
 const ALLOWED_DOMAIN = "agenciasus.org.br";
 
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
   const flowId = url.searchParams.get("sb_flow_id");
 
-  const { error } = await supabase.auth.exchangeCodeForSession(
+  const { data, error } = await supabase.auth.exchangeCodeForSession(
     code,
     pkceExchangeOptions(flowId),
   );
@@ -69,16 +69,13 @@ export async function GET(request: NextRequest) {
     return redirectToAccess(origin, "oauth-invalido", next);
   }
 
-  const { data: userData, error: userError } =
-    await supabase.auth.getUser();
-
   const email =
-    userData.user?.email?.trim().toLowerCase() ?? "";
+    data.user?.email?.trim().toLowerCase() ?? "";
 
   const domain = email.split("@")[1] ?? "";
 
-  if (userError || domain !== ALLOWED_DOMAIN) {
-    await supabase.auth.signOut();
+  if (domain !== ALLOWED_DOMAIN) {
+    await supabase.auth.signOut({ scope: "local" });
 
     return redirectToAccess(
       origin,
