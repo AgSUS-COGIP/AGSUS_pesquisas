@@ -1,7 +1,9 @@
 /**
- * Grupo do lote de avaliações da chefia ("avaliar vários de uma vez"): a
- * avaliação é preenchida uma única vez e, no envio, as mesmas respostas são
- * replicadas e enviadas para cada pessoa listada aqui.
+ * Grupo selecionado para a avaliação múltipla da chefia.
+ *
+ * A fila guarda somente o ciclo e os IDs das pessoas. Cada pessoa abre ou
+ * retoma a própria submissão e mantém respostas independentes na matriz — nada
+ * é replicado entre integrantes.
  *
  * O grupo viaja por `sessionStorage`, e não pela URL, por um motivo concreto:
  * dezenas de UUIDs numa query string estouram o limite de cabeçalho do
