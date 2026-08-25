@@ -139,10 +139,27 @@
     color: rgba(219, 234, 254, 0.72) !important;
   }
 
+  /*
+    O atributo de preferência é escrito no <html> antes da primeira pintura.
+    O React, porém, ainda nasce com `compact=false` e só sincroniza no efeito de
+    montagem. Sem esta regra, durante esse intervalo ele chega a renderizar os
+    títulos dos grupos e os rótulos do menu expandido dentro de uma barra que o
+    CSS já encolheu. Quando o efeito troca para compacto, esses elementos somem
+    e os ícones mudam de posição vertical sob o cursor — um segundo clique rápido
+    pode atingir outro destino. A geometria compacta precisa valer desde o paint
+    inicial, independentemente do estado transitório do React.
+  */
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar section > p,
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a > span:not(:first-child),
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar > div > div:first-child a > span:last-child {
+    display: none !important;
+  }
+
   html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a {
     margin-inline: auto;
     width: 2.75rem;
     padding-inline: 0.35rem;
+    justify-content: center;
   }
 
   html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a > span:first-child {
