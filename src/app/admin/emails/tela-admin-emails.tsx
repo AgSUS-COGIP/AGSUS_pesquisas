@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Save, Send, History, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
+import {
+  audiencePage,
+  resetAudienceView,
+  selectAllEligibleAudience,
+  selectedAudienceIds,
+  toggleAudiencePerson,
+} from "@/lib/email-audience-view";
 import {
   DEFAULT_PARTICIPANT_EMAIL_INSTRUCTION,
   defaultParticipantEmailFooter,
@@ -118,6 +125,44 @@ function dataHora(valor: string | null) {
   }).format(data);
 }
 
+type AudiencePersonRowProps = {
+  person: PessoaDaAudiencia;
+  selected: boolean;
+  onToggle: (person: PessoaDaAudiencia, checked: boolean) => void;
+};
+
+const AudiencePersonRow = memo(function AudiencePersonRow({ person, selected, onToggle }: AudiencePersonRowProps) {
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <Checkbox
+        label=""
+        aria-label={`Selecionar ${person.fullName}`}
+        checked={selected}
+        disabled={!person.emailValido}
+        onChange={(event) => onToggle(person, event.target.checked)}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{person.fullName}</p>
+        <p className="truncate text-xs text-[var(--text-secondary)]">
+          {person.employeeNumber ? `${person.employeeNumber} · ` : ""}
+          {person.emailValido ? person.email : "sem e-mail válido"}
+        </p>
+      </div>
+      <Badge
+        variant={person.situation === "DONE" ? "success" : person.situation === "DRAFT" ? "info" : "neutral"}
+        title={person.situation}
+      >
+        {SITUACAO_LABEL[person.situation]}
+      </Badge>
+      <span className="w-40 text-right text-xs text-[var(--text-secondary)]">
+        {person.lastEmailAt
+          ? `${TIPO_LABEL[person.lastEmailKind ?? ""] ?? person.lastEmailKind} · ${dataHora(person.lastEmailAt)}`
+          : "nunca recebeu"}
+      </span>
+    </li>
+  );
+});
+
 export default function TelaAdminEmails() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
@@ -133,7 +178,9 @@ export default function TelaAdminEmails() {
   // ── Enviar ──────────────────────────────────────────────────────────────
   const [situacao, setSituacao] = useState<string>("PENDING");
   const [busca, setBusca] = useState("");
+  const [buscaAplicada, setBuscaAplicada] = useState("");
   const [audiencia, setAudiencia] = useState<PessoaDaAudiencia[]>([]);
+  const [paginaAudiencia, setPaginaAudiencia] = useState(0);
   const [carregandoAudiencia, setCarregandoAudiencia] = useState(false);
   /*
    * Erro de carga é estado próprio, e não lista vazia.
@@ -194,14 +241,10 @@ export default function TelaAdminEmails() {
     try {
       const linhas = await listarAudienciaDeEmail(cicloId, {
         situacao,
-        busca: busca || undefined,
+        busca: buscaAplicada || undefined,
         limite: LIMITE_AUDIENCIA,
       });
       setAudiencia(linhas);
-      // A seleção é descartada de propósito ao trocar filtro, ciclo ou busca:
-      // manter marcações invisíveis faria o botão dizer "enviar para 40" com 3
-      // pessoas na tela, e ninguém saberia quem são as outras 37.
-      setSelecionadas(new Set());
     } catch (erro) {
       const mensagem = errorMessageFromUnknown(erro) || "Não foi possível carregar a audiência.";
       setErroAudiencia(mensagem);
@@ -211,7 +254,7 @@ export default function TelaAdminEmails() {
     } finally {
       setCarregandoAudiencia(false);
     }
-  }, [busca, cicloId, situacao]);
+  }, [buscaAplicada, cicloId, situacao]);
 
   const carregarHistorico = useCallback(async () => {
     setCarregandoHistorico(true);
@@ -234,14 +277,35 @@ export default function TelaAdminEmails() {
   }, [granted, painel, cicloId, carregarAudiencia]);
 
   useEffect(() => {
+    const reset = resetAudienceView();
+    setPaginaAudiencia(reset.page);
+    setSelecionadas(reset.selected);
+  }, [buscaAplicada, cicloId, situacao]);
+
+  useEffect(() => {
     if (!granted || painel !== "fila") return;
     void carregarHistorico();
   }, [granted, painel, carregarHistorico]);
 
   const elegiveis = useMemo(() => audiencia.filter((pessoa) => pessoa.emailValido), [audiencia]);
+  const pagina = useMemo(() => audiencePage(audiencia, paginaAudiencia), [audiencia, paginaAudiencia]);
   const semEmail = audiencia.length - elegiveis.length;
   const cicloAtual = ciclos.find((ciclo) => ciclo.id === cicloId);
   const cicloAberto = cicloAtual?.status === "OPEN";
+
+  const alternarPessoa = useCallback((person: PessoaDaAudiencia, checked: boolean) => {
+    setSelecionadas((current) => toggleAudiencePerson(current, person, checked));
+  }, []);
+
+  function aplicarBusca(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextSearch = busca.trim();
+    const reset = resetAudienceView();
+    setPaginaAudiencia(reset.page);
+    setSelecionadas(reset.selected);
+    if (nextSearch === buscaAplicada) void carregarAudiencia();
+    else setBuscaAplicada(nextSearch);
+  }
 
   /**
    * Processa a fila em laço, um lote por chamada, até o servidor dizer que não
@@ -285,7 +349,7 @@ export default function TelaAdminEmails() {
   }, []);
 
   const enviarSelecionadas = useCallback(async () => {
-    const pessoas = [...selecionadas];
+    const pessoas = selectedAudienceIds(selecionadas);
     if (!pessoas.length) return;
 
     // A confirmação **diz o número**. É a diferença entre revisar e descobrir
@@ -499,7 +563,7 @@ export default function TelaAdminEmails() {
                   <option key={item.value} value={item.value}>{item.label}</option>
                 ))}
               </Select>
-              <form onSubmit={(evento) => { evento.preventDefault(); void carregarAudiencia(); }}>
+              <form onSubmit={aplicarBusca}>
                 <Input
                   label="Buscar"
                   hint="Nome, matrícula ou e-mail. Enter aplica."
@@ -512,12 +576,10 @@ export default function TelaAdminEmails() {
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
               <div className="flex items-center gap-3">
                 <Checkbox
-                  label={`Selecionar ${elegiveis.length} ${elegiveis.length === 1 ? "pessoa" : "pessoas"}`}
+                  label={`Selecionar todas as ${elegiveis.length} ${elegiveis.length === 1 ? "pessoa elegível" : "pessoas elegíveis"}`}
                   checked={todasMarcadas}
                   disabled={elegiveis.length === 0}
-                  onChange={(evento) =>
-                    setSelecionadas(evento.target.checked ? new Set(elegiveis.map((p) => p.personId)) : new Set())
-                  }
+                  onChange={(evento) => setSelecionadas(selectAllEligibleAudience(audiencia, evento.target.checked))}
                 />
                 {semEmail > 0 ? (
                   <span className="text-xs text-[var(--status-warning-text)]">
@@ -567,45 +629,42 @@ export default function TelaAdminEmails() {
                 />
               ) : (
                 <ul className="divide-y divide-[var(--border-subtle)]">
-                  {audiencia.map((pessoa) => (
-                    <li key={pessoa.personId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                      <Checkbox
-                        label=""
-                        aria-label={`Selecionar ${pessoa.fullName}`}
-                        checked={selecionadas.has(pessoa.personId)}
-                        disabled={!pessoa.emailValido}
-                        onChange={(evento) =>
-                          setSelecionadas((atual) => {
-                            const proxima = new Set(atual);
-                            if (evento.target.checked) proxima.add(pessoa.personId);
-                            else proxima.delete(pessoa.personId);
-                            return proxima;
-                          })
-                        }
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{pessoa.fullName}</p>
-                        <p className="truncate text-xs text-[var(--text-secondary)]">
-                          {pessoa.employeeNumber ? `${pessoa.employeeNumber} · ` : ""}
-                          {pessoa.emailValido ? pessoa.email : "sem e-mail válido"}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={pessoa.situation === "DONE" ? "success" : pessoa.situation === "DRAFT" ? "info" : "neutral"}
-                        title={pessoa.situation}
-                      >
-                        {SITUACAO_LABEL[pessoa.situation]}
-                      </Badge>
-                      <span className="w-40 text-right text-xs text-[var(--text-secondary)]">
-                        {pessoa.lastEmailAt
-                          ? `${TIPO_LABEL[pessoa.lastEmailKind ?? ""] ?? pessoa.lastEmailKind} · ${dataHora(pessoa.lastEmailAt)}`
-                          : "nunca recebeu"}
-                      </span>
-                    </li>
+                  {pagina.items.map((pessoa) => (
+                    <AudiencePersonRow
+                      key={pessoa.personId}
+                      person={pessoa}
+                      selected={selecionadas.has(pessoa.personId)}
+                      onToggle={alternarPessoa}
+                    />
                   ))}
                 </ul>
               )}
             </div>
+            {audiencia.length > 0 ? (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p aria-live="polite" className="text-sm font-semibold text-[var(--text-secondary)]">
+                  Mostrando {pagina.start}–{pagina.end} de {pagina.total} pessoas · página {pagina.page + 1} de {pagina.totalPages}
+                </p>
+                <div className="flex items-center gap-2" role="group" aria-label="Paginação da audiência">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pagina.page === 0}
+                    onClick={() => setPaginaAudiencia((current) => Math.max(0, current - 1))}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pagina.page >= pagina.totalPages - 1}
+                    onClick={() => setPaginaAudiencia((current) => Math.min(pagina.totalPages - 1, current + 1))}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 

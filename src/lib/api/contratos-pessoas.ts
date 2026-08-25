@@ -304,10 +304,15 @@ export type PessoaComPerfis = {
   roles: { code: string }[];
 };
 
-/** Agregado devolvido por `list_access_workspace`. */
+/** Página da matriz devolvida por `fc_listar_acessos_paginados`. */
 export type AreaDeAcessos = {
+  status: "OK";
   roles: PerfilDeAcesso[];
   people: PessoaComPerfis[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 };
 
 /** Corpo aceito por `PUT /api/plataforma/acessos/[pessoaId]`. */

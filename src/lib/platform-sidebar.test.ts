@@ -19,4 +19,51 @@ describe("platform sidebar preference", () => {
     expect(script).toContain(PLATFORM_SIDEBAR_ATTRIBUTE);
     expect(script).toContain("localStorage");
   });
+
+  it.each([
+    ["true", "true"],
+    ["false", "false"],
+    [null, "false"],
+  ])("applies persisted value %s before React starts", (storedValue, expectedAttribute) => {
+    let appliedAttribute: string | null = null;
+    const windowMock = {
+      localStorage: {
+        getItem: () => storedValue,
+      },
+    };
+    const documentMock = {
+      documentElement: {
+        setAttribute: (name: string, value: string) => {
+          expect(name).toBe(PLATFORM_SIDEBAR_ATTRIBUTE);
+          appliedAttribute = value;
+        },
+      },
+    };
+
+    Function("window", "document", platformSidebarBootstrapScript())(windowMock, documentMock);
+
+    expect(appliedAttribute).toBe(expectedAttribute);
+  });
+
+  it("falls back to expanded when localStorage is unavailable", () => {
+    let appliedAttribute: string | null = null;
+    const windowMock = {
+      localStorage: {
+        getItem: () => {
+          throw new Error("storage unavailable");
+        },
+      },
+    };
+    const documentMock = {
+      documentElement: {
+        setAttribute: (_name: string, value: string) => {
+          appliedAttribute = value;
+        },
+      },
+    };
+
+    Function("window", "document", platformSidebarBootstrapScript())(windowMock, documentMock);
+
+    expect(appliedAttribute).toBe("false");
+  });
 });

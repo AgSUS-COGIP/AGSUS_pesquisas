@@ -139,6 +139,31 @@
     color: rgba(219, 234, 254, 0.72) !important;
   }
 
+  /*
+    O script do layout define o atributo antes da primeira pintura, enquanto o
+    React hidrata deliberadamente com a árvore expandida para não haver mismatch.
+    Estes seletores fazem essa árvore inicial já ter a apresentação compacta:
+    largura, conteúdo, alinhamento e direção do botão concordam no mesmo quadro.
+  */
+  .platform-sidebar-compact-only {
+    display: none;
+  }
+
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar .platform-sidebar-expanded-only {
+    display: none !important;
+  }
+
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar .platform-sidebar-compact-only {
+    display: inline-flex;
+  }
+
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar > div > div:first-child,
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar > div > div:first-child a,
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a,
+  html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar > div > div:last-child > button:first-child {
+    justify-content: center;
+  }
+
   html[data-agsus-sidebar-compact="true"] aside.platform-desktop-sidebar nav a {
     margin-inline: auto;
     width: 2.75rem;

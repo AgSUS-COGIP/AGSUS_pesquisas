@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/confirmation-provider";
@@ -66,7 +66,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
         <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={32} height={32} sizes="32px" loading={brandingLoading} className="h-8 w-8 object-contain text-[10px]" />
       </span>
       {showName ? (
-        <span className="min-w-0 leading-none">
+        <span className="platform-sidebar-expanded-only min-w-0 leading-none">
           <span className="block truncate text-[9px] font-black uppercase tracking-[.2em] text-[var(--brand-accent)]">{branding.organizationName}</span>
           <span className={`mt-1 block truncate text-sm font-black tracking-tight ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</span>
         </span>
@@ -107,7 +107,7 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
 
   return (
     <section className="mt-4" aria-labelledby={compact ? undefined : tituloId} aria-label={compact ? group.title : undefined}>
-      {!compact ? <p id={tituloId} className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
+      {!compact ? <p id={tituloId} className="platform-sidebar-expanded-only px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
       <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
@@ -137,7 +137,7 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
               </span>
-              {!compact ? <span className="truncate">{item.label}</span> : null}
+              {!compact ? <span className="platform-sidebar-expanded-only truncate">{item.label}</span> : null}
             </Link>
           );
         })}
@@ -174,8 +174,9 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
             aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
             aria-expanded={!compact}
           >
-            <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-4 w-4" aria-hidden="true" />
-            {!compact ? <span>Recolher menu</span> : null}
+            <PlatformIcon name="chevron-left" className="platform-sidebar-expanded-only h-4 w-4" aria-hidden="true" />
+            <PlatformIcon name="chevron-right" className="platform-sidebar-compact-only h-4 w-4" aria-hidden="true" />
+            {!compact ? <span className="platform-sidebar-expanded-only">Recolher menu</span> : null}
           </button>
         ) : null}
         {/*
@@ -201,7 +202,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         ) : null}
         <button type="button" onClick={onSignOut} aria-label="Sair da sessão atual" className={`mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 ${compact && !mobile ? "px-2" : ""}`}>
           <PlatformIcon name="logout" className="h-4 w-4" />
-          {(!compact || mobile) ? "Sair" : null}
+          {(!compact || mobile) ? <span className={mobile ? undefined : "platform-sidebar-expanded-only"}>Sair</span> : null}
         </button>
       </div>
     </div>
@@ -276,11 +277,20 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   // o rodapé da tela.
   const showFooter = !focus && !isSuperAdminOnlyRoute(pathname);
 
-  // O estado recolhido já foi aplicado ao <html> pelo script beforeInteractive do
-  // layout raiz; aqui apenas sincronizamos o React com o DOM para não sobrescrever
-  // a preferência com o valor inicial `false`.
-  useEffect(() => {
-    setCompact(isPlatformSidebarCompact(document.documentElement.getAttribute(PLATFORM_SIDEBAR_ATTRIBUTE)));
+  // O script beforeInteractive aplica a preferência ao <html> antes da primeira
+  // pintura e o CSS já apresenta a barra no formato correto. O estado inicial do
+  // React continua `false` para que a primeira árvore do cliente seja idêntica à
+  // árvore renderizada no servidor; o layout effect assume a preferência antes
+  // da pintura seguinte e também repõe o atributo após remounts do Strict Mode.
+  useLayoutEffect(() => {
+    let next = isPlatformSidebarCompact(document.documentElement.getAttribute(PLATFORM_SIDEBAR_ATTRIBUTE));
+    try {
+      next = isPlatformSidebarCompact(window.localStorage.getItem(PLATFORM_SIDEBAR_STORAGE_KEY));
+    } catch {
+      // O atributo aplicado no bootstrap é o fallback quando o storage está indisponível.
+    }
+    document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(next));
+    setCompact(next);
   }, []);
   // Trocar de rota fecha a gaveta móvel, senão ela permanece sobre a nova tela.
   useEffect(() => { setMobileOpen(false); }, [pathname]);

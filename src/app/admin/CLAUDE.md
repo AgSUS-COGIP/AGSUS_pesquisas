@@ -29,9 +29,9 @@ A coluna **Tela** é o arquivo a abrir para editar a rota; o `page.tsx` ao lado 
 | `/admin/participantes` | `participantes/tela-admin-participantes.tsx` | `ADMIN_PARTICIPANTS` | via componentes: `get_admin_people_base_summary`, `list_admin_participant_applications`, `search_admin_people_for_application`, `assign_admin_application_participant`, `assign_admin_application_participants_bulk`, `assign_admin_all_available_participants` |
 | `/admin/participantes/todos` | `participantes/todos/tela-admin-participantes-todos.tsx` | `ADMIN_PARTICIPANTS` | `list_admin_participant_applications`, `list_admin_application_participants`, `set_admin_application_participant_status` |
 | `/admin/equipes` | `equipes/tela-admin-equipes.tsx` | `ADMIN_TEAMS` | `search_platform_admin_people`, `update_platform_admin_person`, `list_platform_admin_leadership_links`, `set_platform_admin_leadership_link`, `list_platform_admin_person_audit`, `list_admin_participant_applications` |
-| `/admin/acessos` | `acessos/tela-admin-acessos.tsx` | `ADMIN_ACCESS` | `list_access_workspace`, `fc_definir_perfil_pessoa` |
+| `/admin/acessos` | redireciona para `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_listar_acessos_paginados`, `fc_definir_perfil_pessoa` |
 | `/admin/emails` | `emails/tela-admin-emails.tsx` | `ADMIN_SURVEYS` | `/api/plataforma/emails` (`fc_listar_envios_email`), `…/audiencia` (`fc_listar_audiencia_email`), `…/enviar` (`fc_agendar_envio_manual`), `…/despachar`, `…/textos` (`fc_definir_textos_email`) |
-| `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma` e as funções focadas de cada conjunto de campos (`fc_definir_textos_marca`, `fc_definir_cor_barra_lateral`, `fc_definir_visual_acesso`) |
+| `/admin/configuracoes` | `configuracoes/tela-admin-configuracoes.tsx` | `ADMIN_ACCESS` | `fc_atualizar_marca_plataforma`, `fc_listar_acessos_paginados`, `fc_definir_perfil_pessoa` e as funções focadas de cada conjunto de campos (`fc_definir_textos_marca`, `fc_definir_cor_barra_lateral`, `fc_definir_visual_acesso`) |
 
 ## Fluxo interno
 
@@ -198,6 +198,8 @@ Três painéis, cada um respondendo a uma pergunta diferente de quem opera. O se
 **"Ninguém entrou na fila" nomeia a causa provável.** A mais comum não é inelegibilidade — é já existir um lembrete aguardando envio, barrado pela proteção contra clique duplo. Culpar o cadastro manda quem opera investigar o lugar errado.
 
 **A confirmação diz o número.** Um clique aqui alcança pessoas reais e consome cota de envio da conta institucional; acima de 50 destinatários o diálogo usa `tone: "danger"`. E `ignoradas > 0` vira aviso explícito: a diferença entre solicitadas e enfileiradas não é erro (gente sem e-mail válido, fora do ciclo, ou já com lembrete na fila), mas esconder o número faria alguém concluir que enviou para 300 quando foram 287.
+
+**A audiência é carregada por inteiro, mas apresentada em páginas de 75 linhas.** O teto de 2.000 da RPC continua explícito e o aviso de corte permanece; a paginação é de apresentação para limitar o DOM, não altera elegibilidade nem fila. A seleção fica num `Set` único e sobrevive à troca de página, enquanto ciclo, situação e busca aplicada a descartam. A busca só é aplicada no Enter, como a dica do campo promete. Cada linha é memoizada porque marcar uma pessoa antes redesenhava todas as outras linhas visíveis; com callback estável, apenas a linha cujo `checked` mudou precisa renderizar novamente.
 
 **A prévia chama `participantEmailContent()`, o gerador real**, dentro de um `<iframe srcDoc sandbox="">`. Reproduzir o layout na tela divergiria do template no primeiro ajuste, e a divergência só apareceria na caixa de entrada de mil pessoas. O `iframe` também impede o CSS da aplicação de contaminar um HTML escrito para cliente de e-mail.
 
