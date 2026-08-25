@@ -75,6 +75,11 @@ export type CddiMatrixEvaluation = {
   answers: CddiMatrixAnswers;
 };
 
+export type CddiMatrixPersonMissing = {
+  personId: string;
+  missing: number;
+};
+
 /** Reidrata uma submissão no formato usado pelos controles da matriz. */
 export function restoreCddiMatrixAnswers(
   stored: Record<string, CddiStoredAnswer> | null | undefined,
@@ -132,13 +137,56 @@ export function cddiMatrixMissingCount(
   return missing;
 }
 
-/** Uma pergunta é pendente quando ao menos uma das pessoas visíveis ainda não respondeu. */
-export function isCddiMatrixQuestionPending(
-  questionId: string,
-  visiblePersonIds: readonly string[],
+export function cddiMatrixSectionMissingByPerson(
+  personIds: readonly string[],
+  section: CddiMatrixSection,
+  answersByPerson: CddiAnswersByPerson,
+): CddiMatrixPersonMissing[] {
+  const requiredQuestionIds = section.questions
+    .filter((question) => question.required)
+    .map((question) => question.id);
+
+  return personIds
+    .map((personId) => ({
+      personId,
+      missing: cddiMatrixMissingCount([personId], requiredQuestionIds, answersByPerson),
+    }))
+    .filter((item) => item.missing > 0);
+}
+
+export function cddiMatrixSectionMissingCount(
+  personIds: readonly string[],
+  section: CddiMatrixSection,
   answersByPerson: CddiAnswersByPerson,
 ) {
-  return visiblePersonIds.some((personId) => !isCddiMatrixAnswered(answersByPerson[personId], questionId));
+  return cddiMatrixSectionMissingByPerson(personIds, section, answersByPerson)
+    .reduce((total, item) => total + item.missing, 0);
+}
+
+/**
+ * Primeira competência que ainda bloqueia o avanço.
+ *
+ * `-1` significa que todas as competências estão completas para as pessoas
+ * editáveis. Pessoas já enviadas/somente leitura devem ser removidas de
+ * `personIds` pelo chamador e nunca seguram o fluxo das demais.
+ */
+export function cddiMatrixFirstIncompleteSectionIndex(
+  sections: readonly CddiMatrixSection[],
+  personIds: readonly string[],
+  answersByPerson: CddiAnswersByPerson,
+) {
+  return sections.findIndex((section) =>
+    cddiMatrixSectionMissingCount(personIds, section, answersByPerson) > 0,
+  );
+}
+
+/** Uma pergunta é pendente quando ao menos uma das pessoas informadas ainda não respondeu. */
+export function isCddiMatrixQuestionPending(
+  questionId: string,
+  personIds: readonly string[],
+  answersByPerson: CddiAnswersByPerson,
+) {
+  return personIds.some((personId) => !isCddiMatrixAnswered(answersByPerson[personId], questionId));
 }
 
 /** Mantém no máximo duas pessoas lado a lado, como a referência de avaliação múltipla. */
