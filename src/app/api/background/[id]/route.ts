@@ -9,8 +9,6 @@ const BACKGROUNDS = [
   "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2200&q=88",
 ];
 
-export const runtime = "edge";
-
 export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> },

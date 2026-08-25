@@ -134,7 +134,7 @@ Papel desconhecido (`TECHNICAL_TEAM`, `AUDITOR` e outros já removidos) não con
 
 ### `ReliableSaveQueue`
 
-Serializa gravações encadeando `tail`. `enqueue()` devolve a promise da operação (para o chamador tratar erro) e mantém `tail` sempre resolvida, de modo que uma falha não trava a fila. `getSnapshot()` deriva `SAVING`/`ERROR`/`IDLE` de `pending` e `lastError`; `subscribe()` emite imediatamente ao assinar. `flush()` aguarda a fila e relança o último erro.
+Serializa gravações encadeando `tail`. `enqueue(operação, chave?)` devolve a promise da operação (para o chamador tratar erro) e mantém `tail` sempre resolvida, de modo que uma falha não trava a fila. As jornadas usam o ID da pergunta como chave: uma tentativa bem-sucedida só limpa o erro daquela resposta, então o sucesso de outra pergunta nunca mascara uma falha pendente. `getSnapshot()` deriva `SAVING`/`ERROR`/`IDLE`; `subscribe()` emite imediatamente ao assinar. `flush()` aguarda a fila e relança qualquer erro ainda não recuperado.
 
 ### `reportApplicationError()`
 
