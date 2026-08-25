@@ -199,6 +199,8 @@ Três painéis, cada um respondendo a uma pergunta diferente de quem opera. O se
 
 **A confirmação diz o número.** Um clique aqui alcança pessoas reais e consome cota de envio da conta institucional; acima de 50 destinatários o diálogo usa `tone: "danger"`. E `ignoradas > 0` vira aviso explícito: a diferença entre solicitadas e enfileiradas não é erro (gente sem e-mail válido, fora do ciclo, ou já com lembrete na fila), mas esconder o número faria alguém concluir que enviou para 300 quando foram 287.
 
+**A audiência é carregada por inteiro, mas apresentada em páginas de 75 linhas.** O teto de 2.000 da RPC continua explícito e o aviso de corte permanece; a paginação é de apresentação para limitar o DOM, não altera elegibilidade nem fila. A seleção fica num `Set` único e sobrevive à troca de página, enquanto ciclo, situação e busca aplicada a descartam. A busca só é aplicada no Enter, como a dica do campo promete. Cada linha é memoizada porque marcar uma pessoa antes redesenhava todas as outras linhas visíveis; com callback estável, apenas a linha cujo `checked` mudou precisa renderizar novamente.
+
 **A prévia chama `participantEmailContent()`, o gerador real**, dentro de um `<iframe srcDoc sandbox="">`. Reproduzir o layout na tela divergiria do template no primeiro ajuste, e a divergência só apareceria na caixa de entrada de mil pessoas. O `iframe` também impede o CSS da aplicação de contaminar um HTML escrito para cliente de e-mail.
 
 **Os campos de texto nascem vazios quando nada foi configurado**, com o padrão no `placeholder`. O padrão interpola nome da organização e do produto: despejá-lo no campo faria toda instalação gravar uma cópia congelada, que pararia de acompanhar a marca no dia seguinte.
