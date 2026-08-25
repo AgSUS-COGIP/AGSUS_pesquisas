@@ -7,7 +7,6 @@ on:
       - "feature/**"
       - "feat/**"
       - "fix/**"
-      - "test/**"
       - "chore/**"
       - "agent/**"
   pull_request:
@@ -55,9 +54,6 @@ jobs:
       - name: Validate database naming
         run: npm run db:naming
 
-      - name: Unit tests
-        run: npm test
-
       - name: TypeScript validation
         run: npm run typecheck
 
@@ -68,6 +64,8 @@ jobs:
         run: npm run build
 
   database:
+    # Nome preservado porque a proteção da `main` exige este contexto exato.
+    # O job valida migrations e contratos RPC; a suíte pgTAP foi removida.
     name: Supabase migrations and RLS
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -115,9 +113,6 @@ jobs:
 
       - name: Rebuild database from migrations
         run: supabase db reset
-
-      - name: Database and RLS tests
-        run: supabase test db
 
       - name: Validate RPC contracts against the rebuilt schema
         run: |

@@ -164,8 +164,7 @@ Internas: apenas entre arquivos deste módulo. `platform-navigation.ts` importa 
 
 ## Convenções específicas
 
-- Função exportada de arquivo sem `"use client"` deve ser pura e testável. Só `platform-context.ts` declara `"use client"`.
-- Testes unitários ficam ao lado do módulo em `*.test.ts` e rodam no Vitest. Jornadas de navegador pertencem a `tests/**/*.spec.ts` e rodam exclusivamente no Playwright; `vitest.config.ts` impede que os dois runners coletem a mesma suíte.
+- Função exportada de arquivo sem `"use client"` deve ser pura e determinística. Só `platform-context.ts` declara `"use client"`.
 - Scripts de bootstrap (`platformThemeBootstrapScript`, `platformSidebarBootstrapScript`) devolvem string de IIFE com valores serializados por `JSON.stringify`, executada `beforeInteractive` no layout raiz. Preferência e chave de `localStorage` ficam definidas em um só lugar, compartilhadas entre script e componente.
 - Validadores devolvem **array de mensagens em português**, não lançam exceção.
 - Normalizadores nunca lançam: entrada inválida degrada para um padrão seguro.

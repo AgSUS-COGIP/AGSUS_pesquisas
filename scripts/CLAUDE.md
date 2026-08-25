@@ -162,20 +162,18 @@ Somente builtins do Node: `node:child_process` (`execFileSync`), `node:fs`, `nod
 
 ```text
 Application validation
-  npm ci → db:migrations → db:naming → Vitest → typecheck → lint → build
+  npm ci → db:migrations → db:naming → typecheck → lint → build
 
-Supabase migrations and RLS
-  supabase start → db reset → pgTAP → dump-rpc-signatures.sql | db:rpc
+Supabase migrations and RPC contracts
+  supabase start → db reset → dump-rpc-signatures.sql | db:rpc
 ```
 
 Os gates de banco vêm primeiro porque são os mais baratos e detectam a classe de erro mais custosa de reverter. A porta de RPC fecha o segundo job porque depende do esquema que `db reset` acabou de construir.
 
-O Playwright é o runner E2E, mas ainda não faz parte deste workflow: as fixtures exigem um Supabase descartável e credenciais locais próprias. Até o CI oferecer esse ambiente isolado, `npm run test:e2e` é uma validação local separada. O Vitest nunca coleta `tests/**/*.spec.ts`; essa fronteira está em `vitest.config.ts`.
-
 ## Pontos de atenção
 
 - **`db:naming` passa silenciosamente quando não há diff.** Em execução local sem `origin/main` buscado, o `git diff` falha e o script trata como "nada a validar". Isso é intencional (não travar o desenvolvimento), mas significa que **o gate real é o CI**.
-- **A validação é sintática, por regex.** Não substitui revisão: não verifica RLS habilitada, políticas nomeadas, `search_path` fixo nem grants revogados. Esses requisitos são responsabilidade do revisor e do teste pgTAP em [../supabase/CLAUDE.md](../supabase/CLAUDE.md).
+- **A validação é sintática, por regex.** Não substitui revisão: não verifica RLS habilitada, políticas nomeadas, `search_path` fixo nem grants revogados. Esses requisitos continuam sendo responsabilidade do revisor.
 - Objeto legado numa migration **alterada** passa a ser cobrado. Evite tocar migrations antigas; crie uma nova. Se a migration nova precisar **restaurar** objeto legado, use `LEGACY_RESTORED_OBJECTS` em vez de ofuscar o DDL para escapar do regex.
 - A extração de `create table` exige que a definição termine em `)` seguido de `;`. Formatação muito fora do padrão pode escapar da checagem de colunas — reforço para a revisão humana.
 - Ao mudar um prefixo aceito, atualize os três lugares: o mapa `prefixes` do script, [../docs/database-naming-standard.md](../docs/database-naming-standard.md) e a tabela acima.

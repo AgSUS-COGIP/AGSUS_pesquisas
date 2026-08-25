@@ -120,8 +120,7 @@ agsus-pesquisas/
 │
 ├── supabase/
 │   ├── CLAUDE.md
-│   ├── migrations/               # SQL versionado — regras de negócio e RLS
-│   └── tests/                    # pgTAP: RLS obrigatória em tabelas expostas
+│   └── migrations/               # SQL versionado — regras de negócio e RLS
 │
 └── src/
     ├── app/                      # App Router
@@ -184,14 +183,13 @@ agsus-pesquisas/
 | Estilo | Tailwind CSS v4 + CSS custom properties | `^4.3.3` |
 | Backend | Supabase (PostgreSQL, Auth, RLS) | `@supabase/supabase-js 2.112.0`, `@supabase/ssr 0.12.4` |
 | Estado de servidor | TanStack React Query | `^5.101.4` |
-| Testes | Vitest (unitários), Playwright (E2E) e pgTAP (banco) | `^3.2.4`, `^1.62.1`, Supabase CLI |
 | Hospedagem | Vercel | — |
 
 ## Dependências
 
 **Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `lucide-react` (ícones), `sonner` (toasts).
 
-**Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, `@playwright/test`, `dotenv`, tipos de Node e React.
+**Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript` e tipos de Node e React.
 
 > `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`.
 
@@ -211,8 +209,6 @@ Copie [.env.example](.env.example) para `.env.local` e preencha os valores.
 | `SMTP_USER` | **Servidor** | Não | Caixa que autentica no SMTP; padrão: remetente institucional configurado no código. |
 | `CRON_SECRET` | **Servidor** | Sim (e-mails) | Autoriza as chamadas do cron da Vercel a `/api/tarefas/emails`. |
 | `ALLOWED_INSTITUTIONAL_DOMAINS` | Banco de dados | Não | Lida pela função SQL de acesso institucional. Padrão: `agenciasus.org.br,agsus.org.br`. |
-| `E2E_TEST_LOGIN_ENABLED` | Servidor local | Sim (Playwright) | Habilita a rota de autenticação exclusiva dos testes E2E. Use `true` somente em desenvolvimento/teste; a rota permanece desligada na Vercel. |
-| `PLAYWRIGHT_PORT` | Desenvolvimento | Não | Porta do servidor Next iniciado pelo Playwright. Padrão: `3000`. |
 
 > **Segurança.** `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` **nunca** podem receber o prefixo `NEXT_PUBLIC_`, ser importados por componentes de cliente nem ser gravados no repositório. Sem essas chaves a aplicação sobe, mas `/api/health` responde `503 degraded`.
 
@@ -248,10 +244,6 @@ Comandos de verificação:
 ```bash
 npm run lint              # ESLint
 npm run typecheck         # tsc --noEmit
-npm test                  # Vitest (execução única)
-npm run test:watch        # Vitest em modo observação
-npm run test:e2e          # Playwright E2E no Chromium
-npm run test:e2e:ui       # Playwright em modo interativo
 npm run db:migrations     # formato e unicidade dos timestamps das migrations
 npm run db:naming         # nomenclatura institucional nas migrations alteradas
 ```
@@ -262,7 +254,6 @@ Banco de dados local (opcional, requer Docker + Supabase CLI):
 supabase init             # apenas se supabase/config.toml não existir
 supabase start
 supabase db reset         # reconstrói o banco a partir de supabase/migrations
-supabase test db          # testes pgTAP de supabase/tests
 supabase stop --no-backup
 ```
 
@@ -279,79 +270,9 @@ npm start                 # serve o build compilado
 
 Fluxo de branches: `main` (estável) ← `develop` (integração) ← `feature/*`.
 
-## Testes
+## Rotas de API — verificação manual
 
-O projeto mantém três camadas independentes. Não misture os runners:
-
-| Camada | Runner | Localização | Finalidade |
-|---|---|---|---|
-| Unidade | Vitest | `src/**/*.{test,spec}.{ts,tsx}` e `scripts/**/*.{test,spec}.mjs` | Funções puras e quality gates Node, sem navegador ou banco. |
-| Ponta a ponta | Playwright | `tests/**/*.spec.ts` | Jornadas reais no Chromium, com Next.js e Supabase local. |
-| Banco | pgTAP | `supabase/tests/*.sql` | RLS, ACLs, contratos de RPC e regras de integridade. |
-
-[vitest.config.ts](vitest.config.ts) delimita explicitamente os testes unitários. Isso é obrigatório porque o padrão do Vitest também coletaria `tests/**/*.spec.ts`; esses arquivos usam `test()` de `@playwright/test` e não podem ser executados pelo runner do Vitest.
-
-### Testes unitários — Vitest
-
-```bash
-npm test                  # todos os testes
-npm run test:watch        # modo observação
-npx vitest run src/lib/survey-cycle-period.test.ts   # arquivo específico
-```
-
-| Arquivo | O que garante |
-|---|---|
-| [src/lib/auth-callback.test.ts](src/lib/auth-callback.test.ts) | Redirecionamento pós-login não aceita destinos externos; compatibilidade do fluxo PKCE. |
-| [src/lib/cddi-question-applicability.test.ts](src/lib/cddi-question-applicability.test.ts) | Perguntas `PERSON` e fora do tipo de submissão não chegam ao formulário. |
-| [src/lib/observability.test.ts](src/lib/observability.test.ts) | `errorMessageFromUnknown()` extrai a mensagem do PostgREST e preserva a de erros nativos. |
-| [src/lib/platform-branding.test.ts](src/lib/platform-branding.test.ts) | Marca ausente ou inválida cai no padrão institucional; aceita só logotipo seguro e cor `#RRGGBB` completa. |
-| [src/lib/platform-modules.test.ts](src/lib/platform-modules.test.ts) | Precedência entre papéis, módulos explícitos e liderança. |
-| [src/lib/platform-navigation.test.ts](src/lib/platform-navigation.test.ts) | Menu exibe só o permitido; rota exata não ativa páginas aninhadas. |
-| [src/lib/platform-sidebar.test.ts](src/lib/platform-sidebar.test.ts) | Preferência de sidebar compartilha chave e atributo com a casca. |
-| [src/lib/platform-theme.test.ts](src/lib/platform-theme.test.ts) | Normalização e resolução de tema claro/escuro/sistema. |
-| [src/lib/reliable-save-queue.test.ts](src/lib/reliable-save-queue.test.ts) | Fila serializa operações e preserva o último erro. |
-| [src/lib/survey-builder.test.ts](src/lib/survey-builder.test.ts) | Limites e validações de seções, perguntas e alternativas. |
-| [src/lib/survey-catalog.test.ts](src/lib/survey-catalog.test.ts) | Estado, prioridade e roteamento dos itens do catálogo. |
-| [src/lib/survey-runtime.test.ts](src/lib/survey-runtime.test.ts) | Conversão de resposta por tipo de pergunta, incluindo o fuso do `DATETIME`. |
-| [src/lib/survey-visual-identity.test.ts](src/lib/survey-visual-identity.test.ts) | Identidade visual personalizada rejeita URLs não-HTTPS. |
-| [src/lib/supabase/admin.test.ts](src/lib/supabase/admin.test.ts) | Detecção das variáveis administrativas modernas e legadas. |
-| [src/lib/supabase/client.test.ts](src/lib/supabase/client.test.ts) | Detecção da configuração pública: só há cliente quando URL **e** chave publicável existem. |
-
-### Testes E2E — Playwright
-
-[playwright.config.ts](playwright.config.ts) inicia o Next.js, executa os specs de [tests/](tests/) no Chromium e grava relatórios em diretórios ignorados pelo Git. As fixtures criam pessoa, pesquisa, ciclo e sessão próprios para cada cenário e removem esses dados ao terminar. Convenções para ampliar a suíte: [tests/CLAUDE.md](tests/CLAUDE.md).
-
-Os E2E cobrem catálogo e resposta de participante, persistência de rascunho, obrigatórias e etapas, envio e somente leitura, ciclos encerrados e anônimos, além das guardas de módulo.
-
-Eles exigem um Supabase **local e descartável**. Nunca aponte `.env.test.local` para produção ou para um projeto compartilhado: as fixtures usam a chave de serviço e gravam diretamente no banco.
-
-1. Inicie o Supabase local e reconstrua o esquema:
-
-   ```bash
-   supabase start
-   supabase db reset
-   ```
-
-2. Crie `.env.test.local` (ignorado pelo Git) com a URL e as chaves emitidas pelo Supabase local. Defina pelo menos `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `E2E_TEST_LOGIN_ENABLED=true`.
-
-3. Execute:
-
-   ```bash
-   npm run test:e2e       # execução headless
-   npm run test:e2e:ui    # interface do Playwright
-   ```
-
-A rota `POST /api/teste-e2e/login` substitui o Google OAuth somente durante o E2E. Ela exige `E2E_TEST_LOGIN_ENABLED=true`, aceita apenas usuários de teste já criados pela fixture e sempre responde `404` quando `VERCEL_ENV` existe.
-
-### Testes de banco — pgTAP
-
-Os testes ficam em [supabase/tests/](supabase/tests/) e rodam via `supabase test db`. Eles cobrem RLS, permissões, segurança das jornadas anônimas e contratos de regras críticas do banco.
-
-**CI.** [.github/workflows/validate.yml](.github/workflows/validate.yml) executa dois jobs: *Application validation* (`db:migrations` → `db:naming` → Vitest → `typecheck` → `lint` → `build`) e *Supabase migrations and RLS* (`supabase db reset` → pgTAP → validação de contratos RPC). O Playwright ainda não integra esse workflow; até existir um ambiente E2E isolado no CI, sua execução é local.
-
-### Rotas de API — verificação manual complementar
-
-`npm test` continua restrito a funções puras. O Playwright exercita as rotas necessárias às jornadas E2E, mas não substitui o diagnóstico pontual dos demais endpoints. A matriz abaixo é uma verificação manual complementar, com o servidor de desenvolvimento no ar (`npm run dev`).
+A matriz abaixo permite verificar manualmente os endpoints com o servidor de desenvolvimento no ar (`npm run dev`).
 
 **Não há link clicável para testar as rotas de domínio, e isso é por desenho.** Elas autenticam pelo cookie de sessão institucional, então abrir `/api/pessoas` no navegador anônimo ou no `curl` devolve `401` — que é justamente o comportamento correto. Só há duas formas de exercitá-las de verdade:
 

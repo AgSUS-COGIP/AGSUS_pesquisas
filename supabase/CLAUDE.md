@@ -17,10 +17,8 @@ Toda alteração de comportamento começa aqui, não em React.
 
 ```text
 supabase/
-├── migrations/      arquivos .sql versionados (fonte da verdade)
-│   └── README.md
-└── tests/
-    └── *.sql          pgTAP: RLS, ACLs, contratos e integridade
+└── migrations/      arquivos .sql versionados (fonte da verdade)
+    └── README.md
 ```
 
 ## Modelo de dados
@@ -203,7 +201,7 @@ A configuração entra na reivindicação por `left join … on cfg.co_configura
 
 > **Duas frentes trabalharam nesta fila no mesmo dia (20/08/2026)**, e a reconciliação vale registrar. Uma criou a máquina de estados, o contador de tentativas e o token de reivindicação; a outra criou o envio dirigido, a leitura administrativa e os textos configuráveis. Como as duas redefiniram `fc_reivindicar_emails()`, a segunda sobrescreveu a primeira em produção e deixou `nu_tentativas` órfão por algumas horas. A versão vigente é a **da primeira frente**, acrescida do payload de conteúdo e do suporte a `manual_reminder`. A lição é a de sempre neste arquivo: **redefinição de função é o ponto onde trabalho paralelo se perde em silêncio** — confira a definição viva no banco antes de assumir que a sua é a que está lá.
 
-Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)). A chave única impede criar dois registros para o mesmo aviso; o token impede processamento concorrente. Como SMTP e confirmação no banco são sistemas distintos, uma interrupção exatamente entre os dois ainda pode exigir reconciliação operacional. Teste em `tests/email_participante_idempotencia.sql`.
+Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/api/CLAUDE.md)). A chave única impede criar dois registros para o mesmo aviso; o token impede processamento concorrente. Como SMTP e confirmação no banco são sistemas distintos, uma interrupção exatamente entre os dois ainda pode exigir reconciliação operacional.
 
 ### Presença online — `20260821100000_presenca_online_com_rls.sql`
 
@@ -341,19 +339,6 @@ Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para
 ### Timezone
 
 `timezone('utc', now())` em todo default e comparação. A conversão para `America/Sao_Paulo` acontece na apresentação.
-
-## Testes
-
-```bash
-supabase start
-supabase db reset       # reconstrói o banco a partir das migrations
-supabase test db        # pgTAP
-supabase stop --no-backup
-```
-
-`tests/rls_exposed_tables.sql` afirma que a contagem de tabelas de `public` com `relrowsecurity = false` é zero. **Criar tabela em `public` sem RLS quebra o CI** — é o comportamento desejado.
-
-Os specs Playwright em `../tests/` também usam o esquema reconstruído localmente, mas não substituem o pgTAP: eles validam jornadas pelo navegador. Suas fixtures gravam com chave de serviço e fazem limpeza explícita; por isso devem apontar somente para um Supabase local descartável. Configuração e comandos estão na seção **Testes** do [../README.md](../README.md).
 
 ## Pontos de atenção
 

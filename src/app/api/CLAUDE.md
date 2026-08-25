@@ -31,7 +31,6 @@ Não seguem as regras acima — cada uma tem autorização própria, pelo motivo
 | `/api/background/[id]` | `GET` | Node | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/api/pesquisas-anonimas/**` | `GET/POST/PUT` | Node | token efêmero por submissão nas mutações | Jornada pública de ciclos anônimos. Usa service role apenas para chamar entradas `fc_srv_*`, inacessíveis ao navegador; as RPCs de domínio chamadas por elas também não concedem `EXECUTE` a `authenticated`. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
-| `/api/teste-e2e/login` | `POST` | Node | `E2E_TEST_LOGIN_ENABLED === "true"` **e** ausência de `VERCEL_ENV` | Autentica um e-mail de teste (criado antes pela fixture do Playwright) sem depender do Google OAuth. `404` fora de dev/CI, sempre — nunca alcançável numa implantação da Vercel. |
 
 ## Rotas de domínio
 
@@ -116,7 +115,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - [@/lib/supabase/server](../../lib/CLAUDE.md) — `createServerSupabaseClient()`, cliente por cookie. **É o cliente de toda rota de domínio.**
 - [@/lib/api/resposta-http](../../lib/CLAUDE.md) — `respostaDeErro()`, `respostaDeEntradaInvalida()`, `statusDoErroPostgres()`.
 - [@/lib/api/validacao](../../lib/CLAUDE.md) — `ehUuid()`.
-- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, por `/api/observability/errors`, `/api/health`, `/api/tarefas/emails`, `/api/pesquisas-anonimas/**` e `/api/teste-e2e/login`.**
+- [@/lib/supabase/admin](../../lib/CLAUDE.md) — `createAdminSupabaseClient()`, `getAdminSupabaseConfigurationStatus()`. **Importado apenas aqui, por `/api/observability/errors`, `/api/health`, `/api/tarefas/emails` e `/api/pesquisas-anonimas/**`.**
 - [@/lib/auth-callback](../../lib/CLAUDE.md) — `safeAuthNext()`, `pkceExchangeOptions()`.
 
 ## Convenções específicas
@@ -126,8 +125,6 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 - Nunca devolver `error.message` bruto do banco ao cliente quando puder revelar estrutura interna: mensagem curta na resposta, diagnóstico completo em `console.error`.
 - Handler não confia em nada do cliente: valida tamanho, faixa, tipo e formato antes de usar.
 - **Comentário no `route.ts` só para o que é específico daquela rota.** As quatro regras transversais estão neste arquivo; repeti-las no cabeçalho de cada handler cria cópias que divergem na primeira correção.
-- `/api/teste-e2e/login` existe somente para o Playwright. Mantenha as três barreiras: variável dedicada, bloqueio por `VERCEL_ENV` e usuário previamente criado pela fixture. Ela não é atalho de desenvolvimento para contas reais. Fluxo completo em [../../../tests/CLAUDE.md](../../../tests/CLAUDE.md).
-
 ## Pontos de atenção
 
 - **A chave de serviço ignora RLS.** Todo `createAdminSupabaseClient()` roda com privilégio total. Nunca importe esse módulo em componente de cliente e nunca aceite `table`/`column` vindos da requisição. **Rota autenticada de domínio não usa esse cliente.** A exceção pública `/api/pesquisas-anonimas/**` só chama as quatro entradas `fc_srv_*`, que delegam a RPCs de domínio e são restritas ao `service_role`.
