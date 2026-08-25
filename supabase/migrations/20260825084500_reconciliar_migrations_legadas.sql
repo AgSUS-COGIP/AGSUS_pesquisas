@@ -1,0 +1,8 @@
+-- Registro operacional da reconciliacao do historico de migrations em producao.
+--
+-- O banco acumulou migrations aplicadas por caminhos anteriores ao pipeline
+-- atual. O deploy desta migration e executado junto com `db push --include-all`
+-- uma unica vez para registrar e reaplicar de forma idempotente as migrations
+-- locais que ficaram fora do historico remoto.
+--
+-- Deliberadamente sem DDL/DML.
