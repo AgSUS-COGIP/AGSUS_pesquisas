@@ -190,9 +190,9 @@ export default function TeamPage() {
   }
   // O grupo leva TODOS os selecionados, não só os visíveis: quem marca três
   // pessoas e depois muda o filtro ou a busca não pode perder seleção em
-  // silêncio — a barra diria "3 selecionados" e o grupo abriria com menos.
-  // A avaliação é preenchida uma única vez, na primeira pessoa da lista em
-  // tela; no envio, as mesmas respostas são replicadas para os demais.
+  // silêncio — a barra diria "3 selecionados" e a matriz abriria com menos.
+  // Cada integrante abre ou retoma a própria submissão; respostas não são
+  // replicadas entre pessoas.
   //
   // O grupo vai por sessionStorage, não pela URL: dezenas de UUIDs na query
   // string estouram o limite de cabeçalho do servidor (HTTP 431).
@@ -204,10 +204,10 @@ export default function TeamPage() {
     if (!queue.length) return;
     const cycleCode = workspace?.application?.code ?? null;
     if (!saveCddiBatchQueue({ cycleCode, personIds: queue.map((member) => member.personId) })) {
-      toast.error("Não foi possível preparar o lote neste navegador. Avalie uma pessoa por vez.");
+      toast.error("Não foi possível preparar o grupo neste navegador. Avalie uma pessoa por vez.");
       return;
     }
-    router.push(`/cddi/chefia/${queue[0].personId}${cycleCode ? `?ciclo=${encodeURIComponent(cycleCode)}` : ""}`);
+    router.push(`/cddi/chefia/lote${cycleCode ? `?ciclo=${encodeURIComponent(cycleCode)}` : ""}`);
   }
 
   if (guard.state !== "granted") {
@@ -248,10 +248,10 @@ export default function TeamPage() {
           <Button
             variant="secondary"
             onClick={toggleBatchMode}
-            title={batchMode ? "Sair da seleção múltipla" : "Selecionar vários integrantes e enviar as mesmas respostas para todos"}
+            title={batchMode ? "Sair da seleção múltipla" : "Selecionar vários integrantes e avaliá-los lado a lado, com respostas independentes"}
           >
             <ListChecks className="h-4 w-4" aria-hidden="true" />
-            {batchMode ? "Cancelar seleção" : "Avaliar vários de uma vez"}
+            {batchMode ? "Cancelar seleção" : "Avaliar equipe lado a lado"}
           </Button>
           {cycles.length >= 2 && (
             <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
@@ -348,11 +348,11 @@ export default function TeamPage() {
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
             <span className="text-sm font-semibold text-[var(--text-primary)]">
               {selectedMemberIds.size === 0
-                ? "Marque quem você quer avaliar em grupo — a avaliação é preenchida uma vez e as mesmas respostas valem para todos."
-                : `${selectedMemberIds.size} ${selectedMemberIds.size === 1 ? "integrante selecionado" : "integrantes selecionados"} — as mesmas respostas serão enviadas para ${selectedMemberIds.size === 1 ? "essa pessoa" : "todos"}.`}
+                ? "Marque quem você quer avaliar lado a lado. Cada pessoa terá respostas e rascunho próprios."
+                : `${selectedMemberIds.size} ${selectedMemberIds.size === 1 ? "integrante selecionado" : "integrantes selecionados"} — cada avaliação continuará independente na matriz.`}
             </span>
-            <Button disabled={!selectedMemberIds.size} onClick={() => startBatchEvaluation(filtered)}>
-              Iniciar avaliação em grupo
+            <Button disabled={selectedMemberIds.size < 2} onClick={() => startBatchEvaluation(filtered)} title={selectedMemberIds.size < 2 ? "Selecione pelo menos duas pessoas" : "Abrir avaliação múltipla"}>
+              Abrir avaliação múltipla
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
@@ -373,8 +373,8 @@ export default function TeamPage() {
                     <article className="grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 transition hover:border-[var(--border-strong)] lg:grid-cols-[auto_1fr_auto_auto] lg:items-center">
                       <div className="flex items-center gap-3">
                         {batchMode && (
-                          <label className="inline-flex shrink-0 cursor-pointer items-center" title={state === "SUBMITTED" ? `Avaliação de ${member.fullName} já enviada — não é possível incluir no lote` : `Selecionar ${member.fullName} para o lote`}>
-                            <span className="sr-only">Selecionar {member.fullName} para o lote</span>
+                          <label className="inline-flex shrink-0 cursor-pointer items-center" title={state === "SUBMITTED" ? `Avaliação de ${member.fullName} já enviada — não é possível incluir no lote` : `Selecionar ${member.fullName} para a avaliação múltipla`}>
+                            <span className="sr-only">Selecionar {member.fullName} para a avaliação múltipla</span>
                             <input
                               type="checkbox"
                               checked={selectedMemberIds.has(member.personId)}
