@@ -328,9 +328,15 @@ export function definirPresencaOnline(ativa: boolean, perfis: string[]) {
   });
 }
 
-/** Matriz de perfis e pessoas. */
-export function obterAreaDeAcessos(opcoes?: { busca?: string }) {
-  return chamar<AreaDeAcessos>(`/api/plataforma/acessos${consulta({ busca: opcoes?.busca })}`);
+/** Página da matriz de perfis e pessoas. */
+export function obterAreaDeAcessos(opcoes?: { busca?: string; limite?: number; offset?: number }) {
+  return chamar<AreaDeAcessos>(
+    `/api/plataforma/acessos${consulta({
+      busca: opcoes?.busca,
+      limite: opcoes?.limite,
+      offset: opcoes?.offset,
+    })}`,
+  );
 }
 
 /** Define **o** perfil da pessoa; o anterior é encerrado na mesma transação. */
