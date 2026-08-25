@@ -197,7 +197,7 @@ export default function LeaderEvaluationPage() {
         optionId: question.type === "SCALE" ? answer.optionId ?? null : null,
         text: question.type === "SCALE" ? null : answer.value,
       });
-    }).catch((error) => {
+    }, question.id).catch((error) => {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
       throw error;
     });

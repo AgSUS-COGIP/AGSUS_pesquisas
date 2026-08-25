@@ -27,13 +27,25 @@ describe("ReliableSaveQueue", () => {
 
     await expect(queue.enqueue(async () => {
       throw failure;
-    })).rejects.toThrow("Sem conexão");
+    }, "pergunta-1")).rejects.toThrow("Sem conexão");
 
     expect(queue.getSnapshot().status).toBe("ERROR");
     await expect(queue.flush()).rejects.toThrow("Sem conexão");
 
-    await queue.enqueue(async () => undefined);
+    await queue.enqueue(async () => undefined, "pergunta-1");
     expect(queue.getSnapshot()).toEqual({ status: "IDLE", pending: 0, lastError: null });
+  });
+
+  it("não deixa o sucesso de outra resposta mascarar uma falha pendente", async () => {
+    const queue = new ReliableSaveQueue();
+
+    await expect(queue.enqueue(async () => {
+      throw new Error("Resposta A não foi salva");
+    }, "pergunta-a")).rejects.toThrow("Resposta A não foi salva");
+    await queue.enqueue(async () => undefined, "pergunta-b");
+
+    expect(queue.getSnapshot().status).toBe("ERROR");
+    await expect(queue.flush()).rejects.toThrow("Resposta A não foi salva");
   });
 
   it("não interrompe as próximas operações após uma falha", async () => {

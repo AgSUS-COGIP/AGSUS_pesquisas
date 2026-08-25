@@ -28,7 +28,7 @@ Não seguem as regras acima — cada uma tem autorização própria, pelo motivo
 | `/api/health` | `GET` | Node (`force-dynamic`) | pública | Verifica Supabase, SMTP, URL pública e cron sem expor valores. `200 ok` ou `503 degraded` com `missingConfiguration`. |
 | `/api/observability/errors` | `POST` | Node | mesma origem + limite de 16 KB | Grava relatório de erro em `tl_erro_aplicacao`. Responde `202` com a referência. Usa service role. |
 | `/api/tarefas/emails` | `GET` | Node (`force-dynamic`) | `Authorization: Bearer CRON_SECRET` | Envia abertura e lembrete de 24 h em lotes reivindicados por token, com pool SMTP e concorrência limitada. Também roda por `after()` ao abrir o ciclo ou ligar a opção. |
-| `/api/background/[id]` | `GET` | **Edge** | pública | Proxy com cache das imagens de fundo da tela de acesso. |
+| `/api/background/[id]` | `GET` | Node | pública | Proxy com cache das imagens de fundo da tela de acesso. |
 | `/api/pesquisas-anonimas/**` | `GET/POST/PUT` | Node | token efêmero por submissão nas mutações | Jornada pública de ciclos anônimos. Usa service role apenas para chamar entradas `fc_srv_*`, inacessíveis ao navegador; as RPCs de domínio chamadas por elas também não concedem `EXECUTE` a `authenticated`. |
 | `/auth/confirm` | `GET` | Node | pública | Callback OAuth. Fica em `src/app/auth/confirm/`, fora desta pasta, mas é um Route Handler. |
 
@@ -96,11 +96,11 @@ A sanitização remove e-mails, sequências de 5+ dígitos (matrícula, CPF) e t
 
 ### `/api/background/[id]` — proxy de imagens
 
-Índice numérico validado contra a lista fixa de 6 URLs (fora da faixa → `404`). Resposta com cache agressivo (`max-age=86400`, `s-maxage=604800`, `stale-while-revalidate=2592000`) e cabeçalhos específicos de CDN da Vercel. Falha na origem → `502`. Roda no runtime **Edge**.
+Índice numérico validado contra a lista fixa de 6 URLs (fora da faixa → `404`). Resposta com cache agressivo (`max-age=86400`, `s-maxage=604800`, `stale-while-revalidate=2592000`) e cabeçalhos específicos de CDN da Vercel. Falha na origem → `502`. Usa o runtime Node padrão; o runtime Edge foi removido porque está obsoleto no Next.js 16.
 
 ## Interfaces públicas
 
-Handlers nomeados por método HTTP (`GET`, `POST`) exportados de `route.ts`. `/api/health` também exporta `export const dynamic = "force-dynamic"`; `/api/background/[id]` exporta `export const runtime = "edge"`.
+Handlers nomeados por método HTTP (`GET`, `POST`) exportados de `route.ts`. `/api/health` também exporta `export const dynamic = "force-dynamic"`; `/api/background/[id]` usa o runtime Node padrão.
 
 Em Next.js 16 os parâmetros de rota dinâmica são assíncronos:
 

@@ -1,47 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
-
-// Única lista de rotas acessíveis sem sessão. Tudo o que não estiver aqui exige
-// autenticação — o padrão é fechado, de modo que uma rota nova nasce protegida.
-//
-// `/api/observability/errors` está aqui por necessidade, não por descuido:
-// `ClientErrorReporter` é montado em toda página, inclusive `/acesso`, que é
-// anônima. Sem esta entrada, o relatório do erro que impede alguém de entrar
-// seria redirecionado para a própria tela de login e nunca chegaria. A rota se
-// defende por outros meios — checagem de mesma origem e limite de 16 KB na
-// própria rota — e grava numa tabela sem leitura para `authenticated`.
-//
-// `/api/tarefas/emails` também é necessidade: quem a chama é o cron da
-// Vercel, que não tem sessão institucional. A rota se defende sozinha pelo
-// `CRON_SECRET` (sem o segredo correto, 401; sem o segredo configurado, 503)
-// e toda a decisão de negócio fica em RPC restrita ao service role.
-const PUBLIC_PATHS = new Set([
-  "/",
-  "/acesso",
-  "/auth/confirm",
-  "/api/health",
-  "/api/observability/errors",
-  "/api/tarefas/emails",
-]);
-
-function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname)
-    || pathname.startsWith("/api/background/")
-    || pathname.startsWith("/responder/")
-    || pathname.startsWith("/api/pesquisas-anonimas/");
-}
-
-function isPublicRequest(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
-
-  // A marca institucional precisa ser lida antes do login. Somente o GET é
-  // público: o PUT continua atravessando a autenticação do proxy e a própria
-  // RPC de escrita permanece restrita a `authenticated`/administradores.
-  if (request.method === "GET" && pathname === "/api/plataforma/marca") return true;
-
-  return isPublicPath(pathname);
-}
+import { isPublicRequest } from "./public-request";
 
 // Rota de API responde em JSON, inclusive quando recusa.
 //
@@ -88,7 +48,7 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const pathname = request.nextUrl.pathname;
-  const publicRequest = isPublicRequest(request);
+  const publicRequest = isPublicRequest(request.method, pathname);
 
   if (!url || !publishableKey) {
     if (publicRequest) return addResponseHeaders(NextResponse.next({ request }));
