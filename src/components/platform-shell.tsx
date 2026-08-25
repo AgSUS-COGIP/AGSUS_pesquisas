@@ -21,6 +21,7 @@ import {
 } from "@/lib/platform-navigation";
 import { PARTICIPANT_ROLE_MODULES, resolvePlatformRole } from "@/lib/platform-modules";
 import { isSuperAdminOnlyRoute } from "@/lib/platform-support";
+import { finishLocalSignOut } from "@/lib/local-sign-out";
 import {
   isPlatformSidebarCompact,
   PLATFORM_SIDEBAR_ATTRIBUTE,
@@ -329,13 +330,15 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
     const supabase = createBrowserSupabaseClient();
     // `scope: "local"` encerra apenas esta sessão: quem usa a plataforma em outro
     // dispositivo não é desconectado ao sair aqui.
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) {
+    const result = await finishLocalSignOut({
+      signOut: (options) => supabase.auth.signOut(options),
+      navigate: (destination) => window.location.replace(destination),
+    });
+    if (!result.ok) {
       setSigningOut(false);
       toast.error("Não foi possível encerrar esta sessão. Tente novamente.");
       return;
     }
-    window.location.replace("/acesso");
   }
 
   return (
@@ -350,11 +353,13 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
         <div
           role="status"
           aria-live="assertive"
-          className="fixed inset-0 z-[200] grid place-items-center bg-[var(--surface-page)]/85 backdrop-blur-sm"
+          aria-busy="true"
+          className="fixed inset-0 z-[200] grid cursor-wait place-items-center bg-slate-950/20 px-4 backdrop-blur-[2px]"
         >
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-overlay)]/95 px-6 py-5 text-center shadow-2xl">
             <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-[var(--border-subtle)] border-t-[var(--brand-primary)] motion-reduce:animate-none" aria-hidden="true" />
-            <p className="text-sm font-semibold text-[var(--text-primary)]">Encerrando sua sessão...</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">Saindo do sistema…</p>
+            <p className="text-xs text-[var(--text-secondary)]">Encerrando sua sessão neste navegador.</p>
           </div>
         </div>
       ) : null}
