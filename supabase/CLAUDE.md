@@ -174,7 +174,7 @@ O frontend só interage por estas funções. Assinaturas em `migrations/`; sempr
 
 ### Administração
 
-`list_access_workspace()` · `fc_definir_perfil_pessoa(p_pessoa, p_perfil)` (substituiu `set_person_role`, que **não** foi removida — ver abaixo) · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
+`fc_listar_acessos_paginados(p_busca, p_limite, p_offset)` · `fc_definir_perfil_pessoa(p_pessoa, p_perfil)` · `get_admin_people_base_summary(target_application_id)` · `list_admin_participant_applications()` · `list_admin_application_participants(...)` · `search_admin_people_for_application(...)` · `assign_admin_application_participant(...)` · `assign_admin_application_participants_bulk(...)` · `assign_admin_all_available_participants(...)` · `create_and_assign_admin_participant(...)` · `set_admin_application_participant_status(...)` · `search_platform_admin_people(...)` · `update_platform_admin_person(...)` · `list_platform_admin_leadership_links(...)` · `set_platform_admin_leadership_link(...)` · `list_platform_admin_person_audit(...)`
 
 ### Notificação por e-mail — `20260818130000` + `20260820153000`
 
