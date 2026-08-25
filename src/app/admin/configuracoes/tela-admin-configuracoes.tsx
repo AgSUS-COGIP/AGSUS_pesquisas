@@ -59,6 +59,12 @@ import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-cont
 import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
 import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
+import {
+  ACCESS_PAGE_SIZE,
+  accessPageRange,
+  nextAccessOffset,
+  previousAccessOffset,
+} from "@/lib/access-pagination";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   atualizarMarcaDaPlataforma,
@@ -92,7 +98,15 @@ type Person = {
   active: boolean;
   roles: PersonRole[];
 };
-type Workspace = { roles: Role[]; people: Person[] };
+type Workspace = {
+  status: "OK";
+  roles: Role[];
+  people: Person[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+};
 
 const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
 
@@ -112,16 +126,6 @@ const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] 
   { id: "access", label: "Acessos", icon: UserCog },
 ];
 // Acento superior de cada seção — sempre por token, nunca hexadecimal literal.
-/**
- * Teto de pessoas devolvido por `list_access_workspace`.
- *
- * O número está fixo no SQL da RPC (`limit 100`) e não vem no retorno, então
- * precisa ser espelhado aqui para a tela conseguir dizer que a lista foi
- * cortada. **Se o limite mudar na migration, mude aqui junto** — divergir faz o
- * aviso sumir cedo demais ou aparecer sem motivo.
- */
-const LIMITE_DE_PESSOAS = 100;
-
 const SECTION_ACCENT: Record<SectionId, string> = {
   brand: "var(--brand-solid)",
   login: "var(--brand-primary)",
@@ -157,6 +161,8 @@ export default function PlatformSettingsPage() {
   // Estado da seção Acessos
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [peopleQuery, setPeopleQuery] = useState("");
+  const [peopleSearch, setPeopleSearch] = useState("");
+  const [peopleError, setPeopleError] = useState("");
   const [fetching, setFetching] = useState(false);
   const [changing, setChanging] = useState("");
   const [presenceEnabled, setPresenceEnabled] = useState(branding.onlinePresenceEnabled);
@@ -221,12 +227,21 @@ export default function PlatformSettingsPage() {
     setPresenceRoles(branding.onlinePresenceViewerRoles);
   }, [branding.onlinePresenceEnabled, branding.onlinePresenceViewerRoles]);
 
-  const loadPeople = useCallback(async (term = "") => {
+  const loadPeople = useCallback(async (term = "", offset = 0) => {
     setFetching(true);
+    setPeopleError("");
     try {
-      setWorkspace(await obterAreaDeAcessos({ busca: term }));
+      const page = await obterAreaDeAcessos({
+        busca: term,
+        limite: ACCESS_PAGE_SIZE,
+        offset,
+      });
+      setWorkspace(page);
+      setPeopleSearch(term.trim());
     } catch (loadError) {
-      toast.error(errorMessageFromUnknown(loadError) || "Não foi possível carregar os acessos.");
+      const message = errorMessageFromUnknown(loadError) || "Não foi possível carregar os acessos.";
+      setPeopleError(message);
+      toast.error(message);
     } finally {
       setFetching(false);
     }
@@ -644,10 +659,10 @@ export default function PlatformSettingsPage() {
 
       toast.success(`${person.fullName} agora tem o perfil ${role.name}.`);
       invalidatePlatformContext();
-      await loadPeople(peopleQuery);
+      await loadPeople(peopleSearch, workspace?.offset ?? 0);
     } catch (changeError) {
       toast.error(errorMessageFromUnknown(changeError) || "Não foi possível alterar o perfil.");
-      await loadPeople(peopleQuery);
+      await loadPeople(peopleSearch, workspace?.offset ?? 0);
     } finally {
       setChanging("");
     }
@@ -1291,7 +1306,7 @@ export default function PlatformSettingsPage() {
                   </div>
                 </div>
                 <form
-                  onSubmit={(event) => { event.preventDefault(); void loadPeople(peopleQuery); }}
+                  onSubmit={(event) => { event.preventDefault(); void loadPeople(peopleQuery, 0); }}
                   className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto lg:min-w-[26rem]"
                 >
                   <Input
@@ -1308,38 +1323,19 @@ export default function PlatformSettingsPage() {
                 </form>
               </div>
 
-              {/*
-                Corte silencioso é o defeito que mais engana nesta tela.
-
-                `list_access_workspace` devolve no máximo 100 pessoas, e a base
-                tem mais de mil. A listagem inicial mostrava exatamente 100 sem
-                dizer nada: quem rolasse até o fim concluiria que aquilo era
-                todo o quadro, e quem procurasse alguém de nome no fim do
-                alfabeto acharia que a pessoa não está cadastrada.
-
-                A busca **vai ao banco** e alcança todas — o problema nunca foi
-                a busca, foi a lista parecer completa. Por isso o aviso só
-                aparece quando o resultado bate no teto, e nomeia a saída.
-
-                Não dá para dizer "100 de 1029" sem mexer na RPC, que não
-                devolve total. Dizer o que falta sem saber quanto falta é menos
-                preciso e igualmente honesto — e não custa uma migration.
-              */}
-              {(workspace?.people?.length ?? 0) >= LIMITE_DE_PESSOAS && (
-                <p role="status" className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--status-info-bg)] p-3 text-xs leading-5 text-[var(--status-info-text)]">
-                  <Search className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>
-                    Mostrando as {LIMITE_DE_PESSOAS} primeiras pessoas — a base tem mais.
-                    Use a busca acima para encontrar quem não aparece nesta lista; ela consulta o cadastro inteiro.
-                  </span>
-                </p>
-              )}
-
               <DataTableContainer className="mt-5 min-w-0 border-0 shadow-none" aria-label="Pessoas e perfis da plataforma">
                 {fetching && !workspace ? (
                   <DataTableState aria-live="polite">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden="true" />
                     <p className="mt-3 font-semibold">Carregando pessoas e permissões...</p>
+                  </DataTableState>
+                ) : peopleError && !workspace ? (
+                  <DataTableState role="alert">
+                    <TriangleAlert className="mx-auto h-6 w-6 text-[var(--status-danger-text)]" aria-hidden="true" />
+                    <p className="mt-3 font-semibold">{peopleError}</p>
+                    <Button className="mt-4" variant="secondary" onClick={() => void loadPeople(peopleSearch, 0)}>
+                      Tentar novamente
+                    </Button>
                   </DataTableState>
                 ) : (
                   <DataTableScroll className="max-h-[60dvh] min-w-0 overflow-auto overscroll-contain [scrollbar-gutter:stable]">
@@ -1419,6 +1415,41 @@ export default function PlatformSettingsPage() {
                   </DataTableScroll>
                 )}
               </DataTableContainer>
+              {workspace ? (
+                <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
+                  {peopleError ? (
+                    <p role="alert" className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--status-danger-text)]">
+                      <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      {peopleError} A página anterior foi mantida.
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p aria-live="polite" className="text-sm font-semibold text-[var(--text-secondary)]">
+                      {accessPageRange(workspace.offset, workspace.people.length, workspace.total)}
+                      {peopleSearch ? ` para “${peopleSearch}”` : ""}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={fetching || workspace.offset === 0}
+                        onClick={() => void loadPeople(peopleSearch, previousAccessOffset(workspace.offset, workspace.limit))}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={fetching || !workspace.hasMore}
+                        onClick={() => void loadPeople(peopleSearch, nextAccessOffset(workspace.offset, workspace.limit))}
+                      >
+                        {fetching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                        Próxima
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </section>
           ) : null}
 
