@@ -1,6 +1,6 @@
 # Migrations do Supabase
 
-As alterações estruturais do banco serão registradas neste diretório em arquivos SQL versionados.
+As alterações estruturais do banco são registradas neste diretório em arquivos SQL versionados. O conjunto completo, em ordem de timestamp, é a fonte da verdade para reconstruir o esquema.
 
 ## Regras
 
@@ -8,4 +8,4 @@ As alterações estruturais do banco serão registradas neste diretório em arqu
 - Toda migration deve ser revisada antes da aplicação.
 - Toda tabela exposta deve possuir Row Level Security e políticas explícitas.
 - Não incluir senhas, tokens ou chaves neste diretório.
-- A primeira migration será criada após a modelagem das três planilhas oficiais do CDDI.
+- Não remover migrations já versionadas ou aplicadas; correções devem entrar em uma nova migration.
