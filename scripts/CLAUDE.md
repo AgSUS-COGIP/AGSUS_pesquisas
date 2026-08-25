@@ -162,13 +162,15 @@ Somente builtins do Node: `node:child_process` (`execFileSync`), `node:fs`, `nod
 
 ```text
 Application validation
-  npm ci → db:migrations → db:naming → test → typecheck → lint → build
+  npm ci → db:migrations → db:naming → Vitest → typecheck → lint → build
 
 Supabase migrations and RLS
-  supabase start → db reset → test db → dump-rpc-signatures.sql | db:rpc
+  supabase start → db reset → pgTAP → dump-rpc-signatures.sql | db:rpc
 ```
 
 Os gates de banco vêm primeiro porque são os mais baratos e detectam a classe de erro mais custosa de reverter. A porta de RPC fecha o segundo job porque depende do esquema que `db reset` acabou de construir.
+
+O Playwright é o runner E2E, mas ainda não faz parte deste workflow: as fixtures exigem um Supabase descartável e credenciais locais próprias. Até o CI oferecer esse ambiente isolado, `npm run test:e2e` é uma validação local separada. O Vitest nunca coleta `tests/**/*.spec.ts`; essa fronteira está em `vitest.config.ts`.
 
 ## Pontos de atenção
 
