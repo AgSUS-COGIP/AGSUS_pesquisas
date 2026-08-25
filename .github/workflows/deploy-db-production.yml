@@ -95,13 +95,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --dry-run
+          # Operacao controlada de reconciliacao: inclui migrations locais
+          # anteriores ao ultimo registro remoto. Depois do alinhamento, este
+          # flag volta a ser removido para que timestamps antigos sejam barrados.
+          supabase db push --dry-run --include-all
 
       - name: Apply pending migrations
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push
+          supabase db push --include-all
 
       - name: Verify migration history with CLI
         shell: bash
