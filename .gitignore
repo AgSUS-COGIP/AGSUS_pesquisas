@@ -152,3 +152,10 @@ supabase/config.toml
 # Claude Code — configuração local da ferramenta (ex.: launch.json usado para
 # subir o dev server nos testes). Não faz parte do projeto.
 .claude/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
