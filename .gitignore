@@ -153,6 +153,9 @@ supabase/config.toml
 # subir o dev server nos testes). Não faz parte do projeto.
 .claude/
 
+# RTK — configuração e estado locais da ferramenta.
+/.rtk/
+
 # Playwright
 /test-results/
 /playwright-report/
