@@ -28,6 +28,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
+  // O primeiro carregamento do formulário compila a rota e consulta o banco
+  // local. Em máquinas frias, os 5 s padrão podem vencer ainda em "Abrindo
+  // avaliação", embora a tela termine de carregar logo depois.
+  expect: { timeout: 10_000 },
   use: {
     baseURL,
     trace: "on-first-retry",
