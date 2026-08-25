@@ -13,6 +13,7 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
+import { resolveCddiSaveFeedback } from "@/lib/cddi-save-feedback";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
@@ -229,6 +230,14 @@ export default function CddiFormPage() {
   // vira consulta: os fieldsets são desabilitados e o envio desaparece.
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const isSubmitted = submission?.submission?.status === "SUBMITTED" || submission?.submission?.status === "VALIDATED";
+  const saveFeedback = resolveCddiSaveFeedback({
+    submissionStatus: submission?.submission?.status,
+    submittedAt: submission?.submission?.submittedAt,
+    pending: saveSnapshot.pending,
+    saveStatus: saveSnapshot.status,
+    savedAt,
+    canEdit,
+  }, dateLabel);
 
   function saveAnswer(question: Question, answer: AnswerValue) {
     if (!canEdit || !submission?.submission?.id) return Promise.resolve();
@@ -615,27 +624,27 @@ export default function CddiFormPage() {
 
                     {question.type === "SCALE" ? (
                       <div className="mt-3">
-                        <div className="grid grid-cols-5 gap-2">
+                        <div className="grid gap-2 sm:grid-cols-5">
                           {question.options.map((option) => {
                             const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value;
                             return (
                               <label
                                 key={option.id}
                                 title={option.label}
-                                className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border py-3 text-center transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${
+                                className={`flex min-h-12 cursor-pointer flex-row items-center gap-3 rounded-xl border px-3 py-2 text-left transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 sm:min-h-0 sm:flex-col sm:gap-1 sm:px-1 sm:py-3 sm:text-center ${
                                   selected
                                     ? "border-[var(--brand-solid)] bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
                                     : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
                                 }`}
                               >
                                 <input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />
-                                <span className="text-lg font-semibold">{option.value}</span>
-                                <span className={`px-1 text-[10px] leading-3 ${selected ? "text-[var(--text-on-brand)]/80" : "text-[var(--text-muted)]"}`}>{option.label}</span>
+                                <span className="w-8 shrink-0 text-center text-lg font-semibold sm:w-auto">{option.value}</span>
+                                <span className={`min-w-0 break-words text-xs leading-4 sm:px-1 sm:text-[10px] sm:leading-3 ${selected ? "text-[var(--text-on-brand)]/80" : "text-[var(--text-muted)]"}`}>{option.label}</span>
                               </label>
                             );
                           })}
                         </div>
-                        <div className="mt-2 flex justify-between text-xs text-[var(--text-secondary)]">
+                        <div className="mt-2 hidden justify-between text-xs text-[var(--text-secondary)] sm:flex">
                           <span>{scaleBoundary(question, "start")}</span>
                           <span>{scaleBoundary(question, "end")}</span>
                         </div>
@@ -714,12 +723,21 @@ export default function CddiFormPage() {
 
         <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur">
           <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3">
-            <p role="status" className="hidden items-center gap-2 text-sm text-[var(--text-secondary)] sm:flex">
-              {saveSnapshot.pending > 0
-                ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando rascunho...</>
-                : saveSnapshot.status === "ERROR"
-                  ? <><AlertTriangle className="h-4 w-4 text-[var(--status-danger-text)]" aria-hidden="true" />Falha ao salvar</>
-                  : <><Save className="h-4 w-4" aria-hidden="true" />{savedAt ? `Rascunho salvo em ${dateLabel(savedAt)}` : canEdit ? "Salvamento automático ativo" : "Somente leitura"}</>}
+            <p role="status" className={`hidden items-center gap-2 text-sm sm:flex ${
+              saveFeedback.kind === "submitted"
+                ? "text-[var(--status-success-text)]"
+                : saveFeedback.kind === "error"
+                  ? "text-[var(--status-danger-text)]"
+                  : "text-[var(--text-secondary)]"
+            }`}>
+              {saveFeedback.kind === "submitted"
+                ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                : saveFeedback.kind === "saving"
+                  ? <Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />
+                  : saveFeedback.kind === "error"
+                    ? <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                    : <Save className="h-4 w-4" aria-hidden="true" />}
+              {saveFeedback.text}
             </p>
             <div className="ml-auto flex gap-2">
               <>
