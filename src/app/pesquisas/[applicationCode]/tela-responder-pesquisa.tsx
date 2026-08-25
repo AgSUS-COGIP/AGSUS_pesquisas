@@ -214,7 +214,7 @@ export default function GenericSurveyPage() {
       } else {
         await gravarResposta(submissionId, payloadForApi);
       }
-    }).catch((saveError) => {
+    }, question.id).catch((saveError) => {
       toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar a resposta.");
       throw saveError;
     });
