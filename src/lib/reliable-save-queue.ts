@@ -18,14 +18,16 @@ type Listener = (snapshot: SaveQueueSnapshot) => void;
 export class ReliableSaveQueue {
   private tail: Promise<void> = Promise.resolve();
   private pending = 0;
-  private lastError: Error | null = null;
+  private failures = new Map<string, Error>();
+  private operationSequence = 0;
   private listeners = new Set<Listener>();
 
   getSnapshot(): SaveQueueSnapshot {
+    const lastError = Array.from(this.failures.values()).at(-1) ?? null;
     return {
-      status: this.lastError ? "ERROR" : this.pending > 0 ? "SAVING" : "IDLE",
+      status: lastError ? "ERROR" : this.pending > 0 ? "SAVING" : "IDLE",
       pending: this.pending,
-      lastError: this.lastError,
+      lastError,
     };
   }
 
@@ -43,18 +45,23 @@ export class ReliableSaveQueue {
    * @returns promessa que rejeita se **esta** operação falhar, para o chamador
    * exibir a mensagem. A fila interna continua avançando de qualquer forma.
    */
-  enqueue(operation: SaveOperation) {
+  enqueue(operation: SaveOperation, key?: string) {
+    const operationKey = key ?? `operation-${++this.operationSequence}`;
     this.pending += 1;
-    this.lastError = null;
+    // Uma nova tentativa só substitui o erro da mesma resposta. Limpar todos os
+    // erros aqui permitiria que o sucesso da pergunta B escondesse a falha da A
+    // e liberasse o envio com uma resposta ainda não persistida.
+    this.failures.delete(operationKey);
     this.emit();
 
     const run = async () => {
       try {
         await operation();
-        this.lastError = null;
+        this.failures.delete(operationKey);
       } catch (error) {
-        this.lastError = error instanceof Error ? error : new Error("Falha desconhecida ao salvar.");
-        throw this.lastError;
+        const failure = error instanceof Error ? error : new Error("Falha desconhecida ao salvar.");
+        this.failures.set(operationKey, failure);
+        throw failure;
       } finally {
         this.pending = Math.max(0, this.pending - 1);
         this.emit();
@@ -71,11 +78,12 @@ export class ReliableSaveQueue {
   /** Aguarda a fila esvaziar e relança o último erro. Use antes do envio definitivo. */
   async flush() {
     await this.tail;
-    if (this.lastError) throw this.lastError;
+    const lastError = Array.from(this.failures.values()).at(-1);
+    if (lastError) throw lastError;
   }
 
   clearError() {
-    this.lastError = null;
+    this.failures.clear();
     this.emit();
   }
 

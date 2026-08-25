@@ -240,7 +240,7 @@ export default function CddiFormPage() {
         text: question.type === "SCALE" ? null : answer.value,
       });
       setSavedAt(data?.savedAt ?? new Date().toISOString());
-    }).catch((error) => {
+    }, question.id).catch((error) => {
       setMessageType("error");
       setMessage(errorMessageFromUnknown(error) || "Não foi possível salvar a resposta.");
       throw error;
