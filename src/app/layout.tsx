@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { AppProviders } from "@/components/app-providers";
-import { DEFAULT_PLATFORM_BRANDING } from "@/lib/platform-branding";
+import { DEFAULT_PLATFORM_BRANDING, OFFICIAL_PLATFORM_LOGO_URL } from "@/lib/platform-branding";
 import { platformSidebarBootstrapScript } from "@/lib/platform-sidebar";
 import { platformThemeBootstrapScript } from "@/lib/platform-theme";
 import "./globals.css";
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
   },
   description: `${DEFAULT_PLATFORM_BRANDING.productDescription} — plataforma institucional de pesquisas e avaliações da ${DEFAULT_PLATFORM_BRANDING.organizationName}.`,
   icons: {
-    icon: "/agsus-logo.png",
-    shortcut: "/agsus-logo.png",
-    apple: "/agsus-logo.png",
+    icon: OFFICIAL_PLATFORM_LOGO_URL,
+    shortcut: OFFICIAL_PLATFORM_LOGO_URL,
+    apple: OFFICIAL_PLATFORM_LOGO_URL,
   },
 };
 

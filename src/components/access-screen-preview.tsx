@@ -2,6 +2,7 @@
 
 import { ExternalImage } from "@/components/external-image";
 import { PlatformLogo } from "@/components/platform-logo";
+import { OFFICIAL_PLATFORM_LOGO_URL } from "@/lib/platform-branding";
 import { needsLightForeground } from "@/lib/color-contrast";
 
 type AccessScreenPreviewProps = {
@@ -59,7 +60,7 @@ export function AccessScreenPreview({
             style={claro ? { filter: "brightness(0) invert(1)" } : undefined}
           >
             <PlatformLogo
-              src="/agsus-logo.png"
+              src={OFFICIAL_PLATFORM_LOGO_URL}
               alt=""
               organizationName={organizationName}
               width={28}
