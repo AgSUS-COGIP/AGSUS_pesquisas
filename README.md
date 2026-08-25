@@ -178,22 +178,22 @@ agsus-pesquisas/
 | Camada | Tecnologia | Versão |
 |---|---|---|
 | Runtime | Node.js | `24.x` (fixado em `engines`) |
-| Framework | Next.js (App Router) | `16.2.12` |
+| Framework | Next.js (App Router) | `16.3.2` |
 | UI | React / React DOM | `19.2.8` |
 | Linguagem | TypeScript (modo `strict`) | `^6.0.0` |
 | Estilo | Tailwind CSS v4 + CSS custom properties | `^4.3.3` |
 | Backend | Supabase (PostgreSQL, Auth, RLS) | `@supabase/supabase-js 2.112.0`, `@supabase/ssr 0.12.4` |
 | Estado de servidor | TanStack React Query | `^5.101.4` |
-| Testes | Vitest | `^3.2.4` |
+| Testes | Vitest (unitários), Playwright (E2E) e pgTAP (banco) | `^3.2.4`, `^1.62.1`, Supabase CLI |
 | Hospedagem | Vercel | — |
 
 ## Dependências
 
-**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `@tanstack/react-table`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `cmdk` (paleta de comandos), `lucide-react` (ícones), `sonner` (toasts).
+**Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `lucide-react` (ícones), `sonner` (toasts).
 
-**Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, tipos de Node e React.
+**Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript`, `vitest`, `@playwright/test`, `dotenv`, tipos de Node e React.
 
-> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`. `@tanstack/react-table` continua declarado sem nenhum importador — o componente que o usava foi removido. Ver [Observações e Melhorias Sugeridas](#observações-e-melhorias-sugeridas).
+> `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`.
 
 ## Variáveis de ambiente
 
@@ -211,6 +211,8 @@ Copie [.env.example](.env.example) para `.env.local` e preencha os valores.
 | `SMTP_USER` | **Servidor** | Não | Caixa que autentica no SMTP; padrão: remetente institucional configurado no código. |
 | `CRON_SECRET` | **Servidor** | Sim (e-mails) | Autoriza as chamadas do cron da Vercel a `/api/tarefas/emails`. |
 | `ALLOWED_INSTITUTIONAL_DOMAINS` | Banco de dados | Não | Lida pela função SQL de acesso institucional. Padrão: `agenciasus.org.br,agsus.org.br`. |
+| `E2E_TEST_LOGIN_ENABLED` | Servidor local | Sim (Playwright) | Habilita a rota de autenticação exclusiva dos testes E2E. Use `true` somente em desenvolvimento/teste; a rota permanece desligada na Vercel. |
+| `PLAYWRIGHT_PORT` | Desenvolvimento | Não | Porta do servidor Next iniciado pelo Playwright. Padrão: `3000`. |
 
 > **Segurança.** `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` **nunca** podem receber o prefixo `NEXT_PUBLIC_`, ser importados por componentes de cliente nem ser gravados no repositório. Sem essas chaves a aplicação sobe, mas `/api/health` responde `503 degraded`.
 
@@ -248,6 +250,8 @@ npm run lint              # ESLint
 npm run typecheck         # tsc --noEmit
 npm test                  # Vitest (execução única)
 npm run test:watch        # Vitest em modo observação
+npm run test:e2e          # Playwright E2E no Chromium
+npm run test:e2e:ui       # Playwright em modo interativo
 npm run db:migrations     # formato e unicidade dos timestamps das migrations
 npm run db:naming         # nomenclatura institucional nas migrations alteradas
 ```
@@ -277,7 +281,17 @@ Fluxo de branches: `main` (estável) ← `develop` (integração) ← `feature/*
 
 ## Testes
 
-Vitest sem arquivo de configuração próprio: os testes ficam ao lado do código em `src/**/*.test.ts` e cobrem apenas **funções puras** — nenhum teste toca rede, DOM ou banco.
+O projeto mantém três camadas independentes. Não misture os runners:
+
+| Camada | Runner | Localização | Finalidade |
+|---|---|---|---|
+| Unidade | Vitest | `src/**/*.{test,spec}.{ts,tsx}` e `scripts/**/*.{test,spec}.mjs` | Funções puras e quality gates Node, sem navegador ou banco. |
+| Ponta a ponta | Playwright | `tests/**/*.spec.ts` | Jornadas reais no Chromium, com Next.js e Supabase local. |
+| Banco | pgTAP | `supabase/tests/*.sql` | RLS, ACLs, contratos de RPC e regras de integridade. |
+
+[vitest.config.ts](vitest.config.ts) delimita explicitamente os testes unitários. Isso é obrigatório porque o padrão do Vitest também coletaria `tests/**/*.spec.ts`; esses arquivos usam `test()` de `@playwright/test` e não podem ser executados pelo runner do Vitest.
+
+### Testes unitários — Vitest
 
 ```bash
 npm test                  # todos os testes
@@ -303,13 +317,41 @@ npx vitest run src/lib/survey-cycle-period.test.ts   # arquivo específico
 | [src/lib/supabase/admin.test.ts](src/lib/supabase/admin.test.ts) | Detecção das variáveis administrativas modernas e legadas. |
 | [src/lib/supabase/client.test.ts](src/lib/supabase/client.test.ts) | Detecção da configuração pública: só há cliente quando URL **e** chave publicável existem. |
 
-**Testes de banco** ficam em [supabase/tests/](supabase/tests/) e rodam via `supabase test db` (pgTAP). O teste atual assegura que nenhuma tabela do schema `public` fique sem RLS.
+### Testes E2E — Playwright
 
-**CI.** [.github/workflows/validate.yml](.github/workflows/validate.yml) executa dois jobs: *Application validation* (`db:migrations` → `db:naming` → `test` → `typecheck` → `lint` → `build`) e *Supabase migrations and RLS* (`supabase db reset` → `supabase test db`).
+[playwright.config.ts](playwright.config.ts) inicia o Next.js, executa os specs de [tests/](tests/) no Chromium e grava relatórios em diretórios ignorados pelo Git. As fixtures criam pessoa, pesquisa, ciclo e sessão próprios para cada cenário e removem esses dados ao terminar. Convenções para ampliar a suíte: [tests/CLAUDE.md](tests/CLAUDE.md).
 
-### Rotas de API — verificação manual
+Os E2E cobrem catálogo e resposta de participante, persistência de rascunho, obrigatórias e etapas, envio e somente leitura, ciclos encerrados e anônimos, além das guardas de módulo.
 
-Os testes automatizados cobrem só funções puras: **nenhuma rota de API é exercitada por `npm test`**. A verificação delas é manual, com o servidor de desenvolvimento no ar (`npm run dev`).
+Eles exigem um Supabase **local e descartável**. Nunca aponte `.env.test.local` para produção ou para um projeto compartilhado: as fixtures usam a chave de serviço e gravam diretamente no banco.
+
+1. Inicie o Supabase local e reconstrua o esquema:
+
+   ```bash
+   supabase start
+   supabase db reset
+   ```
+
+2. Crie `.env.test.local` (ignorado pelo Git) com a URL e as chaves emitidas pelo Supabase local. Defina pelo menos `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `E2E_TEST_LOGIN_ENABLED=true`.
+
+3. Execute:
+
+   ```bash
+   npm run test:e2e       # execução headless
+   npm run test:e2e:ui    # interface do Playwright
+   ```
+
+A rota `POST /api/teste-e2e/login` substitui o Google OAuth somente durante o E2E. Ela exige `E2E_TEST_LOGIN_ENABLED=true`, aceita apenas usuários de teste já criados pela fixture e sempre responde `404` quando `VERCEL_ENV` existe.
+
+### Testes de banco — pgTAP
+
+Os testes ficam em [supabase/tests/](supabase/tests/) e rodam via `supabase test db`. Eles cobrem RLS, permissões, segurança das jornadas anônimas e contratos de regras críticas do banco.
+
+**CI.** [.github/workflows/validate.yml](.github/workflows/validate.yml) executa dois jobs: *Application validation* (`db:migrations` → `db:naming` → Vitest → `typecheck` → `lint` → `build`) e *Supabase migrations and RLS* (`supabase db reset` → pgTAP → validação de contratos RPC). O Playwright ainda não integra esse workflow; até existir um ambiente E2E isolado no CI, sua execução é local.
+
+### Rotas de API — verificação manual complementar
+
+`npm test` continua restrito a funções puras. O Playwright exercita as rotas necessárias às jornadas E2E, mas não substitui o diagnóstico pontual dos demais endpoints. A matriz abaixo é uma verificação manual complementar, com o servidor de desenvolvimento no ar (`npm run dev`).
 
 **Não há link clicável para testar as rotas de domínio, e isso é por desenho.** Elas autenticam pelo cookie de sessão institucional, então abrir `/api/pessoas` no navegador anônimo ou no `curl` devolve `401` — que é justamente o comportamento correto. Só há duas formas de exercitá-las de verdade:
 
@@ -574,19 +616,6 @@ Para desenvolvimento assistido por IA, cada módulo tem um `CLAUDE.md` com conte
 
 Levantamento feito durante a documentação. **Nenhum item abaixo foi alterado** — todos preservam o comportamento atual e ficam registrados para decisão da equipe.
 
-### Código não utilizado
-
-Nenhum destes arquivos é importado por código de produção:
-
-| Arquivo | Situação |
-|---|---|
-| [src/components/admin-participants-table.tsx](src/components/admin-participants-table.tsx) | Tabela de participantes substituída por `admin-participant-roster.tsx`. É a única consumidora de `@tanstack/react-table` — remover o arquivo torna a dependência descartável. |
-| [src/components/ui/tabs.tsx](src/components/ui/tabs.tsx) | Primitivo acessível pronto, sem consumidores. Exporta `TabButtonProps`, tipo sem uso. |
-
-**Sugestão:** decidir caso a caso entre adotar e remover. Manter código testado mas morto dá falsa sensação de cobertura.
-
-**Resolvidos.** `admin-module-page.tsx` foi **removido**: a casca administrativa genérica que ele propunha virou `usePlatformGuard()` + `PlatformGuardState`, hoje usada por todas as rotas. `platform-command-menu.tsx` passou a ser renderizado por `PlatformShell` com os `modules` do usuário; `survey-catalog.ts` é consumido por `/area` e `/pesquisas` (via `src/hooks/use-survey-catalog.ts`); `reliable-save-queue.ts` é usado pelas duas jornadas do CDDI; os componentes de upload e geração de avatar foram removidos quando a foto do Google se tornou automática.
-
 ### Duplicação de lógica
 
 1. **Dois componentes `Dialog` distintos.** [src/components/ui/dialog.tsx](src/components/ui/dialog.tsx) usa `<dialog>` nativo; [src/components/ui/overlay-panel.tsx](src/components/ui/overlay-panel.tsx) exporta `Dialog` e `Drawer` com focus trap manual. Importar "Dialog" do arquivo errado gera comportamento inesperado.
@@ -607,7 +636,7 @@ Nenhum destes arquivos é importado por código de produção:
 
 6. **Rascunho em `sessionStorage`.** [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) cita salvamento em `sessionStorage`; o código atual persiste direto no banco via `save_my_cddi_answer`.
 
-7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`, ; o restante das telas continua com estado local e validação manual. `@tanstack/react-table` só é importado por `admin-participants-table.tsx`, que não tem consumidores — na prática, uma dependência sem uso em produção.
+7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`; o restante das telas continua com estado local e validação manual.
 
 8. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
 
@@ -630,5 +659,3 @@ Nenhum destes arquivos é importado por código de produção:
 3. **Tipagem das RPCs por asserção.** Todo retorno usa `data as T`, sem tipos gerados. `supabase gen types typescript` eliminaria a divergência silenciosa entre banco e frontend.
 
 4. **Cores fora dos tokens.** Hexadecimais literais (`#003b70`, `#086ab6`, `#26368d`) convivem com `var(--brand-primary)`. O tema escuro pode não cobrir os valores fixos.
-
-5. **Sem `vitest.config.ts`.** Funciona com o padrão, mas explicitar `include`, ambiente e cobertura evita surpresas ao crescer a suíte.

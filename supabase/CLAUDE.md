@@ -17,10 +17,10 @@ Toda alteração de comportamento começa aqui, não em React.
 
 ```text
 supabase/
-├── migrations/      55 arquivos .sql versionados (fonte da verdade)
+├── migrations/      arquivos .sql versionados (fonte da verdade)
 │   └── README.md
 └── tests/
-    └── rls_exposed_tables.sql   pgTAP: nenhuma tabela de `public` sem RLS
+    └── *.sql          pgTAP: RLS, ACLs, contratos e integridade
 ```
 
 ## Modelo de dados
@@ -352,6 +352,8 @@ supabase stop --no-backup
 ```
 
 `tests/rls_exposed_tables.sql` afirma que a contagem de tabelas de `public` com `relrowsecurity = false` é zero. **Criar tabela em `public` sem RLS quebra o CI** — é o comportamento desejado.
+
+Os specs Playwright em `../tests/` também usam o esquema reconstruído localmente, mas não substituem o pgTAP: eles validam jornadas pelo navegador. Suas fixtures gravam com chave de serviço e fazem limpeza explícita; por isso devem apontar somente para um Supabase local descartável. Configuração e comandos estão na seção **Testes** do [../README.md](../README.md).
 
 ## Pontos de atenção
 
