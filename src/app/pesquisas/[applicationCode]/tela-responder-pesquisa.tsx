@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Hourglass, Lock, Save, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { AnonymityNotice } from "@/components/anonymity-notice";
@@ -560,7 +560,7 @@ export default function GenericSurveyPage() {
               {saving
                 ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando {saveSnapshot.pending > 1 ? `${saveSnapshot.pending} alterações` : "alteração"}...</>
                 : saveSnapshot.status === "ERROR"
-                  ? <><ShieldCheck className="h-4 w-4 text-[var(--status-danger-text)]" aria-hidden="true" />Falha ao salvar automaticamente</>
+                  ? <><AlertTriangle className="h-4 w-4 text-[var(--status-danger-text)]" aria-hidden="true" />Falha ao salvar automaticamente</>
                   : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Todas as respostas foram salvas automaticamente" : isSubmitted ? "Envio concluído" : "Somente leitura"}</>}
             </p>
             <div className="flex flex-wrap justify-end gap-2">
