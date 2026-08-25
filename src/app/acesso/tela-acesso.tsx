@@ -1,10 +1,12 @@
 "use client";
 
 import { Hourglass, ShieldCheck, TriangleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { safeAuthNext } from "@/lib/auth-callback";
 import { needsLightForeground } from "@/lib/color-contrast";
 import { abrirJanelaDeLogin, LOGIN_POPUP_LANDING, LOGIN_POPUP_MESSAGE, suportaJanelaDeLogin } from "@/lib/login-popup";
+import { accessErrorMessage, authDestinationWithEntering, loginPopupDecision } from "@/lib/login-transition";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { ExternalImage } from "@/components/external-image";
 import { PlatformLogo } from "@/components/platform-logo";
@@ -36,12 +38,6 @@ const BACKGROUND_IMAGE = "/acesso-fundo.png";
  */
 const NOME_DESENHADO_NA_ASSINATURA = "SIGAV";
 
-function accessErrorMessage(code: string | null) {
-  if (code === "dominio-nao-autorizado") return "O acesso é exclusivo para contas @agenciasus.org.br. Selecione sua conta institucional.";
-  if (code === "oauth-invalido") return "A autenticação não foi concluída. Selecione novamente sua conta institucional.";
-  return "";
-}
-
 export default function AccessPage({ initialBranding }: { initialBranding: PlatformBranding }) {
   /*
    * A marca vem resolvida do servidor (`page.tsx`) e é usada como está, sem
@@ -53,6 +49,7 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
    * tinha pegado — e esta é a primeira tela que qualquer pessoa vê.
    */
   const branding = initialBranding;
+  const router = useRouter();
   const supabaseConfigured = isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -62,25 +59,9 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
   const [usandoJanela, setUsandoJanela] = useState(false);
 
   useEffect(() => {
-    let active = true;
     const query = new URLSearchParams(window.location.search);
     setMessage(accessErrorMessage(query.get("erro")));
-
-    void (async () => {
-      if (!supabaseConfigured) return;
-      try {
-        const supabase = createBrowserSupabaseClient();
-        const { data } = await supabase.auth.getUser();
-        if (data.user) window.location.replace(safeAuthNext(query.get("next")));
-      } catch {
-        if (active) setMessage("Não foi possível verificar a sessão atual.");
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [supabaseConfigured]);
+  }, []);
 
   /** Volta o botão ao normal — usado quando a janela fecha sem concluir. */
   function resetSignIn(mensagem = "") {
@@ -108,6 +89,7 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
   function acompanharJanela(janela: Window, destino: string) {
     const supabase = createBrowserSupabaseClient();
     let encerrado = false;
+    let verificando = false;
 
     const encerrar = () => {
       encerrado = true;
@@ -119,45 +101,62 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
       if (encerrado) return;
       encerrar();
       if (!janela.closed) janela.close();
-      // A sessão já está nos cookies: basta ir para o destino, marcando a
-      // chegada para a tela receber quem entrou.
-      window.location.replace(`${destino}${destino.includes("?") ? "&" : "?"}entrando=1`);
+      // O callback SSR já gravou os cookies e `getSession()` os confirmou nesta
+      // origem. A navegação privada pode seguir pelo App Router sem recarregar a
+      // aplicação inteira; não há prefetch anterior nem necessidade de refresh.
+      router.replace(authDestinationWithEntering(destino));
+    };
+
+    const verificar = async () => {
+      if (encerrado || verificando) return;
+      verificando = true;
+
+      try {
+        // `getSession()` lê o cookie compartilhado com o callback, sem uma nova
+        // ida ao Auth server. A navegação só ocorre depois desta confirmação.
+        const { data } = await supabase.auth.getSession();
+        let popupHref: string | null = null;
+
+        if (!janela.closed) {
+          try {
+            popupHref = janela.location.href;
+          } catch {
+            // Enquanto está no Google, o endereço é de outra origem.
+          }
+        }
+
+        const decision = loginPopupDecision({
+          hasSession: Boolean(data.session),
+          popupClosed: janela.closed,
+          popupHref,
+          currentOrigin: window.location.origin,
+        });
+
+        if (decision.state === "complete") concluir();
+        else if (decision.state === "cancelled") { encerrar(); resetSignIn(); }
+        else if (decision.state === "error") { encerrar(); janela.close(); resetSignIn(decision.message); }
+      } catch {
+        // Uma falha inesperada ao ler o cookie não pode deixar uma rejeição
+        // solta nem o botão travado depois que a janela já foi fechada.
+        if (janela.closed && !encerrado) {
+          encerrar();
+          resetSignIn("Não foi possível confirmar a sessão. Tente novamente.");
+        }
+      } finally {
+        verificando = false;
+      }
     };
 
     // Atalho, não dependência: quando o recado chega, a espera acaba antes.
     const aoReceber = (evento: MessageEvent) => {
       if (evento.origin !== window.location.origin) return;
       if ((evento.data as { type?: string } | null)?.type !== LOGIN_POPUP_MESSAGE) return;
-      concluir();
+      void verificar();
     };
     window.addEventListener("message", aoReceber);
 
     const vigia = window.setInterval(() => {
-      void (async () => {
-        if (encerrado) return;
-
-        // `getSession()` lê o cookie local, sem ida ao servidor.
-        const { data } = await supabase.auth.getSession();
-        if (data.session) { concluir(); return; }
-
-        // Sem sessão e sem janela: ou a pessoa desistiu, ou o acesso foi
-        // recusado. O endereço da janela diria qual — mas ela já não existe.
-        if (janela.closed) { encerrar(); resetSignIn(); return; }
-
-        try {
-          const atual = new URL(janela.location.href);
-          if (atual.origin !== window.location.origin) return;
-          const erro = atual.searchParams.get("erro");
-          if (atual.pathname === "/acesso" && erro) {
-            encerrar();
-            janela.close();
-            resetSignIn(accessErrorMessage(erro));
-          }
-        } catch {
-          // Enquanto está no Google, o endereço é de outra origem e a leitura
-          // lança. É o estado normal do meio do fluxo.
-        }
-      })();
+      void verificar();
     }, 600);
   }
 

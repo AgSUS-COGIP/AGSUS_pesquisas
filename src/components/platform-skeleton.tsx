@@ -1,6 +1,6 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "./ui/skeleton";
 
-export function PlatformSkeleton({ title = "Carregando" }: { title?: string }) {
+export function PlatformSkeleton({ title = "Carregando", showProgress = false }: { title?: string; showProgress?: boolean }) {
   return (
     <main
       role="status"
@@ -35,6 +35,12 @@ export function PlatformSkeleton({ title = "Carregando" }: { title?: string }) {
             ))}
           </div>
         </div>
+        {showProgress ? (
+          <div className="mx-auto flex max-w-md items-center justify-center gap-3 px-5 pb-8 text-[var(--text-secondary)]">
+            <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--border-subtle)] border-t-[var(--brand-primary)] motion-reduce:animate-none" aria-hidden="true" />
+            <p className="text-sm font-semibold text-[var(--text-primary)]">{title}…</p>
+          </div>
+        ) : null}
       </div>
 
       <span className="sr-only">{title}</span>

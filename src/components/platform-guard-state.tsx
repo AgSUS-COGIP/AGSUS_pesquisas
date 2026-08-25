@@ -61,7 +61,7 @@ export function PlatformGuardState({
   }, []);
 
   if (guard.state === "loading") {
-    return <PlatformSkeleton title={enteringSystem ? "Entrando no sistema" : `Carregando ${title}`} />;
+    return <PlatformSkeleton title={enteringSystem ? "Entrando no sistema" : `Carregando ${title}`} showProgress={enteringSystem} />;
   }
 
   if (guard.state === "unidentified") {
