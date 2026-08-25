@@ -31,7 +31,7 @@ export function Tabs({ items, defaultValue, ariaLabel = "Seções", className }:
 
   return (
     <section className={className}>
-      <div role="tablist" aria-label={ariaLabel} className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <div role="tablist" aria-label={ariaLabel} className="flex flex-wrap gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1">
         {items.map((item, index) => (
           <button
             key={item.value}
@@ -54,8 +54,10 @@ export function Tabs({ items, defaultValue, ariaLabel = "Seções", className }:
               }
             }}
             className={cn(
-              "min-h-10 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-40",
-              value === item.value ? "bg-white text-[var(--brand-primary)] shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:bg-white/70 hover:text-slate-900",
+              "min-h-10 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40",
+              value === item.value
+                ? "bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm ring-1 ring-[var(--border-subtle)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
             )}
           >
             {item.label}
@@ -68,7 +70,7 @@ export function Tabs({ items, defaultValue, ariaLabel = "Seções", className }:
           role="tabpanel"
           aria-labelledby={`${baseId}-tab-${active.value}`}
           tabIndex={0}
-          className="mt-4 outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+          className="mt-4 outline-none"
         >
           {active.content}
         </div>

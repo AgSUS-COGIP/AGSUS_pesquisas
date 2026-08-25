@@ -15,7 +15,7 @@ const controlClass =
 
 function FieldText({ id, children, error = false }: { id: string; children: ReactNode; error?: boolean }) {
   return (
-    <p id={id} className={cn("mt-2 text-xs leading-5", error ? "font-semibold text-red-700" : "text-slate-500")}>
+    <p id={id} className={cn("mt-2 text-xs leading-5", error ? "font-semibold text-[var(--status-danger-text)]" : "text-[var(--text-secondary)]")}>
       {children}
     </p>
   );
@@ -42,7 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <div className={containerClassName}>
       <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
-        {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
+        {required && <span className="ml-1 text-[var(--status-danger-text)]" aria-hidden="true">*</span>}
       </label>
       {hint && <FieldText id={hintId!}>{hint}</FieldText>}
       <input
@@ -80,7 +80,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <div className={containerClassName}>
       <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
-        {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
+        {required && <span className="ml-1 text-[var(--status-danger-text)]" aria-hidden="true">*</span>}
       </label>
       {hint && <FieldText id={hintId!}>{hint}</FieldText>}
       <textarea
@@ -118,7 +118,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     <div className={containerClassName}>
       <label htmlFor={id} className="block text-sm font-semibold text-[var(--text-primary)]">
         {label}
-        {required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
+        {required && <span className="ml-1 text-[var(--status-danger-text)]" aria-hidden="true">*</span>}
       </label>
       {hint && <FieldText id={hintId!}>{hint}</FieldText>}
       <select
@@ -161,7 +161,7 @@ export const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
         htmlFor={id}
         className={cn(
           "flex cursor-pointer items-start gap-3 rounded-xl border bg-[var(--surface-card)] p-4 transition hover:border-[var(--border-strong)]",
-          error ? "border-red-400" : "border-[var(--border-subtle)]",
+          error ? "border-[var(--status-danger-border)]" : "border-[var(--border-subtle)]",
         )}
       >
         <input
@@ -172,7 +172,7 @@ export const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy}
           className={cn(
-            "mt-0.5 h-5 w-5 shrink-0 border-slate-300 accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100",
+            "mt-0.5 h-5 w-5 shrink-0 border-[var(--border-strong)] accent-[var(--brand-solid)] focus-visible:outline-none",
             className,
           )}
         />
