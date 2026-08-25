@@ -62,22 +62,22 @@ export function Dialog({
         if (event.target === event.currentTarget) onOpenChange(false);
       }}
       className={cn(
-        "fixed inset-0 z-[100] m-auto max-h-[88vh] w-[min(44rem,calc(100%-2rem))] overflow-hidden rounded-3xl border-0 bg-white p-0 text-left shadow-2xl backdrop:bg-slate-950/55 backdrop:backdrop-blur-sm",
+        "fixed inset-0 z-[100] m-auto max-h-[88vh] w-[min(44rem,calc(100%-2rem))] overflow-hidden rounded-3xl border-0 bg-[var(--surface-card)] p-0 text-left text-[var(--text-primary)] shadow-2xl backdrop:bg-slate-950/55 backdrop:backdrop-blur-sm",
         className,
       )}
     >
       <div className="max-h-[88vh] overflow-y-auto">
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 p-6 backdrop-blur">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] p-6 backdrop-blur">
           <div>
             {eyebrow && <p className="text-xs font-black uppercase tracking-[.15em] text-[var(--brand-secondary)]">{eyebrow}</p>}
             <h2 id={titleId} className="mt-1 text-2xl font-black text-[var(--brand-primary)]">{title}</h2>
-            {description && <p id={descriptionId} className="mt-2 text-sm leading-6 text-slate-500">{description}</p>}
+            {description && <p id={descriptionId} className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{description}</p>}
           </div>
           <button
             type="button"
             aria-label="Fechar janela"
             onClick={() => onOpenChange(false)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>

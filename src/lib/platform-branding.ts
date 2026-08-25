@@ -68,6 +68,10 @@ export type PlatformBranding = {
   updatedAt: string | null;
 };
 
+// A versão invalida favicons e imagens institucionais que navegadores mantêm em
+// cache por muito tempo, mesmo depois de o arquivo oficial ser atualizado.
+export const OFFICIAL_PLATFORM_LOGO_URL = "/agsus-logo.png?v=20260825";
+
 export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   organizationName: "AgSUS",
   productName: "SIGAV",
@@ -77,7 +81,7 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   emailInstruction: "",
   emailFooter: "",
   sidebarColor: null,
-  logoUrl: "/agsus-logo.png",
+  logoUrl: OFFICIAL_PLATFORM_LOGO_URL,
   logoPath: null,
   accessBackgroundUrl: null,
   accessBackgroundPath: null,
