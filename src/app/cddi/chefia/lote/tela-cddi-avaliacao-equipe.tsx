@@ -115,6 +115,8 @@ export default function CddiTeamEvaluationPage() {
   const pendingTextSaves = useRef<Record<string, PendingTextSave>>({});
   const latestAnswers = useRef<CddiAnswersByPerson>({});
   const peoplePerPageRef = useRef(MOBILE_PEOPLE_PER_PAGE);
+  const comparisonSectionRef = useRef<HTMLElement | null>(null);
+  const peopleStripRef = useRef<HTMLDivElement | null>(null);
   const [saveQueue] = useState(() => new ReliableSaveQueue());
   const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
 
@@ -278,6 +280,19 @@ export default function CddiTeamEvaluationPage() {
     : [];
   const saving = saveSnapshot.pending > 0;
   const visiblePersonIds = new Set(visibleEvaluations.map((evaluation) => evaluation.member.personId));
+  const missingGroups = useMemo(() => {
+    const grouped = new Map<string, { personId: string; personName: string; count: number }>();
+    for (const item of missingItems) {
+      const current = grouped.get(item.personId) ?? {
+        personId: item.personId,
+        personName: item.personName,
+        count: 0,
+      };
+      current.count += 1;
+      grouped.set(item.personId, current);
+    }
+    return [...grouped.values()];
+  }, [missingItems]);
 
   function replacePersonAnswer(personId: string, questionId: string, answer: CddiMatrixAnswer) {
     const next = {
@@ -373,13 +388,29 @@ export default function CddiTeamEvaluationPage() {
     return items;
   }
 
+  function scrollToComparison() {
+    window.requestAnimationFrame(() => {
+      comparisonSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function goToPersonPage(target: number) {
+    const safePage = Math.max(0, Math.min(target, personWindow.pageCount - 1));
+    setPersonPage(safePage);
+    window.requestAnimationFrame(() => {
+      const firstIndex = safePage * peoplePerPage;
+      const firstPerson = peopleStripRef.current?.querySelector<HTMLElement>(`[data-person-index="${firstIndex}"]`);
+      firstPerson?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    });
+  }
+
   function focusFirstMissingPerson(sectionIndex: number) {
     const section = sections[sectionIndex];
     if (!section) return;
     const firstMissing = cddiMatrixSectionMissingByPerson(editablePersonIds, section, answersByPerson)[0];
     if (!firstMissing) return;
     const index = evaluationList.findIndex((evaluation) => evaluation.member.personId === firstMissing.personId);
-    if (index >= 0) setPersonPage(Math.floor(index / peoplePerPage));
+    if (index >= 0) goToPersonPage(Math.floor(index / peoplePerPage));
   }
 
   function showMissingDialog(sectionIndex: number) {
@@ -405,6 +436,7 @@ export default function CddiTeamEvaluationPage() {
     setActiveSectionIndex(safeTarget);
     setPersonPage(0);
     setShowPendingOnly(false);
+    scrollToComparison();
   }
 
   function goNextSection() {
@@ -655,7 +687,7 @@ export default function CddiTeamEvaluationPage() {
             </p>
           )}
 
-          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+          <section ref={comparisonSectionRef} className="scroll-mt-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="border-b border-[var(--border-subtle)] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -664,11 +696,11 @@ export default function CddiTeamEvaluationPage() {
                 </div>
                 {personWindow.pageCount > 1 && (
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setPersonPage((current) => Math.max(0, current - 1))} disabled={personWindow.page === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] px-3 text-sm font-semibold hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40">
+                    <button type="button" onClick={() => goToPersonPage(personWindow.page - 1)} disabled={personWindow.page === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] px-3 text-sm font-semibold hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40">
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Anteriores
                     </button>
                     <span className="text-xs font-semibold text-[var(--text-secondary)]">{personWindow.page + 1} / {personWindow.pageCount}</span>
-                    <button type="button" onClick={() => setPersonPage((current) => Math.min(personWindow.pageCount - 1, current + 1))} disabled={personWindow.page >= personWindow.pageCount - 1} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] px-3 text-sm font-semibold hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40">
+                    <button type="button" onClick={() => goToPersonPage(personWindow.page + 1)} disabled={personWindow.page >= personWindow.pageCount - 1} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] px-3 text-sm font-semibold hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40">
                       Próximas <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
@@ -676,7 +708,7 @@ export default function CddiTeamEvaluationPage() {
               </div>
 
               {evaluationList.length > 2 && (
-                <div className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Pessoas selecionadas">
+                <div ref={peopleStripRef} className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Pessoas selecionadas">
                   {evaluationList.map((evaluation, index) => {
                     const active = visiblePersonIds.has(evaluation.member.personId);
                     const missing = cddiMatrixSectionMissingCount([evaluation.member.personId], activeSection, answersByPerson);
@@ -684,7 +716,8 @@ export default function CddiTeamEvaluationPage() {
                       <button
                         key={evaluation.member.personId}
                         type="button"
-                        onClick={() => setPersonPage(Math.floor(index / peoplePerPage))}
+                        data-person-index={index}
+                        onClick={() => goToPersonPage(Math.floor(index / peoplePerPage))}
                         className={`flex min-w-[220px] shrink-0 items-center gap-3 rounded-xl border p-3 text-left transition ${active ? "border-[var(--brand-solid)] bg-[var(--brand-soft)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:bg-[var(--surface-hover)]"}`}
                       >
                         <PersonAvatar fullName={evaluation.member.fullName} avatarUrl={evaluation.member.avatarUrl} className="h-10 w-10 rounded-xl" fallbackClassName="text-xs" />
@@ -848,11 +881,13 @@ export default function CddiTeamEvaluationPage() {
             <p className="mx-auto mt-6 max-w-md text-base leading-7 text-slate-700">
               Você deixou {missingItems.length} {missingItems.length === 1 ? "pergunta obrigatória sem resposta" : "perguntas obrigatórias sem resposta"} nesta competência.
             </p>
-            <ul className="mt-5 max-h-[50vh] space-y-2 overflow-y-auto text-left" aria-label="Perguntas que precisam ser respondidas">
-              {missingItems.map((item) => (
-                <li key={`${item.personId}:${item.questionId}`} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
-                  <strong className="block font-semibold">{item.personName}</strong>
-                  <span className="mt-0.5 block">{item.questionTitle}</span>
+            <ul className="mt-5 max-h-[50vh] space-y-2 overflow-y-auto text-left" aria-label="Pessoas com perguntas que precisam ser respondidas">
+              {missingGroups.map((group) => (
+                <li key={group.personId} className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
+                  <strong className="min-w-0 flex-1 font-semibold">{group.personName}</strong>
+                  <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                    {group.count} {group.count === 1 ? "pergunta" : "perguntas"}
+                  </span>
                 </li>
               ))}
             </ul>
