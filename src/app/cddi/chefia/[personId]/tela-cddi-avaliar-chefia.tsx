@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import {
   enviarSubmissaoCddi,
@@ -18,7 +18,7 @@ import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
-import { clearCddiBatchQueue, readCddiBatchQueue } from "@/lib/cddi-batch-queue";
+import { clearCddiBatchQueue } from "@/lib/cddi-batch-queue";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -59,15 +59,6 @@ export default function LeaderEvaluationPage() {
   const [definition, setDefinition] = useState<FormDefinition | null>(null);
   const [submission, setSubmission] = useState<SubmissionContext | null>(null);
   const [member, setMember] = useState<Member | null>(null);
-  const [teamMembers, setTeamMembers] = useState<Member[]>([]);
-  const [cycleCode, setCycleCode] = useState<string | null>(null);
-  // O grupo do lote ("avaliar vários de uma vez", escolhido em /equipe) vem do
-  // sessionStorage, não da URL: dezenas de UUIDs na query string estouram o
-  // limite de cabeçalho do servidor (HTTP 431). O formulário é preenchido uma
-  // única vez — nesta submissão — e, no envio, as mesmas respostas são
-  // replicadas e enviadas para cada pessoa do grupo. O grupo só vale se
-  // incluir a pessoa desta rota; grupo antigo de outro lote é ignorado.
-  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [answers, setAnswers] = useState<Answers>({});
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -87,6 +78,11 @@ export default function LeaderEvaluationPage() {
   }, [answers]);
 
   useEffect(() => {
+    // Esta rota é exclusivamente individual. Qualquer seleção múltipla antiga
+    // é descartada ao entrar aqui; o modo lote existe somente em
+    // `/cddi/chefia/lote` e nunca compartilha respostas com esta tela.
+    clearCddiBatchQueue();
+
     // Trocar de colaborador troca só o `personId` da rota — a página não
     // remonta. Sem este reset completo, os dados do colaborador anterior
     // sobreviveriam à troca: se a carga do seguinte falhasse (ex.: pessoa
@@ -124,9 +120,6 @@ export default function LeaderEvaluationPage() {
           }
           applicationCode = cycles[0].code;
         }
-        setCycleCode(applicationCode);
-        const storedQueue = readCddiBatchQueue();
-        setBatchIds(storedQueue?.personIds.includes(personId) ? storedQueue.personIds : []);
         const [formResponse, submissionResponse, teamResponse] = await Promise.all([
           obterFormulario(applicationCode),
           iniciarOuRetomarSubmissaoCddi({
@@ -149,7 +142,6 @@ export default function LeaderEvaluationPage() {
         setDefinition({ ...rawDefinition, sections: visibleCddiSections(rawDefinition.sections, "CHEFIA") });
         setSubmission(context);
         setMember(selected);
-        setTeamMembers(members);
         latestAnswers.current = restored;
         setAnswers(restored);
       } catch (error) {
@@ -179,14 +171,6 @@ export default function LeaderEvaluationPage() {
   const progress = requiredQuestions.length ? Math.round(requiredQuestions.filter((question) => answered(question, answers)).length / requiredQuestions.length * 100) : 0;
   const canEdit = Boolean(submission?.canEdit && submission.submission?.status === "DRAFT");
   const saving = saveSnapshot.pending > 0;
-  // Grupo do lote: quem foi selecionado em /equipe e ainda pertence à equipe.
-  // O formulário desta tela é a matriz; os demais recebem cópia no envio.
-  const groupMembers = useMemo(
-    () => batchIds.map((id) => teamMembers.find((item) => item.personId === id)).filter((item): item is Member => Boolean(item)),
-    [batchIds, teamMembers],
-  );
-  const otherGroupMembers = useMemo(() => groupMembers.filter((item) => item.personId !== personId), [groupMembers, personId]);
-  const inGroup = otherGroupMembers.length > 0;
 
   function saveAnswer(question: Question, answer: AnswerValue) {
     if (!canEdit || !submission?.submission?.id) return Promise.resolve();
@@ -259,65 +243,18 @@ export default function LeaderEvaluationPage() {
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
     if (requiredQuestions.some((question) => !answered(question, answers))) { setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
-    const confirmed = await confirm(inGroup
-      ? {
-          title: `Enviar a mesma avaliação para ${groupMembers.length} pessoas?`,
-          description: `As respostas preenchidas aqui serão registradas e enviadas, de forma idêntica, para: ${groupMembers.map((item) => item.fullName).join(", ")}. Depois do envio, nenhuma delas poderá ser alterada.`,
-          confirmLabel: "Enviar avaliações",
-        }
-      : {
-          title: "Enviar avaliação da chefia?",
-          description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`,
-          confirmLabel: "Enviar avaliação",
-        });
+    const confirmed = await confirm({
+      title: "Enviar avaliação da chefia?",
+      description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`,
+      confirmLabel: "Enviar avaliação",
+    });
     if (!confirmed) return;
     setSubmitting(true);
     try {
       await flushPendingSaves();
-      /*
-       * A replicação acontece primeiro e a submissão desta tela é enviada por
-       * último, de propósito: se alguém do grupo falhar, esta continua em
-       * rascunho e a pessoa pode corrigir e reenviar. O reenvio é seguro —
-       * quem já recebeu a avaliação chega com status enviado e é pulado.
-       *
-       * Cada envio passa pelas mesmas RPCs do fluxo individual: o banco
-       * valida vínculo, período e papel para cada pessoa do grupo.
-       */
-      if (inGroup && cycleCode) {
-        const answeredQuestions = sections.flatMap((section) => section.questions).filter((question) => answers[question.id]?.value?.trim());
-        const failures: string[] = [];
-        for (const target of otherGroupMembers) {
-          try {
-            const context = await iniciarOuRetomarSubmissaoCddi({
-              applicationCode: cycleCode,
-              submissionType: "CHEFIA",
-              subjectPersonId: target.personId,
-            }) as SubmissionContext;
-            if (context.submission && context.submission.status !== "DRAFT") continue;
-            if (!context.canEdit || !context.submission?.id) throw new Error("A submissão não está aberta para edição.");
-            const targetSubmissionId = context.submission.id;
-            await Promise.all(answeredQuestions.map((question) => {
-              const answer = answers[question.id];
-              return gravarRespostaCddi(targetSubmissionId, {
-                questionId: question.id,
-                optionId: question.type === "SCALE" ? answer.optionId ?? null : null,
-                text: question.type === "SCALE" ? null : answer.value,
-              });
-            }));
-            await enviarSubmissaoCddi(targetSubmissionId);
-          } catch {
-            failures.push(target.fullName);
-          }
-        }
-        if (failures.length) {
-          setMessage(`Não foi possível enviar a avaliação de: ${failures.join(", ")}. Esta avaliação continua em rascunho — tente enviar novamente; quem já recebeu não será enviado em dobro.`);
-          return;
-        }
-      }
       const result = await enviarSubmissaoCddi(submission.submission.id);
       setSubmission((current) => current ? { ...current, canEdit: false, submission: current.submission ? { ...current.submission, status: "SUBMITTED", submittedAt: result?.submittedAt ?? new Date().toISOString(), result: result?.result ?? null } : null } : current);
-      setMessage(inGroup ? `Avaliações enviadas para ${groupMembers.length} pessoas.` : "Avaliação da chefia enviada com sucesso.");
-      if (inGroup) clearCddiBatchQueue();
+      setMessage("Avaliação da chefia enviada com sucesso.");
       setCelebrate(true);
     } catch (error) {
       setMessage(errorMessageFromUnknown(error) || "Não foi possível enviar a avaliação.");
@@ -340,51 +277,21 @@ export default function LeaderEvaluationPage() {
   const missingToSubmit = requiredQuestions.filter((question) => !answered(question, answers)).length;
   const isSubmitted = submission.submission?.status !== "DRAFT";
 
-  return <CddiPlatformFrame title={inGroup ? `Avaliação em grupo · ${groupMembers.length} pessoas` : `Avaliação de ${member.fullName}`}><div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
+  return <CddiPlatformFrame title={`Avaliação de ${member.fullName}`}><div className="cddi-form-shell min-h-[60vh] pb-28 text-[var(--text-primary)]">
     <div ref={formTopRef} className="cddi-form-scroll-anchor mx-auto max-w-[960px] space-y-4 px-4 py-5 sm:px-6">
       <header className="rounded-2xl border border-[var(--border-subtle)] border-t-4 bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6" style={{ borderTopColor: CDDI_RULE }}>
-        {inGroup ? (
-          <>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
-                  <Badge variant="info" title={`As mesmas respostas serão enviadas para ${groupMembers.length} pessoas`}>{groupMembers.length} pessoas selecionadas</Badge>
-                </div>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>Avaliação em grupo</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Você preencherá uma única avaliação. As respostas serão registradas igualmente para todas as pessoas abaixo.</p>
-              </div>
-              <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Voltar à equipe
-              </Link>
-            </div>
-            <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Pessoas incluídas na avaliação em grupo">
-              {groupMembers.map((item) => (
-                <li key={item.personId} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
-                  <PersonAvatar fullName={item.fullName} avatarUrl={item.avatarUrl} className="h-12 w-12 rounded-xl" fallbackClassName="text-sm" />
-                  <span className="min-w-0">
-                    <strong className="block truncate text-sm text-[var(--text-primary)]">{item.fullName}</strong>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--text-secondary)]">Matrícula {item.employeeNumber} · {item.jobTitle || "Cargo não informado"}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
-              <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h2>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p>
-            </div>
-            <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Voltar à equipe
-            </Link>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <PersonAvatar fullName={member.fullName} avatarUrl={member.avatarUrl} className="h-16 w-16 rounded-2xl" fallbackClassName="text-xl" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Avaliação pela chefia</p>
+            <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: CDDI_INK }}>{member.fullName}</h2>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Matrícula {member.employeeNumber} · {member.jobTitle || "Cargo não informado"} · {member.unit || "Unidade não informada"}</p>
           </div>
-        )}
+          <Link href="/equipe" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Voltar à equipe
+          </Link>
+        </div>
       </header>
 
       {!canEdit && (
@@ -394,16 +301,6 @@ export default function LeaderEvaluationPage() {
             {isSubmitted
               ? <><strong className="font-semibold text-[var(--text-primary)]">Avaliação enviada.</strong> As respostas não podem mais ser alteradas.</>
               : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> O período de preenchimento não está aberto.</>}
-          </span>
-        </p>
-      )}
-
-      {inGroup && canEdit && (
-        <p role="status" className="flex items-start gap-3 rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
-          <UsersRound className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-          <span>
-            <strong className="font-semibold">Avaliação em grupo.</strong>{" "}
-            Ao enviar, estas respostas serão registradas para as {groupMembers.length} pessoas listadas acima.
           </span>
         </p>
       )}
@@ -545,9 +442,7 @@ export default function LeaderEvaluationPage() {
               className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
-              {submitting
-                ? (inGroup ? `Enviando para ${groupMembers.length} pessoas...` : "Enviando...")
-                : (inGroup ? `Confirmar e enviar para ${groupMembers.length} pessoas` : "Confirmar e enviar avaliação da chefia")}
+              {submitting ? "Enviando..." : "Confirmar e enviar avaliação da chefia"}
             </button>
             {missingToSubmit > 0 && (
               <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
@@ -601,10 +496,8 @@ export default function LeaderEvaluationPage() {
     <CompletionCelebration
       open={celebrate}
       onClose={() => router.replace("/area")}
-      title={inGroup ? "Parabéns! Avaliações concluídas" : "Parabéns! Avaliação concluída"}
-      message={inGroup
-        ? `As avaliações de ${groupMembers.map((item) => item.fullName).join(", ")} foram enviadas com sucesso, todas com as mesmas respostas.`
-        : `A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
+      title="Parabéns! Avaliação concluída"
+      message={`A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
       actionLabel="Ir para o início do sistema"
     />
   </div></CddiPlatformFrame>;
