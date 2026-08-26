@@ -117,12 +117,3 @@ Nenhum objeto legado será renomeado diretamente em produção. A migração exi
 6. rollback documentado;
 7. aprovação por revisão técnica e Data Owner.
 
-## Validação automática
-
-Execute:
-
-```bash
-npm run db:naming
-```
-
-O quality gate verifica somente novas migrações ou migrações alteradas em relação à `main`. Objetos legados não bloqueiam o CI, mas novos objetos fora do padrão bloqueiam o merge.

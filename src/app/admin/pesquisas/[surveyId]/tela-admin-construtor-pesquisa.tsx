@@ -293,8 +293,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     // O editor precisa fechar **antes** de confirmar. Ele é um `<dialog>`
     // nativo, que o navegador coloca na camada superior; o diálogo de
     // `useConfirm()` é uma camada comum e ficaria atrás dele — presente no DOM,
-    // invisível e inalcançável. É a armadilha dos dois `Dialog` descrita em
-    // `src/components/CLAUDE.md`. Guardamos o rascunho para devolvê-lo intacto
+    // invisível e inalcançável. Guardamos o rascunho para devolvê-lo intacto
     // a quem desistir, inclusive com as alterações ainda não salvas.
     const rascunho = ruleDraft;
     setRuleDraft(null);

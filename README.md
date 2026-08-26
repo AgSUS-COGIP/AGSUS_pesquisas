@@ -17,7 +17,6 @@ O **CDDI 2026** (Ciclo de Devolutivas e Desenvolvimento Individual) é o primeir
 - [Instalação](#instalação)
 - [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
 - [Build de produção](#build-de-produção)
-- [Testes](#testes)
 - [Depuração](#depuração)
 - [Fluxo geral da aplicação](#fluxo-geral-da-aplicação)
 - [Relações entre módulos](#relações-entre-módulos)
@@ -88,13 +87,12 @@ A consequência prática: **mudar regra de negócio continua exigindo migration*
 |---|---|---|
 | Proxy de borda | [src/proxy.ts](src/proxy.ts), [src/lib/supabase/proxy.ts](src/lib/supabase/proxy.ts) | Renova a sessão, redireciona anônimos para `/acesso`, responde `401` em `/api/**`, aplica cabeçalhos de segurança. |
 | Rotas e telas | [src/app/](src/app/) | Uma pasta por jornada. Componentes de cliente que consomem a API pelos clientes tipados. |
-| API REST | [src/app/api/](src/app/api/) | Casca HTTP sobre as RPCs. Convenções em [src/app/api/CLAUDE.md](src/app/api/CLAUDE.md). |
+| API REST | [src/app/api/](src/app/api/) | Casca HTTP sobre as RPCs, organizada por domínio. |
 | Contratos e clientes | [src/lib/api/](src/lib/api/) | `chamar()` e `ErroDeApi` (transporte), tradução de erro Postgres→HTTP, tipos e uma função por operação. |
 | Casca e design system | [src/components/](src/components/) | `PlatformShell`, primitivos acessíveis em `ui/`, blocos administrativos. |
 | Domínio no cliente | [src/lib/](src/lib/) | Funções puras testáveis (validação, ordenação, normalização) e clientes Supabase. |
 | Consultas cacheadas | [src/hooks/](src/hooks/) | Hooks que combinam React Query com a API — o que não é função pura nem componente. |
 | Banco e regras | [supabase/migrations/](supabase/migrations/) | Esquema, RLS, RPCs, triggers, views institucionais. Fonte da verdade das regras. |
-| Qualidade | [scripts/](scripts/), [.github/workflows/validate.yml](.github/workflows/validate.yml) | Quality gates de nomenclatura, migrations, testes, lint, build e RLS. |
 
 **Exceção única:** [src/app/acesso/page.tsx](src/app/acesso/page.tsx) lê a marca institucional (logotipo, cores) direto do banco. É Server Component anônimo, renderizado antes de existir sessão — rotear por `/api` só somaria um salto de rede.
 
@@ -102,29 +100,23 @@ A consequência prática: **mudar regra de negócio continua exigindo migration*
 
 ```text
 agsus-pesquisas/
-├── CLAUDE.md                     # Visão geral para sessões de IA (índice de módulos)
 ├── README.md                     # Este documento
 ├── src/proxy.ts                  # Middleware do Next.js (nome e local exigidos pelo Next 16)
 ├── next.config.ts                # React Strict Mode, hosts de imagem permitidos
 ├── vercel.json                   # Deploy automático apenas a partir de main
-├── eslint.config.mjs             # next/core-web-vitals + next/typescript
 ├── tsconfig.json                 # strict, alias @/* → ./src/*
 ├── postcss.config.mjs            # Tailwind CSS v4 via @tailwindcss/postcss
 ├── .env.example                  # Contrato de variáveis de ambiente
 │
 ├── docs/                         # Decisões de produto, dados e design
 │
-├── scripts/                      # Quality gates executáveis
-│   ├── validate-db-naming.mjs    # Nomenclatura institucional em migrations alteradas
-│   └── validate-migrations.mjs   # Formato e unicidade dos timestamps
+├── scripts/                      # Diagnóstico e manutenção operacional do banco
 │
 ├── supabase/
-│   ├── CLAUDE.md
 │   └── migrations/               # SQL versionado — regras de negócio e RLS
 │
 └── src/
     ├── app/                      # App Router
-    │   ├── CLAUDE.md
     │   ├── layout.tsx            # Layout raiz, bootstrap de tema/sidebar
     │   ├── page.tsx              # Redireciona para /acesso
     │   ├── error.tsx  global-error.tsx  not-found.tsx  loading.tsx
@@ -144,9 +136,7 @@ agsus-pesquisas/
     │   ├── resultados/           # Devolutivas individuais (placeholder)
     │   ├── perfil/               # Identidade visual e dados funcionais
     │   ├── admin/                # Central administrativa
-    │   │   └── CLAUDE.md
     │   └── api/                  # API REST — uma pasta por recurso
-    │       ├── CLAUDE.md         # Regras transversais das rotas de domínio
     │       ├── avaliacoes/       # Catálogo, construtor, ciclo, participantes
     │       ├── pessoas/          # Base funcional, auditoria, lideranças
     │       ├── equipe/           # Ciclos, integrantes, candidatos
@@ -158,11 +148,9 @@ agsus-pesquisas/
     │       ├── formularios/  ciclos/  respostas/  modelos-avaliacao/
     │       └── health/  observability/  background/   # infraestrutura
     ├── components/
-    │   ├── CLAUDE.md
     │   └── ui/                   # Primitivos do design system
     ├── hooks/                    # Hooks de consulta (React Query + API REST)
     └── lib/
-        ├── CLAUDE.md
         ├── api/                  # Cliente da API REST
         │   ├── requisicao.ts     # chamar() e ErroDeApi — transporte único
         │   ├── resposta-http.ts  # Erro do Postgres → status HTTP (usado pelas rotas)
@@ -189,7 +177,7 @@ agsus-pesquisas/
 
 **Produção** — `@hookform/resolvers` + `react-hook-form` + `zod` (formulários e validação), `@tanstack/react-query`, `class-variance-authority` + `clsx` + `tailwind-merge` (variantes de classe), `lucide-react` (ícones), `sonner` (toasts).
 
-**Desenvolvimento** — `eslint` + `eslint-config-next`, `tailwindcss` + `@tailwindcss/postcss`, `typescript` e tipos de Node e React.
+**Desenvolvimento** — `tailwindcss` + `@tailwindcss/postcss`, `typescript` e tipos de Node e React.
 
 > `@hookform/resolvers`, `react-hook-form` e `zod` sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`.
 
@@ -216,7 +204,7 @@ Copie [.env.example](.env.example) para `.env.local` e preencha os valores.
 
 ## Instalação
 
-Pré-requisitos: **Node.js 24.x**, **npm 11+** e um projeto Supabase acessível. Para trabalhar no banco localmente, também a [Supabase CLI](https://supabase.com/docs/guides/cli) (o CI usa a versão `2.109.1`).
+Pré-requisitos: **Node.js 24.x**, **npm 11+** e um projeto Supabase acessível. Para trabalhar no banco localmente, também é necessária a [Supabase CLI](https://supabase.com/docs/guides/cli).
 
 ```bash
 git clone <url-do-repositorio>
@@ -227,7 +215,7 @@ cp .env.example .env.local
 # preencha .env.local com as credenciais do Supabase
 ```
 
-Use `npm ci` (não `npm install`) para reproduzir o lockfile — é o comando usado pelo CI.
+Use `npm ci` (não `npm install`) para reproduzir exatamente o lockfile.
 
 ## Ambiente de desenvolvimento
 
@@ -242,10 +230,7 @@ Para autenticar em desenvolvimento, o provedor Google do projeto Supabase precis
 Comandos de verificação:
 
 ```bash
-npm run lint              # ESLint
 npm run typecheck         # tsc --noEmit
-npm run db:migrations     # formato e unicidade dos timestamps das migrations
-npm run db:naming         # nomenclatura institucional nas migrations alteradas
 ```
 
 Banco de dados local (opcional, requer Docker + Supabase CLI):
@@ -264,7 +249,7 @@ npm run build             # compila para .next/
 npm start                 # serve o build compilado
 ```
 
-`npm run build` exige `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` definidas — o CI usa valores de placeholder porque nenhuma página consulta o Supabase em tempo de build.
+`npm run build` exige `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` definidas.
 
 **Deploy.** [vercel.json](vercel.json) habilita deploy automático **somente** para a branch `main`. Todas as variáveis de ambiente devem estar configuradas no projeto Vercel.
 
@@ -283,7 +268,7 @@ A matriz abaixo permite verificar manualmente os endpoints com o servidor de des
 curl -i http://localhost:3000/api/avaliacoes   --cookie "sb-<ref>-auth-token=<valor copiado do navegador>"
 ```
 
-O inventário completo das rotas, agrupado por recurso, está em [src/app/api/CLAUDE.md](src/app/api/CLAUDE.md). O cliente tipado que as consome está em [src/lib/api/](src/lib/api/) — em geral é dele que se deve chamar, não de `fetch` avulso.
+As rotas estão agrupadas por recurso em [src/app/api/](src/app/api/). O cliente tipado que as consome está em [src/lib/api/](src/lib/api/) — em geral é dele que se deve chamar, não de `fetch` avulso.
 
 #### Cenários verificados
 
@@ -424,7 +409,7 @@ A árvore acima é de **rotas**, não de navegação. Os caminhos que a interfac
                                                └──[Editar identidade visual]──▶ …/identidade
 ```
 
-Ou seja, `/identidade` só é alcançável a partir de `/operacao` — por isso a tela de identidade volta para "Propriedades", e não para o construtor. A tela de propriedades traz as ações de navegação no topo do próprio conteúdo, não na barra da casca. Detalhes e o que foi deliberadamente removido dela em [src/app/admin/CLAUDE.md](src/app/admin/CLAUDE.md).
+Ou seja, `/identidade` só é alcançável a partir de `/operacao` — por isso a tela de identidade volta para "Propriedades", e não para o construtor. A tela de propriedades traz as ações de navegação no topo do próprio conteúdo, não na barra da casca.
 
 ### Carga da base institucional
 
@@ -486,7 +471,6 @@ Regras respeitadas em todo o código:
 **Arquivos e nomes**
 
 - Arquivos em `kebab-case.tsx`; componentes e tipos em `PascalCase`; funções e variáveis em `camelCase`; constantes de módulo em `SCREAMING_SNAKE_CASE`.
-- Testes ao lado do código: `nome.ts` → `nome.test.ts`.
 - Rotas em **português** (`/pesquisas`, `/equipe`, `/acessos`); identificadores de código em **inglês** (`applicationCode`, `submissionStatus`).
 - Import alias `@/*` → `./src/*`. Sempre preferir o alias a caminhos relativos longos.
 
@@ -529,10 +513,6 @@ Regras respeitadas em todo o código:
 | [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) | Experiência do formulário CDDI. |
 | [docs/referencias-visuais.md](docs/referencias-visuais.md) | Referências de experiência (AgSUS Monitora, Index original). |
 
-Para desenvolvimento assistido por IA, cada módulo tem um `CLAUDE.md` com contexto reduzido: [raiz](CLAUDE.md) · [src/app](src/app/CLAUDE.md) · [src/app/admin](src/app/admin/CLAUDE.md) · [src/app/api](src/app/api/CLAUDE.md) · [src/components](src/components/CLAUDE.md) · [src/lib](src/lib/CLAUDE.md) · [supabase](supabase/CLAUDE.md) · [scripts](scripts/CLAUDE.md) · [docs](docs/CLAUDE.md).
-
----
-
 ## Observações e Melhorias Sugeridas
 
 Levantamento feito durante a documentação. **Nenhum item abaixo foi alterado** — todos preservam o comportamento atual e ficam registrados para decisão da equipe.
@@ -559,7 +539,7 @@ Levantamento feito durante a documentação. **Nenhum item abaixo foi alterado**
 
 7. **Adoção parcial das bibliotecas de formulário.** `react-hook-form` + `@hookform/resolvers` + `zod` agora sustentam `/admin/configuracoes` e `/admin/pesquisas/nova`; o restante das telas continua com estado local e validação manual.
 
-8. **`supabase/config.toml` ausente do repositório.** O CI executa `supabase init` condicionalmente; versionar o arquivo tornaria o ambiente local reprodutível.
+8. **`supabase/config.toml` ausente do repositório.** É preciso executar `supabase init` localmente antes de usar a CLI; versionar o arquivo tornaria o ambiente local reprodutível.
 
 ### Segurança e robustez
 
@@ -573,7 +553,7 @@ Levantamento feito durante a documentação. **Nenhum item abaixo foi alterado**
 
 ### Manutenibilidade
 
-1. **Arquivos muito grandes.** [src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx](src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx) tem ~54 KB e [src/app/paineis/cddi/tela-painel-cddi.tsx](src/app/paineis/cddi/tela-painel-cddi.tsx) ~37 KB em um único componente. Extrair editores, tabelas e cartões facilitaria revisão e testes.
+1. **Arquivos muito grandes.** [src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx](src/app/admin/pesquisas/[surveyId]/tela-admin-construtor-pesquisa.tsx) tem ~54 KB e [src/app/paineis/cddi/tela-painel-cddi.tsx](src/app/paineis/cddi/tela-painel-cddi.tsx) ~37 KB em um único componente. Extrair editores, tabelas e cartões facilitaria revisão e manutenção.
 
 2. **JSX em linhas muito longas.** Diversas telas concentram seções inteiras em uma única linha (algumas com mais de 3.000 caracteres), o que inviabiliza diffs legíveis. Reformatar é seguro (não altera comportamento), mas produz um diff grande — decisão da equipe.
 
