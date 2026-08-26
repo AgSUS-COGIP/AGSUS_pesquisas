@@ -143,6 +143,5 @@ Uma funcionalidade só deve ser considerada pronta quando tiver:
 - estados de carregamento, vazio e erro;
 - comportamento responsivo;
 - acessibilidade básica;
-- testes automatizados;
-- build, lint e TypeScript aprovados;
+- build e TypeScript aprovados;
 - documentação da regra de negócio.

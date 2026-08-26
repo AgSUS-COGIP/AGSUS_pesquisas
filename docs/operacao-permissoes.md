@@ -4,8 +4,8 @@ Registro operacional da consolidação dos quatro perfis (10/08/2026) e do que
 aprendemos aplicando-a em produção. Serve para duas situações: aplicar o modelo
 num banco novo e diagnosticar um banco que divergiu do repositório.
 
-O modelo em si está documentado em [../supabase/CLAUDE.md](../supabase/CLAUDE.md)
-(banco) e [../src/lib/CLAUDE.md](../src/lib/CLAUDE.md) (frontend). Aqui é só
+O modelo em si está implementado nas migrations de [../supabase/migrations/](../supabase/migrations/)
+e nas regras de contexto da plataforma em [../src/lib/](../src/lib/). Aqui é só
 operação.
 
 ## O modelo em uma tabela

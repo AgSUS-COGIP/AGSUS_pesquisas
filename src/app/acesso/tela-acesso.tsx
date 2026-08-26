@@ -463,7 +463,7 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
             sigla nova com a expansão antiga. Levar a expansão para o banco
             exige acrescentar parâmetro a `fc_atualizar_marca_plataforma`, o que
             cria uma sobrecarga nova e esbarra na regra de publicar o frontend
-            antes de mexer na RPC (ver CLAUDE.md da raiz). Fica para a rodada de
+            antes de mexer na RPC. Fica para a rodada de
             personalização, junto com os demais campos.
           */}
           <p className={`mt-4 text-[13px] font-bold leading-5 ${lightOnPanel ? "text-white/90" : "text-[#003b70]"}`}>
