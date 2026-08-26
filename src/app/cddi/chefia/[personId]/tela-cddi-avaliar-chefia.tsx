@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import {
   enviarSubmissaoCddi,
@@ -18,16 +18,13 @@ import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/overlay-panel";
 import { clearCddiBatchQueue } from "@/lib/cddi-batch-queue";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 
-/**
- * Mesmas duas cores institucionais da autoavaliação (`../../tela-cddi-autoavaliacao.tsx`).
- * O restante da tela usa tokens, para acompanhar o tema claro/escuro.
- */
 const CDDI_INK = "var(--cddi-ink)";
 const CDDI_RULE = "var(--cddi-rule)";
 
@@ -63,6 +60,7 @@ export default function LeaderEvaluationPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [missingQuestions, setMissingQuestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const timers = useRef<Record<string, number>>({});
@@ -78,20 +76,11 @@ export default function LeaderEvaluationPage() {
   }, [answers]);
 
   useEffect(() => {
-    // Esta rota é exclusivamente individual. Qualquer seleção múltipla antiga
-    // é descartada ao entrar aqui; o modo lote existe somente em
-    // `/cddi/chefia/lote` e nunca compartilha respostas com esta tela.
     clearCddiBatchQueue();
-
-    // Trocar de colaborador troca só o `personId` da rota — a página não
-    // remonta. Sem este reset completo, os dados do colaborador anterior
-    // sobreviveriam à troca: se a carga do seguinte falhasse (ex.: pessoa
-    // retirada da equipe), a tela renderizaria o formulário do anterior no
-    // URL do seguinte, porque a guarda `!definition || !member || !submission`
-    // nunca dispararia.
     setLoading(true);
     setStep(0);
     setMessage("");
+    setMissingQuestions([]);
     setCelebrate(false);
     setDefinition(null);
     setSubmission(null);
@@ -100,33 +89,16 @@ export default function LeaderEvaluationPage() {
     latestAnswers.current = {};
     const load = async () => {
       try {
-        /*
-         * A tela Minha equipe informa o ciclo escolhido por query string. Sem o
-         * parâmetro, o ciclo vinha escrito no código (`CDDI-2026`) — o que
-         * levaria quem abrisse o link direto, na segunda edição, a avaliar
-         * alguém no ciclo errado.
-         *
-         * O resolvedor aqui é `fc_listar_ciclos_lideranca`, e não o da
-         * autoavaliação: quem avalia é a chefia, e o ciclo que importa é aquele
-         * em que ela **lidera equipe** — não aquele em que ela é avaliada. A
-         * lista já vem do mais recente para o mais antigo.
-         */
         const cycleFromQuery = new URLSearchParams(window.location.search).get("ciclo")?.trim();
         let applicationCode = cycleFromQuery || "";
         if (!applicationCode) {
           const cycles = await listarCiclosDeLideranca();
-          if (!cycles[0]?.code) {
-            throw new Error("Você não tem vínculo de liderança em nenhum ciclo do CDDI.");
-          }
+          if (!cycles[0]?.code) throw new Error("Você não tem vínculo de liderança em nenhum ciclo do CDDI.");
           applicationCode = cycles[0].code;
         }
         const [formResponse, submissionResponse, teamResponse] = await Promise.all([
           obterFormulario(applicationCode),
-          iniciarOuRetomarSubmissaoCddi({
-            applicationCode,
-            submissionType: "CHEFIA",
-            subjectPersonId: personId,
-          }),
+          iniciarOuRetomarSubmissaoCddi({ applicationCode, submissionType: "CHEFIA", subjectPersonId: personId }),
           obterMinhaEquipe(applicationCode),
         ]);
         const members = (teamResponse as { members?: Member[] })?.members ?? [];
@@ -151,11 +123,6 @@ export default function LeaderEvaluationPage() {
     void load();
     const timersToClear = timers.current;
     return () => {
-      // Cancela E remove cada debounce pendente. Só cancelar deixaria as
-      // chaves no objeto, e o formulário do CDDI é o mesmo para toda a
-      // equipe (mesmos `questionId`): o `flushPendingSaves()` do próximo
-      // colaborador reidrataria essas chaves e gravaria respostas do
-      // anterior na submissão do seguinte.
       Object.keys(timersToClear).forEach((questionId) => {
         window.clearTimeout(timersToClear[questionId]);
         delete timersToClear[questionId];
@@ -212,17 +179,7 @@ export default function LeaderEvaluationPage() {
     });
     await saveQueue.flush();
   }
-  /**
-   * Última etapa alcançável pelos atalhos numerados.
-   *
-   * `goTo()` valida só a etapa em que a pessoa está, então os atalhos do topo
-   * permitiam sair da 1 para a 13 deixando as do meio para trás. O envio
-   * continuava barrado — nenhum dado inválido chegava ao banco —, mas a
-   * pendência só aparecia no fim, sem indicar de onde vinha.
-   *
-   * Aqui as etapas `0..sections.length - 1` são as competências e a última é a
-   * revisão, diferente da autoavaliação, que tem a identificação na etapa 0.
-   */
+
   const firstIncompleteStep = useMemo(() => {
     if (!canEdit) return totalSteps - 1;
     const incomplete = sections.findIndex((section) =>
@@ -231,18 +188,33 @@ export default function LeaderEvaluationPage() {
     return incomplete === -1 ? totalSteps - 1 : incomplete;
   }, [sections, answers, canEdit, totalSteps]);
 
-  function goTo(target: number) {
-    if (target > step && currentSection && canEdit) {
-      const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
-      if (missing.length) { setMessage(`Preencha ${missing.length} pergunta(s) obrigatória(s) antes de avançar.`); return; }
-    }
+  function showMissingDialog(section: Section | null) {
+    if (!section || !canEdit) return false;
+    const missing = section.questions.filter((question) => question.required && !answered(question, answers));
+    if (!missing.length) return false;
     setMessage("");
+    setMissingQuestions(missing.map((question) => question.title));
+    return true;
+  }
+
+  function goTo(target: number) {
+    if (target > step && showMissingDialog(currentSection)) return;
+    setMessage("");
+    setMissingQuestions([]);
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
-    if (requiredQuestions.some((question) => !answered(question, answers))) { setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
+    const firstIncompleteIndex = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !answered(question, answers)),
+    );
+    if (firstIncompleteIndex >= 0) {
+      setStep(firstIncompleteIndex);
+      showMissingDialog(sections[firstIncompleteIndex]);
+      window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
+      return;
+    }
     const confirmed = await confirm({
       title: "Enviar avaliação da chefia?",
       description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`,
@@ -297,11 +269,7 @@ export default function LeaderEvaluationPage() {
       {!canEdit && (
         <p role="status" className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
           <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>
-            {isSubmitted
-              ? <><strong className="font-semibold text-[var(--text-primary)]">Avaliação enviada.</strong> As respostas não podem mais ser alteradas.</>
-              : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> O período de preenchimento não está aberto.</>}
-          </span>
+          <span>{isSubmitted ? <><strong className="font-semibold text-[var(--text-primary)]">Avaliação enviada.</strong> As respostas não podem mais ser alteradas.</> : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> O período de preenchimento não está aberto.</>}</span>
         </p>
       )}
 
@@ -310,14 +278,7 @@ export default function LeaderEvaluationPage() {
           <strong className="text-sm font-semibold" style={{ color: CDDI_INK }}>{currentSection?.title || "Revisão final"}</strong>
           <span className="text-xs font-semibold text-[var(--text-secondary)]">Etapa {step + 1} de {totalSteps} · {progress}% preenchido</span>
         </div>
-        <div
-          role="progressbar"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Progresso das perguntas obrigatórias"
-          className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"
-        >
+        <div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso das perguntas obrigatórias" className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
           <div className="h-full rounded-full bg-[var(--brand-secondary)] transition-all" style={{ width: `${progress}%` }} />
         </div>
         <nav aria-label="Etapas da avaliação" className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -326,25 +287,7 @@ export default function LeaderEvaluationPage() {
             const current = index === step;
             const locked = index > firstIncompleteStep;
             return (
-              <button
-                key={index}
-                type="button"
-                onClick={() => goTo(index)}
-                disabled={locked}
-                aria-current={current ? "step" : undefined}
-                title={locked
-                  ? `Responda as obrigatórias da etapa ${String(firstIncompleteStep + 1).padStart(2, "0")} para liberar esta`
-                  : index === totalSteps - 1 ? "Revisão final" : sections[index]?.title}
-                className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
-                  current
-                    ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                    : locked
-                      ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50"
-                      : complete
-                        ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                        : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-                }`}
-              >
+              <button key={index} type="button" onClick={() => goTo(index)} disabled={locked} aria-current={current ? "step" : undefined} title={locked ? `Responda as obrigatórias da etapa ${String(firstIncompleteStep + 1).padStart(2, "0")} para liberar esta` : index === totalSteps - 1 ? "Revisão final" : sections[index]?.title} className={`inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${current ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]" : locked ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)] opacity-50" : complete ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>
                 {complete && !current && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
                 {index === totalSteps - 1 ? "Revisão" : String(index + 1).padStart(2, "0")}
               </button>
@@ -368,25 +311,14 @@ export default function LeaderEvaluationPage() {
           <div className="mt-6 space-y-8">
             {currentSection.questions.map((question) => (
               <fieldset key={question.id} disabled={!canEdit} className="min-w-0">
-                <legend className="block w-full whitespace-pre-line break-words text-sm font-semibold leading-relaxed text-[var(--text-primary)]">
-                  {question.title}
-                  {question.required && <span className="text-red-700" title="Resposta obrigatória"> *</span>}
-                </legend>
+                <legend className="block w-full whitespace-pre-line break-words text-sm font-semibold leading-relaxed text-[var(--text-primary)]">{question.title}{question.required && <span className="text-red-700" title="Resposta obrigatória"> *</span>}</legend>
                 {question.description && <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-[var(--text-secondary)]">{question.description}</p>}
                 {question.type === "SCALE" ? (
                   <div className="mt-3 grid grid-cols-5 gap-2">
                     {question.options.map((option) => {
                       const selected = answers[question.id]?.optionId === option.id || answers[question.id]?.value === option.value;
                       return (
-                        <label
-                          key={option.id}
-                          title={option.label}
-                          className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border py-3 text-center transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${
-                            selected
-                              ? "border-[var(--brand-solid)] bg-[var(--brand-solid)] text-[var(--text-on-brand)]"
-                              : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
-                          }`}
-                        >
+                        <label key={option.id} title={option.label} className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border py-3 text-center transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${selected ? "border-[var(--brand-solid)] bg-[var(--brand-solid)] text-[var(--text-on-brand)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"}`}>
                           <input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => updateScale(question, option)} />
                           <span className="text-lg font-semibold">{option.value}</span>
                           <span className={`px-1 text-[10px] leading-3 ${selected ? "text-[var(--text-on-brand)]/80" : "text-[var(--text-muted)]"}`}>{option.label}</span>
@@ -395,13 +327,7 @@ export default function LeaderEvaluationPage() {
                     })}
                   </div>
                 ) : (
-                  <textarea
-                    rows={6}
-                    value={answers[question.id]?.value ?? ""}
-                    onChange={(event) => updateText(question, event.target.value)}
-                    placeholder="Digite sua resposta..."
-                    className="mt-3 w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] p-4 text-sm leading-6 text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)]"
-                  />
+                  <textarea rows={6} value={answers[question.id]?.value ?? ""} onChange={(event) => updateText(question, event.target.value)} placeholder="Digite sua resposta..." className="mt-3 w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] p-4 text-sm leading-6 text-[var(--text-primary)] shadow-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)]" />
                 )}
               </fieldset>
             ))}
@@ -413,92 +339,46 @@ export default function LeaderEvaluationPage() {
         <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-3">
             <UserRoundCheck className="h-7 w-7 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight" style={{ color: CDDI_INK }}>Revisão da avaliação</h2>
-              <p className="text-sm leading-6 text-[var(--text-secondary)]">Confira o preenchimento antes do envio definitivo.</p>
-            </div>
+            <div><h2 className="text-xl font-semibold tracking-tight" style={{ color: CDDI_INK }}>Revisão da avaliação</h2><p className="text-sm leading-6 text-[var(--text-secondary)]">Confira o preenchimento antes do envio definitivo.</p></div>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {sections.map((section, index) => (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => goTo(index)}
-                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <strong className="text-sm font-semibold" style={{ color: CDDI_INK }}>{section.title}</strong>
-                  <Badge variant={completion(section, answers) === 100 ? "success" : "warning"}>{completion(section, answers)}%</Badge>
-                </div>
+              <button key={section.id} type="button" onClick={() => goTo(index)} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]">
+                <div className="flex items-start justify-between gap-3"><strong className="text-sm font-semibold" style={{ color: CDDI_INK }}>{section.title}</strong><Badge variant={completion(section, answers) === 100 ? "success" : "warning"}>{completion(section, answers)}%</Badge></div>
               </button>
             ))}
           </div>
           {canEdit && <>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting || saving || missingToSubmit > 0}
-              title={missingToSubmit > 0 ? `Faltam ${missingToSubmit} perguntas obrigatórias` : "Enviar definitivamente"}
-              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <button type="button" onClick={submit} disabled={submitting || saving} title={missingToSubmit > 0 ? `Há ${missingToSubmit} perguntas obrigatórias pendentes. Clique para localizar a primeira competência incompleta.` : "Enviar definitivamente"} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
               {submitting ? "Enviando..." : "Confirmar e enviar avaliação da chefia"}
             </button>
-            {missingToSubmit > 0 && (
-              <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
-                Faltam {missingToSubmit} {missingToSubmit === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio.
-              </p>
-            )}
+            {missingToSubmit > 0 && <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Faltam {missingToSubmit} {missingToSubmit === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio. Clique no botão para localizar a primeira pendência.</p>}
           </>}
-          {isSubmitted && (
-            <p className="mt-5 flex items-center gap-2 rounded-xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4 text-sm font-semibold text-[var(--status-success-text)]">
-              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-              Avaliação enviada em {dateLabel(submission.submission?.submittedAt)}.
-            </p>
-          )}
+          {isSubmitted && <p className="mt-5 flex items-center gap-2 rounded-xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4 text-sm font-semibold text-[var(--status-success-text)]"><CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />Avaliação enviada em {dateLabel(submission.submission?.submittedAt)}.</p>}
         </section>
       )}
     </div>
 
     <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,.12)] backdrop-blur">
       <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3">
-        <p role="status" className="hidden items-center gap-2 text-sm text-[var(--text-secondary)] sm:flex">
-          {saving
-            ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando rascunho...</>
-            : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Salvamento automático ativo" : "Somente leitura"}</>}
-        </p>
+        <p role="status" className="hidden items-center gap-2 text-sm text-[var(--text-secondary)] sm:flex">{saving ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Salvando rascunho...</> : <><Save className="h-4 w-4" aria-hidden="true" />{canEdit ? "Salvamento automático ativo" : "Somente leitura"}</>}</p>
         <div className="ml-auto flex gap-2">
-          <Link href="/equipe" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">
-            <Home className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Equipe</span>
-          </Link>
-          <button
-            type="button"
-            onClick={() => goTo(step - 1)}
-            disabled={step === 0}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Anterior
-          </button>
-          <button
-            type="button"
-            onClick={() => goTo(step + 1)}
-            disabled={step === totalSteps - 1}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-solid)] px-4 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Próxima
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </button>
+          <Link href="/equipe" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"><Home className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Equipe</span></Link>
+          <button type="button" onClick={() => goTo(step - 1)} disabled={step === 0} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Anterior</button>
+          <button type="button" onClick={() => goTo(step + 1)} disabled={step === totalSteps - 1} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-solid)] px-4 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-40">Próxima<ArrowRight className="h-4 w-4" aria-hidden="true" /></button>
         </div>
       </div>
     </footer>
-    <CompletionCelebration
-      open={celebrate}
-      onClose={() => router.replace("/area")}
-      title="Parabéns! Avaliação concluída"
-      message={`A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
-      actionLabel="Ir para o início do sistema"
-    />
+    <CompletionCelebration open={celebrate} onClose={() => router.replace("/area")} title="Parabéns! Avaliação concluída" message={`A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`} actionLabel="Ir para o início do sistema" />
+    <Dialog open={missingQuestions.length > 0} onOpenChange={(open) => { if (!open) setMissingQuestions([]); }} title={missingQuestions.length === 1 ? "Falta responder uma pergunta" : `Faltam responder ${missingQuestions.length} perguntas`} description="Complete as respostas obrigatórias desta competência antes de continuar." className="max-w-lg border-amber-200" footer={<button type="button" onClick={() => setMissingQuestions([])} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition hover:bg-amber-700 sm:w-auto">Voltar e responder</button>}>
+      <div className="text-center">
+        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-100 text-amber-700 ring-8 ring-amber-50"><AlertTriangle className="h-10 w-10" aria-hidden="true" /></span>
+        <p className="mx-auto mt-6 max-w-md text-base leading-7 text-slate-700">Você deixou {missingQuestions.length} {missingQuestions.length === 1 ? "pergunta obrigatória sem resposta" : "perguntas obrigatórias sem resposta"} nesta competência.</p>
+        <ul className="mt-5 max-h-[50vh] space-y-2 overflow-y-auto text-left" aria-label="Perguntas que precisam ser respondidas">
+          {missingQuestions.map((question) => <li key={question} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-950">{question}</li>)}
+        </ul>
+      </div>
+    </Dialog>
   </div></CddiPlatformFrame>;
 }
