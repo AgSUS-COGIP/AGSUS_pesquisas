@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
 import { isPublicRequest } from "./public-request";
+import { SUPABASE_DB_SCHEMA } from "./schema";
 
 // Rota de API responde em JSON, inclusive quando recusa.
 //
@@ -69,6 +70,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const supabase = createServerClient(url, publishableKey, {
+    db: { schema: SUPABASE_DB_SCHEMA },
     cookies: {
       getAll() {
         return request.cookies.getAll();

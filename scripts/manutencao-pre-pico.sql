@@ -25,12 +25,12 @@
 -- `vacuum` não roda dentro de transação: execute estas linhas isoladamente,
 -- sem envolver em begin/commit.
 -- ---------------------------------------------------------------------------
-vacuum (analyze) public.people;
-vacuum (analyze) public.application_participants;
-vacuum (analyze) public.cddi_leadership_links;
-vacuum (analyze) public.submissions;
-vacuum (analyze) public.answers;
-vacuum (analyze) public.answer_options;
+vacuum (analyze) sigav.people;
+vacuum (analyze) sigav.application_participants;
+vacuum (analyze) sigav.cddi_leadership_links;
+vacuum (analyze) sigav.submissions;
+vacuum (analyze) sigav.answers;
+vacuum (analyze) sigav.answer_options;
 
 -- ---------------------------------------------------------------------------
 -- 2. Confirmação da manutenção
@@ -58,13 +58,13 @@ order by n_dead_tup desc;
 --   get_public_survey_form ~30 ms
 -- Média acima de 200 ms num caminho de resposta merece investigação.
 -- ---------------------------------------------------------------------------
-select substring(query from '"public"\."([a-z_0-9]+)"') as rpc,
+select substring(query from '"sigav"\."([a-z_0-9]+)"') as rpc,
        calls                                            as chamadas,
        round(mean_exec_time::numeric, 1)                as media_ms,
        round(max_exec_time::numeric, 1)                 as pior_ms
 from pg_stat_statements
 where query like '%pgrst_call%'
-  and substring(query from '"public"\."([a-z_0-9]+)"') is not null
+  and substring(query from '"sigav"\."([a-z_0-9]+)"') is not null
 order by mean_exec_time desc
 limit 20;
 
@@ -94,15 +94,15 @@ from pg_stat_activity;
 select a.code                                                                  as ciclo,
        a.status,
        a.closes_at                                                             as encerra_em,
-       (select count(*) from public.application_participants ap
+       (select count(*) from sigav.application_participants ap
          where ap.application_id = a.id)                                       as participantes,
-       (select count(distinct l.subordinate_person_id) from public.cddi_leadership_links l
+       (select count(distinct l.subordinate_person_id) from sigav.cddi_leadership_links l
          where l.application_id = a.id and l.status = 'ACTIVE' and l.valid_to is null) as com_chefia,
-       (select count(*) from public.submissions s
+       (select count(*) from sigav.submissions s
          where s.application_id = a.id and s.status = 'DRAFT')                  as em_andamento,
-       (select count(*) from public.submissions s
+       (select count(*) from sigav.submissions s
          where s.application_id = a.id and s.status in ('SUBMITTED', 'VALIDATED')) as enviadas
-from public.survey_applications a
+from sigav.survey_applications a
 where a.status in ('OPEN', 'SCHEDULED')
 order by a.closes_at;
 
@@ -115,7 +115,7 @@ order by a.closes_at;
 select date_trunc('hour', s.updated_at)              as hora,
        count(*)                                      as submissoes_tocadas,
        count(*) filter (where s.submitted_at is not null) as enviadas
-from public.submissions s
+from sigav.submissions s
 where s.updated_at > timezone('utc', now()) - interval '24 hours'
 group by 1
 order by 1 desc;
