@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Home, Hourglass, Info, Lock, Save, UserRoundCheck } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import {
   enviarSubmissaoCddi,
@@ -18,6 +18,7 @@ import { CddiPlatformFrame } from "@/components/cddi-platform-frame";
 import { CompletionCelebration } from "@/components/completion-celebration";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/overlay-panel";
 import { clearCddiBatchQueue } from "@/lib/cddi-batch-queue";
 import { visibleCddiSections } from "@/lib/cddi-question-applicability";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
@@ -63,6 +64,7 @@ export default function LeaderEvaluationPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [missingQuestions, setMissingQuestions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const timers = useRef<Record<string, number>>({});
@@ -92,6 +94,7 @@ export default function LeaderEvaluationPage() {
     setLoading(true);
     setStep(0);
     setMessage("");
+    setMissingQuestions([]);
     setCelebrate(false);
     setDefinition(null);
     setSubmission(null);
@@ -231,18 +234,33 @@ export default function LeaderEvaluationPage() {
     return incomplete === -1 ? totalSteps - 1 : incomplete;
   }, [sections, answers, canEdit, totalSteps]);
 
-  function goTo(target: number) {
-    if (target > step && currentSection && canEdit) {
-      const missing = currentSection.questions.filter((question) => question.required && !answered(question, answers));
-      if (missing.length) { setMessage(`Preencha ${missing.length} pergunta(s) obrigatória(s) antes de avançar.`); return; }
-    }
+  function showMissingDialog(section: Section | null) {
+    if (!section || !canEdit) return false;
+    const missing = section.questions.filter((question) => question.required && !answered(question, answers));
+    if (!missing.length) return false;
     setMessage("");
+    setMissingQuestions(missing.map((question) => question.title));
+    return true;
+  }
+
+  function goTo(target: number) {
+    if (target > step && showMissingDialog(currentSection)) return;
+    setMessage("");
+    setMissingQuestions([]);
     setStep(Math.max(0, Math.min(target, totalSteps - 1)));
     window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
   }
   async function submit() {
     if (!submission?.submission?.id || !canEdit) return;
-    if (requiredQuestions.some((question) => !answered(question, answers))) { setMessage("Ainda existem perguntas obrigatórias sem resposta."); return; }
+    const firstIncompleteIndex = sections.findIndex((section) =>
+      section.questions.some((question) => question.required && !answered(question, answers)),
+    );
+    if (firstIncompleteIndex >= 0) {
+      setStep(firstIncompleteIndex);
+      showMissingDialog(sections[firstIncompleteIndex]);
+      window.requestAnimationFrame(() => scrollFormTopIntoView(formTopRef.current));
+      return;
+    }
     const confirmed = await confirm({
       title: "Enviar avaliação da chefia?",
       description: `A avaliação de ${member?.fullName ?? "esta pessoa"} será enviada definitivamente e bloqueada para edição.`,
@@ -437,8 +455,8 @@ export default function LeaderEvaluationPage() {
             <button
               type="button"
               onClick={submit}
-              disabled={submitting || saving || missingToSubmit > 0}
-              title={missingToSubmit > 0 ? `Faltam ${missingToSubmit} perguntas obrigatórias` : "Enviar definitivamente"}
+              disabled={submitting || saving}
+              title={missingToSubmit > 0 ? `Há ${missingToSubmit} perguntas obrigatórias pendentes. Clique para localizar a primeira competência incompleta.` : "Enviar definitivamente"}
               className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? <Hourglass className="h-5 w-5 animate-pulse" aria-hidden="true" /> : <CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
@@ -446,7 +464,7 @@ export default function LeaderEvaluationPage() {
             </button>
             {missingToSubmit > 0 && (
               <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
-                Faltam {missingToSubmit} {missingToSubmit === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio.
+                Faltam {missingToSubmit} {missingToSubmit === 1 ? "pergunta obrigatória" : "perguntas obrigatórias"} para liberar o envio. Clique no botão para localizar a primeira pendência.
               </p>
             )}
           </>}
@@ -500,5 +518,37 @@ export default function LeaderEvaluationPage() {
       message={`A avaliação de ${member.fullName} foi enviada com sucesso e não possui mais alterações pendentes.`}
       actionLabel="Ir para o início do sistema"
     />
+    <Dialog
+      open={missingQuestions.length > 0}
+      onOpenChange={(open) => { if (!open) setMissingQuestions([]); }}
+      title={missingQuestions.length === 1 ? "Falta responder uma pergunta" : `Faltam responder ${missingQuestions.length} perguntas`}
+      description="Complete as respostas obrigatórias desta competência antes de continuar."
+      className="max-w-lg border-amber-200"
+      footer={(
+        <button
+          type="button"
+          onClick={() => setMissingQuestions([])}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition hover:bg-amber-700 sm:w-auto"
+        >
+          Voltar e responder
+        </button>
+      )}
+    >
+      <div className="text-center">
+        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-100 text-amber-700 ring-8 ring-amber-50">
+          <AlertTriangle className="h-10 w-10" aria-hidden="true" />
+        </span>
+        <p className="mx-auto mt-6 max-w-md text-base leading-7 text-slate-700">
+          Você deixou {missingQuestions.length} {missingQuestions.length === 1 ? "pergunta obrigatória sem resposta" : "perguntas obrigatórias sem resposta"} nesta competência.
+        </p>
+        <ul className="mt-5 max-h-[50vh] space-y-2 overflow-y-auto text-left" aria-label="Perguntas que precisam ser respondidas">
+          {missingQuestions.map((question) => (
+            <li key={question} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-950">
+              {question}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Dialog>
   </div></CddiPlatformFrame>;
 }
