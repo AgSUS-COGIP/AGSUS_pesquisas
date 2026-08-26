@@ -95,7 +95,7 @@ O avaliador equivalente no cliente é `src/lib/survey-conditional-logic.ts`. **O
 
 ### Clonagem de avaliação — `20260813160000_clonar_pesquisa.sql`
 
-`fc_clonar_pesquisa(p_pesquisa, p_nome, p_codigo)` duplica **a estrutura**, não o histórico: seções (inclusive aninhadas), perguntas, alternativas e regras condicionais. Ciclo, participantes, submissões e respostas **não** entram. A cópia nasce em `DRAFT`, sem período e sem público.
+`fc_clonar_pesquisa(p_pesquisa, p_nome, p_codigo)` duplica **a estrutura**, não o histórico: seções (inclusive aninhadas), perguntas, alternativas e regras condicionais. O ciclo de origem, participantes, submissões e respostas **não** entram. A cópia nasce em `DRAFT` com um ciclo próprio também em `DRAFT`, sem período e sem público — a aplicação vazia é obrigatória para publicar, iniciar, interromper e arquivar a nova avaliação.
 
 **Os identificadores são remapeados, e isso é o cerne da função.** Uma regra condicional aponta para a pergunta de origem e para a alternativa comparada; copiar as regras apontando para os identificadores do original criaria um instrumento cuja lógica depende de outro — alterar o original mudaria a cópia, e apagá-lo deixaria regra órfã. Os mapas `v_mapa_secao`/`v_mapa_pergunta`/`v_mapa_opcao` traduzem cada identificador antigo no novo antes de gravar. O mapa de alternativas pareia por `(pergunta, código)`, que é único por constraint.
 

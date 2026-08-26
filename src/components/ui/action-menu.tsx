@@ -50,7 +50,10 @@ export function ActionMenu({ label, items, className }: {
   }, [open]);
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn("relative h-11 w-11 shrink-0", open && "z-50", className)}
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -69,7 +72,7 @@ export function ActionMenu({ label, items, className }: {
           id={menuId}
           role="menu"
           aria-label={label}
-          className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] py-1.5 shadow-[var(--shadow-card)]"
+          className="absolute right-0 top-full z-50 mt-2 w-[min(14rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] py-1.5 shadow-[var(--shadow-card)]"
         >
           {items.map((item) => {
             const Icon = item.icon;
