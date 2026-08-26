@@ -1,4 +1,4 @@
-import { resolvePlatformModules, resolvePlatformRole, type PlatformModule } from "./platform-modules";
+import { normalizePlatformModules, resolvePlatformRole, type PlatformModule } from "./platform-modules";
 import { PLATFORM_ROLE_LABELS } from "./platform-roles";
 import type { PlatformContext } from "./platform-context";
 
@@ -47,8 +47,10 @@ const UNIDENTIFIED_FALLBACK = "Acesso não identificado.";
  * Função pura: a ordem dos desfechos é a regra de guarda do produto e fica
  * testável sem React. Sequência — carregando → identidade → módulo → liberado.
  *
- * A autorização efetiva continua sendo a RLS do banco; isto governa apenas o
- * que a interface mostra.
+ * A lista de módulos é calculada no PostgreSQL e chega em `context.modules`.
+ * Aqui apenas descartamos códigos que este bundle ainda não conhece. A guarda
+ * não recalcula permissão a partir do perfil, evitando uma segunda fonte de
+ * verdade no frontend.
  */
 export function resolvePlatformGuard({ context, loading, error, requiredModule }: PlatformGuardInput): PlatformGuardDecision {
   if (loading) return { state: "loading" };
@@ -56,7 +58,7 @@ export function resolvePlatformGuard({ context, loading, error, requiredModule }
   const person = context?.person;
   if (!context || !person) return { state: "unidentified", message: error || UNIDENTIFIED_FALLBACK };
 
-  const modules = resolvePlatformModules({ roles: context.roles });
+  const modules = normalizePlatformModules(context.modules);
   if (requiredModule && !modules.includes(requiredModule)) return { state: "restricted", requiredModule };
 
   return {
