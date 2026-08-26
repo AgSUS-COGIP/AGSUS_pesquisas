@@ -692,7 +692,11 @@ export default function CddiTeamEvaluationPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <strong className="text-sm">Pessoas em comparação</strong>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">Exibindo {personWindow.start + 1}–{personWindow.end} de {evaluationList.length}. Desktop mostra até 3 pessoas; tablet, até 2; celular, 1 por vez.</p>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    {evaluationList.length <= peoplePerPage
+                      ? `${evaluationList.length} ${evaluationList.length === 1 ? "pessoa" : "pessoas"} em comparação`
+                      : `Pessoas ${personWindow.start + 1}–${personWindow.end} de ${evaluationList.length}`}
+                  </p>
                 </div>
                 {personWindow.pageCount > 1 && (
                   <div className="flex items-center gap-2">
