@@ -86,6 +86,7 @@ as $function$
         join valid_person vp on vp.id = pra.person_id
         where pra.starts_at <= timezone('utc', now())
           and (pra.ends_at is null or pra.ends_at > timezone('utc', now()))
+          and sr.code in ('ADMINISTRATOR', 'SURVEY_MANAGER', 'LEADER', 'RESPONDENT')
         order by case sr.code
           when 'ADMINISTRATOR' then 1
           when 'SURVEY_MANAGER' then 2
