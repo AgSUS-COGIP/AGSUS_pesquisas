@@ -18,6 +18,15 @@ export const PLATFORM_MODULES = Object.freeze(
   Object.values(PLATFORM_MODULE),
 ) as readonly PlatformModule[];
 
+/**
+ * Piso seguro mantido apenas para chamadas legadas de `PlatformShell` que ainda
+ * não informam `user.modules`. Não é usado por `resolvePlatformGuard()` e não
+ * representa mais o mapa de permissões do perfil no frontend.
+ */
+export const PARTICIPANT_ROLE_MODULES = Object.freeze([
+  PLATFORM_MODULE.SURVEYS,
+]) as readonly PlatformModule[];
+
 export function isPlatformModule(value: unknown): value is PlatformModule {
   return typeof value === "string" && PLATFORM_MODULES.includes(value as PlatformModule);
 }
