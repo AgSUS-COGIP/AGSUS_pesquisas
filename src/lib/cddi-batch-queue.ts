@@ -60,11 +60,16 @@ export function saveCddiBatchQueue(queue: CddiBatchQueue): boolean {
  * A rota individual `/cddi/chefia/<personId>` nunca pode herdar uma seleção
  * antiga do `sessionStorage`: cada avaliação individual precisa continuar
  * isolada, e respostas de uma pessoa jamais podem ser replicadas para outra.
+ * Ao sair da rota de lote, a fila também é apagada para que um estado antigo
+ * não sobreviva à navegação cliente e não possa reativar modo de grupo depois.
  */
 export function readCddiBatchQueue(): CddiBatchQueue | null {
   try {
     const pathname = window.location.pathname.replace(/\/+$/, "");
-    if (pathname !== "/cddi/chefia/lote") return null;
+    if (pathname !== "/cddi/chefia/lote") {
+      clearCddiBatchQueue();
+      return null;
+    }
     return parseCddiBatchQueue(window.sessionStorage.getItem(CDDI_BATCH_QUEUE_STORAGE_KEY));
   } catch {
     return null;
