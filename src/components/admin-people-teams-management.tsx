@@ -5,11 +5,17 @@ import { History, Loader2, RefreshCw, Save, Search, UserRoundCog, UsersRound } f
 import { toast } from "sonner";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import {
+  leadershipChoiceFromPending,
+  leadershipPersonOptions,
+  shouldSearchLeadershipPeople,
+  type LeadershipPersonChoice,
+} from "@/lib/leadership-management";
+import {
   atualizarPessoa,
   buscarPessoas,
   definirVinculoDeLideranca,
   listarAuditoriaDaPessoa,
-  listarCiclosDeParticipantes,
+  listarCiclosAdministrativosDeLideranca,
   listarPessoasSemChefia,
   listarVinculosDeLideranca,
 } from "@/lib/api/cliente-pessoas";
@@ -75,6 +81,57 @@ function Field({ label, value, onChange, disabled = false }: { label: string; va
   return <label className="block"><span className="text-xs font-bold text-slate-600">{label}</span><input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500" /></label>;
 }
 
+/**
+ * Busca cada seletor diretamente na base completa. A tela tem mais de mil
+ * pessoas; reutilizar a primeira página da aba funcional escondia a maioria.
+ */
+function useLeadershipPersonSearch(
+  term: string,
+  selectedPersonId: string | null,
+  excludedPersonId: string | null,
+) {
+  const [options, setOptions] = useState<LeadershipPersonChoice[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const normalizedTerm = term.trim();
+    if (!shouldSearchLeadershipPeople(normalizedTerm, selectedPersonId)) {
+      setOptions([]);
+      setLoading(false);
+      setFailed(false);
+      return;
+    }
+
+    setOptions([]);
+    setLoading(true);
+    setFailed(false);
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      void buscarPessoas({ busca: normalizedTerm, limite: 8 })
+        .then((rows) => {
+          if (!active) return;
+          setOptions(leadershipPersonOptions(rows, excludedPersonId));
+        })
+        .catch(() => {
+          if (!active) return;
+          setOptions([]);
+          setFailed(true);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [excludedPersonId, selectedPersonId, term]);
+
+  return { options, loading, failed };
+}
+
 export function AdminPeopleTeamsManagement() {
   const [tab, setTab] = useState<"people" | "teams">("people");
   const [people, setPeople] = useState<Person[]>([]);
@@ -85,13 +142,15 @@ export function AdminPeopleTeamsManagement() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [applicationId, setApplicationId] = useState("");
   const [links, setLinks] = useState<LeadershipLink[]>([]);
+  const [activeLinkTotal, setActiveLinkTotal] = useState(0);
+  const [linkMatchTotal, setLinkMatchTotal] = useState(0);
   const [pending, setPending] = useState<PendingPerson[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState("");
   const [subordinateSearch, setSubordinateSearch] = useState("");
   const [leaderSearch, setLeaderSearch] = useState("");
-  const [subordinate, setSubordinate] = useState<Person | null>(null);
-  const [leader, setLeader] = useState<Person | null>(null);
+  const [subordinate, setSubordinate] = useState<LeadershipPersonChoice | null>(null);
+  const [leader, setLeader] = useState<LeadershipPersonChoice | null>(null);
   const [leadershipJustification, setLeadershipJustification] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -111,14 +170,17 @@ export function AdminPeopleTeamsManagement() {
   }, []);
 
   const loadApplications = useCallback(async () => {
-    const rows = await listarCiclosDeParticipantes();
+    const rows = await listarCiclosAdministrativosDeLideranca();
     setApplications(rows);
-    setApplicationId((current) => current || rows[0]?.id || "");
+    setApplicationId((current) => rows.some((row) => row.id === current) ? current : rows[0]?.id ?? "");
   }, []);
 
   const loadLinks = useCallback(async (targetApplicationId: string, term = "") => {
     if (!targetApplicationId) return;
-    setLinks(await listarVinculosDeLideranca(targetApplicationId, { busca: term.trim(), limite: 200 }));
+    const area = await listarVinculosDeLideranca(targetApplicationId, { busca: term.trim(), limite: 200 });
+    setLinks(area.links);
+    setActiveLinkTotal(area.totalActive);
+    setLinkMatchTotal(area.totalMatches);
   }, []);
 
   const loadPending = useCallback(async (targetApplicationId: string) => {
@@ -154,8 +216,6 @@ export function AdminPeopleTeamsManagement() {
     return () => window.clearTimeout(timeout);
   }, [search, searchPeople]);
 
-  const activeLinks = useMemo(() => links.filter((item) => item.status === "ACTIVE" && !item.validTo), [links]);
-
   /**
    * Pendências agrupadas pelo gestor ausente.
    *
@@ -180,8 +240,16 @@ export function AdminPeopleTeamsManagement() {
     () => pending.filter((item) => item.managerResolution !== "NOT_FOUND" || !item.managerEmail),
     [pending],
   );
-  const subordinateOptions = useMemo(() => people.filter((item) => item.active && item.personId !== leader?.personId && (`${item.fullName} ${item.employeeNumber}`).toLowerCase().includes(subordinateSearch.toLowerCase())).slice(0, 8), [people, subordinateSearch, leader]);
-  const leaderOptions = useMemo(() => people.filter((item) => item.active && item.personId !== subordinate?.personId && (`${item.fullName} ${item.employeeNumber}`).toLowerCase().includes(leaderSearch.toLowerCase())).slice(0, 8), [people, leaderSearch, subordinate]);
+  const subordinateLookup = useLeadershipPersonSearch(
+    subordinateSearch,
+    subordinate?.personId ?? null,
+    leader?.personId ?? null,
+  );
+  const leaderLookup = useLeadershipPersonSearch(
+    leaderSearch,
+    leader?.personId ?? null,
+    subordinate?.personId ?? null,
+  );
 
   async function savePerson() {
     if (!selectedPerson || !form) return;
@@ -223,7 +291,7 @@ export function AdminPeopleTeamsManagement() {
       setSubordinate(null); setLeader(null); setSubordinateSearch(""); setLeaderSearch(""); setLeadershipJustification("");
       // A fila de pendências é recarregada junto: quem acabou de receber chefia
       // some da lista, e o contador reflete o trabalho que ainda resta.
-      await Promise.all([loadLinks(applicationId), loadPending(applicationId)]);
+      await Promise.all([loadLinks(applicationId, teamSearch), loadPending(applicationId)]);
     } catch (error) {
       toast.error(errorMessageFromUnknown(error) || "Não foi possível corrigir o vínculo.");
     } finally { setWorking(false); }
@@ -264,7 +332,37 @@ export function AdminPeopleTeamsManagement() {
         </>}
       </section>
     </div> : <div className="space-y-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end"><label><span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Avaliação ou ciclo</span><select value={applicationId} onChange={(event) => setApplicationId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100">{applications.map((application) => <option key={application.id} value={application.id}>{application.code} — {application.name}</option>)}</select></label><label className="relative"><span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Buscar vínculo</span><Search className="absolute bottom-4 left-4 h-4 w-4 text-slate-400"/><input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" placeholder="Liderança, integrante ou matrícula"/></label><button type="button" onClick={() => void loadLinks(applicationId, teamSearch)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Atualizar</button></div><div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm text-[var(--brand-primary)]"><strong>{activeLinks.length}</strong> vínculos ativos no ciclo selecionado. Correções encerram o vínculo anterior sem apagar o histórico.</div></section>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+          <label>
+            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Ciclo CDDI</span>
+            <select
+              value={applicationId}
+              disabled={!applications.length}
+              onChange={(event) => {
+                setTeamSearch("");
+                setApplicationId(event.target.value);
+              }}
+              className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
+            >
+              {applications.length ? applications.map((application) => (
+                <option key={application.id} value={application.id}>{application.code} — {application.name}</option>
+              )) : <option value="">Nenhum ciclo CDDI disponível</option>}
+            </select>
+          </label>
+          <label className="relative">
+            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Buscar vínculo</span>
+            <Search className="absolute bottom-4 left-4 h-4 w-4 text-slate-400"/>
+            <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" placeholder="Liderança, integrante ou matrícula"/>
+          </label>
+          <button type="button" disabled={!applicationId} onClick={() => void loadLinks(applicationId, teamSearch)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"><RefreshCw className="h-4 w-4"/>Atualizar</button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-2xl bg-blue-50 p-4 text-sm text-[var(--brand-primary)]">
+          <span><strong>{activeLinkTotal}</strong> vínculos ativos no ciclo.</span>
+          {teamSearch.trim() ? <span><strong>{linkMatchTotal}</strong> registros correspondem à busca.</span> : null}
+          <span>Correções encerram o vínculo anterior sem apagar o histórico.</span>
+        </div>
+      </section>
 
       {/* Fila de trabalho: sem chefia vinculada, a pessoa fica bloqueada na
           etapa de identificação do CDDI. A lista traz o gestor que a base
@@ -345,8 +443,7 @@ export function AdminPeopleTeamsManagement() {
                           onClick={() => {
                             // Preenche o integrante no formulário abaixo e leva o foco
                             // até ele: a correção começa de onde a pendência foi vista.
-                            const person = people.find((candidate) => candidate.personId === item.personId);
-                            if (person) setSubordinate(person);
+                            setSubordinate(leadershipChoiceFromPending(item));
                             setSubordinateSearch(`${item.fullName} · ${item.employeeNumber ?? ""}`);
                             setLeader(null);
                             setLeaderSearch("");
@@ -368,10 +465,67 @@ export function AdminPeopleTeamsManagement() {
         )}
       </section>
 
-      <section id="definir-lideranca" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Correção administrativa</p><h2 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Definir liderança da pessoa</h2><div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div><label className="block text-xs font-bold text-slate-600">Integrante</label><input value={subordinateSearch} onChange={(event) => { setSubordinateSearch(event.target.value); setSubordinate(null); }} placeholder="Digite nome ou matrícula" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/>{subordinateSearch && !subordinate && <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">{subordinateOptions.map((person) => <button key={person.personId} type="button" onClick={() => { setSubordinate(person); setSubordinateSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span></button>)}</div>}</div>
-        <div><label className="block text-xs font-bold text-slate-600">Nova liderança</label><input value={leaderSearch} onChange={(event) => { setLeaderSearch(event.target.value); setLeader(null); }} placeholder="Digite nome ou matrícula" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/>{leaderSearch && !leader && <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">{leaderOptions.map((person) => <button key={person.personId} type="button" onClick={() => { setLeader(person); setLeaderSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span></button>)}</div>}</div>
-      </div><label className="mt-4 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={leadershipJustification} onChange={(event) => setLeadershipJustification(event.target.value)} rows={3} placeholder="Explique o motivo da inclusão ou troca de liderança" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/></label><div className="mt-4 flex justify-end"><button type="button" disabled={working || !subordinate || !leader || leadershipJustification.trim().length < 10} onClick={() => void saveLeadership()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar vínculo</button></div></section>
+      <section id="definir-lideranca" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Correção administrativa</p>
+        <h2 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Definir liderança da pessoa</h2>
+        <p className="mt-2 text-sm text-slate-500">A busca consulta toda a base institucional e o vínculo será aplicado somente ao ciclo CDDI selecionado.</p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div>
+            <label htmlFor="leadership-subordinate" className="block text-xs font-bold text-slate-600">Integrante</label>
+            <input
+              id="leadership-subordinate"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={!subordinate && subordinateSearch.trim().length >= 2}
+              aria-controls={!subordinate && subordinateSearch.trim().length >= 2 ? "leadership-subordinate-options" : undefined}
+              value={subordinateSearch}
+              onChange={(event) => { setSubordinateSearch(event.target.value); setSubordinate(null); }}
+              placeholder="Digite pelo menos 2 letras ou a matrícula"
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+            />
+            {!subordinate && subordinateSearch.trim().length >= 2 ? (
+              <div id="leadership-subordinate-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                {subordinateLookup.loading ? <p className="px-3 py-3 text-sm text-slate-500">Buscando na base completa…</p> : null}
+                {subordinateLookup.failed ? <p className="px-3 py-3 text-sm text-red-600">Não foi possível buscar integrantes.</p> : null}
+                {!subordinateLookup.loading && !subordinateLookup.failed && subordinateLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-slate-500">Nenhuma pessoa ativa encontrada.</p> : null}
+                {subordinateLookup.options.map((person) => (
+                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setSubordinate(person); setSubordinateSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50">
+                    <strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <label htmlFor="leadership-leader" className="block text-xs font-bold text-slate-600">Nova liderança</label>
+            <input
+              id="leadership-leader"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={!leader && leaderSearch.trim().length >= 2}
+              aria-controls={!leader && leaderSearch.trim().length >= 2 ? "leadership-leader-options" : undefined}
+              value={leaderSearch}
+              onChange={(event) => { setLeaderSearch(event.target.value); setLeader(null); }}
+              placeholder="Digite pelo menos 2 letras ou a matrícula"
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+            />
+            {!leader && leaderSearch.trim().length >= 2 ? (
+              <div id="leadership-leader-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                {leaderLookup.loading ? <p className="px-3 py-3 text-sm text-slate-500">Buscando na base completa…</p> : null}
+                {leaderLookup.failed ? <p className="px-3 py-3 text-sm text-red-600">Não foi possível buscar lideranças.</p> : null}
+                {!leaderLookup.loading && !leaderLookup.failed && leaderLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-slate-500">Nenhuma pessoa ativa encontrada.</p> : null}
+                {leaderLookup.options.map((person) => (
+                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setLeader(person); setLeaderSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50">
+                    <strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <label className="mt-4 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={leadershipJustification} onChange={(event) => setLeadershipJustification(event.target.value)} rows={3} placeholder="Explique o motivo da inclusão ou troca de liderança" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/></label>
+        <div className="mt-4 flex justify-end"><button type="button" disabled={working || !applicationId || !subordinate || !leader || leadershipJustification.trim().length < 10} onClick={() => void saveLeadership()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar vínculo</button></div>
+      </section>
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><h2 className="text-xl font-black text-[var(--brand-primary)]">Vínculos do ciclo</h2></div><div className="divide-y divide-slate-100">{links.length ? links.map((link) => <article key={link.linkId} className={`grid gap-3 p-5 md:grid-cols-[1fr_auto_1fr_auto] md:items-center ${link.status !== "ACTIVE" || link.validTo ? "bg-slate-50 opacity-70" : ""}`}><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Integrante</span><strong className="mt-1 block text-slate-900">{link.subordinateName}</strong><span className="text-xs text-slate-500">{link.subordinateEmployeeNumber}</span></div><span className="hidden text-slate-300 md:block">→</span><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Liderança</span><strong className="mt-1 block text-slate-900">{link.leaderName}</strong><span className="text-xs text-slate-500">{link.leaderEmployeeNumber}</span></div><span className={`rounded-full px-3 py-1 text-xs font-black ${link.status === "ACTIVE" && !link.validTo ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{link.status === "ACTIVE" && !link.validTo ? "Ativo" : "Encerrado"}</span></article>) : <p className="p-8 text-center text-sm text-slate-500">Nenhum vínculo encontrado para este ciclo.</p>}</div></section>
     </div>}

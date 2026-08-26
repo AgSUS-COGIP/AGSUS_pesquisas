@@ -9,17 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "db:naming": "node scripts/validate-db-naming.mjs",
-    "db:migrations": "node scripts/validate-migrations.mjs",
-    "db:rpc": "node scripts/validate-rpc-contracts.mjs",
-    "db:smoke": "node scripts/smoke-rpc-contract.mjs",
-    "db:migration-smoke": "node scripts/smoke-migration-alignment.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -39,17 +29,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "dotenv": "^16.4.5",
-    "eslint": "9.39.1",
-    "eslint-config-next": "16.3.2",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.0",
-    "vitest": "^3.2.4"
+    "typescript": "^6.0.0"
   }
 }

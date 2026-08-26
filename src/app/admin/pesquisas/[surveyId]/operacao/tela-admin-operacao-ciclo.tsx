@@ -29,8 +29,8 @@ type Operations = OperacaoCiclo;
 
 /**
  * Cada ação carrega, além do rótulo, a frase que explica **o que ela faz** e a
- * que explica **por que está indisponível**. O módulo exige que o operador
- * nunca encontre só um botão apagado — ver `src/app/admin/CLAUDE.md`.
+ * que explica **por que está indisponível**. O operador nunca deve encontrar
+ * apenas um botão apagado sem contexto.
  */
 type CycleAction = {
   action: string;
@@ -785,7 +785,7 @@ function PeriodField({ id, label, hint, value, min, disabled, error, onChange }:
  * lateral e hover em botão `disabled`).
  *
  * O motivo de estar indisponível **não** vem para cá — ele continua sempre
- * visível, sem exigir hover (ver `components/CLAUDE.md`), mas na lista única
+ * visível, sem exigir hover, mas na lista única
  * abaixo da fileira, montada por quem chama. Embaixo de cada botão a frase era
  * mais larga que ele e invadia o vizinho.
  */
