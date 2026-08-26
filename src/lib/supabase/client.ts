@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { SUPABASE_DB_SCHEMA } from "./schema";
 
 export function isBrowserSupabaseConfigured() {
   return Boolean(
@@ -17,6 +18,7 @@ export function createBrowserSupabaseClient() {
 
   return createBrowserClient(url, publishableKey, {
     isSingleton: true,
+    db: { schema: SUPABASE_DB_SCHEMA },
     auth: {
       experimental: {
         appendPkceFlowIdToRedirects: true,

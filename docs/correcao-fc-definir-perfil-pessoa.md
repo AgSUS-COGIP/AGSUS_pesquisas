@@ -9,7 +9,7 @@ descreve o modelo e o diagnóstico geral.
 Ao trocar o perfil de acesso de uma pessoa em `/admin/acessos`:
 
 ```text
-Could not find the function public.fc_definir_perfil_pessoa(p_perfil, p_pessoa)
+Could not find the function sigav.fc_definir_perfil_pessoa(p_perfil, p_pessoa)
 in the schema cache
 ```
 
@@ -100,15 +100,15 @@ sozinho. Se o erro persistir por cache, force o reload pelo painel
 -- A função existe e tem a assinatura esperada (esperado: 1 linha, uuid, text)
 select p.proname, pg_get_function_arguments(p.oid) as argumentos
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public' and p.proname = 'fc_definir_perfil_pessoa';
+where n.nspname = 'sigav' and p.proname = 'fc_definir_perfil_pessoa';
 
 -- O índice de exclusividade existe
 select indexname from pg_indexes
-where schemaname = 'public' and indexname = 'in_perfil_unico_vigente';
+where schemaname = 'sigav' and indexname = 'in_perfil_unico_vigente';
 
 -- Ninguém acumula perfil (esperado: 0)
 select count(*) from (
-  select person_id from public.person_role_assignments
+  select person_id from sigav.person_role_assignments
   where starts_at <= timezone('utc', now())
     and (ends_at is null or ends_at > timezone('utc', now()))
   group by person_id having count(distinct role_id) > 1

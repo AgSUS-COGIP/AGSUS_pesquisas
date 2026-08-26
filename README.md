@@ -508,6 +508,7 @@ Regras respeitadas em todo o código:
 | [docs/auditoria-base-cddi-2026.md](docs/auditoria-base-cddi-2026.md) | Auditoria da base, decisão sobre identidade de acesso, pesos do cálculo. |
 | [docs/acesso-institucional.md](docs/acesso-institucional.md) | Autenticação por domínio e autorização por aplicação. |
 | [docs/database-naming-standard.md](docs/database-naming-standard.md) | Padrão de nomenclatura e requisitos de segurança das migrations. |
+| [docs/migracao-schema-sigav.md](docs/migracao-schema-sigav.md) | Implantação e validação da migração do schema `public` para `sigav`. |
 | [docs/design-system.md](docs/design-system.md) | Tokens, semântica de estado, componentes-base, acessibilidade. |
 | [docs/equipe-tecnica-fluxos.md](docs/equipe-tecnica-fluxos.md) | Fluxos funcionais de gestão de equipe e de pesquisas. |
 | [docs/formulario-cddi-ui.md](docs/formulario-cddi-ui.md) | Experiência do formulário CDDI. |
