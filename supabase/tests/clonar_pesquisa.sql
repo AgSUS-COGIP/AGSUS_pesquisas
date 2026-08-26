@@ -6,7 +6,7 @@
 
 begin;
 
-select plan(15);
+select plan(24);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values
@@ -112,6 +112,101 @@ select throws_ok(
 select lives_ok(
   $$ select public.fc_clonar_pesquisa((select id from public.surveys where code = 'TESTE-CLONE-ORIG')) $$,
   'clonar a partir de uma versão em rascunho é aceito'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.survey_applications aplicacao
+    join public.survey_versions versao on versao.id = aplicacao.survey_version_id
+    join public.surveys pesquisa on pesquisa.id = versao.survey_id
+    where pesquisa.code = 'TESTE-CLONE-ORIG-COPIA'
+  ),
+  1,
+  'a cópia nasce com um ciclo próprio'
+);
+
+select is(
+  (
+    select aplicacao.status
+    from public.survey_applications aplicacao
+    join public.survey_versions versao on versao.id = aplicacao.survey_version_id
+    join public.surveys pesquisa on pesquisa.id = versao.survey_id
+    where pesquisa.code = 'TESTE-CLONE-ORIG-COPIA'
+  ),
+  'DRAFT',
+  'o ciclo da cópia nasce em rascunho'
+);
+
+select ok(
+  (
+    select aplicacao.opens_at is null and aplicacao.closes_at is null
+    from public.survey_applications aplicacao
+    join public.survey_versions versao on versao.id = aplicacao.survey_version_id
+    join public.surveys pesquisa on pesquisa.id = versao.survey_id
+    where pesquisa.code = 'TESTE-CLONE-ORIG-COPIA'
+  ),
+  'o ciclo da cópia não herda o período da origem'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'UPDATE_PERIOD', now() - interval '30 seconds', now() + interval '2 hours'
+    )
+  $$,
+  'o ciclo clonado aceita a configuração do período'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'PUBLISH'
+    )
+  $$,
+  'a versão clonada pode ser publicada'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'OPEN'
+    )
+  $$,
+  'o ciclo clonado pode ser iniciado'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'CLOSE'
+    )
+  $$,
+  'o ciclo clonado pode ser interrompido'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'ARCHIVE'
+    )
+  $$,
+  'a cópia interrompida pode ser arquivada pelo catálogo'
+);
+
+select lives_ok(
+  $$
+    select public.manage_survey_cycle(
+      (select id from public.surveys where code = 'TESTE-CLONE-ORIG-COPIA'),
+      'UNARCHIVE'
+    )
+  $$,
+  'a cópia arquivada pode voltar ao catálogo'
 );
 
 select is(
