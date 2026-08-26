@@ -54,7 +54,9 @@ import { errorMessageFromUnknown } from "@/lib/observability";
 import { ReliableSaveQueue, type SaveQueueSnapshot } from "@/lib/reliable-save-queue";
 
 const CDDI_INK = "var(--cddi-ink)";
-const PEOPLE_PER_PAGE = 2;
+const MOBILE_PEOPLE_PER_PAGE = 1;
+const TABLET_PEOPLE_PER_PAGE = 2;
+const DESKTOP_PEOPLE_PER_PAGE = 3;
 
 type PendingTextSave = {
   personId: string;
@@ -106,11 +108,13 @@ export default function CddiTeamEvaluationPage() {
   const [celebrate, setCelebrate] = useState(false);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [personPage, setPersonPage] = useState(0);
+  const [peoplePerPage, setPeoplePerPage] = useState(MOBILE_PEOPLE_PER_PAGE);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const timers = useRef<Record<string, number>>({});
   const pendingTextSaves = useRef<Record<string, PendingTextSave>>({});
   const latestAnswers = useRef<CddiAnswersByPerson>({});
+  const peoplePerPageRef = useRef(MOBILE_PEOPLE_PER_PAGE);
   const [saveQueue] = useState(() => new ReliableSaveQueue());
   const [saveSnapshot, setSaveSnapshot] = useState<SaveQueueSnapshot>(() => saveQueue.getSnapshot());
 
@@ -119,6 +123,33 @@ export default function CddiTeamEvaluationPage() {
   useEffect(() => {
     latestAnswers.current = answersByPerson;
   }, [answersByPerson]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const tablet = window.matchMedia("(min-width: 768px)");
+
+    function syncPeoplePerPage() {
+      const next = desktop.matches
+        ? DESKTOP_PEOPLE_PER_PAGE
+        : tablet.matches
+          ? TABLET_PEOPLE_PER_PAGE
+          : MOBILE_PEOPLE_PER_PAGE;
+      const previous = peoplePerPageRef.current;
+      if (next === previous) return;
+
+      setPersonPage((current) => Math.floor((current * previous) / next));
+      peoplePerPageRef.current = next;
+      setPeoplePerPage(next);
+    }
+
+    syncPeoplePerPage();
+    desktop.addEventListener("change", syncPeoplePerPage);
+    tablet.addEventListener("change", syncPeoplePerPage);
+    return () => {
+      desktop.removeEventListener("change", syncPeoplePerPage);
+      tablet.removeEventListener("change", syncPeoplePerPage);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -235,7 +266,7 @@ export default function CddiTeamEvaluationPage() {
   const activeSectionMissing = activeSection
     ? cddiMatrixSectionMissingCount(editablePersonIds, activeSection, answersByPerson)
     : 0;
-  const personWindow = cddiMatrixPersonPage(evaluationList, personPage, PEOPLE_PER_PAGE);
+  const personWindow = cddiMatrixPersonPage(evaluationList, personPage, peoplePerPage);
   const visibleEvaluations = personWindow.items;
   const visibleEditablePersonIds = visibleEvaluations
     .filter((evaluation) => contextIsEditable(evaluation.context))
@@ -320,19 +351,6 @@ export default function CddiTeamEvaluationPage() {
     }
   }
 
-  function missingMessage(sectionIndex: number) {
-    const section = sections[sectionIndex];
-    if (!section) return "Ainda existem respostas obrigatórias pendentes.";
-    const missingByPerson = cddiMatrixSectionMissingByPerson(editablePersonIds, section, answersByPerson);
-    const total = missingByPerson.reduce((sum, item) => sum + item.missing, 0);
-    if (!total) return "";
-    const details = missingByPerson.map((item) => {
-      const name = evaluations[item.personId]?.member.fullName ?? "Pessoa";
-      return `${name} (${item.missing})`;
-    }).join(", ");
-    return `Complete “${section.title}” antes de avançar. Faltam ${total} ${total === 1 ? "resposta obrigatória" : "respostas obrigatórias"}: ${details}.`;
-  }
-
   function collectMissingItems(sectionIndex: number) {
     const section = sections[sectionIndex];
     if (!section) return [];
@@ -361,14 +379,14 @@ export default function CddiTeamEvaluationPage() {
     const firstMissing = cddiMatrixSectionMissingByPerson(editablePersonIds, section, answersByPerson)[0];
     if (!firstMissing) return;
     const index = evaluationList.findIndex((evaluation) => evaluation.member.personId === firstMissing.personId);
-    if (index >= 0) setPersonPage(Math.floor(index / PEOPLE_PER_PAGE));
+    if (index >= 0) setPersonPage(Math.floor(index / peoplePerPage));
   }
 
   function showMissingDialog(sectionIndex: number) {
     const items = collectMissingItems(sectionIndex);
     if (!items.length) return;
     setMissingItems(items);
-    setMessage(missingMessage(sectionIndex));
+    setMessage("");
     focusFirstMissingPerson(sectionIndex);
     setShowPendingOnly(true);
   }
@@ -642,7 +660,7 @@ export default function CddiTeamEvaluationPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <strong className="text-sm">Pessoas em comparação</strong>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">Exibindo {personWindow.start + 1}–{personWindow.end} de {evaluationList.length}. Em telas menores, as pessoas são empilhadas para evitar rolagem horizontal.</p>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">Exibindo {personWindow.start + 1}–{personWindow.end} de {evaluationList.length}. Desktop mostra até 3 pessoas; tablet, até 2; celular, 1 por vez.</p>
                 </div>
                 {personWindow.pageCount > 1 && (
                   <div className="flex items-center gap-2">
@@ -666,7 +684,7 @@ export default function CddiTeamEvaluationPage() {
                       <button
                         key={evaluation.member.personId}
                         type="button"
-                        onClick={() => setPersonPage(Math.floor(index / PEOPLE_PER_PAGE))}
+                        onClick={() => setPersonPage(Math.floor(index / peoplePerPage))}
                         className={`flex min-w-[220px] shrink-0 items-center gap-3 rounded-xl border p-3 text-left transition ${active ? "border-[var(--brand-solid)] bg-[var(--brand-soft)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:bg-[var(--surface-hover)]"}`}
                       >
                         <PersonAvatar fullName={evaluation.member.fullName} avatarUrl={evaluation.member.avatarUrl} className="h-10 w-10 rounded-xl" fallbackClassName="text-xs" />
@@ -744,7 +762,7 @@ export default function CddiTeamEvaluationPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
                     {visibleEvaluations.map((evaluation) => (
                       <fieldset key={evaluation.member.personId} className="min-w-0 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:p-4">
                         <legend className="sr-only">{question.title} — {evaluation.member.fullName}</legend>
