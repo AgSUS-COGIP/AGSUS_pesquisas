@@ -11,3 +11,21 @@
 .cddi-form-scroll-anchor {
   scroll-margin-top: 5.5rem;
 }
+
+/* A faixa funciona como navegação rápida; as pessoas efetivamente visíveis
+ * na matriz precisam se destacar de forma inequívoca das demais. */
+.cddi-route-shell [aria-label="Pessoas selecionadas"] > button {
+  opacity: 0.68;
+}
+
+.cddi-route-shell [aria-label="Pessoas selecionadas"] > button:hover,
+.cddi-route-shell [aria-label="Pessoas selecionadas"] > button:focus-visible {
+  opacity: 1;
+}
+
+.cddi-route-shell [aria-label="Pessoas selecionadas"] > button[class*="bg-[var(--brand-soft)]"] {
+  border-width: 2px;
+  opacity: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-solid) 18%, transparent), var(--shadow-card);
+  transform: translateY(-1px);
+}
