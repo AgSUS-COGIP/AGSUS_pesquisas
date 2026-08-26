@@ -1,1 +1,1 @@
-export { default } from "./tela-cddi-chefia-router";
+export { default } from "./tela-cddi-avaliar-chefia";

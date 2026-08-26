@@ -1,6 +1,7 @@
 import { chamar } from "./requisicao";
 import type {
   AreaDeAcessos,
+  AreaVinculosLideranca,
   AtualizarMarcaEntrada,
   AtualizarPessoaEntrada,
   AvaliacaoComParticipantes,
@@ -25,7 +26,6 @@ import type {
   ResultadoVinculoEmLote,
   ResumoBasePessoas,
   VincularParticipantesEntrada,
-  VinculoLideranca,
 } from "./contratos-pessoas";
 
 /** Cliente REST do domínio de pessoas, participantes, equipes e acessos. */
@@ -74,9 +74,14 @@ export function obterResumoDaBase(opcoes?: { avaliacao?: string | null }) {
 
 /** Vínculos de chefia do ciclo, vigentes e encerrados. */
 export function listarVinculosDeLideranca(avaliacao: string, opcoes?: { busca?: string; limite?: number }) {
-  return chamar<VinculoLideranca[]>(
+  return chamar<AreaVinculosLideranca>(
     `/api/pessoas/vinculos-lideranca${consulta({ avaliacao, busca: opcoes?.busca, limite: opcoes?.limite })}`,
   );
+}
+
+/** Ciclos CDDI disponíveis para a correção administrativa de liderança. */
+export function listarCiclosAdministrativosDeLideranca() {
+  return chamar<AvaliacaoComParticipantes[]>("/api/pessoas/vinculos-lideranca/ciclos");
 }
 
 /** Define a chefia de alguém; encerra o vínculo anterior sem apagar histórico. */
