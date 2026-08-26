@@ -54,9 +54,17 @@ export function saveCddiBatchQueue(queue: CddiBatchQueue): boolean {
   }
 }
 
-/** Lê a fila gravada, se houver uma válida. */
+/**
+ * Lê a fila apenas na rota dedicada à avaliação múltipla.
+ *
+ * A rota individual `/cddi/chefia/<personId>` nunca pode herdar uma seleção
+ * antiga do `sessionStorage`: cada avaliação individual precisa continuar
+ * isolada, e respostas de uma pessoa jamais podem ser replicadas para outra.
+ */
 export function readCddiBatchQueue(): CddiBatchQueue | null {
   try {
+    const pathname = window.location.pathname.replace(/\/+$/, "");
+    if (pathname !== "/cddi/chefia/lote") return null;
     return parseCddiBatchQueue(window.sessionStorage.getItem(CDDI_BATCH_QUEUE_STORAGE_KEY));
   } catch {
     return null;
