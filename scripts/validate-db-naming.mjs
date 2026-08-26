@@ -33,6 +33,16 @@ const prefixes = {
  * o padrão de docs/database-naming-standard.md continua obrigatório.
  */
 const LEGACY_RESTORED_OBJECTS = {
+  // Definição administrativa de liderança: a RPC de listagem de vínculos e a
+  // RPC de gravação já são contratos publicados. A migration corrige totais e
+  // integridade sem trocar os nomes chamados pelo frontend. A nova RPC de
+  // ciclos nasce no padrão institucional e não consta nesta exceção.
+  "supabase/migrations/20260825194624_corrigir_definicao_lideranca.sql": {
+    "função": new Set([
+      "list_platform_admin_leadership_links",
+      "set_platform_admin_leadership_link",
+    ]),
+  },
   // Painel CDDI: a migration apenas **redefine** a função legada para deixar de
   // contar submissão anulada como concluída (AGS-01). O nome excede 30
   // caracteres porque é anterior ao padrão institucional, e é consumido por
