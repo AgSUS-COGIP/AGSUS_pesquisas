@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_DB_SCHEMA } from "./schema";
 
 /**
  * Cliente Supabase deliberadamente anônimo e sem estado de sessão.
@@ -17,6 +18,7 @@ export function createPublicSupabaseClient() {
   }
 
   return createClient(url, publishableKey, {
+    db: { schema: SUPABASE_DB_SCHEMA },
     auth: {
       persistSession: false,
       autoRefreshToken: false,

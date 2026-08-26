@@ -75,7 +75,7 @@ Mapa perfil → módulo em `role_module_permissions` e em `fc_obter_contexto_pla
 
 ### Lógica condicional — `20260813120000_motor_logica_condicional.sql`
 
-`public.tb_regra_condicional` (uma regra vigente por alvo, garantida pelo índice parcial `in_regra_condicional_alvo`) e `public.tb_condicao_regra` (as condições daquela regra). Alvo é pergunta **ou** seção; esconder a seção esconde tudo dentro dela. RLS habilitada e todos os privilégios revogados: o acesso é só pelas funções `security definer`.
+`sigav.tb_regra_condicional` (uma regra vigente por alvo, garantida pelo índice parcial `in_regra_condicional_alvo`) e `sigav.tb_condicao_regra` (as condições daquela regra). Alvo é pergunta **ou** seção; esconder a seção esconde tudo dentro dela. RLS habilitada e todos os privilégios revogados: o acesso é só pelas funções `security definer`.
 
 **Por que tabela e não `display_logic`.** A coluna JSONB existe desde o esquema inicial e nunca ganhou leitor. Como JSON solto, ela não consegue garantir o que uma regra precisa garantir — que a pergunta de origem existe, pertence à mesma versão, que a alternativa comparada é daquela pergunta e que o conjunto não forma ciclo. `display_logic` **fica intocado**: sua única ocorrência preenchida em produção é `CHEFIA_RESPONSAVEL` no CDDI publicado, e o conteúdo lá é filtro de tipo de submissão, lido por `isCddiQuestionVisible()` no frontend — assunto diferente, apesar do nome parecido.
 
@@ -103,17 +103,17 @@ Copia a versão `PUBLISHED` se houver, senão o rascunho mais recente — nunca 
 
 ### Governança e observabilidade
 
-`db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `public.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
+`db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `sigav.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
 
 ### Marca da plataforma — `20260807093000_platform_branding_settings.sql`
 
-`public.tb_config_plataforma` é uma tabela de **linha única**, garantida pela constraint `ck_tb_config_plataforma_unica (co_configuracao = 1)`: não há como criar uma segunda configuração. Guarda nome da organização, nome do produto, cor principal e o par URL + caminho do logotipo. RLS habilitada e `all` revogado de `anon`/`authenticated` — o acesso é só pelas duas funções `security definer`.
+`sigav.tb_config_plataforma` é uma tabela de **linha única**, garantida pela constraint `ck_tb_config_plataforma_unica (co_configuracao = 1)`: não há como criar uma segunda configuração. Guarda nome da organização, nome do produto, cor principal e o par URL + caminho do logotipo. RLS habilitada e `all` revogado de `anon`/`authenticated` — o acesso é só pelas duas funções `security definer`.
 
 O bucket `platform-assets` é público para leitura, limitado a 2 MB e a `image/jpeg`, `image/png`, `image/webp`. As quatro políticas de `storage.objects` (select, insert, update, delete) exigem `can_manage_surveys()`, então apenas a administração troca o logotipo.
 
 ### Camada institucional de leitura — `20260805184500_institutional_naming_views.sql`
 
-Schema `"DB_PESQUISAS"` com views `VW_PESSOA`, `VW_PESQUISA`, `VW_APLICACAO_PESQUISA`, `VW_SUBMISSAO`, `VW_RESPOSTA`, `VW_RESPOSTA_OPCAO`, `VW_RESULTADO_COMPETENCIA`, `VW_RESULTADO_FINAL_CDDI` — colunas renomeadas para o padrão corporativo (`SQ_PESSOA`, `NO_PESSOA`, `DT_INCLUSAO`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI); a aplicação continua usando as tabelas `public`.
+Schema `"DB_PESQUISAS"` com views `VW_PESSOA`, `VW_PESQUISA`, `VW_APLICACAO_PESQUISA`, `VW_SUBMISSAO`, `VW_RESPOSTA`, `VW_RESPOSTA_OPCAO`, `VW_RESULTADO_COMPETENCIA`, `VW_RESULTADO_FINAL_CDDI` — colunas renomeadas para o padrão corporativo (`SQ_PESSOA`, `NO_PESSOA`, `DT_INCLUSAO`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI); a aplicação continua usando as tabelas `sigav`.
 
 ## Superfície de RPCs
 
@@ -207,7 +207,7 @@ Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/a
 
 ### Presença online — `20260821100000_presenca_online_com_rls.sql`
 
-`public.tb_presenca_online` guarda **uma linha por pessoa**, sobrescrita a cada batida: o histórico de quem esteve online é dado descartável, e acumulá-lo faria a tabela crescer sem limite. RLS habilitada e todos os privilégios revogados — o acesso é só pelas duas funções.
+`sigav.tb_presenca_online` guarda **uma linha por pessoa**, sobrescrita a cada batida: o histórico de quem esteve online é dado descartável, e acumulá-lo faria a tabela crescer sem limite. RLS habilitada e todos os privilégios revogados — o acesso é só pelas duas funções.
 
 | RPC | Uso |
 |---|---|
@@ -331,12 +331,12 @@ Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para
 1. RLS habilitada em qualquer tabela de schema exposto.
 2. Privilégios padrão revogados; só os grants necessários concedidos.
 3. Políticas, constraints e índices com nome explícito.
-4. `set search_path = pg_catalog, public` em toda função privilegiada.
+4. `set search_path = pg_catalog, sigav` em toda função privilegiada.
 5. `EXECUTE` revogado de `public` e `anon` em função interna.
 6. RPC pública valida `auth.uid()`, pessoa, papel e escopo.
 7. Security e Performance Advisors executados após DDL.
 
-`20260803133300_harden_rpc_permissions.sql` aplica a regra 5 em massa: revoga `EXECUTE` de `public`/`anon` em **todas** as funções `SECURITY DEFINER` de `public` e concede a `authenticated`. Ao criar uma nova função `SECURITY DEFINER`, repita esses grants explicitamente — o bloco `do $$` foi executado uma única vez.
+`20260803133300_harden_rpc_permissions.sql` aplica a regra 5 em massa: revoga `EXECUTE` de `public`/`anon` em **todas** as funções `SECURITY DEFINER` hoje localizadas em `sigav` e concede a `authenticated`. Ao criar uma nova função `SECURITY DEFINER`, repita esses grants explicitamente — o bloco `do $$` foi executado uma única vez.
 
 ### Timezone
 
@@ -351,7 +351,7 @@ supabase test db        # pgTAP
 supabase stop --no-backup
 ```
 
-`tests/rls_exposed_tables.sql` afirma que a contagem de tabelas de `public` com `relrowsecurity = false` é zero. **Criar tabela em `public` sem RLS quebra o CI** — é o comportamento desejado.
+Os testes de segurança devem afirmar que a contagem de tabelas de `sigav` com `relrowsecurity = false` é zero. **Criar tabela em `sigav` sem RLS deve quebrar o CI** — é o comportamento desejado.
 
 Os specs Playwright em `../tests/` também usam o esquema reconstruído localmente, mas não substituem o pgTAP: eles validam jornadas pelo navegador. Suas fixtures gravam com chave de serviço e fazem limpeza explícita; por isso devem apontar somente para um Supabase local descartável. Configuração e comandos estão na seção **Testes** do [../README.md](../README.md).
 
@@ -364,17 +364,17 @@ Os specs Playwright em `../tests/` também usam o esquema reconstruído localmen
          encode(convert_to(pg_get_functiondef(p.oid), 'UTF8'), 'hex') like '%efbfbd%' as destruido,
          encode(convert_to(pg_get_functiondef(p.oid), 'UTF8'), 'hex') like '%c383c2%' as duplamente_codificado
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public' and p.prokind = 'f';
+  where n.nspname = 'sigav' and p.prokind = 'f';
   ```
   Ler o texto na tela **não** serve para diagnosticar: o PowerShell também exibe acento correto como se estivesse corrompido, e os dois defeitos são distintos — `c383c2` é dupla codificação (o texto original ainda está lá, recuperável); `efbfbd` é perda, e a única saída é reaplicar a definição.
 - **Nunca aplique DDL manualmente em produção.** Toda mudança é migration revisada. Aplicar SQL direto no editor **não** registra nada em `supabase_migrations.schema_migrations`, e é assim que um banco passa a divergir do repositório sem sintoma — foi o que aconteceu em produção até 10/08/2026 (ver [../docs/operacao-permissoes.md](../docs/operacao-permissoes.md)). Se precisar aplicar um arquivo pelo editor, registre a versão depois com `insert into supabase_migrations.schema_migrations (version) values ('…') on conflict do nothing`.
-- **`drop function` em RPC consumida pelo frontend é mudança quebrante.** O bundle publicado chama a função pelo nome; removê-la antes de o frontend novo estar no ar derruba toda tela que dependa dela, com `Could not find the function … in the schema cache`. Publique o frontend primeiro, confirme, e só então remova — ou mantenha a antiga como ponte delegando à nova (`select public.fc_nova();`) e remova depois.
+- **`drop function` em RPC consumida pelo frontend é mudança quebrante.** O bundle publicado chama a função pelo nome; removê-la antes de o frontend novo estar no ar derruba toda tela que dependa dela, com `Could not find the function … in the schema cache`. Publique o frontend primeiro, confirme, e só então remova — ou mantenha a antiga como ponte delegando à nova (`select sigav.fc_nova();`) e remova depois.
 - **Nunca comite credencial, token ou dado pessoal.** A base de pessoas é carregada por processo controlado.
 - **Várias funções foram redefinidas múltiplas vezes** (`manage_survey_cycle`, `set_my_avatar_url`, `search_team_candidates`, `get_survey_dashboard`, `duplicate_survey_builder_item`, `resolve_authenticated_person`, `can_access_application`, `list_my_survey_catalog`, `start_or_resume_my_survey_submission`, `get_public_survey_form`). Antes de editar, encontre a definição vigente:
   ```bash
-  grep -rn "function public.nome_da_funcao" supabase/migrations | sort
+  grep -rn "function public.nome_da_funcao\|function sigav.nome_da_funcao" supabase/migrations | sort
   ```
-  A migration com timestamp mais alto é a que vale.
+  As migrations anteriores a `20260826180000` usam `public`; as novas usam `sigav`. A migration com timestamp mais alto é a que vale.
 - **Função nova em migration precisa do prefixo `fc_`/`sp_`** (`npm run db:naming`). Para mudar o comportamento de uma função legada, o padrão do repositório é criar a substituta `fc_*`, migrar os consumidores e dar `drop` na antiga — foi o que `20260807150000` fez com `get_my_platform_context` → `fc_obter_contexto_plataforma`.
 - Mudar mensagem de `raise exception` altera texto que chega ao usuário final — as telas exibem `error.message` diretamente. Algumas mensagens legadas ainda citam "pesquisa"/"Equipe Técnica" (ex.: `list_managed_surveys`); atualizá-las exige redefinir as funções, o que ficou para uma manutenção futura.
 - `supabase/config.toml` não está versionado; o CI executa `supabase init` quando ausente.

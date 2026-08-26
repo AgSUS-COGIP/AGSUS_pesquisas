@@ -78,18 +78,18 @@ select e.nome,
          select 1
          from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'public' and p.proname = e.nome
+         where n.nspname = 'sigav' and p.proname = e.nome
        ) as presente
 from esperadas e
 order by presente, e.nome;
 
 -- ---------------------------------------------------------------------------
--- 3. Tabelas de `public` sem RLS — cada linha aqui é exposição de dados
+-- 3. Tabelas de `sigav` sem RLS — cada linha aqui é exposição de dados
 -- ---------------------------------------------------------------------------
 select c.relname as tabela
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'public'
+where n.nspname = 'sigav'
   and c.relkind = 'r'
   and c.relrowsecurity = false
 order by c.relname;
@@ -100,12 +100,12 @@ order by c.relname;
 -- A segunda consulta deve devolver zero. Qualquer valor acima disso significa
 -- perfil acumulado, que o índice `in_perfil_unico_vigente` deveria impedir.
 -- ---------------------------------------------------------------------------
-select code, name from public.system_roles order by code;
+select code, name from sigav.system_roles order by code;
 
 select count(*) as pessoas_com_mais_de_um_perfil_vigente
 from (
   select person_id
-  from public.person_role_assignments
+  from sigav.person_role_assignments
   where ends_at is null
   group by person_id
   having count(*) > 1
@@ -114,7 +114,7 @@ from (
 -- O índice que garante a exclusividade existe?
 select indexname
 from pg_indexes
-where schemaname = 'public'
+where schemaname = 'sigav'
   and tablename = 'person_role_assignments';
 
 -- ---------------------------------------------------------------------------
@@ -130,18 +130,18 @@ select co_configuracao,
        co_cor_principal,
        tx_url_logotipo is not null as tem_logotipo_gravado,
        tx_caminho
-from public.tb_config_plataforma;
+from sigav.tb_config_plataforma;
 
 -- ---------------------------------------------------------------------------
 -- 6. Volume atual — dimensiona a carga real do ciclo
 -- ---------------------------------------------------------------------------
 select
-  (select count(*) from public.people)                  as pessoas,
-  (select count(*) from public.people where active)     as pessoas_ativas,
-  (select count(*) from public.survey_applications)     as ciclos,
-  (select count(*) from public.application_participants) as vinculos_participante,
-  (select count(*) from public.submissions)             as submissoes,
-  (select count(*) from public.answers)                 as respostas;
+  (select count(*) from sigav.people)                  as pessoas,
+  (select count(*) from sigav.people where active)     as pessoas_ativas,
+  (select count(*) from sigav.survey_applications)     as ciclos,
+  (select count(*) from sigav.application_participants) as vinculos_participante,
+  (select count(*) from sigav.submissions)             as submissoes,
+  (select count(*) from sigav.answers)                 as respostas;
 
 -- ---------------------------------------------------------------------------
 -- 7. Ciclos e situação — confronta com o que a interface mostra
@@ -151,9 +151,9 @@ select a.code   as ciclo,
        a.status,
        a.opens_at,
        a.closes_at,
-       (select count(*) from public.application_participants ap where ap.application_id = a.id) as participantes,
-       (select count(*) from public.submissions sub where sub.application_id = a.id and sub.status in ('SUBMITTED','VALIDATED')) as enviadas
-from public.survey_applications a
-join public.survey_versions v on v.id = a.version_id
-join public.surveys s on s.id = v.survey_id
+       (select count(*) from sigav.application_participants ap where ap.application_id = a.id) as participantes,
+       (select count(*) from sigav.submissions sub where sub.application_id = a.id and sub.status in ('SUBMITTED','VALIDATED')) as enviadas
+from sigav.survey_applications a
+join sigav.survey_versions v on v.id = a.version_id
+join sigav.surveys s on s.id = v.survey_id
 order by a.created_at desc;
