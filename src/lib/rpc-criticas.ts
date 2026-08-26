@@ -15,9 +15,8 @@
  *   esquema está compatível com esta versão da aplicação?
  * - **smoke test do deploy** — o mesmo contrato conferido antes de promover.
  *
- * Ela é deliberadamente **curta**. Não é o inventário de todas as RPCs, que
- * `npm run db:rpc` já cobre contra o banco reconstruído: é o conjunto cuja
- * ausência quebra uma jornada inteira. Listar tudo aqui transformaria a
+ * Ela é deliberadamente **curta**: contém apenas o conjunto cuja ausência
+ * quebra uma jornada inteira. Listar tudo aqui transformaria a verificação
  * verificação num segundo inventário que envelheceria sozinho.
  *
  * **Ao criar RPC nova, só acrescente aqui se a plataforma parar sem ela.**
