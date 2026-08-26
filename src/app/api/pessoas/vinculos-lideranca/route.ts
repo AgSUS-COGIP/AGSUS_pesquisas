@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
-import type {
-  DefinirVinculoLiderancaEntrada,
-  VinculoLideranca,
-} from "@/lib/api/contratos-pessoas";
+import type { DefinirVinculoLiderancaEntrada } from "@/lib/api/contratos-pessoas";
+import { normalizeLeadershipArea } from "@/lib/leadership-management";
 
 /**
  * Vínculos de chefia de um ciclo — a via de correção do que veio da importação.
@@ -36,8 +34,8 @@ export async function GET(request: Request) {
 
   if (error) return respostaDeErro(error, "GET /api/pessoas/vinculos-lideranca");
 
-  const vinculos = Array.isArray(data) ? data as VinculoLideranca[] : [];
-  return NextResponse.json(vinculos);
+  const area = normalizeLeadershipArea(data, limite);
+  return NextResponse.json(area);
 }
 
 export async function PUT(request: Request) {
