@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_DB_SCHEMA } from "./schema";
 
 // Nomes modernos primeiro, legados como alternativa: projetos criados antes da
 // renomeação do Supabase continuam funcionando sem editar variáveis.
@@ -77,6 +78,7 @@ export function createAdminSupabaseClient() {
   const secretKey = firstConfiguredValue(process.env, ADMIN_KEY_VARIABLES)!;
 
   return createClient(url, secretKey, {
+    db: { schema: SUPABASE_DB_SCHEMA },
     // Sem sessão nem renovação: o cliente é criado por requisição e não deve
     // guardar estado entre invocações da função serverless.
     auth: {

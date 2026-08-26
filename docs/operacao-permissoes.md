@@ -48,7 +48,7 @@ inteira fora do ar com:
 
 ```text
 Falha ao carregar permissões da plataforma: Could not find the function
-public.get_my_platform_context without parameters in the schema cache
+sigav.get_my_platform_context without parameters in the schema cache
 ```
 
 A causa é sempre a mesma: o JS no navegador chama uma RPC que a migration já
@@ -57,17 +57,17 @@ ar, e só então aplicar a migration que remove a RPC antiga.** Quando as duas
 versões precisam coexistir, mantenha a função antiga como ponte delegando à nova:
 
 ```sql
-create or replace function public.get_my_platform_context()
+create or replace function sigav.get_my_platform_context()
 returns jsonb language sql stable security definer
-set search_path = pg_catalog, public, auth
-as $$ select public.fc_obter_contexto_plataforma(); $$;
+set search_path = pg_catalog, sigav, auth
+as $$ select sigav.fc_obter_contexto_plataforma(); $$;
 
-revoke all on function public.get_my_platform_context() from public, anon;
-grant execute on function public.get_my_platform_context() to authenticated;
+revoke all on function sigav.get_my_platform_context() from public, anon;
+grant execute on function sigav.get_my_platform_context() to authenticated;
 notify pgrst, 'reload schema';
 ```
 
-Remova a ponte (`drop function public.get_my_platform_context();`) depois que o
+Remova a ponte (`drop function sigav.get_my_platform_context();`) depois que o
 bundle novo estiver confirmado em produção.
 
 ## Diagnóstico: em que estado está este banco?
@@ -110,11 +110,11 @@ with esperado(tipo, nome, origem) as (values
 select e.tipo, e.nome, e.origem,
   case
     when e.tipo = 'tabela' then
-      case when to_regclass('public.' || e.nome) is not null then 'existe' else 'ausente' end
+      case when to_regclass('sigav.' || e.nome) is not null then 'existe' else 'ausente' end
     else
       case when exists (
         select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and p.proname = e.nome
+        where n.nspname = 'sigav' and p.proname = e.nome
       ) then 'existe' else 'ausente' end
   end as situacao
 from esperado e order by e.tipo desc, e.nome;
@@ -157,8 +157,8 @@ navegação. O rótulo do banco não tem consumidor em runtime, então não queb
 mas para manter coerência:
 
 ```sql
-update public.platform_modules set name = 'Pesquisas'          where code = 'SURVEYS';
-update public.platform_modules set name = 'Pesquisas e ciclos' where code = 'ADMIN_SURVEYS';
+update sigav.platform_modules set name = 'Pesquisas'          where code = 'SURVEYS';
+update sigav.platform_modules set name = 'Pesquisas e ciclos' where code = 'ADMIN_SURVEYS';
 ```
 
 Depois de aplicar, registre as versões para o banco parar de divergir:
@@ -177,11 +177,11 @@ on conflict (version) do nothing;
 
 ```sql
 -- Perfis com os rótulos novos
-select code, name from public.system_roles order by code;
+select code, name from sigav.system_roles order by code;
 
 -- Ninguém acumula perfil (esperado: 0)
 select count(*) as pessoas_com_mais_de_um_papel from (
-  select person_id from public.person_role_assignments
+  select person_id from sigav.person_role_assignments
   where starts_at <= timezone('utc', now())
     and (ends_at is null or ends_at > timezone('utc', now()))
   group by person_id having count(distinct role_id) > 1
@@ -189,8 +189,8 @@ select count(*) as pessoas_com_mais_de_um_papel from (
 
 -- Mapa perfil → módulo (esperado: 10 / 7 / 3 / 1)
 select sr.code, count(*) as modulos
-from public.role_module_permissions rmp
-join public.system_roles sr on sr.id = rmp.role_id
+from sigav.role_module_permissions rmp
+join sigav.system_roles sr on sr.id = rmp.role_id
 group by sr.code order by count(*) desc;
 ```
 
