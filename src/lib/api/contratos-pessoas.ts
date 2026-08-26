@@ -88,6 +88,14 @@ export type VinculoLideranca = {
   origin: string;
 };
 
+/** Página administrativa de vínculos, com contagens independentes do limite. */
+export type AreaVinculosLideranca = {
+  links: VinculoLideranca[];
+  totalActive: number;
+  totalMatches: number;
+  limit: number;
+};
+
 /** Participante do ciclo sem chefia vigente — fila de correção da administração. */
 export type PessoaSemChefia = {
   personId: string;
