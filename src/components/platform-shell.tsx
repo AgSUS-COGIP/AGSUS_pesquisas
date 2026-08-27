@@ -27,7 +27,9 @@ import {
   PLATFORM_SIDEBAR_ATTRIBUTE,
   PLATFORM_SIDEBAR_STORAGE_KEY,
 } from "@/lib/platform-sidebar";
+import { signOut as authJsSignOut } from "next-auth/react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { usaAuthJs } from "@/lib/auth/provedor";
 import { platformBrandingTitle, type PlatformBranding } from "@/lib/platform-branding";
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
@@ -327,11 +329,19 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
     if (!confirmed) return;
 
     setSigningOut(true);
-    const supabase = createBrowserSupabaseClient();
     // `scope: "local"` encerra apenas esta sessão: quem usa a plataforma em outro
-    // dispositivo não é desconectado ao sair aqui.
+    // dispositivo não é desconectado ao sair aqui. No Auth.js a sessão vive só
+    // no cookie deste navegador, então limpá-lo já tem esse efeito por natureza.
+    const encerrar = usaAuthJs()
+      ? async () => {
+          await authJsSignOut({ redirect: false });
+          return { error: null };
+        }
+      : (options?: { scope?: "local" | "global" | "others" }) =>
+          createBrowserSupabaseClient().auth.signOut(options);
+
     const result = await finishLocalSignOut({
-      signOut: (options) => supabase.auth.signOut(options),
+      signOut: encerrar,
       navigate: (destination) => window.location.replace(destination),
     });
     if (!result.ok) {

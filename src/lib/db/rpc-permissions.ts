@@ -15,9 +15,11 @@
 //   - as que o histórico revoga de todos (ex.: fc_abrir_ciclos_agendados, que
 //     por decisão de projeto só é chamada de dentro de outra security definer).
 //
-// Exceção: "fc_srv_registrar_erro_aplicacao" é acrescentada pelo gerador — é
-// função nova (scripts/bootstrap-db-dataware-usuario-unico.sql), fora do
-// histórico de migrations.
+// Exceções acrescentadas fora do histórico de migrations (funções criadas
+// pelos scripts de bootstrap, não por migration do projeto Supabase):
+//   - fc_srv_registrar_erro_aplicacao  (bootstrap-db-dataware-usuario-unico.sql)
+//   - fc_srv_resolver_identidade_oauth (auth-identidade-oauth.sql)
+// Ambas são chamadas antes de existir sessão, por isso service_role.
 
 export type RpcRole = "anon" | "authenticated" | "service_role";
 
@@ -97,6 +99,7 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "fc_srv_obter_form_anonimo": ["service_role"],
   "fc_srv_registrar_erro_aplicacao": ["service_role"],
   "fc_srv_registrar_transporte": ["service_role"],
+  "fc_srv_resolver_identidade_oauth": ["service_role"],
   "fc_srv_reivindicar_emails": ["service_role"],
   "fc_srv_verificar_contrato_rpc": ["service_role"],
   "fc_srv_verificar_migrations": ["service_role"],

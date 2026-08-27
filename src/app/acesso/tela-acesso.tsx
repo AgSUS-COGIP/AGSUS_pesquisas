@@ -7,7 +7,9 @@ import { safeAuthNext } from "@/lib/auth-callback";
 import { needsLightForeground } from "@/lib/color-contrast";
 import { abrirJanelaDeLogin, LOGIN_POPUP_LANDING, LOGIN_POPUP_MESSAGE, suportaJanelaDeLogin } from "@/lib/login-popup";
 import { accessErrorMessage, authDestinationWithEntering, loginPopupDecision } from "@/lib/login-transition";
+import { signIn as authJsSignIn } from "next-auth/react";
 import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
+import { usaAuthJs } from "@/lib/auth/provedor";
 import { ExternalImage } from "@/components/external-image";
 import { PlatformLogo } from "@/components/platform-logo";
 import type { PlatformBranding } from "@/lib/platform-branding";
@@ -50,7 +52,9 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
    */
   const branding = initialBranding;
   const router = useRouter();
-  const supabaseConfigured = isBrowserSupabaseConfigured();
+  // Com o Auth.js o login nao depende das variaveis publicas do Supabase; a
+  // tela nao deve se bloquear por ausencia delas.
+  const supabaseConfigured = usaAuthJs() || isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -169,6 +173,25 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
 
     const query = new URLSearchParams(window.location.search);
     const destino = safeAuthNext(query.get("next"));
+    /*
+      Caminho Auth.js: redirecionamento de pagina inteira.
+
+      A janela separada usada abaixo depende de `skipBrowserRedirect`, que pede
+      ao Supabase a URL do Google sem navegar. O Auth.js nao expoe equivalente —
+      `signIn()` navega. Em vez de remontar a URL de autorizacao a mao (fragil, e
+      duplicaria o que a biblioteca ja faz), este ramo usa o redirecionamento
+      inteiro, que e o mesmo fallback ja existente para navegador que bloqueia
+      popup. O callback e tratado por /api/auth/callback/google, e /auth/confirm
+      nao participa deste fluxo.
+    */
+    if (usaAuthJs()) {
+      try {
+        await authJsSignIn("google", { redirectTo: authDestinationWithEntering(destino) });
+      } catch (error) {
+        resetSignIn(error instanceof Error ? error.message : "Nao foi possivel iniciar o acesso com Google.");
+      }
+      return;
+    }
 
     /*
       A janela é aberta **antes** de qualquer `await`: depois de uma espera o
