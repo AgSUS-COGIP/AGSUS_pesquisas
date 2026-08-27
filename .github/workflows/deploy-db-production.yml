@@ -1,0 +1,100 @@
+name: Deploy database migrations to production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/deploy-db-production.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-production-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_PROJECT_ID: envajznrzfuuumcdtvcj
+  SUPABASE_CLI_VERSION: "2.109.1"
+
+jobs:
+  deploy:
+    name: Apply production migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN")
+          [ -n "${SUPABASE_DB_PASSWORD:-}" ] || missing+=("PRODUCTION_DB_PASSWORD")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Segredos ausentes para deploy do banco: %s\n' "${missing[*]}" >&2
+            echo 'Cadastre-os no environment/repository secrets do GitHub antes de liberar migrations para producao.' >&2
+            exit 1
+          fi
+
+      - name: Configure Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}"
+          archive="supabase_${SUPABASE_CLI_VERSION}_linux_amd64.tar.gz"
+          downloaded=""
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --location \
+              --retry 3 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 20 --max-time 180 \
+              --output /tmp/supabase.tar.gz "${release}/${archive}"; then
+              downloaded="yes"
+              break
+            fi
+            echo "Supabase CLI download attempt ${attempt} failed; retrying in 15s."
+            sleep 15
+          done
+          if [ -z "${downloaded}" ]; then
+            echo "Could not download Supabase CLI ${SUPABASE_CLI_VERSION}." >&2
+            exit 1
+          fi
+          tar -xzf /tmp/supabase.tar.gz -C /tmp supabase supabase-go
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          sudo install -m 0755 /tmp/supabase-go /usr/local/bin/supabase-go
+          supabase --version
+          supabase db push --help >/dev/null
+
+      - name: Link production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "${SUPABASE_PROJECT_ID}"
+
+      - name: Preview pending migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --dry-run
+
+      - name: Apply pending migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push
+
+      - name: Verify migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list
+          supabase db push --dry-run
