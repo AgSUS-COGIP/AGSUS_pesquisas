@@ -87,6 +87,7 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "fc_srv_obter_form_anonimo": "scalar",
   "fc_srv_registrar_erro_aplicacao": "void",
   "fc_srv_registrar_transporte": "scalar",
+  "fc_srv_resolver_identidade_oauth": "scalar",
   "fc_srv_reivindicar_emails": "scalar",
   "fc_srv_verificar_contrato_rpc": "scalar",
   "fc_srv_verificar_migrations": "scalar",
