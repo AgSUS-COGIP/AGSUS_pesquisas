@@ -396,6 +396,48 @@ $function$;
 revoke all on function sigav.fc_obter_contexto_plataforma() from public, anon;
 grant execute on function sigav.fc_obter_contexto_plataforma() to authenticated;
 
+-- Painéis são uma capacidade própria. Não basta esconder a navegação: o backend
+-- também precisa exigir o módulo para que Avaliador e Participante não consigam
+-- consultar o painel diretamente pela RPC.
+create or replace function sigav.get_cddi_monitoring_dashboard(
+  target_application_code text default 'CDDI-2026'::text
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, sigav, auth
+as $function$
+declare
+  v_person_id uuid;
+  v_application_id uuid;
+begin
+  v_person_id := sigav.current_person_id();
+  if v_person_id is null then
+    raise exception 'Cadastro institucional não identificado.';
+  end if;
+
+  select sa.id
+  into v_application_id
+  from sigav.survey_applications sa
+  where sa.code = btrim(target_application_code)
+  limit 1;
+
+  if v_application_id is null then
+    raise exception 'Ciclo de pesquisa não encontrado.';
+  end if;
+
+  if not sigav.has_platform_module('DASHBOARDS') then
+    raise exception 'Acesso não autorizado ao painel CDDI.' using errcode = '42501';
+  end if;
+
+  return sigav.get_cddi_monitoring_dashboard_internal(target_application_code);
+end;
+$function$;
+
+revoke all on function sigav.get_cddi_monitoring_dashboard(text) from public, anon;
+grant execute on function sigav.get_cddi_monitoring_dashboard(text) to authenticated;
+
 notify pgrst, 'reload schema';
 
 commit;
