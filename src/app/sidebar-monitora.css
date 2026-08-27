@@ -184,28 +184,44 @@
  * Fora do bloco `@media` de 1024px porque o drawer móvel rola pelo mesmo motivo.
  */
 aside.platform-desktop-sidebar .overflow-y-auto,
-.platform-mobile-drawer .overflow-y-auto {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto) {
   scrollbar-width: thin;
   scrollbar-color: rgba(219, 234, 254, 0.28) transparent;
 }
 
 aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar {
   width: 6px;
 }
 
 aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-track,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-track {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar-track {
   background: transparent;
 }
 
-aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-thumb,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-thumb {
+aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-thumb {
   background-color: rgba(219, 234, 254, 0.28);
   border-radius: 999px;
 }
 
-aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb,
-.platform-mobile-drawer .overflow-y-auto:hover::-webkit-scrollbar-thumb {
+aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb {
   background-color: rgba(219, 234, 254, 0.45);
+}
+
+/*
+ * A gaveta móvel tem painel claro, então o polegar claro do bloco acima
+ * desapareceria nela. Aqui ele é escuro e translúcido — a mesma discrição, na
+ * direção oposta —, e acompanha o tema pelo token de borda.
+ */
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto) {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 999px;
+}
+
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto):hover::-webkit-scrollbar-thumb {
+  background-color: var(--text-muted);
 }

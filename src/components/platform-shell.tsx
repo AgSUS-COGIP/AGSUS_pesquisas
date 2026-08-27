@@ -197,7 +197,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
   const groups = navigationGroupsForModules(modules);
 
   return (
-    <div className={`relative flex h-full min-h-0 flex-col overflow-hidden ${mobile ? "bg-[var(--surface-card)] text-[var(--text-primary)]" : "bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
+    <div className={`relative flex h-full min-h-0 flex-col ${mobile ? "overflow-visible bg-[var(--surface-card)] text-[var(--text-primary)]" : "overflow-hidden bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
       <div className={`flex h-[4.5rem] shrink-0 items-center border-b px-4 ${mobile ? "border-[var(--border-subtle)]" : "border-white/10"} ${compact && !mobile ? "justify-center px-2" : ""}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
@@ -208,7 +208,17 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         barra de rolagem horizontal aparecia dentro da sidebar em telas baixas,
         roubando altura e cortando os ícones.
       */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 pb-4">
+      {/*
+        No desktop a barra é alta fixa (`h-dvh`) e a navegação precisa da própria
+        área de rolagem, senão os itens de baixo ficam inalcançáveis em notebook
+        de tela curta.
+
+        Na gaveta móvel, não: aninhar uma área rolante dentro do painel — que já
+        rola — cria duas barras, e a de dentro aparece cortando os ícones. Aqui o
+        conteúdo flui e quem rola é o painel inteiro, como se espera de uma gaveta
+        no celular.
+      */}
+      <div className={`px-2.5 pb-4 ${mobile ? "" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"}`}>
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} mobile={mobile} onNavigate={onNavigate} onTip={onTip} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
@@ -417,7 +427,11 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
           description="Acesse os módulos disponíveis para o seu perfil."
           side="left"
           className="max-w-[20rem]"
-          contentClassName="flex p-0 sm:p-0"
+          // A classe que o CSS da barra lateral já esperava para estilizar a
+          // rolagem da gaveta. Ela estava escrita em `sidebar-monitora.css` e
+          // nunca chegava a nenhum elemento, então a gaveta usava a barra padrão
+          // do navegador — larga e opaca sobre o painel branco.
+          contentClassName="platform-mobile-drawer flex p-0 sm:p-0"
           closeLabel="Fechar menu"
         >
           <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
