@@ -137,9 +137,49 @@ $$;
 comment on function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text) is
   'Cria ou reaproveita a identidade em auth.users/auth.identities a partir do perfil OAuth, para o Auth.js substituir o GoTrue sem alterar a lógica do banco. Reaproveita usuário existente pelo e-mail, preservando sigav.people.auth_user_id.';
 
--- Chamada antes de existir sessão: só o papel de serviço pode invocá-la.
+-- ----------------------------------------------------------------------------
+-- Dono e execução
+-- ----------------------------------------------------------------------------
+-- Estes dois passos não são formalidade. `SECURITY DEFINER` executa com os
+-- privilégios do DONO da função, e o dono é quem a criou — então rodar este
+-- arquivo como superuser deixaria uma função privilegiada rodando como
+-- superuser, muito acima do necessário, e diferente das outras 156 de sigav.
+--
+-- Além disso a aplicação conecta como `usr_sip_app`. Sem `EXECUTE` explícito
+-- ela não consegue chamar a função, e o PostgreSQL relata isso como
+-- "function ... does not exist" (42883) em vez de erro de permissão — o que
+-- manda quem está diagnosticando procurar por migration não aplicada, no lugar
+-- errado. Foi exatamente o que aconteceu na primeira tentativa de login.
+--
+-- Idempotente: se o arquivo já for executado como `usr_sip_app`, o dono já é
+-- esse e o `alter` não muda nada.
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'usr_sip_app') then
+    execute 'alter function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text) owner to usr_sip_app';
+  end if;
+end;
+$$;
+
+-- Chamada antes de existir sessão: nenhuma sessão de usuário pode invocá-la.
 revoke all on function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text)
-  from public, anon, authenticated;
+  from public;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text) from anon';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'revoke all on function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text) from authenticated';
+  end if;
+  -- Quem a chama é a conexão da aplicação, e a barreira de papel lógico está
+  -- em src/lib/db/rpc-permissions.ts (service_role apenas).
+  if exists (select 1 from pg_roles where rolname = 'usr_sip_app') then
+    execute 'grant execute on function sigav.fc_srv_resolver_identidade_oauth(text, text, text, text, text) to usr_sip_app';
+  end if;
+end;
+$$;
 
 commit;
 
