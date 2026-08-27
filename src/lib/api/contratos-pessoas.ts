@@ -341,6 +341,15 @@ export type DefinirPresencaOnlineEntrada = {
   perfis: string[];
 };
 
+/** Comunicado institucional exibido na página inicial. */
+export type DefinirComunicadoInicioEntrada = {
+  ativo: boolean;
+  titulo: string | null;
+  mensagem: string | null;
+  link: string | null;
+  rotuloLink: string | null;
+};
+
 /**
  * Corpo aceito por `PUT /api/plataforma/marca/fundo-acesso`.
  *

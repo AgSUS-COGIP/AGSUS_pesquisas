@@ -64,6 +64,12 @@ export type PlatformBranding = {
   /** Liga o canal e define os perfis que podem participar e visualizar. */
   onlinePresenceEnabled: boolean;
   onlinePresenceViewerRoles: string[];
+  /** Comunicado institucional opcional exibido no topo da página inicial. */
+  homeAnnouncementEnabled: boolean;
+  homeAnnouncementTitle: string;
+  homeAnnouncementMessage: string;
+  homeAnnouncementLink: string | null;
+  homeAnnouncementLinkLabel: string;
   primaryColor: string;
   updatedAt: string | null;
 };
@@ -88,6 +94,11 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   accessPanelColor: null,
   onlinePresenceEnabled: true,
   onlinePresenceViewerRoles: ["ADMINISTRATOR", "SURVEY_MANAGER"],
+  homeAnnouncementEnabled: false,
+  homeAnnouncementTitle: "",
+  homeAnnouncementMessage: "",
+  homeAnnouncementLink: null,
+  homeAnnouncementLinkLabel: "Saiba mais",
   primaryColor: "#0b4f82",
   updatedAt: null,
 };
@@ -147,9 +158,25 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     onlinePresenceViewerRoles: Array.isArray(source.onlinePresenceViewerRoles)
       ? source.onlinePresenceViewerRoles.filter((role): role is string => typeof role === "string")
       : DEFAULT_PLATFORM_BRANDING.onlinePresenceViewerRoles,
+    homeAnnouncementEnabled: source.homeAnnouncementEnabled === true,
+    homeAnnouncementTitle: text(source.homeAnnouncementTitle, "").slice(0, 120),
+    homeAnnouncementMessage: text(source.homeAnnouncementMessage, "").slice(0, 400),
+    homeAnnouncementLink: safeAnnouncementLink(source.homeAnnouncementLink),
+    homeAnnouncementLinkLabel: text(
+      source.homeAnnouncementLinkLabel,
+      DEFAULT_PLATFORM_BRANDING.homeAnnouncementLinkLabel,
+    ).slice(0, 60),
     primaryColor,
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : null,
   };
+}
+
+function safeAnnouncementLink(value: unknown) {
+  if (typeof value !== "string") return null;
+  const link = value.trim();
+  if (/^https:\/\/\S+$/i.test(link)) return link;
+  if (/^\/(?!\/)\S+$/.test(link)) return link;
+  return null;
 }
 
 export function platformBrandingTitle(branding: PlatformBranding) {

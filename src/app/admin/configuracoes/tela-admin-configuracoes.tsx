@@ -1,14 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
   BadgeCheck,
+  BellRing,
   Check,
   CheckCircle2,
+  ClipboardCheck,
+  FileClock,
   ImagePlus,
   LogIn,
+  Mail,
+  Megaphone,
   RadioTower,
   CircleDot,
   LayoutGrid,
@@ -19,7 +26,10 @@ import {
   SwatchBook,
   TriangleAlert,
   Type,
+  Upload,
   UserCog,
+  UsersRound,
+  Workflow,
   X,
 } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -46,7 +56,7 @@ import {
   DataTableScroll,
   DataTableState,
 } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/form-controls";
+import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import {
   contrastRatio,
   DARK_FOREGROUND,
@@ -68,6 +78,7 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   atualizarMarcaDaPlataforma,
+  definirComunicadoDaPaginaInicial,
   definirCorDaBarraLateral,
   definirCorDoPainelDeAcesso,
   definirTextosDaMarca,
@@ -112,10 +123,11 @@ const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLA
 
 // Abas do workspace. Cada card declara sua seção e só aparece na aba
 // correspondente (ou em "Tudo") e quando casa com a busca.
-type SectionId = "brand" | "login" | "appearance" | "features" | "access";
+type SectionId = "brand" | "home" | "login" | "appearance" | "features" | "operation" | "access";
 const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] = [
   { id: "all", label: "Tudo", icon: LayoutGrid },
   { id: "brand", label: "Marca", icon: Type },
+  { id: "home", label: "Página inicial", icon: Megaphone },
   // A tela de acesso tem aba própria porque configurá-la exigia visitar duas:
   // os textos ficavam em Marca e a cor do painel com a arte de fundo em
   // Aparência. São ajustes da mesma tela, e quem vai mexer nela quer ver o
@@ -123,16 +135,58 @@ const TABS: { id: "all" | SectionId; label: string; icon: typeof LayoutGrid }[] 
   { id: "login", label: "Tela de acesso", icon: LogIn },
   { id: "appearance", label: "Aparência", icon: SwatchBook },
   { id: "features", label: "Recursos", icon: RadioTower },
+  { id: "operation", label: "Operação", icon: Workflow },
   { id: "access", label: "Acessos", icon: UserCog },
 ];
 // Acento superior de cada seção — sempre por token, nunca hexadecimal literal.
 const SECTION_ACCENT: Record<SectionId, string> = {
   brand: "var(--brand-solid)",
+  home: "var(--status-info-text)",
   login: "var(--brand-primary)",
   appearance: "var(--brand-secondary)",
   features: "var(--status-success-text)",
+  operation: "var(--status-info-text)",
   access: "var(--status-warning-text)",
 };
+
+const OPERATION_LINKS = [
+  {
+    href: "/admin/pesquisas",
+    title: "Avaliações e ciclos",
+    description: "Criar instrumentos, configurar períodos e acompanhar a operação.",
+    icon: ClipboardCheck,
+  },
+  {
+    href: "/admin/participantes",
+    title: "Participantes",
+    description: "Definir público, elegibilidade e situação das pessoas no ciclo.",
+    icon: UsersRound,
+  },
+  {
+    href: "/admin/equipes",
+    title: "Lideranças e equipes",
+    description: "Revisar vínculos de chefia antes que afetem as avaliações.",
+    icon: Workflow,
+  },
+  {
+    href: "/admin/emails",
+    title: "Comunicação",
+    description: "Enviar lembretes e consultar fila, entregas e falhas.",
+    icon: Mail,
+  },
+  {
+    href: "/admin/importacoes",
+    title: "Importações",
+    description: "Atualizar a base institucional e conferir o processamento.",
+    icon: Upload,
+  },
+  {
+    href: "/admin/respostas",
+    title: "Respostas",
+    description: "Consultar intervenções administrativas e corrigir casos excepcionais.",
+    icon: FileClock,
+  },
+] as const;
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "")
@@ -168,6 +222,14 @@ export default function PlatformSettingsPage() {
   const [presenceEnabled, setPresenceEnabled] = useState(branding.onlinePresenceEnabled);
   const [presenceRoles, setPresenceRoles] = useState<string[]>(branding.onlinePresenceViewerRoles);
   const [savingPresence, setSavingPresence] = useState(false);
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  const [announcement, setAnnouncement] = useState({
+    enabled: branding.homeAnnouncementEnabled,
+    title: branding.homeAnnouncementTitle,
+    message: branding.homeAnnouncementMessage,
+    link: branding.homeAnnouncementLink ?? "",
+    linkLabel: branding.homeAnnouncementLinkLabel,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -226,6 +288,22 @@ export default function PlatformSettingsPage() {
     setPresenceEnabled(branding.onlinePresenceEnabled);
     setPresenceRoles(branding.onlinePresenceViewerRoles);
   }, [branding.onlinePresenceEnabled, branding.onlinePresenceViewerRoles]);
+
+  useEffect(() => {
+    setAnnouncement({
+      enabled: branding.homeAnnouncementEnabled,
+      title: branding.homeAnnouncementTitle,
+      message: branding.homeAnnouncementMessage,
+      link: branding.homeAnnouncementLink ?? "",
+      linkLabel: branding.homeAnnouncementLinkLabel,
+    });
+  }, [
+    branding.homeAnnouncementEnabled,
+    branding.homeAnnouncementTitle,
+    branding.homeAnnouncementMessage,
+    branding.homeAnnouncementLink,
+    branding.homeAnnouncementLinkLabel,
+  ]);
 
   const loadPeople = useCallback(async (term = "", offset = 0) => {
     setFetching(true);
@@ -397,6 +475,46 @@ export default function PlatformSettingsPage() {
       setSavingPresence(false);
     }
   }, [branding, presenceEnabled, presenceRoles, queryClient]);
+
+  const saveAnnouncement = useCallback(async () => {
+    const title = announcement.title.trim();
+    const message = announcement.message.trim();
+    const link = announcement.link.trim();
+    const linkLabel = announcement.linkLabel.trim();
+
+    if (announcement.enabled && (!title || !message)) {
+      toast.error("Informe título e mensagem antes de ativar o comunicado.");
+      return;
+    }
+    if (link && !/^(?:https:\/\/\S+|\/(?!\/)\S+)$/i.test(link)) {
+      toast.error("O link deve ser uma rota interna ou um endereço HTTPS.");
+      return;
+    }
+
+    setSavingAnnouncement(true);
+    try {
+      const updated = normalizePlatformBranding(await definirComunicadoDaPaginaInicial({
+        ativo: announcement.enabled,
+        titulo: title || null,
+        mensagem: message || null,
+        link: link || null,
+        rotuloLink: link ? linkLabel || "Saiba mais" : null,
+      }));
+      queryClient.setQueryData(platformBrandingQueryKey, updated);
+      setAnnouncement({
+        enabled: updated.homeAnnouncementEnabled,
+        title: updated.homeAnnouncementTitle,
+        message: updated.homeAnnouncementMessage,
+        link: updated.homeAnnouncementLink ?? "",
+        linkLabel: updated.homeAnnouncementLinkLabel,
+      });
+      toast.success(updated.homeAnnouncementEnabled ? "Comunicado publicado na página inicial." : "Comunicado desativado.");
+    } catch (saveError) {
+      toast.error(errorMessageFromUnknown(saveError) || "Não foi possível salvar o comunicado.");
+    } finally {
+      setSavingAnnouncement(false);
+    }
+  }, [announcement, queryClient]);
 
   /**
    * Remove uma arte do storage.
@@ -686,13 +804,20 @@ export default function PlatformSettingsPage() {
     return tabOk && searchOk;
   };
   const brandVisible = cardVisible("brand", "marca nomes institucionais organização nome do sistema identidade");
+  const homeVisible = cardVisible("home", "página inicial inicio comunicado banner aviso institucional título mensagem link ativação");
   const loginVisible = cardVisible("login", "tela de acesso login entrada saudação instrução expansão sigla cor do painel arte fundo campanha");
   const appearanceVisible = cardVisible("appearance", "aparência logotipo logo cor principal cores tema prévia menu barra lateral");
   const featuresVisible = cardVisible("features", "recursos presença online pessoas conectadas realtime desempenho perfis");
+  const operationVisible = cardVisible("operation", "operação avaliações ciclos participantes lideranças equipes comunicação emails lembretes importações respostas histórico falhas auditoria");
   const accessVisible = cardVisible("access", "acessos permissões perfis pessoas segurança participante avaliador admin superadmin");
-  const visibleCount = [brandVisible, loginVisible, appearanceVisible, featuresVisible, accessVisible].filter(Boolean).length;
+  const visibleCount = [brandVisible, homeVisible, loginVisible, appearanceVisible, featuresVisible, operationVisible, accessVisible].filter(Boolean).length;
   const presenceDirty = presenceEnabled !== branding.onlinePresenceEnabled
     || [...presenceRoles].sort().join("|") !== [...branding.onlinePresenceViewerRoles].sort().join("|");
+  const announcementDirty = announcement.enabled !== branding.homeAnnouncementEnabled
+    || announcement.title.trim() !== branding.homeAnnouncementTitle
+    || announcement.message.trim() !== branding.homeAnnouncementMessage
+    || announcement.link.trim() !== (branding.homeAnnouncementLink ?? "")
+    || announcement.linkLabel.trim() !== branding.homeAnnouncementLinkLabel;
 
   if (guard.state !== "granted") {
     return <PlatformGuardState
@@ -735,7 +860,7 @@ export default function PlatformSettingsPage() {
             </label>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Categorias de configuração">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-x-visible" role="tablist" aria-label="Categorias de configuração">
             {TABS.map((item) => {
               const Icon = item.icon;
               const active = tab === item.id;
@@ -783,6 +908,89 @@ export default function PlatformSettingsPage() {
                 <Input label="Nome do sistema" placeholder="SIGAV" form="config-brand-form" error={form.formState.errors.productName?.message} {...form.register("productName")} />
               </div>
 
+            </section>
+          ) : null}
+
+          {/* PÁGINA INICIAL */}
+          {homeVisible ? (
+            <section data-config-section="home" className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6" style={{ borderTopColor: SECTION_ACCENT.home }}>
+              <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] pb-4">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-info-bg)] text-[var(--status-info-text)]"><Megaphone className="h-5 w-5" aria-hidden="true" /></span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-black text-[var(--text-primary)]">Comunicado institucional</h3>
+                    <Badge variant={announcement.enabled ? "success" : "neutral"}>{announcement.enabled ? "Ativo" : "Inativo"}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">Mensagem curta no topo da Visão geral, sem bloquear tarefas ou ocupar a tela inteira.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.75fr)]">
+                <div className="space-y-4">
+                  <Checkbox
+                    label="Exibir comunicado na página inicial"
+                    description="Ao ativar, título e mensagem passam a ser obrigatórios. Desativar preserva o conteúdo para uso futuro."
+                    checked={announcement.enabled}
+                    onChange={(event) => setAnnouncement((current) => ({ ...current, enabled: event.target.checked }))}
+                  />
+                  <Input
+                    label="Título"
+                    hint={`${announcement.title.length}/120 caracteres`}
+                    maxLength={120}
+                    value={announcement.title}
+                    onChange={(event) => setAnnouncement((current) => ({ ...current, title: event.target.value }))}
+                  />
+                  <Textarea
+                    label="Mensagem"
+                    hint={`${announcement.message.length}/400 caracteres`}
+                    maxLength={400}
+                    value={announcement.message}
+                    onChange={(event) => setAnnouncement((current) => ({ ...current, message: event.target.value }))}
+                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Input
+                      label="Link opcional"
+                      hint="Use /rota-interna ou https://..."
+                      placeholder="/pesquisas"
+                      maxLength={500}
+                      value={announcement.link}
+                      onChange={(event) => setAnnouncement((current) => ({ ...current, link: event.target.value }))}
+                    />
+                    <Input
+                      label="Texto do link"
+                      hint="Até 60 caracteres."
+                      placeholder="Saiba mais"
+                      maxLength={60}
+                      disabled={!announcement.link.trim()}
+                      value={announcement.linkLabel}
+                      onChange={(event) => setAnnouncement((current) => ({ ...current, linkLabel: event.target.value }))}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="button" disabled={!announcementDirty || savingAnnouncement} onClick={() => void saveAnnouncement()}>
+                      {savingAnnouncement ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                      {savingAnnouncement ? "Salvando..." : announcement.enabled ? "Publicar comunicado" : "Salvar como inativo"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="lg:sticky lg:top-4 lg:self-start">
+                  <p className="section-eyebrow">Prévia na Visão geral</p>
+                  <div className="mt-3 rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5 shadow-sm">
+                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm"><Megaphone className="h-4 w-4" aria-hidden="true" /></span>
+                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Comunicado institucional</p>
+                    <strong className="mt-1 block text-base text-[var(--text-primary)]">{announcement.title.trim() || "Título do comunicado"}</strong>
+                    <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{announcement.message.trim() || "A mensagem aparece aqui de forma compacta, antes das pendências."}</p>
+                    {announcement.link.trim() ? (
+                      <span className="mt-4 inline-flex min-h-9 items-center gap-2 rounded-lg bg-[var(--surface-card)] px-3 text-xs font-semibold text-[var(--brand-primary)] shadow-sm">
+                        {announcement.linkLabel.trim() || "Saiba mais"}
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">A prévia não publica nada. Use o botão da seção para gravar e gerar o evento de auditoria.</p>
+                </div>
+              </div>
             </section>
           ) : null}
 
@@ -1290,6 +1498,58 @@ export default function PlatformSettingsPage() {
                     {savingPresence ? "Salvando..." : "Salvar recurso"}
                   </Button>
                 </aside>
+              </div>
+            </section>
+          ) : null}
+
+          {/* OPERAÇÃO */}
+          {operationVisible ? (
+            <section data-config-section="operation" className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6" style={{ borderTopColor: SECTION_ACCENT.operation }}>
+              <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] pb-4">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-info-bg)] text-[var(--status-info-text)]"><Workflow className="h-5 w-5" aria-hidden="true" /></span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-black text-[var(--text-primary)]">Central operacional</h3>
+                    <Badge variant="info">Atalhos administrativos</Badge>
+                  </div>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Reúna num só lugar o que precisa ser acompanhado antes, durante e depois de cada ciclo. Cada destino mantém suas próprias permissões e validações.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {OPERATION_LINKS.map(({ href, title, description, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="group flex min-w-0 items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)] hover:bg-[var(--surface-hover)] hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm">
+                      <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-sm text-[var(--text-primary)]">{title}</strong>
+                      <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">{description}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-3 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-3">
+                <div className="rounded-xl bg-[var(--status-success-bg)] p-4 text-[var(--status-success-text)]">
+                  <BellRing className="h-4 w-4" aria-hidden="true" />
+                  <strong className="mt-2 block text-sm">Comunicação rastreável</strong>
+                  <span className="mt-1 block text-xs leading-5 opacity-80">Fila e histórico diferenciam pendência, envio e falha.</span>
+                </div>
+                <div className="rounded-xl bg-[var(--status-info-bg)] p-4 text-[var(--status-info-text)]">
+                  <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                  <strong className="mt-2 block text-sm">Ciclo sob controle</strong>
+                  <span className="mt-1 block text-xs leading-5 opacity-80">Instrumento, público e período continuam separados.</span>
+                </div>
+                <div className="rounded-xl bg-[var(--status-warning-bg)] p-4 text-[var(--status-warning-text)]">
+                  <FileClock className="h-4 w-4" aria-hidden="true" />
+                  <strong className="mt-2 block text-sm">Exceções visíveis</strong>
+                  <span className="mt-1 block text-xs leading-5 opacity-80">Correções administrativas ficam fora do fluxo cotidiano.</span>
+                </div>
               </div>
             </section>
           ) : null}
