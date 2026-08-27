@@ -100,7 +100,14 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
         height={36}
         sizes="36px"
         loading={brandingLoading}
-        className="platform-brand-logo h-9 w-9 shrink-0 object-contain text-[9px]"
+        /*
+          `max-w-none` cancela a regra global `img { max-width: 100% }` de
+          `globals.css`. Ela é correta para imagem de conteúdo — impede que uma
+          foto estoure o contêiner —, mas aqui o tamanho é fixo e deliberado:
+          sem isso o logotipo encolhe quando o contêiner aperta, e passa a medir
+          diferente entre a barra expandida e a compacta.
+        */
+        className="platform-brand-logo h-9 w-9 max-w-none shrink-0 object-contain text-[9px]"
         /*
           `invert(.96)`, não `invert(1)`.
 
@@ -221,7 +228,19 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
 
   return (
     <div className={`relative flex h-full min-h-0 flex-col ${mobile ? "overflow-visible bg-[var(--surface-card)] text-[var(--text-primary)]" : "overflow-hidden bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
-      <div className={`flex h-[4.5rem] shrink-0 items-center border-b px-4 ${mobile ? "border-[var(--border-subtle)]" : "border-white/10"} ${compact && !mobile ? "justify-center px-2" : ""}`}>
+      {/*
+        O recuo é escolhido por condição, não acrescentado por cima.
+
+        Antes havia `px-4` fixo e `px-2` acrescentado no modo compacto. As duas
+        classes têm a mesma especificidade, então quem vence é a ordem no CSS
+        gerado pelo Tailwind — e venceu `px-4`. O ajuste do compacto era inerte:
+        medido, o recuo era 16 px nos dois estados.
+
+        Consequência: numa barra de 68 px sobravam 35 px de conteúdo, e a regra
+        global `img { max-width: 100% }` encolhia o logotipo de 36 para 35 px só
+        no modo compacto.
+      */}
+      <div className={`flex h-[4.5rem] shrink-0 items-center border-b ${mobile ? "border-[var(--border-subtle)]" : "border-white/10"} ${compact && !mobile ? "justify-center px-2" : "px-4"}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
       {/*
