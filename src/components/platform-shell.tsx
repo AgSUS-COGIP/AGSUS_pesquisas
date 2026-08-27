@@ -259,7 +259,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
   );
 }
 
-function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
+function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onSignOut: () => void }) {
   const [tip, setTip] = useState<NavTip>(null);
 
   // Recolher ou expandir move todos os itens: a posição guardada deixa de valer.
@@ -299,17 +299,18 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
       >
         <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={onSignOut} onTip={setTip} />
       </aside>
-      <button
-        type="button"
-        onClick={onToggle}
-        data-print-hidden="true"
-        className="platform-sidebar-edge-toggle fixed top-[5.25rem] z-[60] hidden h-7 w-7 -translate-x-1/2 place-items-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm transition-[left,background-color,color] duration-300 hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:grid"
-        style={{ left: "var(--platform-sidebar-width)" }}
-        aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
-        aria-expanded={!compact}
-      >
-        <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+      {/*
+        A seta de borda que ficava aqui foi removida. Ela era `position: fixed`
+        ancorada em `--platform-sidebar-width`, então não pertencia nem à barra
+        nem ao cabeçalho: flutuava sobre a divisa entre os dois. Media 28 px,
+        abaixo dos 44 px que este módulo exige, e usava um ícone de seta que só
+        se entende depois de clicar.
+
+        O controle passou para o cabeçalho, como hambúrguer — mesmo ícone que já
+        abre a gaveta no celular. Assim há um único vocabulário para "mostrar ou
+        esconder a navegação", em vez de dois controles diferentes para a mesma
+        ideia em larguras diferentes.
+      */}
       {/*
         Fora do `aside` de propósito — ver o comentário de `NavTip`. `aria-hidden`
         porque o nome já vai no `aria-label` do próprio link: para quem usa leitor
@@ -458,7 +459,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
         </div>
       ) : null}
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
-      {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} /> : null}
+      {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={signOut} /> : null}
       {!focus ? (
         <Drawer
           id={MOBILE_NAVIGATION_ID}
@@ -492,9 +493,22 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                   <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={30} height={30} sizes="30px" loading={brandingLoading} className="h-7 w-7 object-contain text-[10px]" />
                 </span>
               ) : (
-                <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
-                  <PlatformIcon name="menu" />
-                </button>
+                <>
+                  {/*
+                    Dois botões na mesma posição, cada um na sua largura — em vez
+                    de um só decidindo por JavaScript qual comportamento tomar.
+                    Detectar o ponto de quebra no cliente erra na primeira
+                    pintura e diverge do CSS; deixar o breakpoint decidir mantém
+                    os dois em concordância e preserva `aria-controls` correto em
+                    cada caso, que um botão camaleão não conseguiria.
+                  */}
+                  <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
+                    <PlatformIcon name="menu" />
+                  </button>
+                  <button type="button" onClick={toggleCompact} className="hidden h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:grid" aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"} aria-expanded={!compact}>
+                    <PlatformIcon name="menu" />
+                  </button>
+                </>
               )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 {/*
