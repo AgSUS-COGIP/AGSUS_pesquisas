@@ -1,0 +1,48 @@
+name: Patch access role order
+
+on:
+  push:
+    branches: [fix/ci-minimo-acessos]
+    paths:
+      - ".github/workflows/patch-access-order.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ci-minimo-acessos
+      - name: Patch role order and search hint
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/app/admin/configuracoes/tela-admin-configuracoes.tsx")
+          text = path.read_text(encoding="utf-8")
+
+          old_order = "const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];"
+          new_order = "const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.MANAGER, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];"
+          if old_order not in text:
+              raise SystemExit("roleOrder esperado não encontrado")
+          text = text.replace(old_order, new_order, 1)
+
+          old_hint = 'placeholder="Nome, matrícula ou e-mail"'
+          new_hint = 'placeholder="Nome, matrícula, e-mail ou cargo"'
+          if old_hint not in text:
+              raise SystemExit("placeholder esperado não encontrado")
+          text = text.replace(old_hint, new_hint, 1)
+
+          path.write_text(text, encoding="utf-8")
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/admin/configuracoes/tela-admin-configuracoes.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: ordenar Gestor e indicar busca por cargo"
+          git push origin HEAD:fix/ci-minimo-acessos
