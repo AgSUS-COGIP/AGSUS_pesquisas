@@ -69,6 +69,13 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
     Fica o registro de que isso **altera as cores da marca**. Se a identidade
     visual passar a exigir as cores originais, a alternativa é o quadrado branco
     atrás do logotipo — foi avaliada em 27/08/2026 e preterida por peso visual.
+
+    **A gaveta móvel não entra aqui, e é de propósito.** O fundo dela é
+    `--surface-card`, que muda com o tema: branco no claro (logotipo original
+    lê bem) e escuro no tema escuro (precisa do negativo). Como isso depende do
+    tema e não da configuração da barra, quem resolve é o CSS de
+    `sidebar-monitora.css` — que já tem o atributo no `<html>` desde antes da
+    primeira pintura e não exige detectar tema em React.
   */
   const useNegativeLogo = !mobile && needsLightForeground(branding.sidebarColor ?? "#052f55");
   return (
@@ -93,7 +100,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
         height={36}
         sizes="36px"
         loading={brandingLoading}
-        className="h-9 w-9 shrink-0 object-contain text-[9px]"
+        className="platform-brand-logo h-9 w-9 shrink-0 object-contain text-[9px]"
         style={useNegativeLogo ? { filter: "brightness(0) invert(1)" } : undefined}
       />
       {showName ? (
