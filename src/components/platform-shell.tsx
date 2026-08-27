@@ -56,7 +56,16 @@ function Avatar({ user, compact = false }: { user: PlatformUser; compact?: boole
 
 function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { compact: boolean; branding: PlatformBranding; brandingLoading: boolean; mobile?: boolean }) {
   const showName = !compact || mobile;
-  const useNegativeLogo = !mobile && needsLightForeground(branding.sidebarColor ?? "#052f55");
+  /*
+    Sobre barra escura o logotipo precisa de contraste, e há duas saídas: achatar
+    a arte em silhueta branca (`brightness(0) invert(1)`) ou apoiá-la num quadrado
+    branco. A primeira **altera as cores da marca** — está registrado assim no
+    comentário de `tela-acesso.tsx`, onde é decisão de produto por ser uma
+    assinatura em tela pública. Aqui não: a barra lateral apresenta a marca
+    institucional, e o mesmo comentário aponta o quadrado branco como a
+    alternativa que preserva as cores originais. É a que fica.
+  */
+  const needsLightPlate = !mobile && needsLightForeground(branding.sidebarColor ?? "#052f55");
   return (
     <Link
       href="/area"
@@ -65,17 +74,18 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
       aria-label={`${platformBrandingTitle(branding)} — ir para a visão geral`}
       className={`flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${compact && !mobile ? "justify-center" : ""}`}
     >
-      <PlatformLogo
-        src={branding.logoUrl}
-        alt=""
-        organizationName={branding.organizationName}
-        width={36}
-        height={36}
-        sizes="36px"
-        loading={brandingLoading}
-        className="h-9 w-9 shrink-0 object-contain text-[9px]"
-        style={useNegativeLogo ? { filter: "brightness(0) invert(1)" } : undefined}
-      />
+      <span className={needsLightPlate ? "grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white p-1" : "contents"}>
+        <PlatformLogo
+          src={branding.logoUrl}
+          alt=""
+          organizationName={branding.organizationName}
+          width={36}
+          height={36}
+          sizes="36px"
+          loading={brandingLoading}
+          className={needsLightPlate ? "h-full w-full object-contain text-[9px]" : "h-9 w-9 shrink-0 object-contain text-[9px]"}
+        />
+      </span>
       {showName ? (
         <span className="platform-sidebar-expanded-only min-w-0 leading-tight">
           <strong className={`block truncate text-[15px] font-semibold tracking-[-.015em] ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</strong>
@@ -103,7 +113,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
  */
 type NavTip = { label: string; description: string; top: number } | null;
 
-function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
+function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; mobile?: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
   /*
     A casca renderiza a navegação duas vezes — a barra do desktop e a gaveta do
     celular. O id derivado do título do grupo era o mesmo nas duas, então cada
@@ -143,7 +153,22 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
                 onTip({ label: item.label, description: item.description, top: r.top + r.height / 2 });
               } : undefined}
               onBlur={compact && onTip ? () => onTip(null) : undefined}
-              className={`group relative flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-2.5 text-sm font-semibold transition-colors ${active ? "border-[var(--brand-accent)] bg-white/10 text-white" : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
+              /*
+                O estado ativo tem duas versões porque o fundo é diferente nos
+                dois lugares onde este item aparece. Na barra do desktop, o CSS
+                de `sidebar-monitora.css` pinta o fundo escuro — lá `bg-white/10`
+                é um véu claro e `text-white` lê bem. A gaveta móvel fica abaixo
+                de `lg`, onde aquele CSS não se aplica: o fundo é
+                `--surface-card`, branco. Ali `bg-white/10` continua branco e
+                `text-white` desaparece.
+              */
+              className={`group relative flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-2.5 text-sm font-semibold transition-colors ${
+                active
+                  ? mobile
+                    ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                    : "border-[var(--brand-accent)] bg-white/10 text-white"
+                  : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"
+              } ${compact ? "justify-center" : ""}`}
             >
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
@@ -174,7 +199,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         roubando altura e cortando os ícones.
       */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 pb-4">
-        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} onTip={onTip} />)}
+        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} mobile={mobile} onNavigate={onNavigate} onTip={onTip} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
         {/*
