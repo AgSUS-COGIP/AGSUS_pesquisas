@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { DefinirPerfilEntrada } from "@/lib/api/contratos-pessoas";
@@ -38,7 +38,7 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe o perfil a conceder.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_definir_perfil_pessoa", {
     p_pessoa: pessoaId,
     p_perfil: perfil,

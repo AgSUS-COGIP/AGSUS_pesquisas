@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { AlterarStatusParticipanteEntrada } from "@/lib/api/contratos-pessoas";
@@ -33,7 +33,7 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Situação inválida para um participante.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("set_admin_application_participant_status", {
     target_participant_id: participanteId,
     target_status: corpo.status,

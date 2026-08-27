@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type {
@@ -18,7 +18,7 @@ import type {
 
 /** Resolve o ciclo vigente da avaliação, que é por onde as RPCs de capa operam. */
 async function resolverAplicacao(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  supabase: Awaited<ReturnType<typeof createServerRpcClient>>,
   surveyId: string,
 ) {
   const { data, error } = await supabase.rpc("get_survey_builder", {
@@ -38,7 +38,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { erro, construtor } = await resolverAplicacao(supabase, id);
   if (erro) return respostaDeErro(erro, "GET /api/avaliacoes/[id]/identidade-visual");
 
@@ -91,7 +91,7 @@ export async function PUT(
     return respostaDeEntradaInvalida("Modo visual inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { erro, construtor } = await resolverAplicacao(supabase, id);
   if (erro) return respostaDeErro(erro, "PUT /api/avaliacoes/[id]/identidade-visual");
 

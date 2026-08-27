@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehObjeto, ehUuid } from "@/lib/api/validacao";
 
@@ -37,7 +37,7 @@ export async function PUT(
     return respostaDeEntradaInvalida("Identificador de alternativa inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("save_my_cddi_answer", {
     target_submission_id: id,
     target_question_id: corpo.questionId,

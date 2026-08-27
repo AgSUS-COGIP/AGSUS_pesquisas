@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { EnviarEmailsEntrada } from "@/lib/api/contratos-pessoas";
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("A seleção contém identificador inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_agendar_envio_manual", {
     p_aplicacao: corpo.avaliacao,
     p_pessoas: corpo.pessoas,

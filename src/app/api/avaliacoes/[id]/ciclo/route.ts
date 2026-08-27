@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import { scheduleParticipantEmailDispatch } from "@/app/api/tarefas/emails/agendamento";
@@ -24,7 +24,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("get_survey_operations", {
     target_survey_id: id,
   });
@@ -65,7 +65,7 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe a operação do ciclo.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("manage_survey_cycle", {
     target_survey_id: id,
     target_action: action,

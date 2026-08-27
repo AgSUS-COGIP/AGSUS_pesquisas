@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createPublicRpcClient, createServerRpcClient } from "@/lib/db/rpc-adapter";
+import { getCurrentAuthClaims } from "@/lib/db/current-claims";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
 import { normalizePlatformBranding } from "@/lib/platform-branding";
@@ -31,23 +31,23 @@ function marcaPublica(value: unknown) {
  * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
  * preserva o contrato completo usado pelas telas administrativas.
  *
- * Quando não há uma sessão válida, a consulta pública usa um cliente Supabase
- * separado e sem cookies. Reutilizar o cliente de sessão nesse ramo fazia um
- * cookie antigo ou inválido ser enviado ao PostgREST; a chamada então recebia
- * 401 antes mesmo de a ACL `anon` de `fc_obter_marca_publica` ser considerada.
+ * Quando não há uma sessão válida, a consulta pública usa o cliente anônimo.
+ * O papel lógico da chamada é o que decide a permissão: `fc_obter_marca_publica`
+ * é liberada a `anon`, enquanto a RPC completa exige `authenticated` — ver
+ * `src/lib/db/rpc-permissions.ts`.
  */
 export async function GET() {
-  const sessionSupabase = await createServerSupabaseClient();
-  const { data: claimsData, error: claimsError } = await sessionSupabase.auth.getClaims();
-  const authenticated = Boolean(claimsData?.claims?.sub) && !claimsError;
+  const claims = await getCurrentAuthClaims();
+  const authenticated = Boolean(claims?.sub);
 
   if (authenticated) {
+    const sessionSupabase = await createServerRpcClient();
     const { data, error } = await sessionSupabase.rpc("fc_obter_marca_plataforma");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
     return NextResponse.json(normalizePlatformBranding(data));
   }
 
-  const publicSupabase = createPublicSupabaseClient();
+  const publicSupabase = createPublicRpcClient();
   const { data: publicData, error: publicError } = await publicSupabase.rpc("fc_obter_marca_publica");
   if (!publicError) return NextResponse.json(marcaPublica(publicData));
 
@@ -89,7 +89,7 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe o nome da organização, o nome do sistema e a cor principal.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_atualizar_marca_plataforma", {
     no_organizacao_param: organizationName,
     no_produto_param: productName,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 
 /**
@@ -20,7 +20,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe o código do ciclo.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_obter_regras_do_ciclo", {
     p_codigo_ciclo: codigoCiclo,
   });

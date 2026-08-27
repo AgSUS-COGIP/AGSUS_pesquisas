@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeEntradaInvalida, respostaDeErro } from "@/lib/api/resposta-http";
 
 /**
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     ? corpo.applicationCode.trim()
     : "";
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   let applicationCode = requestedCode;
 
   if (!applicationCode) {

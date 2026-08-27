@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { DuplicarAvaliacaoEntrada } from "@/lib/api/contratos";
@@ -30,7 +30,7 @@ export async function POST(
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_clonar_pesquisa", {
     p_pesquisa: id,
     p_nome: typeof corpo.name === "string" && corpo.name.trim() ? corpo.name.trim() : null,

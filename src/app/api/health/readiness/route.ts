@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEmailConfigurationStatus } from "@/config/email";
-import { AdminSupabaseConfigurationError, createAdminSupabaseClient, getAdminSupabaseConfigurationStatus } from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
+import { getEmpresaDbConfigurationStatus } from "@/lib/db/pool";
 import { RPCS_CRITICAS } from "@/lib/rpc-criticas";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +42,11 @@ export async function GET() {
     return NextResponse.json({ status: "degraded" }, { status: 503, headers: cabecalhos });
   };
 
+  // Os dados vêm do db_dataware; o login ainda vem do Supabase Auth. Enquanto
+  // as duas dependências coexistirem, readiness precisa cobrir as duas — faltar
+  // qualquer uma delas deixa a aplicação incapaz de servir tráfego.
   const faltando = [
-    ...getAdminSupabaseConfigurationStatus().missingVariables,
+    ...getEmpresaDbConfigurationStatus().missingVariables,
     ...getEmailConfigurationStatus().missingVariables,
   ];
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_URL");
@@ -52,7 +56,7 @@ export async function GET() {
   if (faltando.length) return degradado("configuração ausente", faltando.join(", "));
 
   try {
-    const supabase = createAdminSupabaseClient();
+    const supabase = createAdminRpcClient();
     const { data, error } = await supabase.rpc("fc_srv_verificar_contrato_rpc", {
       p_nomes: [...RPCS_CRITICAS],
     });
@@ -69,9 +73,6 @@ export async function GET() {
 
     return NextResponse.json({ status: "ready" }, { status: 200, headers: cabecalhos });
   } catch (erro) {
-    if (erro instanceof AdminSupabaseConfigurationError) {
-      return degradado("configuração administrativa incompleta", erro.message);
-    }
     return degradado("banco inacessível", erro);
   }
 }

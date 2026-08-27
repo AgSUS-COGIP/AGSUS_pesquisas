@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
-import { createAdminSupabaseClient, getAdminSupabaseConfigurationStatus } from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
+import { getEmpresaDbConfigurationStatus } from "@/lib/db/pool";
 import {
   EMAIL_SENDER,
   SMTP_CONFIG,
@@ -62,7 +63,7 @@ const DISPATCH_TIME_BUDGET_MS = 4 * 60_000;
 
 export function participantEmailMissingConfiguration(): string[] {
   return [
-    ...getAdminSupabaseConfigurationStatus().missingVariables,
+    ...getEmpresaDbConfigurationStatus().missingVariables,
     ...getEmailConfigurationStatus().missingVariables,
   ];
 }
@@ -161,7 +162,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     return { status: "skipped", missingConfiguration };
   }
 
-  const supabase = createAdminSupabaseClient();
+  const supabase = createAdminRpcClient();
   const siteUrl = participantSiteUrl()!;
   const smtp = createSmtpTransport();
   const startedAt = Date.now();

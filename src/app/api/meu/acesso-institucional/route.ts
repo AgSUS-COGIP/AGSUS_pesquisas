@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 
 /**
@@ -14,7 +14,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  * oficial tem e-mails repetidos entre matrículas distintas).
  */
 export async function POST() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("resolve_authenticated_person", {
     target_employee_number: null,
   });

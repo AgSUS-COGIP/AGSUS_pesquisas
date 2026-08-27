@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AvaliacaoGerenciada, CriarAvaliacaoEntrada } from "@/lib/api/contratos";
 
@@ -7,7 +7,7 @@ import type { AvaliacaoGerenciada, CriarAvaliacaoEntrada } from "@/lib/api/contr
 export async function GET(request: Request) {
   const arquivadas = new URL(request.url).searchParams.get("arquivadas") === "true";
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
 
   // Cada visão tem função própria no banco, e não um parâmetro na mesma função:
   // o PostgREST resolve a função pelo conjunto de argumentos, então uma
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Informe corretamente se rascunhos são permitidos.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("create_survey_draft", {
     p_code: code,
     p_name: name,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { DefinirTextosEmailEntrada } from "@/lib/api/contratos-pessoas";
 
@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
   const texto = (valor: unknown) =>
     typeof valor === "string" && valor.trim() ? valor.trim() : null;
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_definir_textos_email", {
     p_instrucao: texto(corpo.instrucao),
     p_rodape: texto(corpo.rodape),

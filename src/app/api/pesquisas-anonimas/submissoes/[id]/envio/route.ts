@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import { publicRateLimitResponse } from "@/lib/public-rate-limit";
@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
   if (limitResponse) return limitResponse;
 
-  const supabase = createAdminSupabaseClient();
+  const supabase = createAdminRpcClient();
   const { data, error } = await supabase.rpc("fc_srv_enviar_resp_anon", { target_submission_id: id, target_session_token: token });
   if (error) return respostaDeErro(error, "POST /api/pesquisas-anonimas/submissoes/[id]/envio");
   return NextResponse.json(data);

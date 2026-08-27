@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { AvaliacaoComParticipantes } from "@/lib/api/contratos-pessoas";
 
 /** Ciclos disponíveis para gestão de público, com as contagens de cada um. */
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("list_admin_participant_applications");
 
   if (error) return respostaDeErro(error, "GET /api/avaliacoes/ciclos-participantes");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { respostaDeEntradaInvalida, respostaDeErro } from "@/lib/api/resposta-http";
 import type { DefinirPresencaOnlineEntrada } from "@/lib/api/contratos-pessoas";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 
 const ALLOWED_ROLES = new Set(["ADMINISTRATOR", "SURVEY_MANAGER", "LEADER", "RESPONDENT"]);
 
@@ -20,7 +20,7 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe o estado do recurso e selecione ao menos um perfil.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_definir_presenca_plataforma", {
     fl_ativa_param: body.ativa,
     tx_perfis_param: roles,
