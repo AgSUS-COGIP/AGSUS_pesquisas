@@ -124,7 +124,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
           medido —, então o negativo continua devolvendo a silhueta fiel, sem
           detalhe interno a perder.
         */
-        style={useNegativeLogo ? { filter: "brightness(0) invert(.96)" } : undefined}
+        imageStyle={useNegativeLogo ? { filter: "brightness(0) invert(.96)" } : undefined}
       />
       {showName ? (
         <span className="platform-sidebar-expanded-only min-w-0 leading-tight">
