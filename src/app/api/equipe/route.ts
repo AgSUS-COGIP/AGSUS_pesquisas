@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { EquipeDaLideranca } from "@/lib/api/contratos-pessoas";
 
@@ -13,7 +13,7 @@ import type { EquipeDaLideranca } from "@/lib/api/contratos-pessoas";
 export async function GET(request: Request) {
   const ciclo = new URL(request.url).searchParams.get("ciclo")?.trim() || null;
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_obter_minha_equipe", {
     target_application_code: ciclo,
   });

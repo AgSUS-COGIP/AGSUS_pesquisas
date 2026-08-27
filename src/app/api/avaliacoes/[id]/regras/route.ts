@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { RegraEntrada } from "@/lib/api/contratos-construtor";
@@ -33,7 +33,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe a versão da avaliação.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_listar_regras_condicionais", {
     p_versao: versao,
   });
@@ -77,7 +77,7 @@ export async function PUT(
     return respostaDeEntradaInvalida("Uma regra precisa de pelo menos uma condição.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_salvar_regra_condicional", {
     p_alvo_tipo: corpo.targetType,
     p_alvo: corpo.targetId,
@@ -107,7 +107,7 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Informe o alvo da regra.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_excluir_regra_condicional", {
     p_alvo: alvo,
   });

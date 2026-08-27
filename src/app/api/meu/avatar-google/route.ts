@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 
 /**
@@ -10,7 +10,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  * sincronizar.
  */
 export async function POST() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { error } = await supabase.rpc("sync_my_google_avatar");
 
   if (error) return respostaDeErro(error, "POST /api/meu/avatar-google");

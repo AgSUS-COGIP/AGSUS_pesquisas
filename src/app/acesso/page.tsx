@@ -1,5 +1,5 @@
 import { normalizePlatformBranding, DEFAULT_PLATFORM_BRANDING } from "@/lib/platform-branding";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
+import { createPublicRpcClient } from "@/lib/db/rpc-adapter";
 import AccessScreen from "./tela-acesso";
 
 /*
@@ -29,7 +29,7 @@ async function fetchBranding() {
   }
 
   try {
-    const supabase = createPublicSupabaseClient();
+    const supabase = createPublicRpcClient();
     const { data, error } = await supabase.rpc("fc_obter_marca_publica");
     if (error || !data) return DEFAULT_PLATFORM_BRANDING;
     return normalizePlatformBranding(data);

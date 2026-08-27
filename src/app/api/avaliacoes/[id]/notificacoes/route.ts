@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import { scheduleParticipantEmailDispatch } from "@/app/api/tarefas/emails/agendamento";
@@ -35,7 +35,7 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe se a notificação deve ficar ligada ou desligada.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_definir_notificacao_email", {
     target_survey_id: id,
     target_enabled: corpo.enabled,

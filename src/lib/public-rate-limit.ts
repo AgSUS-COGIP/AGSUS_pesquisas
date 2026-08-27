@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "./supabase/admin";
+import { createAdminRpcClient } from "./db/rpc-adapter";
 
 type PublicRateLimitOptions = {
   scope: string;
@@ -53,7 +53,7 @@ export async function publicRateLimitResponse(
   request: Request,
   options: PublicRateLimitOptions,
 ): Promise<NextResponse | null> {
-  const supabase = createAdminSupabaseClient();
+  const supabase = createAdminRpcClient();
   const { data, error } = await supabase.rpc("fc_srv_consumir_limite_publico", {
     target_scope: options.scope,
     target_key_hash: publicRequestKey(request, options.discriminator),

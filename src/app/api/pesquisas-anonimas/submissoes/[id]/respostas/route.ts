@@ -4,7 +4,7 @@ import {
   CorpoJsonInvalidoError,
   lerJsonLimitado,
 } from "@/lib/api/corpo-json-limitado";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehEntradaDeResposta, ehUuid, erroNaEntradaDeResposta } from "@/lib/api/validacao";
 import { publicRateLimitResponse } from "@/lib/public-rate-limit";
@@ -41,7 +41,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (!ehEntradaDeResposta(body)) return respostaDeEntradaInvalida(erroNaEntradaDeResposta(body) ?? "Resposta inválida.");
-  const supabase = createAdminSupabaseClient();
+  const supabase = createAdminRpcClient();
   const { data, error } = await supabase.rpc("fc_srv_gravar_resp_anon", {
     target_submission_id: id, target_session_token: token, target_question_id: body.questionId,
     target_option_ids: body.optionIds ?? null, target_text: body.text ?? null, target_number: body.number ?? null,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 
 /**
@@ -21,7 +21,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe o código da avaliação.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_obter_formulario_publico", {
     target_application_code: codigoAplicacao,
   });

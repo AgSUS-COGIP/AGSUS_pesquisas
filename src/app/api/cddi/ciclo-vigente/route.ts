@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 
 /**
@@ -12,7 +12,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
 
   if (error) return respostaDeErro(error, "GET /api/cddi/ciclo-vigente");

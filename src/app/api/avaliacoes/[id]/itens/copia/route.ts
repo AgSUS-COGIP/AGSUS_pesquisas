@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { DuplicarItemEntrada, TipoItemConstrutor } from "@/lib/api/contratos-construtor";
@@ -38,7 +38,7 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de item inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("duplicate_survey_builder_item", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,

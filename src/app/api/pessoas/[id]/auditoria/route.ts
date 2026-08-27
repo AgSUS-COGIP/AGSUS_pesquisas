@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { EventoAuditoriaPessoa } from "@/lib/api/contratos-pessoas";
@@ -20,7 +20,7 @@ export async function GET(
     ? Math.trunc(limiteBruto)
     : 30;
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_listar_auditoria_pessoa", {
     target_person_id: id,
     target_limit: limite,

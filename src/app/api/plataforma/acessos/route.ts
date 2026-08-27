@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { AreaDeAcessos } from "@/lib/api/contratos-pessoas";
 import { parseAccessPagination } from "@/lib/access-pagination";
@@ -13,7 +13,7 @@ import { parseAccessPagination } from "@/lib/access-pagination";
 export async function GET(request: Request) {
   const { search, limit, offset } = parseAccessPagination(new URL(request.url).searchParams);
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_listar_acessos_paginados", {
     p_busca: search,
     p_limite: limit,

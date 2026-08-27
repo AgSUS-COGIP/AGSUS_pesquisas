@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { DefinirFundoAcessoEntrada } from "@/lib/api/contratos-pessoas";
 
@@ -26,7 +26,7 @@ export async function PUT(request: Request) {
   const url = typeof corpo.url === "string" && corpo.url.trim() ? corpo.url.trim() : null;
   const caminho = typeof corpo.caminho === "string" && corpo.caminho.trim() ? corpo.caminho.trim() : null;
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_definir_fundo_acesso", {
     p_url: url,
     p_caminho: caminho,

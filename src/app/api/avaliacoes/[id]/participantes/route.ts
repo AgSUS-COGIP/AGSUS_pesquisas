@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type {
@@ -18,7 +18,7 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("list_admin_application_participants", {
     target_application_id: id,
   });
@@ -58,7 +58,7 @@ export async function POST(
     return respostaDeEntradaInvalida("O corpo do pedido não é um JSON válido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
 
   if (corpo.criar) {
     const employeeNumber = textoObrigatorio(corpo.criar.employeeNumber);

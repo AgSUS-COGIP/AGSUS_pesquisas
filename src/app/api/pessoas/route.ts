@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { PessoaAdministrativa } from "@/lib/api/contratos-pessoas";
 
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 50;
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data, error } = await supabase.rpc("fc_pesquisar_pessoa_admin", {
     target_search: busca,
     target_limit: limite,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeFalha } from "@/lib/api/resposta-http";
 import { dispatchParticipantEmails } from "@/app/api/tarefas/emails/despachador";
 
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  * dado vindo do cliente.
  */
 export async function POST() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerRpcClient();
   const { data: contexto, error: contextoError } = await supabase.rpc("fc_obter_contexto_plataforma");
 
   if (contextoError) {
