@@ -225,3 +225,22 @@ aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb {
 :is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto):hover::-webkit-scrollbar-thumb {
   background-color: var(--text-muted);
 }
+
+/*
+ * Logotipo na gaveta móvel, tema escuro.
+ *
+ * A regra em React (`useNegativeLogo`) cobre a barra do desktop, cujo fundo vem
+ * da cor configurada e não muda com o tema. A gaveta é outro caso: o fundo é
+ * `--surface-card`, branco no tema claro e escuro no tema escuro. No claro o
+ * logotipo original lê bem; no escuro ele some.
+ *
+ * Fica no CSS porque o atributo de tema já está no `<html>` antes da primeira
+ * pintura — resolver isso em React exigiria detectar tema no cliente e
+ * reintroduziria o flash que o script de arranque existe para evitar.
+ *
+ * Restrito a `img`: o fallback de `PlatformLogo` é um `span` com iniciais, e
+ * achatá-lo em branco apagaria o texto junto com o fundo.
+ */
+html[data-agsus-theme="dark"] .platform-mobile-drawer img.platform-brand-logo {
+  filter: brightness(0) invert(1);
+}
