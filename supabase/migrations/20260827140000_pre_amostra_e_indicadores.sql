@@ -1,7 +1,7 @@
 begin;
 
 -- A fase da publicação vive em `survey_applications.settings.preSample` para
--- preservar a máquina de estados existente. OPEN continua significando prazo
+-- preservar a máquina de estados  existente. OPEN continua significando prazo
 -- aberto; PRE_SAMPLE/POPULATION define quem, dentro desse prazo, pode entrar.
 
 create or replace function public.can_access_application(target_application_id uuid)

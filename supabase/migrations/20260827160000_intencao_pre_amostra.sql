@@ -20,7 +20,7 @@ begin;
 -- Trocar a assinatura exigiria `drop function`, que é mudança quebrante para
 -- todo bundle já publicado. O frontend grava a intenção logo depois de criar o
 -- rascunho, numa segunda chamada.
---
+-- 
 -- A intenção vive em `settings.preSample.intended`, ao lado de `phase`, e é
 -- escrita por merge para não apagar as chaves que `fc_configurar_pre_amostra`
 -- grava no mesmo objeto.
