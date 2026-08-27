@@ -29,6 +29,7 @@ import {
 } from "@/lib/platform-sidebar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { platformBrandingTitle, type PlatformBranding } from "@/lib/platform-branding";
+import { needsLightForeground } from "@/lib/color-contrast";
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
@@ -55,21 +56,30 @@ function Avatar({ user, compact = false }: { user: PlatformUser; compact?: boole
 
 function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { compact: boolean; branding: PlatformBranding; brandingLoading: boolean; mobile?: boolean }) {
   const showName = !compact || mobile;
+  const useNegativeLogo = !mobile && needsLightForeground(branding.sidebarColor ?? "#052f55");
   return (
     <Link
       href="/area"
       // O rótulo acompanha a marca configurada: fixá-lo faria o leitor de tela
       // anunciar um nome que a tela ao lado já não usa.
       aria-label={`${platformBrandingTitle(branding)} — ir para a visão geral`}
-      className={`flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${compact && !mobile ? "justify-center" : ""}`}
+      className={`flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${compact && !mobile ? "justify-center" : ""}`}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200/80 bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
-        <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={32} height={32} sizes="32px" loading={brandingLoading} className="h-8 w-8 object-contain text-[10px]" />
-      </span>
+      <PlatformLogo
+        src={branding.logoUrl}
+        alt=""
+        organizationName={branding.organizationName}
+        width={36}
+        height={36}
+        sizes="36px"
+        loading={brandingLoading}
+        className="h-9 w-9 shrink-0 object-contain text-[9px]"
+        style={useNegativeLogo ? { filter: "brightness(0) invert(1)" } : undefined}
+      />
       {showName ? (
-        <span className="platform-sidebar-expanded-only min-w-0 leading-none">
-          <span className="block truncate text-[9px] font-black uppercase tracking-[.2em] text-[var(--brand-accent)]">{branding.organizationName}</span>
-          <span className={`mt-1 block truncate text-sm font-black tracking-tight ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</span>
+        <span className="platform-sidebar-expanded-only min-w-0 leading-tight">
+          <strong className={`block truncate text-[15px] font-semibold tracking-[-.015em] ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</strong>
+          <span className={`mt-0.5 block truncate text-[11px] font-medium ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{branding.organizationName}</span>
         </span>
       ) : null}
     </Link>
@@ -108,7 +118,7 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
 
   return (
     <section className="mt-4" aria-labelledby={compact ? undefined : tituloId} aria-label={compact ? group.title : undefined}>
-      {!compact ? <p id={tituloId} className="platform-sidebar-expanded-only px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
+      {!compact ? <p id={tituloId} className="platform-sidebar-expanded-only px-3 text-[11px] font-semibold tracking-[0.04em] text-slate-400">{group.title}</p> : null}
       <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
@@ -133,7 +143,7 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
                 onTip({ label: item.label, description: item.description, top: r.top + r.height / 2 });
               } : undefined}
               onBlur={compact && onTip ? () => onTip(null) : undefined}
-              className={`group relative flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-bold transition-colors ${active ? "bg-[var(--brand-primary)] text-white shadow-[0_10px_24px_-18px_rgba(7,59,98,.95)]" : "text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
+              className={`group relative flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-2.5 text-sm font-semibold transition-colors ${active ? "border-[var(--brand-accent)] bg-white/10 text-white" : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
             >
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
@@ -147,13 +157,13 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
   );
 }
 
-function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onToggle, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
+function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
 
   return (
     <div className={`relative flex h-full min-h-0 flex-col overflow-hidden ${mobile ? "bg-[var(--surface-card)] text-[var(--text-primary)]" : "bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
-      <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
+      <div className={`flex h-[4.5rem] shrink-0 items-center border-b px-4 ${mobile ? "border-[var(--border-subtle)]" : "border-white/10"} ${compact && !mobile ? "justify-center px-2" : ""}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
       {/*
@@ -167,19 +177,6 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} onTip={onTip} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
-        {!mobile && onToggle ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 ${compact ? "justify-center px-2" : ""}`}
-            aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
-            aria-expanded={!compact}
-          >
-            <PlatformIcon name="chevron-left" className="platform-sidebar-expanded-only h-4 w-4" aria-hidden="true" />
-            <PlatformIcon name="chevron-right" className="platform-sidebar-compact-only h-4 w-4" aria-hidden="true" />
-            {!compact ? <span className="platform-sidebar-expanded-only">Recolher menu</span> : null}
-          </button>
-        ) : null}
         {/*
           Só na gaveta. No desktop isto repetia o que o cabeçalho já mostra —
           o avatar leva ao perfil a partir de `sm`, e a partir de `xl` ele exibe
@@ -232,8 +229,19 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
         className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex"
         style={branding.sidebarColor ? { backgroundColor: branding.sidebarColor } : undefined}
       >
-        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} onTip={setTip} />
+        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={onSignOut} onTip={setTip} />
       </aside>
+      <button
+        type="button"
+        onClick={onToggle}
+        data-print-hidden="true"
+        className="platform-sidebar-edge-toggle fixed top-[5.25rem] z-[60] hidden h-7 w-7 -translate-x-1/2 place-items-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm transition-[left,background-color,color] duration-300 hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:grid"
+        style={{ left: "var(--platform-sidebar-width)" }}
+        aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
+        aria-expanded={!compact}
+      >
+        <PlatformIcon name={compact ? "chevron-right" : "chevron-left"} className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
       {/*
         Fora do `aside` de propósito — ver o comentário de `NavTip`. `aria-hidden`
         porque o nome já vai no `aria-label` do próprio link: para quem usa leitor
@@ -414,9 +422,9 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                   com motivo para truncar. Abaixo de `sm` o contexto some, e o
                   título fica com a linha inteira.
                 */}
-                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
+                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-xs font-medium text-[var(--text-secondary)] sm:block">{eyebrow}</p> : null}
                 {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
-                <h1 className="min-w-0 truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
+                <h1 className="min-w-0 truncate font-semibold tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

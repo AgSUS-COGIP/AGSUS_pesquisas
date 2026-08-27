@@ -2,6 +2,8 @@
   color-scheme: light;
   --brand-solid: #003b70;
   --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
+  --action-primary: #003b70;
+  --action-primary-hover: #002b54;
   --surface-elevated: #ffffff;
   --surface-interactive: #f7fafc;
   --surface-overlay: rgba(255, 255, 255, .92);
@@ -29,6 +31,8 @@ html[data-agsus-theme="dark"] {
   color-scheme: dark;
   --brand-solid: #075e8e;
   --brand-solid-hover: color-mix(in srgb, var(--brand-solid) 82%, black);
+  --action-primary: #0b4f82;
+  --action-primary-hover: #126b98;
   --surface-elevated: #17263a;
   --surface-interactive: #1a2a3f;
   --surface-overlay: rgba(18, 30, 46, .94);
@@ -60,6 +64,15 @@ html[data-agsus-theme="dark"] {
 
 .primary-button:hover:not(:disabled) {
   background-color: var(--brand-solid-hover);
+}
+
+.institutional-action {
+  background-color: var(--action-primary) !important;
+  color: #ffffff !important;
+}
+
+.institutional-action:hover:not(:disabled) {
+  background-color: var(--action-primary-hover) !important;
 }
 
 .status-badge {

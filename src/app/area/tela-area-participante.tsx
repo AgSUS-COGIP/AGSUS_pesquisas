@@ -240,21 +240,21 @@ export default function ParticipantAreaPage() {
         instituição começava à esquerda dos cartões — e ainda desperdiçava 360px
         de largura justamente na tela em que sobrava espaço.
       */}
-      <div className="flex w-full flex-col gap-5">
+      <div className="flex w-full flex-col gap-6">
         {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
         <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
         {showAnnouncement ? (
           <section
             aria-label="Comunicado institucional"
-            className="flex flex-col gap-4 rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:p-6"
+            className="flex flex-col gap-3 border-l-[3px] border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-4 py-3 sm:flex-row sm:items-center"
           >
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm">
-              <Megaphone className="h-5 w-5" aria-hidden="true" />
+            <span className="shrink-0 text-[var(--status-info-text)]">
+              <Megaphone className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Comunicado institucional</p>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{branding.homeAnnouncementTitle}</h2>
-              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{branding.homeAnnouncementMessage}</p>
+              <p className="text-xs font-semibold text-[var(--status-info-text)]">Comunicado institucional</p>
+              <h2 className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">{branding.homeAnnouncementTitle}</h2>
+              <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{branding.homeAnnouncementMessage}</p>
             </div>
             {branding.homeAnnouncementLink ? (
               externalAnnouncementLink ? (
@@ -262,7 +262,7 @@ export default function ParticipantAreaPage() {
                   href={branding.homeAnnouncementLink}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
                 >
                   {branding.homeAnnouncementLinkLabel}
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -270,7 +270,7 @@ export default function ParticipantAreaPage() {
               ) : (
                 <Link
                   href={branding.homeAnnouncementLink}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
                 >
                   {branding.homeAnnouncementLinkLabel}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -285,8 +285,15 @@ export default function ParticipantAreaPage() {
           vertical entre os números vem só a partir de `sm`, onde há largura
           para ela significar alguma coisa.
         */}
-        <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-          <article className="@container flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="flex flex-col gap-2 border-b border-[var(--border-subtle)] pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Prioridades</h2>
+          <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 self-start rounded-md px-2 text-sm font-semibold text-[var(--brand-primary)] hover:bg-[var(--surface-hover)] sm:self-auto">
+            Ver todas as avaliações
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+          <article className="@container flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 sm:p-6">
             {/*
               A saudação sai enquanto a recepção estiver no ar: a faixa acima já
               diz "Boas-vindas, {nome}", e repetir "Boa tarde, {nome}" logo
@@ -326,9 +333,9 @@ export default function ParticipantAreaPage() {
                     key={tile.label}
                     href={tile.href}
                     aria-label={`Ver avaliações: ${tile.label}`}
-                    className={`group rounded-xl outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
+                    className={`group rounded-md px-2 py-1 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
                   >
-                    <span className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</span>
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</span>
                     <span className="block">
                       <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
                         {unknown ? "—" : tile.value}
@@ -348,7 +355,7 @@ export default function ParticipantAreaPage() {
             recebe fundo de marca. Antes ela competia de igual para igual com
             quatro atalhos e uma lista.
           */}
-          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--brand-primary)]/15 bg-[var(--status-info-bg)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+          <aside aria-label="Próxima ação" className="flex flex-col rounded-lg border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5 sm:p-6">
             {catalogLoading ? (
               <div className="space-y-3" aria-busy="true">
                 <Skeleton className="h-4 w-24" />
@@ -373,10 +380,10 @@ export default function ParticipantAreaPage() {
             ) : priorityItem ? <>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Próxima ação</p>
+                  <p className="text-xs font-semibold text-[var(--status-info-text)]">Próxima ação</p>
                   <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">{priorityItem.applicationName}</h3>
                 </div>
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[var(--surface-card)] text-[var(--brand-primary)]">
                   <CalendarClock className="h-5 w-5" aria-hidden="true" />
                 </span>
               </div>
@@ -393,7 +400,7 @@ export default function ParticipantAreaPage() {
 
               <Link
                 href={applicationHref(priorityItem)}
-                className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)]"
+                className="institutional-action mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition"
               >
                 {itemState(priorityItem) === "IN_PROGRESS" ? "Continuar de onde parei" : "Abrir avaliação"}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -420,10 +427,10 @@ export default function ParticipantAreaPage() {
           explica a falha e oferece nova tentativa.
         */}
         {catalogLoading || catalogFailed || otherItems.length ? (
-        <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+        <article className="flex flex-col overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Central do dia</p>
+                <p className="text-xs font-medium text-[var(--text-secondary)]">Avaliações</p>
                 <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{hasMoreActions ? "Próximas pendências" : "Acompanhe também"}</h2>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">{hasMoreActions ? "Ordenadas primeiro pelo que já foi iniciado e depois pelo prazo." : "Histórico e ciclos que não exigem ação neste momento."}</p>
               </div>
@@ -491,13 +498,13 @@ export default function ParticipantAreaPage() {
           já existem no menu lateral, então servem de conveniência — não competem
           com a próxima ação nem com a jornada.
         */}
-        <nav aria-label="Acessos principais" className="flex flex-wrap gap-2">
+        <nav aria-label="Acessos principais" className="flex flex-wrap gap-1 border-t border-[var(--border-subtle)] pt-4">
           {actions.map(({ href, title, text, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               title={text}
-              className="group inline-flex min-h-11 flex-1 items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-card)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)] sm:min-w-52 sm:flex-none"
+              className="group inline-flex min-h-10 flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] sm:flex-none"
             >
               <Icon className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
               <span className="truncate">{title}</span>
