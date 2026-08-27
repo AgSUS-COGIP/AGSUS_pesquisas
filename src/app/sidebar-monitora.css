@@ -253,5 +253,7 @@ aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb {
  * achatá-lo em branco apagaria o texto junto com o fundo.
  */
 html[data-agsus-theme="dark"] .platform-mobile-drawer img.platform-brand-logo {
-  filter: brightness(0) invert(1);
+  /* `.96` e não `1` — o branco puro dava contraste 17.98 e tornava o logotipo o
+     elemento mais brilhante do painel. Ver o comentário em `platform-shell.tsx`. */
+  filter: brightness(0) invert(.96);
 }

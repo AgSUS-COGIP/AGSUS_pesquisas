@@ -101,7 +101,23 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
         sizes="36px"
         loading={brandingLoading}
         className="platform-brand-logo h-9 w-9 shrink-0 object-contain text-[9px]"
-        style={useNegativeLogo ? { filter: "brightness(0) invert(1)" } : undefined}
+        /*
+          `invert(.96)`, não `invert(1)`.
+
+          O branco puro deixava o logotipo com contraste 17.98 sobre a barra do
+          tema escuro — o objeto mais brilhante da barra inteira, acima do
+          próprio item de navegação ativo (17.38). Ele saltava à frente do que
+          deveria estar em primeiro plano.
+
+          Com .96 o resultado é `rgb(245,245,245)`, praticamente o
+          `--sidebar-foreground` (#f5f9fd) usado no nome do produto ao lado.
+          Contraste ~16.3: continua nítido e deixa de gritar.
+
+          A arte é de uma cor só (`rgb(0,87,158)`) e a forma vem do canal alfa —
+          medido —, então o negativo continua devolvendo a silhueta fiel, sem
+          detalhe interno a perder.
+        */
+        style={useNegativeLogo ? { filter: "brightness(0) invert(.96)" } : undefined}
       />
       {showName ? (
         <span className="platform-sidebar-expanded-only min-w-0 leading-tight">
