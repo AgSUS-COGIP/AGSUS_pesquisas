@@ -139,9 +139,15 @@ export function OnlinePresenceIndicator({ user, canView }: { user: PresenceUser;
           id={listId}
           className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[0_24px_60px_-28px_rgba(15,23,42,.55)]"
         >
+          {/*
+            Sem a linha "Atualizado a cada 45 segundos...": o intervalo de
+            atualização é detalhe de implementação, e quem abre a lista quer
+            saber quem está online, não de quanto em quanto tempo o dado é
+            buscado. O ponto verde ao lado de cada pessoa já comunica que a
+            informação é ao vivo.
+          */}
           <div className="border-b border-[var(--border-subtle)] px-4 py-3">
             <strong className="block text-sm text-[var(--text-primary)]">Pessoas online</strong>
-            <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">Atualizado a cada 45 segundos enquanto a plataforma estiver aberta.</span>
           </div>
           {people.length ? (
             <ul className="max-h-80 overflow-y-auto p-2">

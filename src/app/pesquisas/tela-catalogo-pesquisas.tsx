@@ -10,7 +10,7 @@ import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome"
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { PageHeader, Surface } from "@/components/ui/surface";
+import { Surface } from "@/components/ui/surface";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -146,7 +146,6 @@ function SurveysPageContent() {
   return (
     <PlatformShell
       user={guard.user}
-      eyebrow="Catálogo institucional"
       title="Avaliações"
     >
       <div className="space-y-5">
@@ -161,26 +160,25 @@ function SurveysPageContent() {
           rota.
         */}
         <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
-        <Surface className="p-5 sm:p-6">
-          <PageHeader
-            eyebrow="Instrumentos disponíveis"
-            title="Sua jornada de avaliações"
-            description="Cada cartão representa um ciclo de avaliação disponível para você. Veja primeiro a situação, depois o prazo e a ação recomendada."
-            actions={
-              <label className="relative block w-full min-w-64 lg:min-w-80">
-                <span className="sr-only">Buscar avaliação</span>
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" aria-hidden="true" />
-                <input
-                  type="search"
-                  enterKeyHint="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar avaliação, código ou ciclo"
-                  className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-11 pr-4 text-sm font-semibold text-[var(--text-primary)] outline-none focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-[var(--focus-ring)]/20"
-                />
-              </label>
-            }
-          />
+        <section aria-labelledby="catalogo-avaliacoes-titulo" className="border-b border-[var(--border-subtle)] pb-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 id="catalogo-avaliacoes-titulo" className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Avaliações disponíveis</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">Acompanhe prazos e retome os formulários que você já iniciou.</p>
+            </div>
+            <label className="relative block w-full md:w-80">
+              <span className="sr-only">Buscar avaliação</span>
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" aria-hidden="true" />
+              <input
+                type="search"
+                enterKeyHint="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por nome ou código"
+                className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--focus-ring)]/20"
+              />
+            </label>
+          </div>
 
           {/*
             Resolução de conflito com a #19, que reescreveu os rótulos destes
@@ -190,12 +188,12 @@ function SurveysPageContent() {
             cabeçalho. É o mesmo padrão da Visão geral, com régua fina separando
             os números.
           */}
-          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
+          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
             {metricTiles.map((tile, index) => (
               <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
-                <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
+                <dt className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</dt>
                 <dd>
-                  <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${tile.alert ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                  <strong className={`mt-1.5 block text-2xl font-semibold leading-none tabular-nums ${tile.alert ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
                     {catalogLoading ? "—" : tile.value}
                   </strong>
                   <span className={`mt-2 block text-xs leading-4 ${tile.alert ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
@@ -206,7 +204,7 @@ function SurveysPageContent() {
             ))}
           </dl>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-4" role="tablist" aria-label="Filtrar avaliações por situação">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-4" role="tablist" aria-label="Filtrar avaliações por situação">
             <Filter className="mr-1 h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
             {filters.map((item) => (
               <button
@@ -215,21 +213,20 @@ function SurveysPageContent() {
                 role="tab"
                 aria-selected={filter === item.key}
                 onClick={() => setFilter(item.key)}
-                className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-xs font-semibold transition ${filter === item.key ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)] shadow-sm" : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+                className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filter === item.key ? "border-[var(--brand-primary)] bg-[var(--control-active)] text-[var(--brand-primary)]" : "border-transparent bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
               >
                 {item.label}
-                <span className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${filter === item.key ? "bg-white/20" : "bg-[var(--surface-card)]"}`}>{counts[item.key]}</span>
+                <span className="rounded px-1.5 py-0.5 text-[11px] tabular-nums bg-[var(--surface-card)]">{counts[item.key]}</span>
               </button>
             ))}
           </div>
-        </Surface>
+        </section>
 
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" aria-live="polite">
-          <p className="text-sm font-semibold text-[var(--text-primary)]">{catalogLoading ? "Atualizando catálogo..." : `${filtered.length} de ${items.length} ciclo(s) exibido(s)`}</p>
-          {/* O aviso de urgência que eu tinha posto aqui saiu: com os
-              indicadores de volta, ele repetiria a legenda de "Pendentes". */}
-          <p className="text-xs text-[var(--text-secondary)]">A situação combina o período do ciclo com o seu preenchimento.</p>
-        </div>
+        {(catalogLoading || filtered.length !== items.length) ? (
+          <p className="text-sm text-[var(--text-secondary)]" aria-live="polite">
+            {catalogLoading ? "Atualizando avaliações..." : `Mostrando ${filtered.length} de ${items.length}`}
+          </p>
+        ) : null}
 
         {catalogLoading ? (
           <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3" aria-hidden="true">
@@ -257,22 +254,19 @@ function SurveysPageContent() {
                   informa algo acionável — e as caixas cinza em volta dos metadados.
                   Os códigos continuam visíveis, como texto secundário.
                 */
-                <Surface key={item.applicationId} className="group flex min-h-56 flex-col overflow-hidden transition hover:-translate-y-0.5 hover:border-[var(--brand-secondary)]/50 hover:shadow-lg">
+                <Surface key={item.applicationId} className="group flex min-h-56 flex-col overflow-hidden rounded-lg transition-colors hover:border-[var(--border-strong)]">
   {/* ↓ min-w-0 é obrigatório aqui para que o flex respeite a largura do card */}
   <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
     <div className="flex items-start justify-between gap-3">
-      {/* ↓ min-w-0 + overflow-hidden evita que o título empurre o badge para fora */}
-      <p className="min-w-0 break-words text-xs font-semibold uppercase tracking-[.12em] text-[var(--brand-secondary)]">
-        {item.surveyName}
-      </p>
+      <h3 className="min-w-0 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">
+        {item.applicationName}
+      </h3>
       <Badge variant={stateBadgeVariant[state === "ALL" ? "OPEN" : state]} className="shrink-0">
         {completed ? "Concluída" : state === "DRAFT" ? "Em andamento" : statusLabel(item.applicationStatus)}
       </Badge>
     </div>
 
-    <h3 className="mt-1.5 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">
-      {item.applicationName}
-    </h3>
+    <p className="mt-2 line-clamp-2 break-words text-sm font-medium leading-5 text-[var(--text-secondary)]">{item.surveyName}</p>
 
     <p className="mt-1 truncate text-xs text-[var(--text-muted)]" title={`${item.surveyCode} · ${item.applicationCode}`}>
       {item.surveyCode} · {item.applicationCode}
@@ -318,7 +312,7 @@ function SurveysPageContent() {
             <Settings2 className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : null}
-        <Link href={surveyApplicationHref(item)} className={buttonVariants({ variant: "primary", size: "sm" })}>
+        <Link href={surveyApplicationHref(item)} className={cn(buttonVariants({ variant: "primary", size: "sm" }), "institutional-action")}>
           {actionLabel(item)}
         </Link>
       </div>

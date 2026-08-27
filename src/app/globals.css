@@ -8,12 +8,12 @@
   --cddi-rule: #2d3f97;
   --brand-secondary: #0b8f58;
   --brand-accent: #00a8d6;
-  --surface-page: #f4f7fb;
+  --surface-page: #f6f8fa;
   --surface-card: #ffffff;
   --surface-raised: #f9fbfd;
-  --surface-muted: #edf3f8;
-  --surface-hover: #e5eff7;
-  --border-subtle: #dce5ee;
+  --surface-muted: #f0f3f6;
+  --surface-hover: #e9eef3;
+  --border-subtle: #d7dfe7;
   --text-primary: #17233a;
   --text-secondary: #5f6f86;
   --focus-ring: #00a8d6;
@@ -21,8 +21,8 @@
   --sidebar-foreground: #ffffff;
   --sidebar-muted: #c4d8e8;
   --sidebar-active: #087daf;
-  --radius-card: 1rem;
-  --shadow-card: 0 1px 2px rgba(16, 36, 56, .04), 0 10px 30px -24px rgba(0, 43, 84, .3);
+  --radius-card: .75rem;
+  --shadow-card: 0 1px 2px rgba(16, 36, 56, .06);
   --platform-sidebar-expanded-width: 14rem;
   --platform-sidebar-compact-width: 4.5rem;
   --platform-sidebar-width: var(--platform-sidebar-expanded-width);
@@ -33,12 +33,12 @@ html[data-agsus-theme="dark"] {
   --brand-primary-strong: #b5e5ff;
   --brand-secondary: #7ce8bc;
   --brand-accent: #4fdcff;
-  --surface-page: #07111e;
-  --surface-card: #101d2c;
-  --surface-raised: #142438;
-  --surface-muted: #182a3f;
-  --surface-hover: #20364f;
-  --border-subtle: #30465e;
+  --surface-page: #0a1119;
+  --surface-card: #111b26;
+  --surface-raised: #15212e;
+  --surface-muted: #182532;
+  --surface-hover: #1e2d3c;
+  --border-subtle: #2b3b4b;
   --text-primary: #f3f7fc;
   --text-secondary: #c4d0dd;
   --focus-ring: #7dd3fc;
@@ -46,7 +46,7 @@ html[data-agsus-theme="dark"] {
   --sidebar-foreground: #f5f9fd;
   --sidebar-muted: #afc2d5;
   --sidebar-active: #126b98;
-  --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 20px 55px -34px rgba(0,0,0,.95);
+  --shadow-card: 0 1px 2px rgba(0,0,0,.38);
 }
 
 html[data-agsus-sidebar-compact="true"] {
@@ -65,8 +65,7 @@ body {
   width: 100%;
   overflow-x: clip;
   background-color: var(--surface-page);
-  background-image: radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--brand-accent) 8%, transparent), transparent 28rem), radial-gradient(circle at 18% 100%, color-mix(in srgb, var(--brand-secondary) 7%, transparent), transparent 32rem);
-  background-attachment: fixed;
+  background-image: none;
   color: var(--text-primary);
   text-rendering: optimizeLegibility;
 }
@@ -183,8 +182,19 @@ html[data-agsus-theme="dark"] .divide-slate-200 > :not([hidden]) ~ :not([hidden]
     linear-gradient(90deg, color-mix(in srgb, var(--border-subtle) 38%, transparent) 1px, transparent 1px);
   background-size: auto, 28px 28px, 28px 28px;
 }
-.metric-card { min-width: 6.25rem; border: 1px solid var(--border-subtle); border-radius: 1rem; background: var(--surface-card); padding: .9rem 1rem; box-shadow: 0 12px 28px -25px rgba(15,23,42,.55); }
-.section-eyebrow { font-size: .68rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; color: var(--brand-accent); }
+.metric-card { min-width: 6.25rem; border: 1px solid var(--border-subtle); border-radius: .75rem; background: var(--surface-card); padding: .9rem 1rem; box-shadow: var(--shadow-card); }
+.section-eyebrow { font-size: .75rem; font-weight: 700; letter-spacing: .025em; color: var(--text-secondary); }
+[data-config-section] {
+  border-radius: .75rem !important;
+  border-top-width: 1px !important;
+  box-shadow: none !important;
+}
+[data-config-section] > div:first-child > span:first-child {
+  height: 2.25rem;
+  width: 2.25rem;
+  border-radius: .5rem;
+  box-shadow: none;
+}
 .page-intro { display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 1.5rem; }
 .page-title { margin-top: .35rem; font-size: clamp(1.65rem, 3vw, 2.25rem); font-weight: 750; letter-spacing: -.035em; color: var(--text-primary); overflow-wrap: anywhere; }
 .page-description { margin-top: .65rem; max-width: 44rem; color: var(--text-secondary); line-height: 1.65; overflow-wrap: anywhere; }
