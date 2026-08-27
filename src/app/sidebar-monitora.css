@@ -65,13 +65,24 @@
     background: transparent !important;
   }
 
-  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:first-child {
-    color: #67e8f9 !important;
-  }
+  /*
+    As duas regras que ficavam aqui pintavam o nome do produto e o da
+    organização por posição — `span:first-child` e `span:last-child` dentro do
+    conjunto da marca. O markup mudou: o nome do produto virou `<strong>`, e os
+    seletores deixaram de descrever a árvore.
 
-  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:last-child {
-    color: #ffffff !important;
-  }
+    O resultado era hierarquia invertida. O primeiro seletor não casava com
+    nada; o segundo acertava a linha **secundária** e a forçava a branco puro
+    com `!important`, deixando "AgSUS" (11 px) mais claro que "SIGAV" (15 px),
+    que é o nome principal.
+
+    Sem elas, valem as classes do componente, que já dizem o certo:
+    `--sidebar-foreground` no principal e `--sidebar-muted` no secundário.
+
+    Lição para quem for mexer: estilizar por posição de irmão amarra o CSS à
+    ordem exata das tags. Quando o markup muda, a regra não falha — ela passa a
+    acertar outro elemento, em silêncio.
+  */
 
   aside.platform-desktop-sidebar section > p {
     color: rgba(219, 234, 254, 0.66) !important;
