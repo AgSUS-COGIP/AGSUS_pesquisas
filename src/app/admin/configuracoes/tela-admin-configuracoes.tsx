@@ -834,23 +834,22 @@ export default function PlatformSettingsPage() {
   return (
     <PlatformShell user={guard.user} eyebrow="Administração" title="Configurações do sistema">
       <div className="min-w-0 pb-28">
-        {/* Barra de navegação do workspace */}
-        <section className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-5 shadow-sm sm:px-6" aria-label="Navegação das configurações">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <span className="section-eyebrow">Administração do sistema</span>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-[var(--text-primary)]">Configurações</h2>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">Localize ajustes, revise acessos e salve alterações com validação antes de publicar.</p>
-            </div>
-            <label className="relative block w-full min-w-0 lg:w-80">
+        <header className="border-b border-[var(--border-subtle)] pb-5">
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Configurações</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Administre identidade, funcionamento e permissões da plataforma. Cada alteração informa quando é aplicada.</p>
+        </header>
+
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <aside className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 lg:sticky lg:top-24" aria-label="Navegação das configurações">
+            <label className="relative block w-full min-w-0">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
               <input
                 type="search"
                 value={wsQuery}
                 onChange={(event) => setWsQuery(event.target.value)}
-                placeholder="Pesquisar configuração..."
-                aria-label="Pesquisar configuração"
-                className="min-h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-10 pr-10 text-sm font-semibold text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-solid)] focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--brand-solid)_18%,transparent)]"
+                placeholder="Buscar seção..."
+                aria-label="Buscar seção de configuração"
+                className="min-h-10 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-10 pr-9 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-solid)] focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--brand-solid)_18%,transparent)]"
               />
               {wsQuery ? (
                 <button type="button" onClick={() => setWsQuery("")} aria-label="Limpar pesquisa" className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--surface-interactive)] hover:text-[var(--text-primary)]">
@@ -858,9 +857,8 @@ export default function PlatformSettingsPage() {
                 </button>
               ) : null}
             </label>
-          </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-x-visible" role="tablist" aria-label="Categorias de configuração">
+          <div className="mt-3 flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible" role="tablist" aria-label="Categorias de configuração">
             {TABS.map((item) => {
               const Icon = item.icon;
               const active = tab === item.id;
@@ -871,28 +869,28 @@ export default function PlatformSettingsPage() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(item.id)}
-                  className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-black transition ${
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-sm font-medium transition lg:w-full ${
                     active
-                      ? "border-[color-mix(in_srgb,var(--brand-solid)_45%,transparent)] bg-[var(--status-info-bg)] text-[var(--brand-primary)]"
-                      : "border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--brand-primary)]"
+                      ? "border-[var(--status-info-border)] bg-[var(--status-info-bg)] text-[var(--brand-primary)]"
+                      : "border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                   <span>{item.label}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3 text-[11px] font-bold text-[var(--text-muted)]">
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] px-1 pt-3 text-xs text-[var(--text-muted)]">
             <span>{visibleCount} {visibleCount === 1 ? "seção disponível" : "seções disponíveis"}</span>
             {brandDirty ? (
               <span className="inline-flex items-center gap-1.5 text-[var(--status-warning-text)]"><CircleDot className="h-3 w-3" aria-hidden="true" />Alterações não salvas</span>
             ) : null}
           </div>
-        </section>
+          </aside>
 
-        <div className="mt-5 space-y-5">
+        <div className="space-y-4">
           {/* MARCA */}
           {brandVisible ? (
             <section data-config-section="brand" className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6" style={{ borderTopColor: SECTION_ACCENT.brand }}>
@@ -1721,6 +1719,7 @@ export default function PlatformSettingsPage() {
             </div>
           ) : null}
         </div>
+      </div>
       </div>
 
       {/* Formulário da marca (campos ficam nos cards via atributo form=) */}

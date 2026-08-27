@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ExternalImage } from "@/components/external-image";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ type PlatformLogoProps = {
   priority?: boolean;
   loading?: boolean;
   className?: string;
+  style?: CSSProperties;
 };
 
 function initials(value: string) {
@@ -33,6 +34,7 @@ export function PlatformLogo({
   priority,
   loading = false,
   className,
+  style,
 }: PlatformLogoProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   // Renderiza o logotipo assim que houver uma URL — mesmo durante o carregamento
@@ -69,6 +71,7 @@ export function PlatformLogo({
         priority={priority}
         onError={() => setFailedSource(displaySrc)}
         className={className}
+        style={style}
       />
     );
   }
@@ -82,6 +85,7 @@ export function PlatformLogo({
         "inline-grid place-items-center rounded-[inherit] bg-[color-mix(in_srgb,var(--brand-solid)_12%,white)] font-black tracking-[-0.08em] text-[var(--brand-solid)]",
         className,
       )}
+      style={style}
     >
       {loading ? (
         <span className="h-1/2 w-1/2 animate-pulse rounded-lg bg-current/15" aria-hidden="true" />
