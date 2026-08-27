@@ -222,7 +222,7 @@ export default function ParticipantAreaPage() {
   const externalAnnouncementLink = branding.homeAnnouncementLink?.startsWith("https://") ?? false;
 
   return (
-    <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
+    <PlatformShell user={user} title="Visão geral">
       {/*
         Tentei antes forçar a página a ocupar a altura da janela, com
         `min-height` e a jornada crescendo para absorver a sobra. Em monitor
@@ -285,13 +285,6 @@ export default function ParticipantAreaPage() {
           vertical entre os números vem só a partir de `sm`, onde há largura
           para ela significar alguma coisa.
         */}
-        <div className="flex flex-col gap-2 border-b border-[var(--border-subtle)] pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Prioridades</h2>
-          <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 self-start rounded-md px-2 text-sm font-semibold text-[var(--brand-primary)] hover:bg-[var(--surface-hover)] sm:self-auto">
-            Ver todas as avaliações
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </div>
         <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
           <article className="@container flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 sm:p-6">
             {/*
