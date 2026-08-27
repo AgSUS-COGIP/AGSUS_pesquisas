@@ -143,6 +143,12 @@ export default function TeamPage() {
         return byPriority || a.fullName.localeCompare(b.fullName, "pt-BR");
       });
   }, [search, sortMode, statusFilter, workspace?.members]);
+  const selectableMembers = useMemo(
+    () => (workspace?.members ?? []).filter((member) => normalizedStatus(member.submissionStatus) !== "SUBMITTED"),
+    [workspace?.members],
+  );
+  const allSelectableMembersSelected = selectableMembers.length > 0
+    && selectableMembers.every((member) => selectedMemberIds.has(member.personId));
 
   async function addMember(candidate: Candidate) {
     if (!workspace?.application.id) return;
@@ -185,6 +191,18 @@ export default function TeamPage() {
     setSelectedMemberIds((current) => {
       const next = new Set(current);
       if (next.has(personId)) next.delete(personId); else next.add(personId);
+      return next;
+    });
+  }
+  function toggleAllMembersSelected() {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+      const allSelected = selectableMembers.length > 0
+        && selectableMembers.every((member) => next.has(member.personId));
+      selectableMembers.forEach((member) => {
+        if (allSelected) next.delete(member.personId);
+        else next.add(member.personId);
+      });
       return next;
     });
   }
@@ -246,7 +264,7 @@ export default function TeamPage() {
             </Badge>
           )}
           <Button
-            variant="secondary"
+            variant={batchMode ? "secondary" : "primary"}
             onClick={toggleBatchMode}
             title={batchMode ? "Sair da seleção múltipla" : "Selecionar vários integrantes e avaliá-los lado a lado, com respostas independentes"}
           >
@@ -345,16 +363,27 @@ export default function TeamPage() {
         </div>
 
         {batchMode && !loadingTeam && (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--brand-soft-border,var(--border-subtle))] bg-[var(--brand-soft)] p-4">
             <span className="text-sm font-semibold text-[var(--text-primary)]">
               {selectedMemberIds.size === 0
                 ? "Marque quem você quer avaliar lado a lado. Cada pessoa terá respostas e rascunho próprios."
                 : `${selectedMemberIds.size} ${selectedMemberIds.size === 1 ? "integrante selecionado" : "integrantes selecionados"} — cada avaliação continuará independente na matriz.`}
             </span>
-            <Button disabled={selectedMemberIds.size < 2} onClick={() => startBatchEvaluation(filtered)} title={selectedMemberIds.size < 2 ? "Selecione pelo menos duas pessoas" : "Abrir avaliação múltipla"}>
-              Abrir avaliação múltipla
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={!selectableMembers.length}
+                onClick={toggleAllMembersSelected}
+                title={allSelectableMembersSelected ? "Desmarcar todas as avaliações selecionáveis" : "Selecionar todas as avaliações ainda editáveis da equipe"}
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                {allSelectableMembersSelected ? "Desmarcar todos" : "Selecionar todos"}
+              </Button>
+              <Button disabled={selectedMemberIds.size < 2} onClick={() => startBatchEvaluation(filtered)} title={selectedMemberIds.size < 2 ? "Selecione pelo menos duas pessoas" : "Abrir avaliação múltipla"}>
+                Abrir avaliação múltipla
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
           </div>
         )}
 
