@@ -56,16 +56,43 @@ function readConnectionConfig() {
 // O App Router recarrega módulos a cada mudança em dev; sem cache no
 // `globalThis`, cada recarga abriria um pool novo e vazaria conexões até
 // esgotar o limite do Postgres.
-const globalForPool = globalThis as unknown as { empresaDbPool?: Pool };
+//
+// Mas o cache tem um efeito colateral que já custou tempo de diagnóstico: o
+// Next recarrega o `.env.local` sem reiniciar o processo, e `globalThis`
+// sobrevive à recarga de módulo. Um pool criado antes de a variável de conexão
+// mudar continuava apontando para o banco anterior — e o sintoma aparecia longe
+// da causa, como uma RPC "que não existe" (PGRST202) num banco onde ela existia.
+// Por isso guardamos a assinatura da configuração junto do pool: quando ela
+// muda, o pool antigo é encerrado e um novo assume, sem precisar reiniciar.
+const globalForPool = globalThis as unknown as {
+  empresaDbPool?: Pool;
+  empresaDbPoolAssinatura?: string;
+};
 
 export function getEmpresaDbPool(): Pool {
+  const config = readConnectionConfig();
+  // A senha entra na assinatura por hash de comprimento, não em texto: trocar
+  // de credencial precisa recriar o pool, mas o valor não deve ficar exposto
+  // num objeto global.
+  const assinatura = `${config.host}:${config.port}/${config.database}?u=${config.user}&p=${config.password?.length ?? 0}`;
+
+  if (globalForPool.empresaDbPool && globalForPool.empresaDbPoolAssinatura !== assinatura) {
+    const antigo = globalForPool.empresaDbPool;
+    globalForPool.empresaDbPool = undefined;
+    // Encerra em segundo plano: as conexões em uso terminam sozinhas, e uma
+    // falha ao fechar não pode impedir a criação do pool novo.
+    void antigo.end().catch(() => {});
+  }
+
   if (!globalForPool.empresaDbPool) {
     globalForPool.empresaDbPool = new Pool({
-      ...readConnectionConfig(),
+      ...config,
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 8_000,
     });
+    globalForPool.empresaDbPoolAssinatura = assinatura;
   }
+
   return globalForPool.empresaDbPool;
 }
