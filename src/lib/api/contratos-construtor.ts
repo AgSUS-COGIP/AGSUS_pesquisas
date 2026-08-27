@@ -214,6 +214,22 @@ export type EstadoPreAmostra = {
 };
 
 /**
+ * Intenção de validar o ciclo por pré-amostra, de
+ * `fc_obter_intencao_pre_amostra` e `fc_definir_intencao_pre_amostra`.
+ *
+ * Vem em contrato próprio, e não como campo de `EstadoPreAmostra`: a intenção é
+ * gravada no cadastro da avaliação, quando ainda não existem público, tamanho
+ * nem método para preencher aquele agregado.
+ */
+export type IntencaoPreAmostra = {
+  status: string;
+  applicationId: string;
+  intended: boolean;
+  phase: EstadoPreAmostra["phase"];
+  applicationStatus: string;
+};
+
+/**
  * Regra condicional de exibição, no formato de `fc_listar_regras_condicionais`.
  *
  * Os tipos de operador, condição e alvo vêm de `@/lib/survey-conditional-logic`

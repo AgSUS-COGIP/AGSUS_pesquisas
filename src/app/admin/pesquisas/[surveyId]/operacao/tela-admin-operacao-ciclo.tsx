@@ -17,8 +17,8 @@ import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { configurarPreAmostra, criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, executarAcaoPreAmostra, obterOperacaoDoCiclo, obterPreAmostra } from "@/lib/api/cliente-construtor";
-import type { EstadoPreAmostra, OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
+import { configurarPreAmostra, criarNovaVersaoPesquisa, definirIntencaoPreAmostra, definirNotificacaoEmail, executarAcaoDoCiclo, executarAcaoPreAmostra, obterIntencaoPreAmostra, obterOperacaoDoCiclo, obterPreAmostra } from "@/lib/api/cliente-construtor";
+import type { EstadoPreAmostra, IntencaoPreAmostra, OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { listarParticipantes } from "@/lib/api/cliente-pessoas";
 import type { ParticipanteDaAvaliacao } from "@/lib/api/contratos-pessoas";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
@@ -124,6 +124,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const granted = guard.state === "granted";
   const [operations, setOperations] = useState<Operations | null>(null);
   const [preSample, setPreSample] = useState<EstadoPreAmostra | null>(null);
+  const [preSampleIntent, setPreSampleIntent] = useState<IntencaoPreAmostra | null>(null);
+  const [preSampleError, setPreSampleError] = useState<string | null>(null);
   const [preSampleSize, setPreSampleSize] = useState("30");
   const [preSampleMethod, setPreSampleMethod] = useState<"RANDOM" | "MANUAL">("RANDOM");
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
@@ -138,13 +140,34 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
     try {
-      const [next, nextPreSample] = await Promise.all([obterOperacaoDoCiclo(surveyId), obterPreAmostra(surveyId)]);
+      // A operação do ciclo é obrigatória: sem ela não há tela.
+      const next = await obterOperacaoDoCiclo(surveyId);
       setOperations(next);
+
+      // A pré-amostra, não. Num ambiente cujo banco ainda não recebeu as
+      // migrations dela, as duas RPCs respondem 501 — e no `Promise.all` único
+      // que existia aqui elas derrubavam período, checklist, publicação e
+      // participantes junto: a tela inteira desaparecia por causa de uma seção.
+      //
+      // `allSettled` isola a falha na seção que ela afeta. O motivo não é
+      // engolido: vira texto dentro do próprio bloco da pré-amostra, onde a
+      // informação é útil, em vez de um toast que some.
+      const [preSampleResult, intentResult] = await Promise.allSettled([
+        obterPreAmostra(surveyId),
+        obterIntencaoPreAmostra(surveyId),
+      ]);
+      const nextPreSample = preSampleResult.status === "fulfilled" ? preSampleResult.value : null;
+      const nextIntent = intentResult.status === "fulfilled" ? intentResult.value : null;
+      const rejections = [preSampleResult, intentResult]
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected");
+
       setPreSample(nextPreSample);
-      setPreSampleMethod(nextPreSample.method ?? "RANDOM");
-      setSelectedParticipantIds(nextPreSample.participantIds ?? []);
+      setPreSampleIntent(nextIntent);
+      setPreSampleError(rejections.length ? errorMessageFromUnknown(rejections[0].reason) : null);
+      setPreSampleMethod(nextPreSample?.method ?? "RANDOM");
+      setSelectedParticipantIds(nextPreSample?.participantIds ?? []);
       setParticipants(next.application?.id ? await listarParticipantes(next.application.id) : []);
-      setPreSampleSize(String(nextPreSample.size || Math.max(3, Math.min(30, nextPreSample.population - 1))));
+      setPreSampleSize(String(nextPreSample?.size || Math.max(3, Math.min(30, (nextPreSample?.population ?? 4) - 1))));
       setOpensAt(toLocalInput(next.application?.opensAt));
       setClosesAt(toLocalInput(next.application?.closesAt));
     } catch (loadError) {
@@ -183,8 +206,19 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       CLOSE: "Pausar esta avaliação agora? Ela pode ser reaberta depois com um novo período.",
       CANCEL: "Finalizar esta avaliação agora? O ciclo é encerrado e a avaliação vai para \"Avaliações arquivadas\", por até 30 dias.",
     };
-    const confirmation = confirmations[action];
-    if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: action === "CANCEL" || action === "CLOSE" ? "Confirmar operação" : "Continuar", tone: action === "CANCEL" || action === "CLOSE" ? "danger" : "primary" }))) return;
+    // Prever validação por pré-amostra e liberar o ciclo para todos são decisões
+    // contraditórias. O aviso entra na confirmação, e não como bloqueio: a
+    // administração pode ter motivo para desistir da validação, e o caminho para
+    // isso é explícito ("Dispensar pré-amostra"), não um botão apagado.
+    //
+    // `SCHEDULE` entra junto porque agendar é abrir depois, sozinho — a diferença
+    // é o momento, não o público.
+    const preSamplePending = Boolean(preSampleIntent?.intended) && preSample?.phase === "DISABLED";
+    const preSampleAlert = "Esta avaliação está prevista para validação por pré-amostra, e o grupo de teste ainda não foi configurado. Seguir agora libera o formulário para toda a população vinculada.";
+    const confirmation = preSamplePending && (action === "OPEN" || action === "SCHEDULE")
+      ? [confirmations[action], preSampleAlert].filter(Boolean).join(" ")
+      : confirmations[action];
+    if (confirmation && !(await confirm({ title: "Confirmar operação do ciclo?", description: confirmation, confirmLabel: action === "CANCEL" || action === "CLOSE" ? "Confirmar operação" : "Continuar", tone: action === "CANCEL" || action === "CLOSE" || preSamplePending ? "danger" : "primary" }))) return;
 
     const sendsPeriod = action === "UPDATE_PERIOD" || action === "REOPEN" || action === "SCHEDULE";
     setWorking(action);
@@ -262,6 +296,24 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     }
   }
 
+  // A intenção também é editável aqui, e não só no cadastro: quem esqueceu de
+  // marcar na criação não deveria precisar recriar a avaliação, e quem marcou
+  // por engano precisa de uma saída — enquanto o grupo ainda não foi sorteado.
+  async function togglePreSampleIntent(next: boolean) {
+    setWorking("PRE_SAMPLE_INTENT");
+    try {
+      const updated = await definirIntencaoPreAmostra(surveyId, next);
+      setPreSampleIntent(updated);
+      toast.success(next
+        ? "Pré-amostra prevista. Configure o grupo antes de abrir o ciclo."
+        : "Pré-amostra dispensada. O ciclo pode ser aberto direto para toda a população.");
+    } catch (intentError) {
+      toast.error(errorMessageFromUnknown(intentError));
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function savePreSample() {
     const size = Number(preSampleSize);
     if (preSampleMethod === "RANDOM" && (!Number.isInteger(size) || size < 3)) return toast.error("Informe uma pré-amostra com ao menos 3 participantes.");
@@ -289,6 +341,29 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       toast.success(action === "OPEN" ? "Pré-amostra aberta para respostas." : "Formulário publicado para toda a população.");
       await loadOperations();
     } catch (error) { toast.error(errorMessageFromUnknown(error)); } finally { setWorking(null); }
+  }
+
+  // Um despacho só, em vez de ternários encadeados no `onRun`: cada ação da
+  // fileira sabe para onde vai, e nenhuma delas passa por `manage_survey_cycle`
+  // por engano — as da pré-amostra têm RPC própria.
+  function runCycleAction(action: string) {
+    if (action === "INTERRUPT") {
+      setInterruptDialogOpen(true);
+      return;
+    }
+    if (action === "NEW_VERSION") {
+      void runCreateNewVersion();
+      return;
+    }
+    if (action === "PRE_SAMPLE_OPEN") {
+      void runPreSampleAction("OPEN");
+      return;
+    }
+    if (action === "PRE_SAMPLE_RELEASE_POPULATION") {
+      void runPreSampleAction("RELEASE_POPULATION");
+      return;
+    }
+    void runAction(action);
   }
 
   if (guard.state !== "granted") {
@@ -364,6 +439,46 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const PeriodActionIcon = { REOPEN: RotateCcw, SCHEDULE: CalendarCheck2, UPDATE_PERIOD: Save }[periodAction];
   const outcome = periodOutcome(cycleStatus, versionStatus, operations?.application?.opensAt, operations?.application?.closesAt);
 
+  // As transições da pré-amostra ficam na mesma fileira das outras operações do
+  // ciclo: abrir para o grupo de teste e abrir para todos **são** transições de
+  // ciclo, não configuração — só a escolha de quem participa é configuração, e
+  // essa continua na seção acima.
+  //
+  // Entram na lista apenas quando há pré-amostra em jogo. Num ciclo comum elas
+  // apareceriam permanentemente bloqueadas e a lista de motivos passaria a
+  // explicar a ausência de algo que ninguém pediu.
+  const preSampleInPlay = Boolean(preSample?.enabled) || Boolean(preSampleIntent?.intended);
+  const preSampleActions: CycleAction[] = operations && preSampleInPlay ? [
+    {
+      action: "PRE_SAMPLE_OPEN",
+      label: "Abrir pré-amostra",
+      icon: FlaskConical,
+      description: "Libera o formulário somente para o grupo de teste selecionado.",
+      tone: "primary",
+      available: preSample?.phase === "CONFIGURED" && versionStatus === "PUBLISHED" && operations.readyToOpen,
+      blockedReason: preSample?.phase === "PRE_SAMPLE"
+        ? "A pré-amostra já está em coleta."
+        : preSample?.phase === "POPULATION"
+          ? "Esta avaliação já foi liberada para toda a população."
+          : preSample?.phase !== "CONFIGURED"
+            ? "Escolha os participantes do grupo de teste na seção Pré-amostra."
+            : versionStatus !== "PUBLISHED"
+              ? "Publique a versão antes de abrir a pré-amostra."
+              : "O checklist ainda aponta pendências que impedem a abertura.",
+    },
+    {
+      action: "PRE_SAMPLE_RELEASE_POPULATION",
+      label: "Abrir pesquisa geral",
+      icon: Users2,
+      description: "Libera o mesmo formulário para toda a população vinculada. Esta liberação não pode ser revertida.",
+      tone: "primary",
+      available: preSample?.phase === "PRE_SAMPLE",
+      blockedReason: preSample?.phase === "POPULATION"
+        ? "A população já foi liberada."
+        : "Abra a pré-amostra e avalie os indicadores antes de liberar toda a população.",
+    },
+  ] : [];
+
   // O motivo de indisponibilidade é calculado uma vez por ação: a mesma frase
   // alimenta o `title`, o `aria-describedby` e a nota abaixo do botão.
   const cycleActions: CycleAction[] = operations ? [
@@ -395,6 +510,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         ? "O checklist ainda aponta pendências que impedem a abertura."
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
     },
+    ...preSampleActions,
     {
       action: "NEW_VERSION",
       label: "Criar nova versão",
@@ -437,6 +553,25 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     participant.fullName, participant.employeeNumber, participant.institutionalEmail, participant.jobTitle, participant.costCenter,
   ].some((value) => value?.toLocaleLowerCase("pt-BR").includes(normalizedParticipantSearch)));
   const sampleParticipants = eligibleParticipants.filter((participant) => (preSample?.participantIds ?? []).includes(participant.id));
+
+  // A intenção só descreve o estado enquanto a fase não avançou: depois de o
+  // grupo existir, quem conta a história é a fase.
+  const preSampleIntended = Boolean(preSampleIntent?.intended);
+  const preSampleWaitingSetup = preSampleIntended && preSample?.phase === "DISABLED";
+  const preSampleBadge = preSample?.phase === "PRE_SAMPLE"
+    ? { variant: "info" as const, label: "Em coleta" }
+    : preSample?.phase === "POPULATION"
+      ? { variant: "success" as const, label: "População liberada" }
+      : preSample?.enabled
+        ? { variant: "neutral" as const, label: "Configurada" }
+        : preSampleWaitingSetup
+          ? { variant: "warning" as const, label: "Prevista, não configurada" }
+          : { variant: "neutral" as const, label: "Não prevista" };
+  const preSampleIntentBlockedReason = !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+    ? "A previsão só muda enquanto o ciclo está em rascunho ou agendado."
+    : preSampleIntended && preSample?.phase !== "DISABLED"
+      ? "A pré-amostra já foi configurada e não pode mais ser dispensada."
+      : null;
 
   return <PlatformShell
     user={guard.user}
@@ -536,9 +671,44 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
               <h3 className="mt-1 flex items-center gap-2 text-xl font-semibold tracking-tight text-[var(--text-primary)]"><FlaskConical className="h-5 w-5 text-[var(--brand-primary)]" aria-hidden="true" />Pré-amostra</h3>
               <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Selecione um grupo reduzido, colete respostas e avalie a qualidade psicométrica antes de liberar o mesmo formulário para toda a população.</p>
             </div>
-            <Badge variant={preSample?.phase === "PRE_SAMPLE" ? "info" : preSample?.phase === "POPULATION" ? "success" : "neutral"}>
-              {preSample?.phase === "PRE_SAMPLE" ? "Em coleta" : preSample?.phase === "POPULATION" ? "População liberada" : preSample?.enabled ? "Configurada" : "Não configurada"}
-            </Badge>
+            <Badge variant={preSampleError ? "danger" : preSampleBadge.variant}>{preSampleError ? "Indisponível" : preSampleBadge.label}</Badge>
+          </div>
+
+          {/* Indisponibilidade não é estado do ciclo: é estado do ambiente. Dizer
+              "Não prevista" quando a RPC nem existe seria afirmar uma decisão que
+              ninguém tomou — por isso a seção troca o corpo inteiro pelo motivo,
+              e a tela continua utilizável no que não depende dela. */}
+          {preSampleError ? <p role="status" className="mt-5 flex items-start gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4 text-sm leading-6 text-[var(--status-warning-text)]">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <span><strong className="font-semibold">Seção indisponível neste ambiente.</strong> {preSampleError} As demais operações desta tela continuam funcionando normalmente.</span>
+          </p> : <>
+
+          {/* A previsão vem antes do "como escolher": decidir que haverá
+              validação precede decidir quem participa. A caixa é a mesma do
+              cadastro da avaliação — quem esqueceu de marcar lá resolve aqui,
+              sem recriar nada. */}
+          <div className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+            <Checkbox
+              label="Validar por pré-amostra antes de publicar"
+              description={preSampleIntended
+                ? "Este ciclo não deve ser aberto para toda a população antes da validação."
+                : "Marque para registrar que este ciclo será validado antes de ir à população."}
+              checked={preSampleIntended}
+              disabled={working !== null || preSampleIntentBlockedReason !== null}
+              onChange={(event) => void togglePreSampleIntent(event.target.checked)}
+            />
+            {preSampleIntentBlockedReason && (
+              <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold leading-5 text-[var(--text-secondary)]">
+                <Lock className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                {preSampleIntentBlockedReason}
+              </p>
+            )}
+            {preSampleWaitingSetup && (
+              <p role="status" className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-3 text-xs font-semibold leading-5 text-[var(--status-warning-text)]">
+                <AlertTriangle className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+                Validação prevista e ainda sem grupo de teste. Escolha os participantes abaixo antes de abrir o ciclo.
+              </p>
+            )}
           </div>
 
           {preSample?.phase !== "PRE_SAMPLE" && preSample?.phase !== "POPULATION" && <div className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
@@ -556,11 +726,14 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
 
           <div className="mt-4 flex flex-wrap gap-2">
             {preSample?.phase !== "PRE_SAMPLE" && preSample?.phase !== "POPULATION" && <Button variant="secondary" onClick={() => void savePreSample()} disabled={working !== null || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "") || operations.metrics.participants < 4}>Configurar pré-amostra</Button>}
-            {preSample?.phase === "CONFIGURED" && <Button onClick={() => void runPreSampleAction("OPEN")} disabled={working !== null || versionStatus !== "PUBLISHED" || !operations.readyToOpen}><PlayCircle className="h-4 w-4" aria-hidden="true" />Publicar para pré-amostra</Button>}
-            {preSample?.phase === "PRE_SAMPLE" && <Button onClick={() => void runPreSampleAction("RELEASE_POPULATION")} disabled={working !== null}><Users2 className="h-4 w-4" aria-hidden="true" />Publicar para toda a população</Button>}
+            {/* "Abrir pré-amostra" e "Abrir pesquisa geral" saíram daqui: são
+                transições de ciclo e foram para a fileira de operações, junto de
+                Publicar versão e Abrir agora. Aqui ficam só a configuração do
+                grupo e a leitura dos indicadores. */}
             {preSample?.enabled && <Link href={`/admin/pesquisas/${surveyId}/resultados-pre-amostra`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"><BarChart3 className="h-4 w-4" aria-hidden="true" />Ver resultados</Link>}
           </div>
           {preSample?.enabled && <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4"><p className="text-sm text-[var(--text-secondary)]"><strong className="text-[var(--text-primary)]">{preSample.size}</strong> de {preSample.population} participantes · seleção {preSample.method === "MANUAL" ? "manual" : "aleatória simples"} · <strong className="text-[var(--text-primary)]">{preSample.submitted}</strong> respostas enviadas.</p><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--brand-primary)]">Ver quem participa da pré-amostra</summary><ul className="mt-3 grid gap-2 sm:grid-cols-2">{sampleParticipants.map((participant) => <li key={participant.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3"><strong className="block truncate text-sm text-[var(--text-primary)]">{participant.fullName}</strong><span className="block truncate text-xs text-[var(--text-secondary)]">{participant.institutionalEmail ?? participant.employeeNumber}</span><Badge variant={participant.status === "COMPLETED" ? "success" : participant.status === "IN_PROGRESS" ? "info" : "neutral"} className="mt-2">{participant.status === "COMPLETED" ? "Respondeu" : participant.status === "IN_PROGRESS" ? "Em preenchimento" : "Não iniciou"}</Badge></li>)}</ul></details></div>}
+          </>}
         </Surface>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.05fr]">
@@ -696,7 +869,6 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <ul aria-label="Operações do ciclo" className="flex flex-wrap items-center gap-2">
             {cycleActions.map((item) => {
               const isInterrupt = item.action === "INTERRUPT";
-              const isNewVersion = item.action === "NEW_VERSION";
               const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
               return (
                 <li key={item.action} className="flex">
@@ -704,11 +876,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
                     item={item}
                     working={isWorking}
                     busy={working !== null}
-                    onRun={() => (isInterrupt
-                      ? setInterruptDialogOpen(true)
-                      : isNewVersion
-                        ? void runCreateNewVersion()
-                        : void runAction(item.action))}
+                    onRun={() => runCycleAction(item.action)}
                   />
                 </li>
               );

@@ -33,13 +33,21 @@ export default function PreSampleResultsPage({ params }: { params: Promise<{ sur
   const [state, setState] = useState<EstadoPreAmostra | null>(null);
   const [results, setResults] = useState<PreSampleStatistics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [nextState, nextResults] = await Promise.all([obterPreAmostra(surveyId), obterResultadosPreAmostra(surveyId)]);
-      setState(nextState); setResults(nextResults);
-    } catch (error) { toast.error(errorMessageFromUnknown(error)); } finally { setLoading(false); }
+      setState(nextState); setResults(nextResults); setLoadError(null);
+    } catch (error) {
+      // Sem isto a tela ficava em esqueleto de carregamento para sempre: o
+      // `finally` desligava `loading`, mas `state` seguia nulo e a condição de
+      // render caía no mesmo esqueleto — com `aria-busy` ligado, anunciando um
+      // carregamento que já tinha terminado em erro.
+      setLoadError(errorMessageFromUnknown(error));
+      toast.error(errorMessageFromUnknown(error));
+    } finally { setLoading(false); }
   }, [surveyId]);
 
   useEffect(() => { if (granted) void load(); }, [granted, load]);
@@ -49,7 +57,16 @@ export default function PreSampleResultsPage({ params }: { params: Promise<{ sur
   return <PlatformShell user={guard.user} eyebrow="Administração · Validação" title="Resultados da pré-amostra">
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <nav aria-label="Ações da pré-amostra"><Link href={`/admin/pesquisas/${surveyId}/operacao`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Voltar às propriedades</Link></nav>
-      {loading || !state || !results ? <ResultsSkeleton /> : <>
+      {loadError && !loading ? <Surface className="border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-6">
+        <div className="flex gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--status-warning-text)]" aria-hidden="true" />
+          <div>
+            <h3 className="font-semibold text-[var(--status-warning-text)]">Não foi possível carregar os resultados</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--status-warning-text)]">{loadError}</p>
+            <button type="button" onClick={() => void load()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-hover)]">Tentar novamente</button>
+          </div>
+        </div>
+      </Surface> : loading || !state || !results ? <ResultsSkeleton /> : <>
         <PageHeader eyebrow="Qualidade psicométrica" title="Resultados da pré-amostra" description="Indicadores calculados somente com respostas concluídas da pré-amostra e itens quantitativos com escore." actions={<Badge variant={state.phase === "PRE_SAMPLE" ? "info" : state.phase === "POPULATION" ? "success" : "neutral"}><FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />{state.submitted} de {state.size} respostas</Badge>} />
 
         <section aria-label="Base de cálculo" className="grid gap-4 sm:grid-cols-3">

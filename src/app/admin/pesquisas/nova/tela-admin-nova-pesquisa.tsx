@@ -16,6 +16,7 @@ import { ErrorSummary } from "@/components/ui/feedback";
 import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { identificationLabel } from "@/lib/anonymity";
 import { criarAvaliacao } from "@/lib/api/cliente";
+import { definirIntencaoPreAmostra } from "@/lib/api/cliente-construtor";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -30,6 +31,7 @@ const schema = z.object({
   closesAt: z.string().optional(),
   anonymous: z.boolean(),
   allowDrafts: z.boolean(),
+  preSample: z.boolean(),
 }).superRefine((data, ctx) => {
   // A mesma regra vale no banco (create_survey_draft). Aqui ela só antecipa o
   // erro para o campo certo, antes de gastar uma ida ao servidor.
@@ -47,7 +49,7 @@ type FormValues = z.infer<typeof schema>;
  */
 const STEPS = [
   { title: "Identificação", description: "Como a avaliação será reconhecida no catálogo institucional.", fields: ["code", "name", "description"] },
-  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts", "anonymous"] },
+  { title: "Ciclo e período", description: "O primeiro ciclo de aplicação e a janela em que ele ficará disponível.", fields: ["applicationName", "opensAt", "closesAt", "allowDrafts", "anonymous", "preSample"] },
   { title: "Revisão", description: "Confira os dados antes de criar a avaliação.", fields: [] },
 ] as const satisfies ReadonlyArray<{ title: string; description: string; fields: ReadonlyArray<keyof FormValues> }>;
 
@@ -78,6 +80,7 @@ export default function NewSurveyPage() {
       closesAt: "",
       anonymous: false,
       allowDrafts: true,
+      preSample: false,
     },
   });
 
@@ -123,6 +126,22 @@ export default function NewSurveyPage() {
       });
       // O banco normaliza o código para maiúsculas; o valor digitado é reserva.
       const code = criada?.code ?? values.code.toUpperCase();
+
+      // A intenção de pré-amostra vai numa segunda chamada porque
+      // `create_survey_draft` não pode receber um parâmetro novo sem trocar de
+      // assinatura — e trocar a assinatura de uma RPC já publicada é mudança
+      // quebrante. Ver `20260827160000_intencao_pre_amostra.sql`.
+      //
+      // A falha aqui não desfaz a criação: a avaliação já existe, e perdê-la de
+      // vista por causa de um sinalizador seria pior do que avisar e seguir. O
+      // operador consegue marcar a pré-amostra nas propriedades do ciclo.
+      if (values.preSample && criada?.surveyId) {
+        try {
+          await definirIntencaoPreAmostra(criada.surveyId, true);
+        } catch (preSampleError) {
+          toast.warning(`Avaliação ${code} criada, mas a pré-amostra não ficou marcada: ${errorMessageFromUnknown(preSampleError)} Marque-a nas propriedades do ciclo.`);
+        }
+      }
 
       // As duas ações criam o mesmo rascunho. A segunda só encurta o caminho
       // até o construtor; publicação continua sendo uma transição posterior.
@@ -218,6 +237,22 @@ export default function NewSurveyPage() {
                 description="As respostas deixam de ser atribuíveis a quem respondeu, a partir do envio."
                 {...form.register("anonymous")}
               />
+              {/* A pré-amostra é decidida aqui, mas configurada nas propriedades
+                  do ciclo. Marcar a caixa não sorteia ninguém: no cadastro o
+                  ciclo nasce sem público, e o banco exige participantes
+                  vinculados para separar o grupo de teste. O que esta decisão
+                  faz é registrar o compromisso e cobrar a configuração antes de
+                  o ciclo ser aberto para toda a população.
+
+                  Fica junto das outras duas opções, e o bloco de efeitos do
+                  anonimato desce para depois das três: as decisões do ciclo se
+                  leem em sequência, e o aviso continua sempre visível nesta
+                  etapa — que é o que a irreversibilidade exige. */}
+              <Checkbox
+                label="Validar por pré-amostra antes de publicar"
+                description="Um grupo reduzido responde primeiro e os indicadores de qualidade são calculados antes de liberar o formulário para toda a população. Quem participa é escolhido depois, nas propriedades do ciclo."
+                {...form.register("preSample")}
+              />
               <AnonymityNotice variant="admin" />
             </div>
           </div>
@@ -234,6 +269,7 @@ export default function NewSurveyPage() {
                 ["Encerramento planejado", reviewDateLabel(values.closesAt)],
                 ["Rascunhos", values.allowDrafts ? "Permitidos" : "Não permitidos"],
                 ["Identificação", identificationLabel(values.anonymous)],
+                ["Pré-amostra", values.preSample ? "Prevista — configurar nas propriedades" : "Não prevista"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>

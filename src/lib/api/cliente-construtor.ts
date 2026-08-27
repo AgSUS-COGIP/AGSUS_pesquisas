@@ -7,6 +7,7 @@ import type {
   EstadoPreAmostra,
   IdentidadeVisual,
   IdentidadeVisualAplicacao,
+  IntencaoPreAmostra,
   NovaVersaoPesquisa,
   OperacaoCiclo,
   PerguntaAtualizacaoEntrada,
@@ -171,6 +172,23 @@ export function executarAcaoPreAmostra(avaliacaoId: string, action: "OPEN" | "RE
 
 export function obterResultadosPreAmostra(avaliacaoId: string) {
   return chamar<PreSampleStatistics>(`/api/avaliacoes/${avaliacaoId}/resultados-pre-amostra`);
+}
+
+/** Se este ciclo está previsto para ser validado por pré-amostra. */
+export function obterIntencaoPreAmostra(avaliacaoId: string) {
+  return chamar<IntencaoPreAmostra>(`/api/avaliacoes/${avaliacaoId}/pre-amostra/intencao`);
+}
+
+/**
+ * Marca (ou dispensa) a validação por pré-amostra deste ciclo.
+ *
+ * Não seleciona ninguém: a escolha do grupo continua em `configurarPreAmostra`,
+ * que exige público já vinculado ao ciclo.
+ */
+export function definirIntencaoPreAmostra(avaliacaoId: string, intended: boolean) {
+  return chamar<IntencaoPreAmostra>(`/api/avaliacoes/${avaliacaoId}/pre-amostra/intencao`, {
+    method: "PUT", body: JSON.stringify({ intended }),
+  });
 }
 
 /** Regras condicionais já gravadas na versão do instrumento. */
