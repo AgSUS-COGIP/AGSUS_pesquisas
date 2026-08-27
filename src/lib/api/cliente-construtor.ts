@@ -1,8 +1,10 @@
 import { chamar } from "./requisicao";
+import type { PreSampleStatistics } from "@/lib/pre-sample-statistics";
 import type {
   AcaoCicloEntrada,
   ConstrutorAvaliacao,
   DirecaoItemConstrutor,
+  EstadoPreAmostra,
   IdentidadeVisual,
   IdentidadeVisualAplicacao,
   NovaVersaoPesquisa,
@@ -145,6 +147,30 @@ export function definirNotificacaoEmail(avaliacaoId: string, enabled: boolean) {
     method: "PUT",
     body: JSON.stringify({ enabled }),
   });
+}
+
+export function obterPreAmostra(avaliacaoId: string) {
+  return chamar<EstadoPreAmostra>(`/api/avaliacoes/${avaliacaoId}/pre-amostra`);
+}
+
+export function configurarPreAmostra(avaliacaoId: string, entrada: {
+  mode: "RANDOM" | "MANUAL";
+  size?: number;
+  participantIds?: string[];
+}) {
+  return chamar<EstadoPreAmostra>(`/api/avaliacoes/${avaliacaoId}/pre-amostra`, {
+    method: "PUT", body: JSON.stringify(entrada),
+  });
+}
+
+export function executarAcaoPreAmostra(avaliacaoId: string, action: "OPEN" | "RELEASE_POPULATION") {
+  return chamar<unknown>(`/api/avaliacoes/${avaliacaoId}/pre-amostra`, {
+    method: "POST", body: JSON.stringify({ action }),
+  });
+}
+
+export function obterResultadosPreAmostra(avaliacaoId: string) {
+  return chamar<PreSampleStatistics>(`/api/avaliacoes/${avaliacaoId}/resultados-pre-amostra`);
 }
 
 /** Regras condicionais já gravadas na versão do instrumento. */

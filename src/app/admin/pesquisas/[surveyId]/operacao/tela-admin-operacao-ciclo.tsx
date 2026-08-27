@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FilePlus2, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Ban, BarChart3, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, Dices, EyeOff, FilePlus2, FileStack, FlaskConical, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Search, Send, ShieldCheck, SquarePen, UserRoundCheck, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -17,8 +17,10 @@ import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
-import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
+import { configurarPreAmostra, criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, executarAcaoPreAmostra, obterOperacaoDoCiclo, obterPreAmostra } from "@/lib/api/cliente-construtor";
+import type { EstadoPreAmostra, OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
+import { listarParticipantes } from "@/lib/api/cliente-pessoas";
+import type { ParticipanteDaAvaliacao } from "@/lib/api/contratos-pessoas";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
 
@@ -121,6 +123,12 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
   const [operations, setOperations] = useState<Operations | null>(null);
+  const [preSample, setPreSample] = useState<EstadoPreAmostra | null>(null);
+  const [preSampleSize, setPreSampleSize] = useState("30");
+  const [preSampleMethod, setPreSampleMethod] = useState<"RANDOM" | "MANUAL">("RANDOM");
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [participants, setParticipants] = useState<ParticipanteDaAvaliacao[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [opensAt, setOpensAt] = useState("");
@@ -130,8 +138,13 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
     try {
-      const next = await obterOperacaoDoCiclo(surveyId);
+      const [next, nextPreSample] = await Promise.all([obterOperacaoDoCiclo(surveyId), obterPreAmostra(surveyId)]);
       setOperations(next);
+      setPreSample(nextPreSample);
+      setPreSampleMethod(nextPreSample.method ?? "RANDOM");
+      setSelectedParticipantIds(nextPreSample.participantIds ?? []);
+      setParticipants(next.application?.id ? await listarParticipantes(next.application.id) : []);
+      setPreSampleSize(String(nextPreSample.size || Math.max(3, Math.min(30, nextPreSample.population - 1))));
       setOpensAt(toLocalInput(next.application?.opensAt));
       setClosesAt(toLocalInput(next.application?.closesAt));
     } catch (loadError) {
@@ -249,6 +262,35 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     }
   }
 
+  async function savePreSample() {
+    const size = Number(preSampleSize);
+    if (preSampleMethod === "RANDOM" && (!Number.isInteger(size) || size < 3)) return toast.error("Informe uma pré-amostra com ao menos 3 participantes.");
+    if (preSampleMethod === "MANUAL" && selectedParticipantIds.length < 3) return toast.error("Selecione ao menos 3 participantes.");
+    setWorking("CONFIGURE_PRE_SAMPLE");
+    try {
+      await configurarPreAmostra(surveyId, {
+        mode: preSampleMethod,
+        size: preSampleMethod === "RANDOM" ? size : undefined,
+        participantIds: preSampleMethod === "MANUAL" ? selectedParticipantIds : undefined,
+      });
+      toast.success(`${preSampleMethod === "RANDOM" ? size : selectedParticipantIds.length} participantes foram selecionados para a pré-amostra.`);
+      await loadOperations();
+    } catch (error) { toast.error(errorMessageFromUnknown(error)); } finally { setWorking(null); }
+  }
+
+  async function runPreSampleAction(action: "OPEN" | "RELEASE_POPULATION") {
+    const description = action === "OPEN"
+      ? "Liberar o formulário somente para a pré-amostra selecionada?"
+      : "Publicar agora para toda a população? Esta liberação não pode ser revertida.";
+    if (!(await confirm({ title: action === "OPEN" ? "Abrir pré-amostra?" : "Liberar toda a população?", description, confirmLabel: "Continuar", tone: "primary" }))) return;
+    setWorking(`PRE_SAMPLE_${action}`);
+    try {
+      await executarAcaoPreAmostra(surveyId, action);
+      toast.success(action === "OPEN" ? "Pré-amostra aberta para respostas." : "Formulário publicado para toda a população.");
+      await loadOperations();
+    } catch (error) { toast.error(errorMessageFromUnknown(error)); } finally { setWorking(null); }
+  }
+
   if (guard.state !== "granted") {
     return <PlatformGuardState
       guard={guard}
@@ -279,6 +321,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   // `readyToOpen` já implica versão publicada e encerramento no futuro, então
   // não há o que repetir aqui.
   const canSchedule = (operations?.readyToOpen ?? false)
+    && preSample?.phase !== "CONFIGURED"
     && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
     && opensInFuture(opensAt);
 
@@ -288,6 +331,8 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const emailNotificationsEnabled = operations?.application?.emailNotifications ?? false;
   const emailNotificationsBlockedReason = !operations?.application
     ? "O ciclo de aplicação ainda não foi criado."
+    : preSample?.phase === "PRE_SAMPLE"
+      ? "Durante a pré-amostra os avisos ficam desligados para não notificar o restante da população."
     : operations.metrics.participants === 0 && !emailNotificationsEnabled
       ? "Vincule participantes ao ciclo para habilitar o envio — hoje não há destinatário."
       : null;
@@ -343,8 +388,10 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       icon: PlayCircle,
       description: "Antecipa a abertura: libera o formulário imediatamente, sem esperar a data agendada.",
       tone: "primary",
-      available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
-      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+      available: preSample?.phase !== "CONFIGURED" && operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
+      blockedReason: preSample?.phase === "CONFIGURED"
+        ? "A pré-amostra está configurada. Use Abrir pré-amostra para liberar somente o grupo selecionado."
+        : ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
         ? "O checklist ainda aponta pendências que impedem a abertura."
         : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
     },
@@ -384,6 +431,12 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         ? `/responder/${encodeURIComponent(operations.application.code)}`
         : `/pesquisas/${encodeURIComponent(operations.application.code)}`
     : null;
+  const eligibleParticipants = participants.filter((participant) => !["BLOCKED", "EXCLUDED"].includes(participant.status));
+  const normalizedParticipantSearch = participantSearch.trim().toLocaleLowerCase("pt-BR");
+  const visibleEligibleParticipants = eligibleParticipants.filter((participant) => !normalizedParticipantSearch || [
+    participant.fullName, participant.employeeNumber, participant.institutionalEmail, participant.jobTitle, participant.costCenter,
+  ].some((value) => value?.toLocaleLowerCase("pt-BR").includes(normalizedParticipantSearch)));
+  const sampleParticipants = eligibleParticipants.filter((participant) => (preSample?.participantIds ?? []).includes(participant.id));
 
   return <PlatformShell
     user={guard.user}
@@ -474,6 +527,40 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           <MetricCard icon={Users2} label="Participantes" value={operations.metrics.participants} description={operations.metrics.participants ? "vinculadas a este ciclo" : "nenhuma vinculada ainda"} href="/admin/participantes" hrefLabel="Gerenciar" />
           <MetricCard icon={Clock3} label="Em preenchimento" value={operations.metrics.draftSubmissions} description="iniciadas, não enviadas" />
           <MetricCard icon={CheckCircle2} label="Respostas enviadas" value={operations.metrics.submittedSubmissions} description="concluídas e registradas" tone="success" />
+        </Surface>
+
+        <Surface className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Validação do instrumento</p>
+              <h3 className="mt-1 flex items-center gap-2 text-xl font-semibold tracking-tight text-[var(--text-primary)]"><FlaskConical className="h-5 w-5 text-[var(--brand-primary)]" aria-hidden="true" />Pré-amostra</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Selecione um grupo reduzido, colete respostas e avalie a qualidade psicométrica antes de liberar o mesmo formulário para toda a população.</p>
+            </div>
+            <Badge variant={preSample?.phase === "PRE_SAMPLE" ? "info" : preSample?.phase === "POPULATION" ? "success" : "neutral"}>
+              {preSample?.phase === "PRE_SAMPLE" ? "Em coleta" : preSample?.phase === "POPULATION" ? "População liberada" : preSample?.enabled ? "Configurada" : "Não configurada"}
+            </Badge>
+          </div>
+
+          {preSample?.phase !== "PRE_SAMPLE" && preSample?.phase !== "POPULATION" && <div className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+            <fieldset disabled={working !== null || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "") || operations.metrics.draftSubmissions + operations.metrics.submittedSubmissions > 0}>
+              <legend className="text-sm font-semibold text-[var(--text-primary)]">Como deseja escolher a pré-amostra?</legend>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${preSampleMethod === "RANDOM" ? "border-[var(--brand-primary)] bg-[var(--surface-card)]" : "border-[var(--border-subtle)]"}`}><input type="radio" name="pre-sample-method" value="RANDOM" checked={preSampleMethod === "RANDOM"} onChange={() => setPreSampleMethod("RANDOM")} /><Dices className="h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" /><span><strong className="block text-sm text-[var(--text-primary)]">Aleatória simples</strong><span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">O sistema sorteia entre todas as pessoas elegíveis.</span></span></label>
+                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${preSampleMethod === "MANUAL" ? "border-[var(--brand-primary)] bg-[var(--surface-card)]" : "border-[var(--border-subtle)]"}`}><input type="radio" name="pre-sample-method" value="MANUAL" checked={preSampleMethod === "MANUAL"} onChange={() => setPreSampleMethod("MANUAL")} /><UserRoundCheck className="h-5 w-5 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" /><span><strong className="block text-sm text-[var(--text-primary)]">Escolha manual</strong><span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">Você define exatamente quem fará os testes.</span></span></label>
+              </div>
+
+              {preSampleMethod === "RANDOM" ? <div className="mt-4"><label htmlFor="pre-sample-size" className="block text-sm font-semibold text-[var(--text-primary)]">Quantidade de participantes</label><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">O sorteio é estável e a quantidade deve ser menor que a população vinculada.</p><input id="pre-sample-size" type="number" min={3} max={Math.max(3, (preSample?.population ?? 1) - 1)} value={preSampleSize} onChange={(event) => setPreSampleSize(event.target.value)} className="mt-2 w-full max-w-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3.5 py-3 text-sm font-medium text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15" /></div>
+              : <div className="mt-4"><label htmlFor="pre-sample-search" className="text-sm font-semibold text-[var(--text-primary)]">Participantes para teste</label><div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" /><input id="pre-sample-search" value={participantSearch} onChange={(event) => setParticipantSearch(event.target.value)} placeholder="Buscar por nome, matrícula, e-mail ou área" className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] py-3 pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--focus-ring)]" /></div><div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)]"><ul className="divide-y divide-[var(--border-subtle)]">{visibleEligibleParticipants.map((participant) => <li key={participant.id}><label className="flex cursor-pointer items-start gap-3 p-3 hover:bg-[var(--surface-hover)]"><input type="checkbox" className="mt-1" checked={selectedParticipantIds.includes(participant.id)} onChange={(event) => setSelectedParticipantIds((current) => event.target.checked ? [...current, participant.id] : current.filter((id) => id !== participant.id))} /><span className="min-w-0"><strong className="block truncate text-sm text-[var(--text-primary)]">{participant.fullName}</strong><span className="block truncate text-xs text-[var(--text-secondary)]">{participant.institutionalEmail ?? participant.employeeNumber}{participant.costCenter ? ` · ${participant.costCenter}` : ""}</span></span></label></li>)}</ul>{visibleEligibleParticipants.length === 0 && <p className="p-5 text-center text-sm text-[var(--text-secondary)]">Nenhum participante encontrado.</p>}</div><p className="mt-2 text-xs font-semibold text-[var(--text-secondary)]">{selectedParticipantIds.length} selecionados</p></div>}
+            </fieldset>
+          </div>}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {preSample?.phase !== "PRE_SAMPLE" && preSample?.phase !== "POPULATION" && <Button variant="secondary" onClick={() => void savePreSample()} disabled={working !== null || !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "") || operations.metrics.participants < 4}>Configurar pré-amostra</Button>}
+            {preSample?.phase === "CONFIGURED" && <Button onClick={() => void runPreSampleAction("OPEN")} disabled={working !== null || versionStatus !== "PUBLISHED" || !operations.readyToOpen}><PlayCircle className="h-4 w-4" aria-hidden="true" />Publicar para pré-amostra</Button>}
+            {preSample?.phase === "PRE_SAMPLE" && <Button onClick={() => void runPreSampleAction("RELEASE_POPULATION")} disabled={working !== null}><Users2 className="h-4 w-4" aria-hidden="true" />Publicar para toda a população</Button>}
+            {preSample?.enabled && <Link href={`/admin/pesquisas/${surveyId}/resultados-pre-amostra`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"><BarChart3 className="h-4 w-4" aria-hidden="true" />Ver resultados</Link>}
+          </div>
+          {preSample?.enabled && <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4"><p className="text-sm text-[var(--text-secondary)]"><strong className="text-[var(--text-primary)]">{preSample.size}</strong> de {preSample.population} participantes · seleção {preSample.method === "MANUAL" ? "manual" : "aleatória simples"} · <strong className="text-[var(--text-primary)]">{preSample.submitted}</strong> respostas enviadas.</p><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--brand-primary)]">Ver quem participa da pré-amostra</summary><ul className="mt-3 grid gap-2 sm:grid-cols-2">{sampleParticipants.map((participant) => <li key={participant.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3"><strong className="block truncate text-sm text-[var(--text-primary)]">{participant.fullName}</strong><span className="block truncate text-xs text-[var(--text-secondary)]">{participant.institutionalEmail ?? participant.employeeNumber}</span><Badge variant={participant.status === "COMPLETED" ? "success" : participant.status === "IN_PROGRESS" ? "info" : "neutral"} className="mt-2">{participant.status === "COMPLETED" ? "Respondeu" : participant.status === "IN_PROGRESS" ? "Em preenchimento" : "Não iniciou"}</Badge></li>)}</ul></details></div>}
         </Surface>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.05fr]">

@@ -200,6 +200,19 @@ export type NovaVersaoPesquisa = {
   rules: number;
 };
 
+export type EstadoPreAmostra = {
+  status: string;
+  applicationId: string;
+  enabled: boolean;
+  phase: "DISABLED" | "CONFIGURED" | "PRE_SAMPLE" | "POPULATION";
+  method: "RANDOM" | "MANUAL" | null;
+  size: number;
+  population: number;
+  submitted: number;
+  participantIds: string[];
+  applicationStatus: string;
+};
+
 /**
  * Regra condicional de exibição, no formato de `fc_listar_regras_condicionais`.
  *
