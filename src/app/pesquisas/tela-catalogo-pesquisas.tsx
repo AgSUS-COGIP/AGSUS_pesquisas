@@ -307,8 +307,20 @@ function SurveysPageContent() {
         </span>
       </span>
       <div className="flex shrink-0 gap-2">
+        {/*
+          O atalho administrativo leva à operação do ciclo, não ao construtor.
+
+          Este catálogo só lista ciclos que já estão publicados — é o que a
+          pessoa pode responder. Para esses, o construtor está protegido: quem
+          clicava chegava a uma tela sem ação possível. A operação do ciclo é o
+          destino que sempre tem o que fazer: período, público, abertura e
+          encerramento.
+
+          O rótulo acompanha o destino. "Configurar" prometia edição do
+          instrumento; "Gerenciar ciclo" diz o que a próxima tela entrega.
+        */}
         {item.canManage ? (
-          <Link href={`/admin/pesquisas/${item.surveyId}`} aria-label={`Configurar ${item.surveyName}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-10 w-10 px-0")}>
+          <Link href={`/admin/pesquisas/${item.surveyId}/operacao`} aria-label={`Gerenciar ciclo de ${item.surveyName}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-10 w-10 px-0")}>
             <Settings2 className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : null}
