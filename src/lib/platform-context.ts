@@ -22,11 +22,16 @@ export type PlatformContext = {
   };
   participant?: { status: string; accessProfile: string | null; completedAt: string | null } | null;
   application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null } | null;
-  /**
-   * Papéis vigentes da pessoa. **Única** fonte de autorização de interface:
-   * `resolvePlatformGuard()` deriva daqui os módulos e o rótulo do perfil.
-   */
+  /** Perfil efetivo vigente, preservado para rótulo e compatibilidade. */
   roles?: string[];
+  /**
+   * Módulos efetivos calculados no PostgreSQL.
+   *
+   * Esta é a fonte de autorização da interface. O backend combina o pacote do
+   * perfil (`role_module_permissions`) com exceções individuais
+   * (`person_module_permissions`) antes de devolver o contexto.
+   */
+  modules?: string[];
   canManageSurveys?: boolean;
 };
 
