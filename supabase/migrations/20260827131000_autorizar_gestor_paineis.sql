@@ -4,20 +4,16 @@ begin;
 -- já concede DASHBOARDS a SuperAdmin, Admin e Gestor. Não ampliar
 -- can_manage_surveys(): essa capacidade continua reservada à administração de
 -- avaliações.
+--
+-- A alteração trabalha sobre a definição atual da função para preservar todo o
+-- corpo existente e troca somente a capacidade usada no guard. A checagem é
+-- idempotente: se a função já estiver protegida por DASHBOARDS, nada é refeito.
 do $migration$
 declare
   v_oid oid;
   v_definition text;
-  v_old_guard constant text := $guard$
-if not sigav.can_manage_surveys() then
-    raise exception 'Acesso restrito à administração de avaliações.';
-  end if;
-$guard$;
-  v_new_guard constant text := $guard$
-if not sigav.has_platform_module('DASHBOARDS') then
-    raise exception 'Acesso restrito ao módulo de Painéis.';
-  end if;
-$guard$;
+  v_old_check constant text := 'sigav.can_manage_surveys()';
+  v_new_check constant text := 'sigav.has_platform_module(''DASHBOARDS'')';
 begin
   for v_oid in
     select unnest(array[
@@ -28,11 +24,24 @@ begin
     select pg_get_functiondef(v_oid)
     into v_definition;
 
-    if position(v_old_guard in v_definition) = 0 then
-      raise exception 'Guard legado não localizado na função %.', v_oid::regprocedure;
+    -- Estado já corrigido: mantém a migration reaplicável sem alterar o corpo.
+    if position(v_new_check in v_definition) > 0 then
+      continue;
     end if;
 
-    execute replace(v_definition, v_old_guard, v_new_guard);
+    -- Falha fechada se a função deixar de ter o guard legado esperado.
+    if position(v_old_check in v_definition) = 0 then
+      raise exception 'Guard de administração não localizado na função %.', v_oid::regprocedure;
+    end if;
+
+    v_definition := replace(v_definition, v_old_check, v_new_check);
+    v_definition := replace(
+      v_definition,
+      'Acesso restrito à administração de avaliações.',
+      'Acesso restrito ao módulo de Painéis.'
+    );
+
+    execute v_definition;
   end loop;
 end;
 $migration$;
