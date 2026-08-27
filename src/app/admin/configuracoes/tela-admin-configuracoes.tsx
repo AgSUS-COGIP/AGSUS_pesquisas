@@ -108,7 +108,7 @@ type Workspace = {
   hasMore: boolean;
 };
 
-const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
+const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.MANAGER, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
 
 // Abas do workspace. Cada card declara sua seção e só aparece na aba
 // correspondente (ou em "Tudo") e quando casa com a busca.
@@ -1313,7 +1313,7 @@ export default function PlatformSettingsPage() {
                     label="Pesquisar pessoa"
                     value={peopleQuery}
                     onChange={(event) => setPeopleQuery(event.target.value)}
-                    placeholder="Nome, matrícula ou e-mail"
+                    placeholder="Nome, matrícula, e-mail ou cargo"
                     containerClassName="min-w-0 flex-1"
                   />
                   <Button type="submit" disabled={fetching} className="sm:mb-0">
