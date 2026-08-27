@@ -278,7 +278,23 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
       <aside
         data-print-hidden="true"
         aria-label="Navegação principal"
-        className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex"
+        /*
+          Sem transição de largura, e é decisão, não esquecimento.
+
+          A largura vinha do CSS (atributo no `<html>`) e animava por 300 ms,
+          enquanto os rótulos apareciam e sumiam por `display`, que é
+          instantâneo. Ao expandir, os dez rótulos entravam com a barra ainda em
+          68 px e ficavam espremidos e cortados durante a animação inteira —
+          visível num único clique, e feio ao alternar rápido.
+
+          Com a mudança instantânea, largura e rótulos passam a mudar no mesmo
+          quadro e o estado nunca fica inconsistente. As alternativas que
+          preservariam a animação custavam mais: manter os rótulos no DOM
+          recortados arrisca leitura dupla no leitor de tela (o modo compacto
+          move o rótulo para `aria-label`), e atrasar a entrada deles exigiria
+          `transition-behavior: allow-discrete`, de suporte recente.
+        */
+        className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] lg:flex"
         style={branding.sidebarColor ? { backgroundColor: branding.sidebarColor } : undefined}
       >
         <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={onSignOut} onTip={setTip} />
@@ -356,13 +372,31 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   // Trocar de rota fecha a gaveta móvel, senão ela permanece sobre a nova tela.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  /*
+    Persistência fora do atualizador de estado.
+
+    Antes, `localStorage.setItem` e `setAttribute` rodavam dentro da função
+    passada a `setCompact`. O React exige que essa função seja **pura** e pode
+    chamá-la mais de uma vez — o Strict Mode chama duas em desenvolvimento. Os
+    valores aqui são idempotentes, então não quebrava; mas é contrato violado, e
+    o próximo efeito colateral colocado ali (um `fetch`, um `toast`) passaria a
+    acontecer em dobro sem explicação aparente.
+
+    O atualizador agora só calcula o próximo valor. Quem persiste é este efeito,
+    que reage ao estado já confirmado.
+  */
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PLATFORM_SIDEBAR_STORAGE_KEY, String(compact));
+    } catch {
+      // Modo privado ou storage cheio: o atributo abaixo mantém a preferência
+      // válida para a aba atual, e a falha não interrompe a navegação.
+    }
+    document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(compact));
+  }, [compact]);
+
   function toggleCompact() {
-    setCompact((current) => {
-      const next = !current;
-      window.localStorage.setItem(PLATFORM_SIDEBAR_STORAGE_KEY, String(next));
-      document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(next));
-      return next;
-    });
+    setCompact((current) => !current);
   }
 
   /**
@@ -447,7 +481,9 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
       {/* `platform-shell-content` é o container de rolagem no desktop (html/body
           ficam overflow:hidden) — o modo foco mantém a classe e apenas remove o
           recuo reservado à barra lateral. */}
-      <div className={`platform-shell-content min-w-0 w-full transition-[padding] duration-300 ${focus ? "platform-shell-content--focus" : ""}`}>
+      {/* O recuo acompanha a barra: se ele animasse enquanto ela muda de
+          largura na hora, a página deslizaria sozinha depois do clique. */}
+      <div className={`platform-shell-content min-w-0 w-full ${focus ? "platform-shell-content--focus" : ""}`}>
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
           <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -478,8 +514,17 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                   com motivo para truncar. Abaixo de `sm` o contexto some, e o
                   título fica com a linha inteira.
                 */}
-                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-xs font-medium text-[var(--text-secondary)] sm:block">{eyebrow}</p> : null}
-                {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
+                {/*
+                  O sobretítulo com a barra ("Administração / Configurações")
+                  saiu do cabeçalho: repetia a área que a navegação lateral já
+                  indica com o item ativo, e o separador dava aparência de
+                  caminho de navegação sem ser clicável.
+
+                  A prop continua na interface porque telas ainda a passam; ela
+                  simplesmente não é mais desenhada aqui. A limpeza das chamadas
+                  fica para quando cada tela for tocada, para não inflar um PR
+                  visual com 15 arquivos de remoção mecânica.
+                */}
                 <h1 className="min-w-0 truncate font-semibold tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
