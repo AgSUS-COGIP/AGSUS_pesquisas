@@ -14,7 +14,20 @@ type PlatformLogoProps = {
   priority?: boolean;
   loading?: boolean;
   className?: string;
-  style?: CSSProperties;
+  /**
+   * Estilo aplicado **somente à imagem**, nunca ao fallback de iniciais.
+   *
+   * Existe por causa do negativo usado sobre barra escura
+   * (`filter: brightness(0) invert(...)`). Ele é correto para a arte, que é de
+   * uma cor só e tem a forma no canal alfa. Aplicado ao fallback seria
+   * destrutivo: o `<span>` tem fundo claro e texto na cor da marca, e
+   * `brightness(0)` achata os dois para preto antes do `invert` levá-los à
+   * mesma cor final — fundo e iniciais ficam idênticos, contraste 1.00, e o
+   * fallback deixa de ser legível justamente quando é a única coisa na tela.
+   *
+   * O nome diz o escopo de propósito: `style` convidava a aplicar nos dois.
+   */
+  imageStyle?: CSSProperties;
 };
 
 function initials(value: string) {
@@ -34,7 +47,7 @@ export function PlatformLogo({
   priority,
   loading = false,
   className,
-  style,
+  imageStyle,
 }: PlatformLogoProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   // Renderiza o logotipo assim que houver uma URL — mesmo durante o carregamento
@@ -71,7 +84,7 @@ export function PlatformLogo({
         priority={priority}
         onError={() => setFailedSource(displaySrc)}
         className={className}
-        style={style}
+        style={imageStyle}
       />
     );
   }
@@ -85,7 +98,6 @@ export function PlatformLogo({
         "inline-grid place-items-center rounded-[inherit] bg-[color-mix(in_srgb,var(--brand-solid)_12%,white)] font-black tracking-[-0.08em] text-[var(--brand-solid)]",
         className,
       )}
-      style={style}
     >
       {loading ? (
         <span className="h-1/2 w-1/2 animate-pulse rounded-lg bg-current/15" aria-hidden="true" />
