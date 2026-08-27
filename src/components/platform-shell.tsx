@@ -74,7 +74,14 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
       aria-label={`${platformBrandingTitle(branding)} — ir para a visão geral`}
       className={`flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${compact && !mobile ? "justify-center" : ""}`}
     >
-      <span className={needsLightPlate ? "grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white p-1" : "contents"}>
+      {/*
+        Branco literal, não `bg-white`: `globals.css` tem
+        `html[data-agsus-theme="dark"] .bg-white { background-color: var(--surface-card) !important }`,
+        regra correta para superfície de conteúdo e errada aqui — ela apagaria
+        justamente o quadrado que existe para dar contraste ao logotipo. O
+        seletor casa a classe `.bg-white`, então o valor arbitrário escapa.
+      */}
+      <span className={needsLightPlate ? "grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#ffffff] p-1" : "contents"}>
         <PlatformLogo
           src={branding.logoUrl}
           alt=""
