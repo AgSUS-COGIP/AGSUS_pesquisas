@@ -6,7 +6,7 @@ begin;
 
 create or replace function public.can_access_application(target_application_id uuid)
 returns boolean
-language sql
+language sql 
 stable
 security definer
 set search_path = pg_catalog, public, auth
