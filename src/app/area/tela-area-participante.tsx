@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, ExternalLink, FileText, LayoutDashboard, Megaphone, RefreshCw, Users2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
+import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
@@ -16,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
+import { compareSurveyPriority, selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
 import { timeGreeting } from "@/lib/greeting";
 
@@ -63,6 +64,7 @@ export default function ParticipantAreaPage() {
   // o destino padrão pós-login — a resposta correta é redirecionar para
   // Pesquisas, não apresentar "acesso restrito".
   const guard = usePlatformGuard();
+  const { branding } = usePlatformBranding();
   const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
@@ -104,9 +106,12 @@ export default function ParticipantAreaPage() {
     volta a ter função — o que vem depois da próxima ação.
   */
   const otherItems = useMemo(
-    () => catalog.filter((item) => item.applicationId !== priorityItem?.applicationId),
+    () => catalog
+      .filter((item) => item.applicationId !== priorityItem?.applicationId)
+      .toSorted(compareSurveyPriority),
     [catalog, priorityItem],
   );
+  const hasMoreActions = otherItems.some((item) => ["PENDING", "IN_PROGRESS"].includes(itemState(item)));
 
   /**
    * Data do prazo mais próximo entre o que a pessoa ainda pode resolver.
@@ -163,16 +168,19 @@ export default function ParticipantAreaPage() {
       label: "Pendentes",
       value: metrics.pending,
       description: metrics.pending === 0 ? "nada aguardando você" : "aguardando você começar",
+      href: "/pesquisas?situacao=OPEN",
     },
     {
       label: "Em andamento",
       value: metrics.inProgress,
       description: metrics.inProgress === 0 ? "nenhuma iniciada" : "já iniciadas, faltam enviar",
+      href: "/pesquisas?situacao=DRAFT",
     },
     {
       label: "Concluídas",
       value: metrics.completed,
       description: metrics.total ? `${metrics.completionRate}% do que está disponível` : "enviadas e registradas",
+      href: "/pesquisas?situacao=COMPLETED",
     },
     {
       label: "Prazo mais próximo",
@@ -201,12 +209,17 @@ export default function ParticipantAreaPage() {
             ? `até ${nextDeadlineDate}`
             : urgentLabel,
       alert: metrics.urgent > 0,
+      href: "/pesquisas?situacao=OPEN",
     },
   ];
 
   // Mesma fonte que alimenta a métrica "Prazo mais próximo" e os cartões do
   // catálogo — por isso os números concordam.
   const priorityDeadline = priorityItem ? deadlineLabel(deadlineStatus(priorityItem.closesAt, new Date())) : null;
+  const showAnnouncement = branding.homeAnnouncementEnabled
+    && Boolean(branding.homeAnnouncementTitle)
+    && Boolean(branding.homeAnnouncementMessage);
+  const externalAnnouncementLink = branding.homeAnnouncementLink?.startsWith("https://") ?? false;
 
   return (
     <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
@@ -230,6 +243,42 @@ export default function ParticipantAreaPage() {
       <div className="flex w-full flex-col gap-5">
         {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
         <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
+        {showAnnouncement ? (
+          <section
+            aria-label="Comunicado institucional"
+            className="flex flex-col gap-4 rounded-2xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:p-6"
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-card)] text-[var(--brand-primary)] shadow-sm">
+              <Megaphone className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Comunicado institucional</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{branding.homeAnnouncementTitle}</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{branding.homeAnnouncementMessage}</p>
+            </div>
+            {branding.homeAnnouncementLink ? (
+              externalAnnouncementLink ? (
+                <a
+                  href={branding.homeAnnouncementLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  {branding.homeAnnouncementLinkLabel}
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
+              ) : (
+                <Link
+                  href={branding.homeAnnouncementLink}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  {branding.homeAnnouncementLinkLabel}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )
+            ) : null}
+          </section>
+        ) : null}
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
@@ -263,7 +312,7 @@ export default function ParticipantAreaPage() {
               só ~700px, e "Prazo mais próximo" quebrava em duas linhas do mesmo
               jeito. O breakpoint estava medindo a coisa errada.
             */}
-            <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
+            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
               {metricTiles.map((tile, index) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
@@ -273,20 +322,25 @@ export default function ParticipantAreaPage() {
                 const unknown = catalogLoading || catalogFailed;
                 // O recuo acompanha a régua: só existe onde ela existe.
                 return (
-                  <div key={tile.label} className={index > 0 ? "@4xl:pl-6" : undefined}>
-                    <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
-                    <dd>
+                  <Link
+                    key={tile.label}
+                    href={tile.href}
+                    aria-label={`Ver avaliações: ${tile.label}`}
+                    className={`group rounded-xl outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</span>
+                    <span className="block">
                       <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
                         {unknown ? "—" : tile.value}
                       </strong>
                       <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
                         {catalogLoading ? "carregando" : catalogFailed ? "indisponível" : tile.description}
                       </span>
-                    </dd>
-                  </div>
+                    </span>
+                  </Link>
                 );
               })}
-            </dl>
+            </nav>
           </article>
 
           {/*
@@ -369,8 +423,9 @@ export default function ParticipantAreaPage() {
         <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Suas outras avaliações</h2>
+                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Central do dia</p>
+                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{hasMoreActions ? "Próximas pendências" : "Acompanhe também"}</h2>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">{hasMoreActions ? "Ordenadas primeiro pelo que já foi iniciado e depois pelo prazo." : "Histórico e ciclos que não exigem ação neste momento."}</p>
               </div>
               <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]">
                 Ver catálogo
@@ -414,7 +469,11 @@ export default function ParticipantAreaPage() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{item.applicationName}</strong>
-                          <small className="mt-1 block truncate text-xs text-[var(--text-secondary)]">{item.surveyName} · {item.questions} {item.questions === 1 ? "pergunta" : "perguntas"}</small>
+                          <small className="mt-1 block truncate text-xs text-[var(--text-secondary)]">
+                            {["PENDING", "IN_PROGRESS"].includes(state)
+                              ? `${item.surveyName} · prazo ${dateLabel(item.closesAt)}`
+                              : `${item.surveyName} · ${item.questions} ${item.questions === 1 ? "pergunta" : "perguntas"}`}
+                          </small>
                         </span>
                         <Badge variant={stateVariant(state)} className="hidden sm:inline-flex">{stateLabel(state)}</Badge>
                         <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-1 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />

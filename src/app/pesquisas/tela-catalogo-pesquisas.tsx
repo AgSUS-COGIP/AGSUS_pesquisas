@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, ClipboardList, FileText, Filter, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
 import { PlatformGuardState } from "@/components/platform-guard-state";
-import { PlatformShell } from "@/components/platform-shell";
+import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -62,16 +63,28 @@ const stateBadgeVariant: Record<Exclude<FilterKey, "ALL">, "success" | "warning"
   CLOSED: "neutral",
 };
 
-export default function SurveysPage() {
+function filterFromQuery(value: string | null): FilterKey {
+  const normalized = value?.toUpperCase();
+  return filters.some((item) => item.key === normalized) ? normalized as FilterKey : "ALL";
+}
+
+function SurveysPageContent() {
   const guard = usePlatformGuard(PLATFORM_MODULE.SURVEYS);
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("ALL");
+  const requestedFilter = filterFromQuery(searchParams.get("situacao"));
+  const [filter, setFilter] = useState<FilterKey>(requestedFilter);
   const catalogQuery = useSurveyCatalog(guard.state === "granted");
   const items = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const catalogLoading = catalogQuery.isLoading;
   // Matrícula: é como este projeto identifica a pessoa, e é a chave que faz a
   // recepção ser dispensada uma vez só, valendo para as duas telas de entrada.
   const welcome = useWelcomeState();
+
+  useEffect(() => {
+    setFilter(requestedFilter);
+  }, [requestedFilter]);
+
   const firstName = guard.state === "granted"
     ? guard.person.fullName.split(/\s+/).filter(Boolean)[0] ?? guard.person.fullName
     : "";
@@ -332,5 +345,13 @@ export default function SurveysPage() {
         {catalogQuery.isFetching && !catalogLoading ? <p className="flex items-center justify-center text-sm text-[var(--text-secondary)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />Atualizando catálogo...</p> : null}
       </div>
     </PlatformShell>
+  );
+}
+
+export default function SurveysPage() {
+  return (
+    <Suspense fallback={<PlatformSkeleton title="Carregando avaliações" />}>
+      <SurveysPageContent />
+    </Suspense>
   );
 }
