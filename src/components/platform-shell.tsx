@@ -29,6 +29,7 @@ import {
 } from "@/lib/platform-sidebar";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { platformBrandingTitle, type PlatformBranding } from "@/lib/platform-branding";
+import { needsLightForeground } from "@/lib/color-contrast";
 const MOBILE_NAVIGATION_ID = "platform-mobile-navigation";
 
 type PlatformUser = {
@@ -55,21 +56,80 @@ function Avatar({ user, compact = false }: { user: PlatformUser; compact?: boole
 
 function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { compact: boolean; branding: PlatformBranding; brandingLoading: boolean; mobile?: boolean }) {
   const showName = !compact || mobile;
+  /*
+    Sobre barra escura o logotipo é renderizado em silhueta branca, **por decisão
+    de produto** — a mesma tomada na tela de acesso, e pela mesma razão: a marca
+    acompanha o contraste como o texto e o ícone ao lado, em vez de flutuar num
+    quadrado branco que interrompe a barra.
+
+    `brightness(0)` achata o desenho para preto e `invert(1)` o leva a branco: o
+    resultado é previsível em qualquer cor de barra configurada, e não um
+    clareamento que variaria conforme o fundo.
+
+    Fica o registro de que isso **altera as cores da marca**. Se a identidade
+    visual passar a exigir as cores originais, a alternativa é o quadrado branco
+    atrás do logotipo — foi avaliada em 27/08/2026 e preterida por peso visual.
+
+    **A gaveta móvel não entra aqui, e é de propósito.** O fundo dela é
+    `--surface-card`, que muda com o tema: branco no claro (logotipo original
+    lê bem) e escuro no tema escuro (precisa do negativo). Como isso depende do
+    tema e não da configuração da barra, quem resolve é o CSS de
+    `sidebar-monitora.css` — que já tem o atributo no `<html>` desde antes da
+    primeira pintura e não exige detectar tema em React.
+  */
+  const useNegativeLogo = !mobile && needsLightForeground(branding.sidebarColor ?? "#052f55");
   return (
     <Link
       href="/area"
       // O rótulo acompanha a marca configurada: fixá-lo faria o leitor de tela
       // anunciar um nome que a tela ao lado já não usa.
       aria-label={`${platformBrandingTitle(branding)} — ir para a visão geral`}
-      className={`flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${compact && !mobile ? "justify-center" : ""}`}
+      className={`flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${compact && !mobile ? "justify-center" : ""}`}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200/80 bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
-        <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={32} height={32} sizes="32px" loading={brandingLoading} className="h-8 w-8 object-contain text-[10px]" />
-      </span>
+      {/*
+        O filtro vai em `style`, não em classe utilitária arbitrária: o Tailwind
+        gera `filter:brightness(0)invert()` para `[filter:brightness(0)_invert(1)]`
+        — sem o espaço entre as funções e sem o argumento, o que é CSS inválido e
+        simplesmente não aplica. O mesmo tropeço está registrado em `tela-acesso.tsx`.
+      */}
+      <PlatformLogo
+        src={branding.logoUrl}
+        alt=""
+        organizationName={branding.organizationName}
+        width={36}
+        height={36}
+        sizes="36px"
+        loading={brandingLoading}
+        /*
+          `max-w-none` cancela a regra global `img { max-width: 100% }` de
+          `globals.css`. Ela é correta para imagem de conteúdo — impede que uma
+          foto estoure o contêiner —, mas aqui o tamanho é fixo e deliberado:
+          sem isso o logotipo encolhe quando o contêiner aperta, e passa a medir
+          diferente entre a barra expandida e a compacta.
+        */
+        className="platform-brand-logo h-9 w-9 max-w-none shrink-0 object-contain text-[9px]"
+        /*
+          `invert(.96)`, não `invert(1)`.
+
+          O branco puro deixava o logotipo com contraste 17.98 sobre a barra do
+          tema escuro — o objeto mais brilhante da barra inteira, acima do
+          próprio item de navegação ativo (17.38). Ele saltava à frente do que
+          deveria estar em primeiro plano.
+
+          Com .96 o resultado é `rgb(245,245,245)`, praticamente o
+          `--sidebar-foreground` (#f5f9fd) usado no nome do produto ao lado.
+          Contraste ~16.3: continua nítido e deixa de gritar.
+
+          A arte é de uma cor só (`rgb(0,87,158)`) e a forma vem do canal alfa —
+          medido —, então o negativo continua devolvendo a silhueta fiel, sem
+          detalhe interno a perder.
+        */
+        imageStyle={useNegativeLogo ? { filter: "brightness(0) invert(.96)" } : undefined}
+      />
       {showName ? (
-        <span className="platform-sidebar-expanded-only min-w-0 leading-none">
-          <span className="block truncate text-[9px] font-black uppercase tracking-[.2em] text-[var(--brand-accent)]">{branding.organizationName}</span>
-          <span className={`mt-1 block truncate text-sm font-black tracking-tight ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</span>
+        <span className="platform-sidebar-expanded-only min-w-0 leading-tight">
+          <strong className={`block truncate text-[15px] font-semibold tracking-[-.015em] ${mobile ? "text-[var(--text-primary)]" : "text-[var(--sidebar-foreground)]"}`}>{branding.productName}</strong>
+          <span className={`mt-0.5 block truncate text-[11px] font-medium ${mobile ? "text-[var(--text-secondary)]" : "text-[var(--sidebar-muted)]"}`}>{branding.organizationName}</span>
         </span>
       ) : null}
     </Link>
@@ -93,7 +153,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
  */
 type NavTip = { label: string; description: string; top: number } | null;
 
-function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
+function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; mobile?: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
   /*
     A casca renderiza a navegação duas vezes — a barra do desktop e a gaveta do
     celular. O id derivado do título do grupo era o mesmo nas duas, então cada
@@ -108,7 +168,7 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
 
   return (
     <section className="mt-4" aria-labelledby={compact ? undefined : tituloId} aria-label={compact ? group.title : undefined}>
-      {!compact ? <p id={tituloId} className="platform-sidebar-expanded-only px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.title}</p> : null}
+      {!compact ? <p id={tituloId} className="platform-sidebar-expanded-only px-3 text-[11px] font-semibold tracking-[0.04em] text-slate-400">{group.title}</p> : null}
       <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
@@ -133,7 +193,22 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
                 onTip({ label: item.label, description: item.description, top: r.top + r.height / 2 });
               } : undefined}
               onBlur={compact && onTip ? () => onTip(null) : undefined}
-              className={`group relative flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-bold transition-colors ${active ? "bg-[var(--brand-primary)] text-white shadow-[0_10px_24px_-18px_rgba(7,59,98,.95)]" : "text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"} ${compact ? "justify-center" : ""}`}
+              /*
+                O estado ativo tem duas versões porque o fundo é diferente nos
+                dois lugares onde este item aparece. Na barra do desktop, o CSS
+                de `sidebar-monitora.css` pinta o fundo escuro — lá `bg-white/10`
+                é um véu claro e `text-white` lê bem. A gaveta móvel fica abaixo
+                de `lg`, onde aquele CSS não se aplica: o fundo é
+                `--surface-card`, branco. Ali `bg-white/10` continua branco e
+                `text-white` desaparece.
+              */
+              className={`group relative flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-2.5 text-sm font-semibold transition-colors ${
+                active
+                  ? mobile
+                    ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                    : "border-[var(--brand-accent)] bg-white/10 text-white"
+                  : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-[var(--brand-primary)]"
+              } ${compact ? "justify-center" : ""}`}
             >
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
@@ -147,13 +222,25 @@ function NavGroup({ group, pathname, compact, onNavigate, onTip }: { group: Plat
   );
 }
 
-function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onToggle, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onToggle?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
+function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
 
   return (
-    <div className={`relative flex h-full min-h-0 flex-col overflow-hidden ${mobile ? "bg-[var(--surface-card)] text-[var(--text-primary)]" : "bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
-      <div className={`flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] px-3 ${compact && !mobile ? "justify-center" : ""}`}>
+    <div className={`relative flex h-full min-h-0 flex-col ${mobile ? "overflow-visible bg-[var(--surface-card)] text-[var(--text-primary)]" : "overflow-hidden bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
+      {/*
+        O recuo é escolhido por condição, não acrescentado por cima.
+
+        Antes havia `px-4` fixo e `px-2` acrescentado no modo compacto. As duas
+        classes têm a mesma especificidade, então quem vence é a ordem no CSS
+        gerado pelo Tailwind — e venceu `px-4`. O ajuste do compacto era inerte:
+        medido, o recuo era 16 px nos dois estados.
+
+        Consequência: numa barra de 68 px sobravam 35 px de conteúdo, e a regra
+        global `img { max-width: 100% }` encolhia o logotipo de 36 para 35 px só
+        no modo compacto.
+      */}
+      <div className={`flex h-[4.5rem] shrink-0 items-center border-b ${mobile ? "border-[var(--border-subtle)]" : "border-white/10"} ${compact && !mobile ? "justify-center px-2" : "px-4"}`}>
         <BrandLockup compact={compact} branding={branding} brandingLoading={brandingLoading} mobile={mobile} />
       </div>
       {/*
@@ -163,23 +250,20 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         barra de rolagem horizontal aparecia dentro da sidebar em telas baixas,
         roubando altura e cortando os ícones.
       */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 pb-4">
-        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} onNavigate={onNavigate} onTip={onTip} />)}
+      {/*
+        No desktop a barra é alta fixa (`h-dvh`) e a navegação precisa da própria
+        área de rolagem, senão os itens de baixo ficam inalcançáveis em notebook
+        de tela curta.
+
+        Na gaveta móvel, não: aninhar uma área rolante dentro do painel — que já
+        rola — cria duas barras, e a de dentro aparece cortando os ícones. Aqui o
+        conteúdo flui e quem rola é o painel inteiro, como se espera de uma gaveta
+        no celular.
+      */}
+      <div className={`px-2.5 pb-4 ${mobile ? "" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"}`}>
+        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} mobile={mobile} onNavigate={onNavigate} onTip={onTip} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
-        {!mobile && onToggle ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 ${compact ? "justify-center px-2" : ""}`}
-            aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"}
-            aria-expanded={!compact}
-          >
-            <PlatformIcon name="chevron-left" className="platform-sidebar-expanded-only h-4 w-4" aria-hidden="true" />
-            <PlatformIcon name="chevron-right" className="platform-sidebar-compact-only h-4 w-4" aria-hidden="true" />
-            {!compact ? <span className="platform-sidebar-expanded-only">Recolher menu</span> : null}
-          </button>
-        ) : null}
         {/*
           Só na gaveta. No desktop isto repetia o que o cabeçalho já mostra —
           o avatar leva ao perfil a partir de `sm`, e a partir de `xl` ele exibe
@@ -210,7 +294,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
   );
 }
 
-function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onToggle, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onToggle: () => void; onSignOut: () => void }) {
+function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onSignOut }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; onSignOut: () => void }) {
   const [tip, setTip] = useState<NavTip>(null);
 
   // Recolher ou expandir move todos os itens: a posição guardada deixa de valer.
@@ -229,11 +313,39 @@ function DesktopSidebar({ user, branding, brandingLoading, compact, modules, onT
       <aside
         data-print-hidden="true"
         aria-label="Navegação principal"
-        className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] transition-[width] duration-300 lg:flex"
+        /*
+          Sem transição de largura, e é decisão, não esquecimento.
+
+          A largura vinha do CSS (atributo no `<html>`) e animava por 300 ms,
+          enquanto os rótulos apareciam e sumiam por `display`, que é
+          instantâneo. Ao expandir, os dez rótulos entravam com a barra ainda em
+          68 px e ficavam espremidos e cortados durante a animação inteira —
+          visível num único clique, e feio ao alternar rápido.
+
+          Com a mudança instantânea, largura e rótulos passam a mudar no mesmo
+          quadro e o estado nunca fica inconsistente. As alternativas que
+          preservariam a animação custavam mais: manter os rótulos no DOM
+          recortados arrisca leitura dupla no leitor de tela (o modo compacto
+          move o rótulo para `aria-label`), e atrasar a entrada deles exigiria
+          `transition-behavior: allow-discrete`, de suporte recente.
+        */
+        className="platform-desktop-sidebar fixed left-0 top-0 z-50 hidden h-dvh max-h-dvh flex-col overflow-hidden border-r border-slate-200 bg-white shadow-[12px_0_35px_-28px_rgba(15,23,42,.35)] lg:flex"
         style={branding.sidebarColor ? { backgroundColor: branding.sidebarColor } : undefined}
       >
-        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={onToggle} onSignOut={onSignOut} onTip={setTip} />
+        <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={onSignOut} onTip={setTip} />
       </aside>
+      {/*
+        A seta de borda que ficava aqui foi removida. Ela era `position: fixed`
+        ancorada em `--platform-sidebar-width`, então não pertencia nem à barra
+        nem ao cabeçalho: flutuava sobre a divisa entre os dois. Media 28 px,
+        abaixo dos 44 px que este módulo exige, e usava um ícone de seta que só
+        se entende depois de clicar.
+
+        O controle passou para o cabeçalho, como hambúrguer — mesmo ícone que já
+        abre a gaveta no celular. Assim há um único vocabulário para "mostrar ou
+        esconder a navegação", em vez de dois controles diferentes para a mesma
+        ideia em larguras diferentes.
+      */}
       {/*
         Fora do `aside` de propósito — ver o comentário de `NavTip`. `aria-hidden`
         porque o nome já vai no `aria-label` do próprio link: para quem usa leitor
@@ -296,13 +408,31 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   // Trocar de rota fecha a gaveta móvel, senão ela permanece sobre a nova tela.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  /*
+    Persistência fora do atualizador de estado.
+
+    Antes, `localStorage.setItem` e `setAttribute` rodavam dentro da função
+    passada a `setCompact`. O React exige que essa função seja **pura** e pode
+    chamá-la mais de uma vez — o Strict Mode chama duas em desenvolvimento. Os
+    valores aqui são idempotentes, então não quebrava; mas é contrato violado, e
+    o próximo efeito colateral colocado ali (um `fetch`, um `toast`) passaria a
+    acontecer em dobro sem explicação aparente.
+
+    O atualizador agora só calcula o próximo valor. Quem persiste é este efeito,
+    que reage ao estado já confirmado.
+  */
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PLATFORM_SIDEBAR_STORAGE_KEY, String(compact));
+    } catch {
+      // Modo privado ou storage cheio: o atributo abaixo mantém a preferência
+      // válida para a aba atual, e a falha não interrompe a navegação.
+    }
+    document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(compact));
+  }, [compact]);
+
   function toggleCompact() {
-    setCompact((current) => {
-      const next = !current;
-      window.localStorage.setItem(PLATFORM_SIDEBAR_STORAGE_KEY, String(next));
-      document.documentElement.setAttribute(PLATFORM_SIDEBAR_ATTRIBUTE, String(next));
-      return next;
-    });
+    setCompact((current) => !current);
   }
 
   /**
@@ -364,7 +494,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
         </div>
       ) : null}
       <a href="#conteudo-principal" className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[var(--surface-card)] px-4 py-2 font-bold text-[var(--brand-primary)] shadow-lg transition focus:translate-y-0">Ir para o conteúdo</a>
-      {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onToggle={toggleCompact} onSignOut={signOut} /> : null}
+      {!focus ? <DesktopSidebar user={user} branding={branding} brandingLoading={brandingLoading} compact={compact} modules={modules} onSignOut={signOut} /> : null}
       {!focus ? (
         <Drawer
           id={MOBILE_NAVIGATION_ID}
@@ -374,7 +504,11 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
           description="Acesse os módulos disponíveis para o seu perfil."
           side="left"
           className="max-w-[20rem]"
-          contentClassName="flex p-0 sm:p-0"
+          // A classe que o CSS da barra lateral já esperava para estilizar a
+          // rolagem da gaveta. Ela estava escrita em `sidebar-monitora.css` e
+          // nunca chegava a nenhum elemento, então a gaveta usava a barra padrão
+          // do navegador — larga e opaca sobre o painel branco.
+          contentClassName="platform-mobile-drawer flex p-0 sm:p-0"
           closeLabel="Fechar menu"
         >
           <SidebarContent user={user} branding={branding} brandingLoading={brandingLoading} compact={false} modules={modules} mobile onNavigate={() => setMobileOpen(false)} onSignOut={signOut} />
@@ -383,7 +517,9 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
       {/* `platform-shell-content` é o container de rolagem no desktop (html/body
           ficam overflow:hidden) — o modo foco mantém a classe e apenas remove o
           recuo reservado à barra lateral. */}
-      <div className={`platform-shell-content min-w-0 w-full transition-[padding] duration-300 ${focus ? "platform-shell-content--focus" : ""}`}>
+      {/* O recuo acompanha a barra: se ele animasse enquanto ela muda de
+          largura na hora, a página deslizaria sozinha depois do clique. */}
+      <div className={`platform-shell-content min-w-0 w-full ${focus ? "platform-shell-content--focus" : ""}`}>
         <header data-print-hidden="true" className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-4 shadow-[0_8px_28px_-26px_rgba(15,23,42,.8)] backdrop-blur-xl sm:px-5 lg:px-6">
           <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -392,9 +528,22 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                   <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={30} height={30} sizes="30px" loading={brandingLoading} className="h-7 w-7 object-contain text-[10px]" />
                 </span>
               ) : (
-                <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[var(--brand-primary)] shadow-sm lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
-                  <PlatformIcon name="menu" />
-                </button>
+                <>
+                  {/*
+                    Dois botões na mesma posição, cada um na sua largura — em vez
+                    de um só decidindo por JavaScript qual comportamento tomar.
+                    Detectar o ponto de quebra no cliente erra na primeira
+                    pintura e diverge do CSS; deixar o breakpoint decidir mantém
+                    os dois em concordância e preserva `aria-controls` correto em
+                    cada caso, que um botão camaleão não conseguiria.
+                  */}
+                  <button type="button" onClick={() => setMobileOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:hidden" aria-label="Abrir menu" aria-expanded={mobileOpen} aria-controls={MOBILE_NAVIGATION_ID}>
+                    <PlatformIcon name="menu" />
+                  </button>
+                  <button type="button" onClick={toggleCompact} className="hidden h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] lg:grid" aria-label={compact ? "Expandir menu lateral" : "Recolher menu lateral"} aria-expanded={!compact}>
+                    <PlatformIcon name="menu" />
+                  </button>
+                </>
               )}
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 {/*
@@ -414,9 +563,18 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
                   com motivo para truncar. Abaixo de `sm` o contexto some, e o
                   título fica com a linha inteira.
                 */}
-                {eyebrow ? <p className="hidden shrink-0 whitespace-nowrap text-[10px] font-black uppercase tracking-[.14em] text-[var(--brand-accent)] sm:block sm:text-xs">{eyebrow}</p> : null}
-                {eyebrow ? <span className="hidden shrink-0 text-[var(--border-strong)] sm:inline" aria-hidden="true">/</span> : null}
-                <h1 className="min-w-0 truncate font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
+                {/*
+                  O sobretítulo com a barra ("Administração / Configurações")
+                  saiu do cabeçalho: repetia a área que a navegação lateral já
+                  indica com o item ativo, e o separador dava aparência de
+                  caminho de navegação sem ser clicável.
+
+                  A prop continua na interface porque telas ainda a passam; ela
+                  simplesmente não é mais desenhada aqui. A limpeza das chamadas
+                  fica para quando cada tela for tocada, para não inflar um PR
+                  visual com 15 arquivos de remoção mecânica.
+                */}
+                <h1 className="min-w-0 truncate font-semibold tracking-tight text-[var(--text-primary)]">{title}</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
