@@ -39,15 +39,22 @@ export function surveyApplicationHref(item: Pick<SurveyCatalogItem, "surveyCode"
 
 /**
  * Estado exibido para um item do catálogo, em ordem estrita de precedência:
- * concluída → em andamento → encerrada → agendada → pendente.
+ * concluída → fechada → em andamento → agendada → pendente.
  *
  * A conclusão vem primeiro de propósito: uma pessoa que já enviou deve ver
- * "Concluída" mesmo que o ciclo tenha encerrado depois.
+ * "Concluída" mesmo que o ciclo tenha fechado depois.
+ *
+ * O fechamento vem logo em seguida, antes do rascunho. Antes era o contrário, e
+ * um rascunho nunca enviado de um ciclo já fechado continuava aparecendo como
+ * "Em andamento" — convidando a retomar uma resposta que o banco recusa desde
+ * que `closes_at` passou. Estado que promete ação impossível é pior que estado
+ * feio: ele entra em "Pendentes", disputa "Próxima ação" e desperdiça a
+ * primeira dobra da Visão geral.
  */
 export function surveyItemState(item: SurveyCatalogItem): SurveyItemState {
   if (["SUBMITTED", "VALIDATED"].includes(item.submissionStatus ?? "") || item.completedAt) return "COMPLETED";
-  if (item.submissionStatus === "DRAFT") return "IN_PROGRESS";
   if (item.applicationStatus === "CLOSED") return "CLOSED";
+  if (item.submissionStatus === "DRAFT") return "IN_PROGRESS";
   if (item.applicationStatus === "SCHEDULED") return "SCHEDULED";
   return "PENDING";
 }

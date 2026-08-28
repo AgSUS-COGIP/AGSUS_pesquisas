@@ -28,7 +28,7 @@ import { timeGreeting } from "@/lib/greeting";
 function stateLabel(state: string) {
   if (state === "COMPLETED") return "Concluída";
   if (state === "IN_PROGRESS") return "Em andamento";
-  if (state === "CLOSED") return "Encerrada";
+  if (state === "CLOSED") return "Fechado";
   if (state === "SCHEDULED") return "Agendada";
   return "Pendente";
 }
@@ -36,7 +36,9 @@ function stateLabel(state: string) {
 function stateVariant(state: string) {
   if (state === "COMPLETED") return "success" as const;
   if (state === "IN_PROGRESS") return "warning" as const;
-  if (state === "CLOSED") return "neutral" as const;
+  // Vermelho, não cinza. Perder o prazo é desfecho, não ausência de estado — e
+  // `neutral` fazia o item fechado se parecer com qualquer outro da lista.
+  if (state === "CLOSED") return "danger" as const;
   if (state === "SCHEDULED") return "info" as const;
   return "outline" as const;
 }
