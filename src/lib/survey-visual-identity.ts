@@ -27,7 +27,7 @@ function text(value: unknown): string | null {
 // HTTPS absoluto ou caminho da própria aplicação. Uma origem `http:` causaria
 // conteúdo misto e permitiria substituição da imagem em trânsito, então segue
 // recusada. As capas enviadas ao bucket ficaram gravadas com a URL pública do
-// Supabase e continuam válidas; as novas chegam como `/api/arquivos/...`, que
+// banco e continuam válidas; as novas chegam como `/api/arquivos/...`, que
 // por ser relativa herda o esquema da página.
 function urlDeImagem(value: unknown): string | null {
   const candidate = text(value);

@@ -26,7 +26,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- 2. Substitui o único acesso direto a tabela que restava no código
 -- ----------------------------------------------------------------------------
 -- POST /api/observability/errors fazia
---   supabase.from("tl_erro_aplicacao").upsert({...}, { onConflict: "co_referencia", ignoreDuplicates: true })
+--   PostgreSQL.from("tl_erro_aplicacao").upsert({...}, { onConflict: "co_referencia", ignoreDuplicates: true })
 -- direto pelo cliente admin. Sem RLS/roles para apoiar esse acesso, a escrita
 -- vira RPC como todo o resto do sistema — mantém a autorização (hoje:
 -- restrita a service_role via rpc-permissions.ts) num único lugar.

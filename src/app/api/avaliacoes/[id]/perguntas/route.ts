@@ -38,8 +38,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe o enunciado e o tipo da pergunta.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("add_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("add_survey_question", {
     target_survey_id: id,
     target_section_id: corpo.sectionId,
     question_title: title,

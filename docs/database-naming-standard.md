@@ -4,7 +4,7 @@ Este projeto adota o documento **Padrão Institucional de Nomenclatura — Objet
 
 ## Adaptação PostgreSQL
 
-O padrão institucional define nomes em maiúsculas para banco relacional. Como o PostgreSQL converte identificadores não delimitados para minúsculas e o uso de nomes entre aspas prejudica portabilidade, PostgREST, Supabase e manutenção, este projeto usa os mesmos prefixos e a mesma semântica em minúsculas.
+O padrão institucional define nomes em maiúsculas para banco relacional. Como o PostgreSQL converte identificadores não delimitados para minúsculas e o uso de nomes entre aspas prejudica portabilidade, PostgREST, PostgreSQL e manutenção, este projeto usa os mesmos prefixos e a mesma semântica em minúsculas.
 
 Exemplos:
 
@@ -84,7 +84,7 @@ Constraints devem ser nomeadas explicitamente. Não use `primary key`, `unique` 
 - `tbi_`, `tai_`, `tbu_`, `tau_`, `tbd_`, `tad_`, `tba_`, `taa_`, `tio_` para triggers;
 - `tra_` trigger de auditoria.
 
-## Segurança Supabase
+## Segurança PostgreSQL
 
 Toda migração deve, no mesmo arquivo:
 

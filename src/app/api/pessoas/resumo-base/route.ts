@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("get_admin_people_base_summary", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("get_admin_people_base_summary", {
     target_application_id: avaliacao ?? null,
   });
 

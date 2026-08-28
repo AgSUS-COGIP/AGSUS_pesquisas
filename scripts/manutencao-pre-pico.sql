@@ -17,7 +17,7 @@
 -- SEGURANÇA: `vacuum (analyze)` não altera dado nem bloqueia leitura ou
 -- escrita. As consultas de diagnóstico são todas somente leitura.
 --
--- Rode no SQL Editor do Supabase, bloco a bloco.
+-- Rode no SQL Editor do PostgreSQL, bloco a bloco.
 
 -- ---------------------------------------------------------------------------
 -- 1. Manutenção das tabelas quentes

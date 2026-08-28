@@ -77,13 +77,13 @@ administram a própria segurança da plataforma, como alterar perfis e permissõ
 
 ## Diagnóstico do banco
 
-Nunca confie apenas em `supabase_migrations.schema_migrations`. SQL aplicado
+Nunca confie apenas em `sigav.tb_migracao`. SQL aplicado
 manualmente pode alterar o esquema sem registrar versão. Confronte sempre o
 histórico com os objetos reais.
 
 ```sql
 select version
-from supabase_migrations.schema_migrations
+from sigav.tb_migracao
 order by version;
 
 select code, name, active, position
@@ -152,7 +152,7 @@ legado do banco e poderia exibir `TEAM` e `ADMIN_IMPORT`.
 
 Remover, renomear ou mover uma RPC usada por bundles já publicados pode derrubar
 a plataforma. O schema da aplicação é `sigav` e deve continuar exposto na Data
-API. Todos os clientes Supabase do bundle precisam usar o mesmo schema.
+API. Todos os clientes PostgreSQL do bundle precisam usar o mesmo schema.
 
 Quando houver substituição de função, mantenha uma ponte durante a janela de
 transição e remova-a apenas após confirmar o bundle novo em produção.

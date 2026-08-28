@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("A seleção contém identificador inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_agendar_envio_manual", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_agendar_envio_manual", {
     p_aplicacao: corpo.avaliacao,
     p_pessoas: corpo.pessoas,
   });

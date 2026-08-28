@@ -20,8 +20,8 @@ import type { NextAuthConfig } from "next-auth";
 export const configBase = {
   providers: [
     Google({
-      clientId: process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID,
-      clientSecret: process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET,
+      clientId: process.env.AUTH_GOOGLE_CLIENT_ID,
+      clientSecret: process.env.AUTH_GOOGLE_CLIENT_SECRET,
       // `select_account` evita que quem tem duas contas Google no navegador
       // entre silenciosamente com a pessoal em vez da institucional.
       //

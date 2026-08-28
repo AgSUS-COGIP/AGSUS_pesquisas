@@ -35,8 +35,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe se a notificação deve ficar ligada ou desligada.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_definir_notificacao_email", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_notificacao_email", {
     target_survey_id: id,
     target_enabled: corpo.enabled,
   });

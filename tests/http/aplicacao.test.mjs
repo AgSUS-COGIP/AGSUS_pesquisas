@@ -57,7 +57,7 @@ describe(
       assert.ok(marca.organizationName, "marca sem nome da organização");
     });
 
-    test("a marca não aponta mais para o Storage do Supabase", async () => {
+    test("a marca não aponta mais para o Storage do PostgreSQL", async () => {
       const resposta = await fetch(`${BASE}/api/plataforma/marca`);
       const texto = await resposta.text();
       assert.ok(
@@ -98,7 +98,7 @@ describe(
       // O proxy barra antes de a rota tocar o banco. O status importa: um
       // redirecionamento faria o `fetch` do navegador seguir sozinho e a tela
       // receberia HTML de login onde espera JSON — o defeito que
-      // `src/lib/supabase/proxy.ts` documenta. E 404 aqui significaria que a
+      // `src/lib/auth/proxy-authjs.ts` documenta. E 404 aqui significaria que a
       // rota sumiu, não que a sessão foi recusada.
       const resposta = await fetch(`${BASE}/api/plataforma/contexto`, { redirect: "manual" });
       assert.equal(resposta.status, 401, `esperava 401 sem sessão, veio ${resposta.status}`);

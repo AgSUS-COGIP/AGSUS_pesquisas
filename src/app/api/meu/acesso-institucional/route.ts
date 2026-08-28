@@ -5,7 +5,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
 /**
  * Registra o acesso institucional de quem entrou pela primeira vez.
  *
- * Chamada quando o contexto volta com `UNLINKED`: há sessão no Supabase, mas
+ * Chamada quando o contexto volta com `UNLINKED`: há sessão no banco, mas
  * nenhum cadastro institucional vinculado.
  *
  * A matrícula vai sempre `null` — quem resolve a identidade é o banco, pelo
@@ -14,8 +14,8 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  * oficial tem e-mails repetidos entre matrículas distintas).
  */
 export async function POST() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("resolve_authenticated_person", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("resolve_authenticated_person", {
     target_employee_number: null,
   });
 

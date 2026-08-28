@@ -3,7 +3,7 @@
 //
 // Determina como o adaptador (src/lib/db/rpc-adapter.ts) precisa desembrulhar
 // o resultado de "select * from sigav.fn(...)" para reproduzir o formato que
-// o cliente supabase-js já entregava via PostgREST:
+// o cliente banco-js já entregava via PostgREST:
 //   - "set":    a função é SETOF/TABLE(...) — data = todas as linhas (array).
 //   - "scalar": a função devolve um valor único (jsonb/boolean/uuid/text/...)
 //               — data = o valor da única coluna da única linha, sem array.

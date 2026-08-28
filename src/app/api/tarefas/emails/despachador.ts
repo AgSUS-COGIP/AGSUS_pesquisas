@@ -162,7 +162,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     return { status: "skipped", missingConfiguration };
   }
 
-  const supabase = createAdminRpcClient();
+  const banco = createAdminRpcClient();
   const siteUrl = participantSiteUrl()!;
   const smtp = createSmtpTransport();
   const startedAt = Date.now();
@@ -181,7 +181,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     // janela. Depois da migration, todo payload traz claimToken e usa a
     // confirmação protegida contra execuções concorrentes.
     if (email.claimToken) {
-      return supabase.rpc("fc_srv_concluir_email", {
+      return banco.rpc("fc_srv_concluir_email", {
         target_email_id: email.id,
         target_claim_token: email.claimToken,
         target_success: success,
@@ -189,7 +189,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       });
     }
 
-    return supabase.rpc("fc_srv_concluir_email", {
+    return banco.rpc("fc_srv_concluir_email", {
       target_email_id: email.id,
       target_success: success,
       target_error: errorMessage,
@@ -205,7 +205,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       batches < MAX_BATCHES_PER_DISPATCH &&
       Date.now() - startedAt < DISPATCH_TIME_BUDGET_MS
     ) {
-      const { data, error } = await supabase.rpc("fc_srv_reivindicar_emails");
+      const { data, error } = await banco.rpc("fc_srv_reivindicar_emails");
       if (error) {
         throw new Error(`Não foi possível reivindicar os e-mails pendentes: ${error.message}`);
       }
@@ -238,7 +238,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
           duplicaria. Aborta sem marcar falha — a linha segue seu curso normal.
         */
         if (email.claimToken) {
-          const { data: transporte, error: erroTransporte } = await supabase.rpc(
+          const { data: transporte, error: erroTransporte } = await banco.rpc(
             "fc_srv_registrar_transporte",
             {
               target_email_id: email.id,

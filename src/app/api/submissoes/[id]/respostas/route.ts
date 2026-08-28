@@ -36,8 +36,8 @@ export async function PUT(
     return respostaDeEntradaInvalida(erroNaEntradaDeResposta(corpo) ?? "Resposta inválida.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("save_my_survey_answer", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("save_my_survey_answer", {
     target_submission_id: id,
     target_question_id: corpo.questionId,
     target_option_ids: corpo.optionIds ?? null,

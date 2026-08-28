@@ -1,12 +1,12 @@
 -- Reconciliação do histórico de migrations.
 --
 -- CONTEXTO: 48 migrations do repositório não constam em
--- `supabase_migrations.schema_migrations`, embora os objetos que elas criam
+-- `sigav.tb_migracao`, embora os objetos que elas criam
 -- EXISTAM no banco (verificado objeto a objeto em 12/08/2026: tabelas, funções,
 -- índices e triggers). O SQL foi aplicado sem passar pelo CLI, então o registro
 -- ficou com timestamps próprios em vez do nome do arquivo.
 --
--- EFEITO PRÁTICO DA DIVERGÊNCIA: `supabase db push` tentaria reaplicar as 48,
+-- EFEITO PRÁTICO DA DIVERGÊNCIA: `PostgreSQL db push` tentaria reaplicar as 48,
 -- todas com objetos já existentes — cascata de erros e risco de banco
 -- meio-aplicado. Este script registra as migrations como já aplicadas, SEM
 -- executar o SQL delas, alinhando histórico e realidade.
@@ -21,7 +21,7 @@
 
 begin;
 
-insert into supabase_migrations.schema_migrations (version, name) values
+insert into sigav.tb_migracao (version, name) values
   ('20260730200000', 'initial_platform_schema'),
   ('20260730203000', 'cddi_module'),
   ('20260730203500', 'seed_cddi_2026'),
@@ -75,11 +75,11 @@ on conflict (version) do nothing;
 commit;
 
 -- Conferência (deve devolver 63, igual ao número de arquivos do repositório):
--- select count(*) from supabase_migrations.schema_migrations
--- where version in (select version from supabase_migrations.schema_migrations);
+-- select count(*) from sigav.tb_migracao
+-- where version in (select version from sigav.tb_migracao);
 --
 -- Rollback (desfaz apenas o registro, nunca o esquema):
 -- begin;
---   delete from supabase_migrations.schema_migrations
+--   delete from sigav.tb_migracao
 --   where version in ('20260730200000', '20260730203000' /* … as 48 … */);
 -- commit;

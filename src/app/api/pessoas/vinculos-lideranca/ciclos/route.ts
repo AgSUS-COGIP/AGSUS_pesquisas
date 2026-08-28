@@ -5,8 +5,8 @@ import type { AvaliacaoComParticipantes } from "@/lib/api/contratos-pessoas";
 
 /** Somente ciclos CDDI podem receber vínculos de liderança. */
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_ciclos_lideranca_adm");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_ciclos_lideranca_adm");
 
   if (error) {
     return respostaDeErro(error, "GET /api/pessoas/vinculos-lideranca/ciclos");

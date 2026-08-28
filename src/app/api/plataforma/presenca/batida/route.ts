@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
  * resposta normal, não falha a ser reportada.
  */
 export async function POST() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_registrar_presenca");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_registrar_presenca");
 
   if (error) return respostaDeErro(error, "POST /api/plataforma/presenca/batida");
 

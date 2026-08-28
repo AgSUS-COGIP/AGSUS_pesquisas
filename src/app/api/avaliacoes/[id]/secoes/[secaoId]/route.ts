@@ -32,8 +32,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o título da seção.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("update_survey_section", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("update_survey_section", {
     target_section_id: secaoId,
     section_title: title,
     section_description: typeof corpo.description === "string" ? corpo.description.trim() || null : null,

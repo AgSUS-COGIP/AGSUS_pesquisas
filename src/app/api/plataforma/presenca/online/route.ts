@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
  * de "você não pode ver".
  */
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_presenca_online");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_presenca_online");
 
   if (error) return respostaDeErro(error, "GET /api/plataforma/presenca/online");
 

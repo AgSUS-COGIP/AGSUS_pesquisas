@@ -4,7 +4,7 @@ import type { ArquivoGravado, ArquivoListado, Balde } from "./contratos-arquivos
 /**
  * Envio e remoção de imagens da plataforma.
  *
- * Antes o navegador falava direto com o Storage do Supabase, autenticado pelo
+ * Antes o navegador falava direto com o Storage do banco, autenticado pelo
  * cookie e autorizado pelas políticas do bucket. Sem bucket, o upload passa a
  * atravessar a aplicação — é o único caminho pelo qual o navegador alcança o
  * Postgres. O corpo vai como binário puro, e não `multipart`: há exatamente um

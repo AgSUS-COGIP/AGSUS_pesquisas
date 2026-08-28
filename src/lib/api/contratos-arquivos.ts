@@ -1,7 +1,7 @@
 /**
  * Contrato dos arquivos de imagem da plataforma.
  *
- * Os nomes dos baldes são os dos buckets que existiam no Storage do Supabase, e
+ * Os nomes dos baldes são os dos buckets que existiam no Storage do banco, e
  * continuam assim porque os caminhos gravados em configuração (`accessBackgroundPath`,
  * `settings.visualIdentity.bannerPath`) os referenciam. Renomeá-los exigiria
  * reescrever dados já gravados sem ganho nenhum.
@@ -11,7 +11,7 @@ export const BALDES = ["platform-assets", "survey-assets"] as const;
 export type Balde = (typeof BALDES)[number];
 
 /**
- * SVG fica de fora de propósito. No bucket, servido de um domínio do Supabase,
+ * SVG fica de fora de propósito. No bucket, servido de um domínio do banco,
  * um SVG malicioso não alcançava a aplicação; agora os bytes saem da própria
  * origem, e um `<script>` dentro do SVG rodaria no contexto autenticado.
  * O mesmo allowlist está na constraint `ck_tb_arquivo_tipo`.

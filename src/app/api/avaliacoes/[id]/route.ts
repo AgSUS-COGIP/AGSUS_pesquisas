@@ -20,10 +20,10 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
+  const banco = await createServerRpcClient();
   const arquivada = new URL(request.url).searchParams.get("arquivada") === "true";
   const rpc = arquivada ? "fc_excluir_pesquisa_arquivada" : "fc_excluir_pesquisa_rascunho";
-  const { data, error } = await supabase.rpc(rpc, {
+  const { data, error } = await banco.rpc(rpc, {
     p_pesquisa: id,
   });
 

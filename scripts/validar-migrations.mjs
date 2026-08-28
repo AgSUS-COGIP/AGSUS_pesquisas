@@ -1,7 +1,6 @@
 // Validação estática das migrations. Não precisa de banco, roda em qualquer
 // lugar — inclusive no CI, que desde a unificação de schemas não consegue mais
-// reconstruir o banco (a stack do Supabase não aplica `20260828100000`, porque
-// lá as tabelas de `auth` pertencem a `supabase_auth_admin`).
+// reconstruir o banco quando a cópia local não tem os objetos necessários.
 //
 // Uso:
 //   node scripts/validar-migrations.mjs
@@ -19,7 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DIRETORIO = path.join(RAIZ, "supabase", "migrations");
+const DIRETORIO = path.join(RAIZ, "database", "migrations");
 
 // A partir desta migration o banco tem um schema só. As anteriores citam os
 // schemas antigos legitimamente — é o histórico de como se chegou aqui — e não

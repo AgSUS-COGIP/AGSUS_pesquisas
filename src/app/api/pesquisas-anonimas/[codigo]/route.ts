@@ -17,8 +17,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ codi
   });
   if (limitResponse) return limitResponse;
 
-  const supabase = createAdminRpcClient();
-  const { data, error } = await supabase.rpc("fc_srv_obter_form_anonimo", { target_application_code: codigo });
+  const banco = createAdminRpcClient();
+  const { data, error } = await banco.rpc("fc_srv_obter_form_anonimo", { target_application_code: codigo });
   if (error) return respostaDeErro(error, "GET /api/pesquisas-anonimas/[codigo]");
   if (!data) return NextResponse.json({ mensagem: "A avaliação anônima não está disponível." }, { status: 404 });
 
@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ codi
     aqui é registrada e ignorada — limpeza não pode derrubar a jornada.
   */
   after(async () => {
-    const { error: erroLimpeza } = await supabase.rpc("fc_srv_expirar_rascunhos_anon");
+    const { error: erroLimpeza } = await banco.rpc("fc_srv_expirar_rascunhos_anon");
     if (erroLimpeza) console.warn("[anonimas] expiração de rascunhos falhou:", erroLimpeza.message);
   });
 

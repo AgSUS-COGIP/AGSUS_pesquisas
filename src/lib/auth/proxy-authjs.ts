@@ -1,12 +1,11 @@
 import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
-import { isLeituraDeArquivo, isPublicRequest } from "@/lib/supabase/public-request";
+import { isLeituraDeArquivo, isPublicRequest } from "@/lib/http/public-request";
 import { configBase } from "./config-base";
 
 /**
- * Guarda de rotas para o provedor Auth.js, equivalente ao que
- * `lib/supabase/proxy.ts` faz para o Supabase Auth.
+ * Guarda de rotas baseada na sessão do Auth.js.
  *
  * Monta o Auth.js **só com a configuração base**, sem o callback que acessa o
  * Postgres: isto roda no runtime Edge do `proxy.ts` (Next 16), onde `pg` não
@@ -51,7 +50,7 @@ export async function updateSessionAuthJs(request: NextRequest) {
   if (!authenticated && !publicRequest) {
     if (isApiPath(pathname)) {
       /*
-        Mesma distinção que o caminho do Supabase faz: rota de API responde em
+        Mesma distinção que o caminho do banco faz: rota de API responde em
         JSON, nunca com redirect. Redirecionar `/api/**` para `/acesso` faz o
         `fetch` do navegador seguir o redirect sozinho, a resposta chega 200 com
         HTML, e `response.json()` falha com "Unexpected token '<'" — mensagem que

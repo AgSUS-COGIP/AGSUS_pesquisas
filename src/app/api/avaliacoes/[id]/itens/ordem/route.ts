@@ -46,8 +46,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe se o item sobe ou desce.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("reorder_survey_builder_item", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("reorder_survey_builder_item", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,
     target_direction: corpo.direction,

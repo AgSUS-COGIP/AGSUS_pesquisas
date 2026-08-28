@@ -20,8 +20,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe o código da avaliação.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_ciclos_pesquisa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_ciclos_pesquisa", {
     p_codigo_pesquisa: id,
   });
 

@@ -125,4 +125,4 @@ As 12 competências, comportamentos, níveis e pesos serão dados configuráveis
 7. `answers` é normalizada para viabilizar relatórios e integridade referencial.
 8. tabelas consolidadas serão preferencialmente views ou resultados derivados.
 9. todas as tabelas expostas terão RLS habilitado e políticas explícitas.
-10. migrations serão revisadas no GitHub antes de qualquer aplicação ao Supabase.
+10. migrations serão revisadas no GitHub antes de qualquer aplicação ao PostgreSQL.

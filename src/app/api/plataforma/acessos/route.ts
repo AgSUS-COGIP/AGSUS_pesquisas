@@ -13,8 +13,8 @@ import { parseAccessPagination } from "@/lib/access-pagination";
 export async function GET(request: Request) {
   const { search, limit, offset } = parseAccessPagination(new URL(request.url).searchParams);
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_acessos_paginados", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_acessos_paginados", {
     p_busca: search,
     p_limite: limit,
     p_offset: offset,

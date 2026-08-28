@@ -34,8 +34,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe o título da seção.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("add_survey_section", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("add_survey_section", {
     target_survey_id: id,
     section_title: title,
     section_description: typeof corpo.description === "string" ? corpo.description.trim() || null : null,

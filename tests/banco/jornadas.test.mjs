@@ -147,7 +147,7 @@ test("as imagens migradas saem do banco, não do Storage", async () => {
   }
 });
 
-test("nada no banco ainda aponta para o Storage do Supabase", async () => {
+test("nada no banco ainda aponta para o Storage do PostgreSQL", async () => {
   const { rows } = await obterPool().query(`
     select count(*)::int as total from (
       select 1 from sigav.tb_config_plataforma

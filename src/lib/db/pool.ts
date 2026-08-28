@@ -2,7 +2,7 @@ import { Pool } from "pg";
 
 /**
  * Conexão direta com db_dataware (Postgres da empresa), usada no lugar da
- * Data API do Supabase. Uma única credencial (usr_sip_app, dona de todas as
+ * Data API do banco. Uma única credencial (usr_sip_app, dona de todas as
  * tabelas/funções de `sigav`) — não há roles anon/authenticated/service_role
  * neste cluster. A distinção de quem pode chamar cada RPC é feita em nível de
  * aplicação por rpc-permissions.ts, não pelo Postgres.
@@ -15,7 +15,7 @@ const ENV_URL_VARIABLES = ["EMPRESA_DATABASE_URL"] as const;
  *
  * Usada por `/api/health/readiness` para diagnosticar configuração incompleta
  * antes de tocar o banco, no mesmo formato que
- * `getAdminSupabaseConfigurationStatus()` oferecia para o Supabase.
+ * `getAdminbancoConfigurationStatus()` oferecia para o banco.
  */
 export function getEmpresaDbConfigurationStatus() {
   const missingVariables: string[] = [];
