@@ -7,9 +7,18 @@ import type {
   ResultadoDaAplicacao,
 } from "./contratos-publico";
 
-/** Opções institucionais disponíveis em cada dimensão do público. */
-export function obterDimensoesDoPublico(avaliacao: string) {
-  return chamar<DimensoesDoPublico>(`/api/avaliacoes/${encodeURIComponent(avaliacao)}/publico`);
+/**
+ * Opções de cada dimensão, restringidas pelo que já foi escolhido.
+ *
+ * Recebe a regra porque a cascata depende dela: escolher a Diretoria enxuga a
+ * lista de Unidades. Sem Diretoria escolhida, Unidade volta a mostrar tudo — não
+ * é hierarquia obrigatória.
+ */
+export function obterDimensoesDoPublico(avaliacao: string, regra: RegraDePublico) {
+  return chamar<DimensoesDoPublico>(`/api/avaliacoes/${encodeURIComponent(avaliacao)}/publico/dimensoes`, {
+    method: "POST",
+    body: JSON.stringify(regra),
+  });
 }
 
 /**
@@ -39,9 +48,9 @@ export function aplicarPublico(avaliacao: string, regra: RegraDePublico) {
  * Termo vazio devolve as primeiras em ordem alfabética — abrir o seletor e ver
  * uma lista em branco não ajuda ninguém a entender o que ele faz.
  */
-export function buscarPessoasDoPublico(avaliacao: string, busca: string) {
-  const consulta = busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : "";
+export function buscarPessoasDoPublico(avaliacao: string, busca: string, regra: RegraDePublico) {
   return chamar<PessoasEncontradas>(
-    `/api/avaliacoes/${encodeURIComponent(avaliacao)}/publico/pessoas${consulta}`,
+    `/api/avaliacoes/${encodeURIComponent(avaliacao)}/publico/pessoas`,
+    { method: "POST", body: JSON.stringify({ busca, regra }) },
   );
 }
