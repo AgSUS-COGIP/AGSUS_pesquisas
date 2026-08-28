@@ -1,60 +1,64 @@
 # Operação do modelo de permissões
 
-Registro operacional da consolidação dos quatro perfis (10/08/2026) e do que
-aprendemos aplicando-a em produção. Serve para duas situações: aplicar o modelo
-num banco novo e diagnosticar um banco que divergiu do repositório.
+Este documento descreve o modelo vigente de autorização da plataforma e os
+cuidados de deploy. O núcleo continua com quatro perfis mutuamente exclusivos,
+mas os módulos efetivos deixam de ser hard-coded no frontend e passam a ser
+calculados no PostgreSQL, no schema transacional `sigav`.
 
-O modelo em si está implementado nas migrations de [../supabase/migrations/](../supabase/migrations/)
-e nas regras de contexto da plataforma em [../src/lib/](../src/lib/). Aqui é só
-operação.
+## Fonte de verdade
 
-## O modelo em uma tabela
+Desde `20260826193000_fundar_permissoes_por_modulo.sql`:
 
-| Perfil | Código interno | Módulos |
+- `sigav.system_roles` contém os quatro perfis institucionais;
+- `sigav.role_module_permissions` define o pacote padrão de módulos de cada perfil;
+- `sigav.person_module_permissions` aplica concessão ou bloqueio individual;
+- `private.effective_platform_modules(person_id)` calcula o conjunto efetivo;
+- `sigav.has_platform_module(module_code)` é o helper de autorização para RPCs e RLS;
+- `sigav.fc_obter_contexto_plataforma()` devolve os módulos efetivos em `modules`;
+- o frontend apenas normaliza `context.modules`; ele não recalcula módulos pelo perfil.
+
+O perfil continua sendo usado como identidade de acesso e rótulo. A permissão de
+uma ação deve ser verificada pelo módulo correspondente no banco.
+
+## Perfis e módulos padrão
+
+| Perfil | Código interno | Módulos padrão |
 |---|---|---|
-| Superadmin | `ADMINISTRATOR` | todos os 10 |
-| Admin | `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `RESULTS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
+| Superadmin | `ADMINISTRATOR` | todos os módulos ativos |
+| Admin | `SURVEY_MANAGER` | `HOME`, `SURVEYS`, `DASHBOARDS`, `ADMIN_SURVEYS`, `ADMIN_PARTICIPANTS` |
 | Avaliador | `LEADER` | `HOME`, `SURVEYS`, `TEAM` |
-| Participante | `RESPONDENT` (ou nenhum papel) | `SURVEYS` |
+| Participante | `RESPONDENT` | `SURVEYS` |
 
-Perfis são **mutuamente exclusivos** e o acesso vem exclusivamente deles: não há
-exceção de módulo por pessoa. `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT` são
-só do Superadmin.
+O catálogo atual possui nove módulos:
 
-A exclusividade é garantida por índice único parcial
-(`in_perfil_unico_vigente`, de `20260810140000`) sobre
-`person_role_assignments (person_id) where ends_at is null`. Quem escrever RPC
-que conceda perfil precisa **encerrar o vigente antes de conceder o novo** — a
-ordem inversa viola o índice.
+`HOME`, `SURVEYS`, `DASHBOARDS`, `TEAM`, `ADMIN_SURVEYS`,
+`ADMIN_PARTICIPANTS`, `ADMIN_TEAMS`, `ADMIN_ACCESS` e `ADMIN_IMPORT`.
 
-## Duas armadilhas que custaram tempo
+`RESULTS` não é um módulo vigente. E-mails ainda compartilha
+`ADMIN_SURVEYS`, e Respostas ainda compartilha `ADMIN_TEAMS`; a separação em
+módulos próprios pertence ao PR 0B.
 
-### 1. O histórico de migrations pode mentir
+## Overrides individuais
 
-`supabase_migrations.schema_migrations` só registra o que passou pelo CLI ou por
-push de migration. SQL aplicado direto no editor altera o banco **sem** deixar
-registro. Em produção isso produziu um estado onde a tabela de histórico existia,
-mas a maioria das migrations não constava — e ainda assim os objetos estavam lá.
+`sigav.person_module_permissions` possui uma linha por pessoa e módulo:
 
-**Nunca confie apenas no histórico.** Confronte com o esquema real (queries
-abaixo). O sinal de alarme é uma migration marcada como aplicada cujos objetos
-não existem, ou o contrário.
+- `allowed = true`: concede o módulo mesmo que o perfil não o possua;
+- `allowed = false`: retira o módulo mesmo que o perfil o possua;
+- Superadmin ignora overrides e sempre recebe todos os módulos ativos.
 
-### 2. Bundle do frontend e RPC do banco são acoplados
+A interface administrativa para editar esses overrides também pertence ao PR 0B.
+Até lá, a tabela pode permanecer sem registros.
 
-Remover uma RPC quebra **todo bundle já publicado** que a chamava. Em 10/08 as
-migrations rodaram antes do deploy do frontend, e o resultado foi a plataforma
-inteira fora do ar com:
+## Perfis continuam exclusivos
 
 ```text
 Falha ao carregar permissões da plataforma: Could not find the function
 sigav.get_my_platform_context without parameters in the schema cache
 ```
 
-A causa é sempre a mesma: o JS no navegador chama uma RPC que a migration já
-apagou. **A ordem correta é publicar o frontend primeiro, confirmar que está no
-ar, e só então aplicar a migration que remove a RPC antiga.** Quando as duas
-versões precisam coexistir, mantenha a função antiga como ponte delegando à nova:
+## Autorização de domínio
+
+Para código novo, prefira:
 
 ```sql
 create or replace function sigav.get_my_platform_context()
@@ -72,21 +76,14 @@ bundle novo estiver confirmado em produção.
 
 ## Diagnóstico: em que estado está este banco?
 
-Somente leitura. Rode antes de aplicar qualquer coisa.
+`sigav.is_platform_administrator()` continua válido para operações que realmente
+administram a própria segurança da plataforma, como alterar perfis e permissões.
 
-```sql
--- Existe registro de migrations?
-select exists (
-  select 1 from information_schema.tables
-  where table_schema = 'supabase_migrations' and table_name = 'schema_migrations'
-) as tem_historico;
+## Diagnóstico do banco
 
--- Quais versões constam como aplicadas
-select version from supabase_migrations.schema_migrations order by version;
-```
-
-O esquema real é o que decide. Esta query diz em que ponto do histórico o banco
-está, independente do registro:
+Nunca confie apenas em `supabase_migrations.schema_migrations`. SQL aplicado
+manualmente pode alterar o esquema sem registrar versão. Confronte sempre o
+histórico com os objetos reais.
 
 ```sql
 with esperado(tipo, nome, origem) as (values
@@ -120,60 +117,42 @@ select e.tipo, e.nome, e.origem,
 from esperado e order by e.tipo desc, e.nome;
 ```
 
-Como ler o resultado:
+Os valores padrão esperados são:
 
-- `get_my_platform_context` **existe** e `fc_obter_contexto_plataforma` **ausente**
-  → o banco está antes de `20260807150000`. Foi o caso de produção em 10/08.
-- `set_person_role` **existe** e `fc_definir_perfil_pessoa` **ausente**
-  → falta `20260810120000`. As duas existindo é o estado esperado desde
-  `20260814140000`: a antiga virou ponte para a nova. O que **não** pode
-  acontecer é a antiga existir com corpo próprio — foi o que a auditoria de
-  14/08/2026 encontrou em produção, quando esta tabela ainda a dava por removida.
-- Falta alguma tabela do núcleo (`people`, `system_roles`…)
-  → esquema base ausente; provavelmente o projeto Supabase errado.
+- `ADMINISTRATOR`: todos os módulos ativos;
+- `SURVEY_MANAGER`: 5 módulos;
+- `LEADER`: 3 módulos;
+- `RESPONDENT`: 1 módulo.
 
-## Aplicação num banco fora de sincronia
+## Verificação funcional
 
-Ordem usada em produção em 10/08/2026, com todas as cinco migrations pendentes.
-Cada arquivo é uma transação: falha reverte inteiro.
+Depois da migration, valide pelo menos:
 
-| # | Migration | Papel |
-|---|---|---|
-| 1 | `20260810130000_restaurar_catalogo_modulos_plataforma.sql` | Cria as 3 tabelas de módulo. **Primeiro**, senão o passo 3 falha |
-| 2 | `20260807150000_simplificar_modelo_papeis.sql` | Cria `fc_obter_contexto_plataforma` — é o que destrava a aplicação |
-| 3 | `20260807150500_renomear_modulo_avaliacoes.sql` | Escreve em `platform_modules` (ver ressalva) |
-| 4 | `20260807151000_remover_selecao_manual_chefia.sql` | Remove duas RPCs do CDDI |
-| 5 | `20260807151500_listar_ciclos_lideranca.sql` | Cria `fc_listar_ciclos_lideranca`, usada por `/equipe` |
-| 6 | `20260810120000_perfis_exclusivos_quatro_papeis.sql` | Consolida os quatro perfis |
-| 7 | `20260810140000_perfil_unico_por_pessoa.sql` | Cria o índice de exclusividade e reordena `fc_definir_perfil_pessoa` (encerrar antes de conceder). Consolida sozinha quem ainda acumula, então roda mesmo que o passo 6 tenha ficado incompleto |
-
-O passo 1 roda **fora da ordem cronológica de propósito**: o timestamp dele é o
-mais alto, mas precisa vir antes do 3. Num `supabase db reset` isso não importa,
-porque lá `20260731115500` cria as tabelas na posição original.
-
-**Ressalva no passo 3:** ele renomeia o módulo `SURVEYS` para "Avaliações", mas a
-especificação vigente chama o módulo **Pesquisas**, e é esse o rótulo da
-navegação. O rótulo do banco não tem consumidor em runtime, então não quebra —
-mas para manter coerência:
+1. Superadmin continua vendo toda a navegação;
+2. Admin vê Visão geral, Avaliações, Painéis, Gerenciar avaliações e Participantes;
+3. Admin não recebe Minha equipe nem Importações apenas pelo perfil;
+4. Avaliador vê Visão geral, Avaliações e Minha equipe;
+5. Participante vê somente Avaliações;
+6. `sigav.fc_obter_contexto_plataforma()` retorna `modules` coerente com o perfil;
+7. um override `allowed=true` concede um módulo a uma pessoa não-Superadmin;
+8. um override `allowed=false` remove um módulo padrão;
+9. `sigav.has_platform_module()` produz o mesmo resultado do contexto.
 
 ```sql
 update sigav.platform_modules set name = 'Pesquisas'          where code = 'SURVEYS';
 update sigav.platform_modules set name = 'Pesquisas e ciclos' where code = 'ADMIN_SURVEYS';
 ```
 
-Depois de aplicar, registre as versões para o banco parar de divergir:
+## Ordem de deploy do PR 0A
 
-```sql
-insert into supabase_migrations.schema_migrations (version)
-values ('20260731115500'), ('20260807150000'), ('20260807150500'),
-       ('20260807151000'), ('20260807151500'),
-       ('20260810120000'), ('20260810130000')
-on conflict (version) do nothing;
-```
+Este PR muda quem é a fonte de verdade do frontend. O banco de produção atual já
+devolve `modules`, mas o `CASE` legado não corresponde integralmente ao mapa
+vigente do frontend para Admin.
 
-`20260731115500` entra na lista porque `20260810130000` cumpre o papel dela.
+A aplicação já está configurada para usar `db.schema = "sigav"`; esta migration
+não deve recriar objetos equivalentes em `public`.
 
-## Verificação após aplicar
+Portanto a ordem segura é:
 
 ```sql
 -- Perfis com os rótulos novos
@@ -194,34 +173,29 @@ join sigav.system_roles sr on sr.id = rmp.role_id
 group by sr.code order by count(*) desc;
 ```
 
-O teste que realmente importa é funcional: fazer login (confirma
-`fc_obter_contexto_plataforma`) e trocar o perfil de alguém em `/admin/acessos`
-(confirma `fc_definir_perfil_pessoa`).
+## Bundle, schema e RPC
 
-## Verificar qual bundle está em produção
+Remover, renomear ou mover uma RPC usada por bundles já publicados pode derrubar
+a plataforma. O schema da aplicação é `sigav` e deve continuar exposto na Data
+API. Todos os clientes Supabase do bundle precisam usar o mesmo schema.
 
-Quando a plataforma acusa RPC inexistente, o suspeito é o bundle publicado, não o
-banco. O `Age` de página estática **não** serve para julgar: `/acesso` é
-pré-renderizada e fica em cache por horas mesmo após deploy novo. Compare assim:
+Quando houver substituição de função, mantenha uma ponte durante a janela de
+transição e remova-a apenas após confirmar o bundle novo em produção.
 
-- `/api/health` é `force-dynamic` — `Age: 0` prova que o servidor está atualizado.
-- O JS é a prova real. Baixe os chunks de uma rota autenticada e procure o nome da
-  RPC: se `get_my_platform_context` aparecer e `fc_obter_contexto_plataforma` não,
-  o bundle é anterior à consolidação, independente do que o painel diga.
+O PR 0A não remove nenhuma RPC existente: ele substitui o corpo de
+`sigav.fc_obter_contexto_plataforma()` preservando assinatura e contrato JSON.
 
-Servidor fresco com JS antigo indica **domínio apontando para deployment
-antigo** — as rotas serverless respondem em qualquer build, mas HTML e JS vêm do
-deployment atribuído ao alias. A correção é promover o deployment correto a
-produção, não mexer no banco.
+## Rollback do PR 0A
 
-## Rollback
+O rollback precisa restaurar duas coisas em conjunto:
 
-`20260810120000` tem o bloco de rollback comentado no fim do arquivo. Duas coisas
-**não** voltam automaticamente:
+1. o mapa anterior em `sigav.role_module_permissions`;
+2. o corpo anterior de `sigav.fc_obter_contexto_plataforma()` que derivava módulos por perfil.
 
-- as atribuições de papel encerradas (item 2 da migration);
-- as exceções de `person_module_permissions` (item 4).
+O frontend novo não deve permanecer em produção se o banco for revertido para o
+`CASE` legado. Em incidente, reverta primeiro o frontend para a versão que ainda
+calcula módulos por perfil e depois reverta a migration.
 
-Ambas ficam registradas em `audit_events` — o evento `PERSON_PROFILE_SET` guarda
-os papéis anteriores em `before_data.roles`, e `ROLE_MODEL_CONSOLIDATED` registra
-a consolidação. Reconstituir é manual, a partir dessa trilha.
+`sigav.person_module_permissions` não é apagada pelo rollback: overrides são
+dados de segurança e devem ser preservados para investigação ou restauração
+controlada.

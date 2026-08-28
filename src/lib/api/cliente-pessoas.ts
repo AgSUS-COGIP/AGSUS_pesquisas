@@ -10,6 +10,7 @@ import type {
   CicloDePesquisa,
   DefinirTextosEmailEntrada,
   DefinirTextosMarcaEntrada,
+  DefinirComunicadoInicioEntrada,
   DefinirVinculoLiderancaEntrada,
   EnviarEmailsEntrada,
   HistoricoDeEmails,
@@ -200,6 +201,14 @@ export function obterMarcaDaPlataforma() {
 /** Grava nomes e cor principal. O logotipo é fixo e não trafega. */
 export function atualizarMarcaDaPlataforma(entrada: AtualizarMarcaEntrada) {
   return chamar<unknown>("/api/plataforma/marca", {
+    method: "PUT",
+    body: JSON.stringify(entrada),
+  });
+}
+
+/** Publica, atualiza ou desativa o comunicado institucional da página inicial. */
+export function definirComunicadoDaPaginaInicial(entrada: DefinirComunicadoInicioEntrada) {
+  return chamar<unknown>("/api/plataforma/marca/comunicado", {
     method: "PUT",
     body: JSON.stringify(entrada),
   });
