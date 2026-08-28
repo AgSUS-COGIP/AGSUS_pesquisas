@@ -57,6 +57,13 @@ jobs:
           if [ ! -f supabase/config.toml ]; then supabase init; fi
           supabase start
           supabase db reset
+      # Os arquivos de supabase/tests existiam sem nunca serem executados: o job
+      # reconstruía o banco e parava aí. Um teste que não roda é documentação
+      # com sintaxe de teste — envelhece sem avisar. O passo é separado do
+      # anterior de propósito, para que a falha diga se quebrou a reconstrução
+      # ou uma asserção.
+      - name: Run database tests
+        run: supabase test db
       - name: Stop local Supabase
         if: always()
         run: command -v supabase >/dev/null && supabase stop --no-backup || true

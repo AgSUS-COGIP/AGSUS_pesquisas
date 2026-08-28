@@ -22,7 +22,7 @@ type FilterKey = "ALL" | "OPEN" | "DRAFT" | "COMPLETED" | "SCHEDULED" | "CLOSED"
 
 function statusLabel(status: string) {
   if (status === "OPEN") return "Aberta";
-  if (status === "CLOSED") return "Encerrada";
+  if (status === "CLOSED") return "Fechado";
   if (status === "SCHEDULED") return "Agendada";
   return "Rascunho";
 }
@@ -41,6 +41,10 @@ function dateLabel(value: string | null) {
 
 function actionLabel(item: SurveyCatalogItem) {
   if (["SUBMITTED", "VALIDATED"].includes(item.submissionStatus ?? "")) return "Consultar";
+  // O ciclo fechado vem antes do rascunho pela mesma razão que em
+  // `surveyItemState`: "Continuar" num ciclo que o banco não aceita mais é
+  // convite para uma ação que termina em recusa.
+  if (item.applicationStatus === "CLOSED") return "Visualizar";
   if (item.submissionStatus === "DRAFT") return "Continuar";
   if (item.applicationStatus === "OPEN") return "Responder";
   return "Visualizar";
@@ -52,15 +56,17 @@ const filters: Array<{ key: FilterKey; label: string }> = [
   { key: "DRAFT", label: "Em andamento" },
   { key: "COMPLETED", label: "Concluídas" },
   { key: "SCHEDULED", label: "Agendadas" },
-  { key: "CLOSED", label: "Encerradas" },
+  { key: "CLOSED", label: "Fechadas" },
 ];
 
-const stateBadgeVariant: Record<Exclude<FilterKey, "ALL">, "success" | "warning" | "info" | "outline" | "neutral"> = {
+const stateBadgeVariant: Record<Exclude<FilterKey, "ALL">, "success" | "warning" | "info" | "outline" | "neutral" | "danger"> = {
   OPEN: "success",
   DRAFT: "warning",
   COMPLETED: "info",
   SCHEDULED: "outline",
-  CLOSED: "neutral",
+  // Vermelho institucional. O selo é o único elemento acionável do topo do
+  // cartão, e cinza fazia o prazo perdido passar despercebido.
+  CLOSED: "danger",
 };
 
 function filterFromQuery(value: string | null): FilterKey {
