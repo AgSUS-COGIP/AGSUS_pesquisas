@@ -12,7 +12,7 @@
 
 begin;
 
-select plan(18);
+select plan(22);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-0000000000c1', 'authenticated', 'authenticated', 'publico-admin@agenciasus.org.br', now(), now());
@@ -128,6 +128,40 @@ select is(
     '00000000-0000-4000-8000-0000000000e3', '{}'::jsonb) ->> 'matchedCount')::integer,
   0,
   'regra sem filtro e sem inclusão não seleciona ninguém'
+);
+
+-- ---------------------------------------------------------------------------
+-- Validação da regra
+-- ---------------------------------------------------------------------------
+
+-- Uma chave desconhecida ligava a busca por filtro sem restringir nada, e o
+-- resultado era a instituição inteira — furando a garantia de que só
+-- `allEligible` faz isso. O erro é explícito de propósito: devolver conjunto
+-- vazio esconderia a integração quebrada em vez de acusá-la.
+select throws_ok(
+  $$select * from sigav.fc_resolver_publico_avaliacao('{"filters":{"foo":["bar"]}}'::jsonb)$$,
+  'Regra de público inválida: dimensão desconhecida "foo". Dimensões aceitas: directorate, unit, coordination, costCenter, jobTitle.',
+  'dimensão desconhecida é recusada, e nunca seleciona a instituição inteira'
+);
+
+select throws_ok(
+  $$select * from sigav.fc_resolver_publico_avaliacao('{"filters":{"jobTitle":"Assessor"}}'::jsonb)$$,
+  'Regra de público inválida: a dimensão "jobTitle" precisa ser uma lista de valores.',
+  'valor de dimensão que não é lista é recusado'
+);
+
+select throws_ok(
+  $$select * from sigav.fc_resolver_publico_avaliacao('{"includePersonIds":["nao-e-uuid"]}'::jsonb)$$,
+  'Regra de público inválida: "includePersonIds" contém identificador que não é um UUID.',
+  'identificador malformado é recusado com mensagem própria'
+);
+
+-- A recusa alcança a prévia e a aplicação, não só o resolvedor: as três descem
+-- pelo mesmo ponto de validação.
+select throws_ok(
+  $$select sigav.fc_previsualizar_publico_avaliacao('00000000-0000-4000-8000-0000000000e3', '{"filters":{"foo":["bar"]}}'::jsonb)$$,
+  'Regra de público inválida: dimensão desconhecida "foo". Dimensões aceitas: directorate, unit, coordination, costCenter, jobTitle.',
+  'a prévia recusa a mesma regra inválida'
 );
 
 select is(

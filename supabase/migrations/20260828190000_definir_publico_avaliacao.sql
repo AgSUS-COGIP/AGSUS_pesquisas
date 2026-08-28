@@ -81,6 +81,81 @@ as $function$
 $function$;
 
 -- ---------------------------------------------------------------------------
+-- Validação da regra
+-- ---------------------------------------------------------------------------
+
+-- Sem isto, `{"filters":{"foo":["bar"]}}` selecionava a instituição inteira.
+--
+-- O mecanismo: "existe algum filtro preenchido?" olhava qualquer chave de
+-- `filters`, então uma chave desconhecida ligava a busca por filtro. Mas os
+-- predicados só conhecem cinco dimensões, e dimensão ausente "não restringe" —
+-- por boa razão, é o que permite filtrar só por Cargo sem preencher as outras
+-- quatro. Juntas, as duas decisões corretas produziam o resultado errado: busca
+-- ligada, nenhuma restrição, todas as pessoas ativas.
+--
+-- Isso furava a garantia de que só `allEligible` representa a instituição
+-- inteira — e o furo era silencioso, porque `foo` não pertence a nenhum lugar e
+-- ninguém erraria de propósito. Erro de digitação numa integração bastaria.
+--
+-- A validação vive no banco, não no TypeScript: a RPC é a fronteira, e o cliente
+-- não é o único caminho até ela.
+create or replace function sigav.fc_validar_regra_publico(p_regra jsonb)
+returns void
+language plpgsql
+immutable
+set search_path to 'pg_catalog', 'sigav'
+as $function$
+declare
+  v_dimensoes constant text[] := array['directorate', 'unit', 'coordination', 'costCenter', 'jobTitle'];
+  v_chave text;
+  v_lista text;
+begin
+  if p_regra is null or jsonb_typeof(p_regra) <> 'object' then
+    raise exception 'Regra de público inválida: era esperado um objeto.';
+  end if;
+
+  if p_regra ? 'filters' then
+    if jsonb_typeof(p_regra -> 'filters') <> 'object' then
+      raise exception 'Regra de público inválida: "filters" precisa ser um objeto de dimensões.';
+    end if;
+
+    for v_chave in select jsonb_object_keys(p_regra -> 'filters') loop
+      if not (v_chave = any (v_dimensoes)) then
+        raise exception 'Regra de público inválida: dimensão desconhecida "%". Dimensões aceitas: %.',
+          v_chave, array_to_string(v_dimensoes, ', ');
+      end if;
+      if jsonb_typeof(p_regra -> 'filters' -> v_chave) <> 'array' then
+        raise exception 'Regra de público inválida: a dimensão "%" precisa ser uma lista de valores.', v_chave;
+      end if;
+    end loop;
+  end if;
+
+  if p_regra ? 'allEligible' and jsonb_typeof(p_regra -> 'allEligible') <> 'boolean' then
+    raise exception 'Regra de público inválida: "allEligible" precisa ser verdadeiro ou falso.';
+  end if;
+
+  -- Listas de pessoas: array de identificadores. Sem esta checagem, o `::uuid`
+  -- lá adiante devolveria erro de conversão, que não diz a quem opera o que
+  -- fazer a respeito.
+  foreach v_lista in array array['includePersonIds', 'excludePersonIds'] loop
+    if p_regra ? v_lista then
+      if jsonb_typeof(p_regra -> v_lista) <> 'array' then
+        raise exception 'Regra de público inválida: "%" precisa ser uma lista de identificadores.', v_lista;
+      end if;
+      if exists (
+        select 1
+        from jsonb_array_elements(p_regra -> v_lista) as item(valor)
+        where jsonb_typeof(item.valor) <> 'string'
+           or item.valor #>> '{}' !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      ) then
+        raise exception 'Regra de público inválida: "%" contém identificador que não é um UUID.', v_lista;
+      end if;
+    end if;
+  end loop;
+end;
+$function$;
+
+-- ---------------------------------------------------------------------------
 -- Resolução da regra — fonte única de verdade da Fase 1
 -- ---------------------------------------------------------------------------
 
@@ -95,11 +170,19 @@ $function$;
 -- vínculos.
 create or replace function sigav.fc_resolver_publico_avaliacao(p_regra jsonb)
 returns table (sq_pessoa uuid, tp_origem text, st_excluida boolean)
-language sql
+language plpgsql
 stable
 security definer
 set search_path to 'pg_catalog', 'sigav', 'auth'
 as $function$
+begin
+  -- Antes de qualquer leitura. Regra malformada não deve produzir resultado
+  -- nenhum — e muito menos um resultado grande, que é o modo de falhar que
+  -- passa despercebido. Como prévia, plano e aplicação descem por aqui, validar
+  -- neste ponto cobre os três de uma vez.
+  perform sigav.fc_validar_regra_publico(p_regra);
+
+  return query
   with regra as (
     select
       coalesce(p_regra -> 'filters', '{}'::jsonb) as filtros,
@@ -161,6 +244,7 @@ as $function$
     bool_or(r.id in (select id from ids_excluidos))
   from reunidas r
   group by r.id;
+end;
 $function$;
 
 -- ---------------------------------------------------------------------------
@@ -587,7 +671,10 @@ begin
     where pl.tp_situacao is distinct from pl.tp_situacao_nova
     on conflict (application_id, person_id, participant_role) do update
       set status = excluded.status,
-          access_profile = coalesce(nullif(btrim(excluded.access_profile), ''), sigav.application_participants.access_profile),
+          -- O existente vem primeiro. `p_perfil_acesso` é o padrão para vínculo
+          -- **novo**; usá-lo aqui reclassificaria quem já tem perfil próprio —
+          -- reaplicar a regra rebaixaria a pessoa ao padrão sem ninguém pedir.
+          access_profile = coalesce(sigav.application_participants.access_profile, excluded.access_profile),
           invited_at = coalesce(sigav.application_participants.invited_at, excluded.invited_at),
           metadata = coalesce(sigav.application_participants.metadata, '{}'::jsonb) || excluded.metadata,
           updated_at = timezone('utc', now())
@@ -671,6 +758,7 @@ $function$;
 -- ---------------------------------------------------------------------------
 
 revoke all on function sigav.fc_normalizar_rotulo(text) from public, anon;
+revoke all on function sigav.fc_validar_regra_publico(jsonb) from public, anon;
 revoke all on function sigav.fc_dimensao_publico_atende(text, jsonb) from public, anon;
 revoke all on function sigav.fc_resolver_publico_avaliacao(jsonb) from public, anon;
 revoke all on function sigav.fc_planejar_publico_avaliacao(uuid, jsonb) from public, anon;
@@ -709,6 +797,7 @@ commit;
 --   drop function if exists sigav.fc_listar_dimensoes_publico();
 --   drop function if exists sigav.fc_planejar_publico_avaliacao(uuid, jsonb);
 --   drop function if exists sigav.fc_resolver_publico_avaliacao(jsonb);
+--   drop function if exists sigav.fc_validar_regra_publico(jsonb);
 --   drop function if exists sigav.fc_dimensao_publico_atende(text, jsonb);
 --   drop function if exists sigav.fc_normalizar_rotulo(text);
 --   notify pgrst, 'reload schema';
