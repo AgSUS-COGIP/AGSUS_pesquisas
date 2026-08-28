@@ -13,6 +13,7 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { FullPageState } from "@/components/full-page-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { scrollFormTopIntoView } from "@/lib/form-scroll";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -40,7 +41,11 @@ type Section = { id: string; title: string; description: string | null; question
 type Definition = {
   // `settings` carrega a identidade visual configurada para o ciclo — sem ele,
   // capa, título e subtítulo personalizados nunca chegam ao instrumento.
-  application: { name: string; status: string; settings?: unknown };
+  //
+  // `closesAt` já vinha de `fc_obter_formulario_publico` desde sempre; era o
+  // tipo daqui que não o declarava, então a tela não tinha como dizer *quando*
+  // o prazo terminou. Opcional porque ciclo sem data de encerramento existe.
+  application: { name: string; status: string; closesAt?: string | null; settings?: unknown };
   survey: { code: string; name: string; description: string | null };
   sections: Section[];
 };
@@ -57,15 +62,42 @@ type SubmissionContext = {
 };
 type Answers = Record<string, SurveyAnswerValue>;
 
-/** Campos de texto, data e número compartilham o mesmo tratamento visual. */
-const FIELD_CLASS = "mt-4 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)]";
+/**
+ * Campos de texto, data e número compartilham o mesmo tratamento visual.
+ *
+ * `enabled:hover:` em vez de `hover:`: o realce de borda disparava também no
+ * campo desabilitado, porque `hover` não sabe nada sobre `disabled`. Em somente
+ * leitura o formulário inteiro reagia ao mouse como se aceitasse digitação.
+ */
+const FIELD_CLASS = "mt-4 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none transition enabled:hover:border-[var(--border-strong)] focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-sky-300/15 disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)]";
 
-/** Cartão de alternativa: o estado selecionado não depende só da cor — ganha anel e peso. */
-function choiceClass(selected: boolean) {
-  return `flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${
+/** Data e hora do prazo, no fuso institucional. */
+function deadlineParts(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const options = { timeZone: "America/Sao_Paulo" } as const;
+  return {
+    date: new Intl.DateTimeFormat("pt-BR", { ...options, dateStyle: "long" }).format(date),
+    time: new Intl.DateTimeFormat("pt-BR", { ...options, timeStyle: "short" }).format(date),
+  };
+}
+
+/**
+ * Cartão de alternativa: o estado selecionado não depende só da cor — ganha anel e peso.
+ *
+ * `interactive` separa aparência de permissão. Em somente leitura o cartão
+ * mantinha `cursor-pointer` e o realce de `hover`, então continuava se
+ * anunciando como clicável enquanto o `input` desabilitado ignorava o clique.
+ */
+function choiceClass(selected: boolean, interactive = true) {
+  return `flex items-start gap-3 rounded-xl border p-4 text-sm transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-sky-300/25 ${
+    interactive ? "cursor-pointer" : "cursor-default"
+  } ${
     selected
       ? "border-[var(--focus-ring)] bg-[var(--status-info-bg)] font-semibold text-[var(--status-info-text)] ring-1 ring-inset ring-[var(--status-info-border)]"
-      : "border-[var(--border-subtle)] bg-[var(--surface-card)] font-medium text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+      : `border-[var(--border-subtle)] bg-[var(--surface-card)] font-medium text-[var(--text-primary)] ${
+          interactive ? "hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]" : ""
+        }`
   }`;
 }
 
@@ -181,6 +213,26 @@ export default function GenericSurveyPage() {
   const isSubmitted = ["SUBMITTED", "VALIDATED"].includes(submission?.submission?.status ?? "");
   const anonymous = submission?.anonymous === true;
   const saving = saveSnapshot.pending > 0;
+
+  /**
+   * Prazo perdido: o ciclo fechou e esta pessoa não chegou a enviar.
+   *
+   * Quem enviou antes do fechamento não perdeu nada e não recebe aviso nenhum —
+   * ela está consultando uma avaliação concluída, que é uma visita normal.
+   */
+  const cycleClosed = definition?.application.status === "CLOSED";
+  const missedDeadline = Boolean(cycleClosed && !isSubmitted);
+  const [deadlineNoticeOpen, setDeadlineNoticeOpen] = useState(false);
+  // O aviso é de chegada, não de navegação. Sem esta trava ele reabriria a cada
+  // reavaliação do efeito — trocar de etapa faria a mesma notícia voltar, e uma
+  // notícia repetida vira obstáculo em vez de informação.
+  const deadlineNoticeShown = useRef(false);
+
+  useEffect(() => {
+    if (!missedDeadline || deadlineNoticeShown.current) return;
+    deadlineNoticeShown.current = true;
+    setDeadlineNoticeOpen(true);
+  }, [missedDeadline]);
 
   /**
    * Agenda a gravação na fila compartilhada pelas jornadas de avaliação.
@@ -344,6 +396,10 @@ export default function GenericSurveyPage() {
   );
 
   const periodOpen = definition.application.status === "OPEN";
+  // Nulo quando o ciclo não tem data de encerramento ou a data veio corrompida:
+  // nesse caso o aviso continua correto, apenas sem citar quando o prazo caiu.
+  const deadlineText = definition.application.closesAt ? deadlineParts(definition.application.closesAt) : null;
+  const catalogHref = publicAnonymous ? "/" : "/pesquisas";
   // A identidade configurada em /admin/pesquisas/[id]/identidade vale para
   // qualquer instrumento, não só para o CDDI: o fallback é o nome do ciclo e a
   // descrição da pesquisa, que é o que a tela já mostrava.
@@ -377,7 +433,17 @@ export default function GenericSurveyPage() {
               <p className="mt-3 max-w-3xl whitespace-pre-line break-words text-sm leading-7 text-[var(--text-secondary)]">{visualIdentity.heroSubtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={periodOpen ? "success" : "neutral"}>{periodOpen ? "Período aberto" : "Período encerrado"}</Badge>
+              {/*
+                Ciclo fechado ganha vermelho e a palavra curta. "Período
+                encerrado" em cinza descrevia uma circunstância; "Fechado" em
+                vermelho nomeia o estado do ciclo — o mesmo vocabulário do
+                catálogo e da Visão geral, para a pessoa não precisar traduzir
+                entre telas. Os demais estados fora de OPEN (agendado, rascunho)
+                seguem neutros: neles não há prazo perdido.
+              */}
+              <Badge variant={periodOpen ? "success" : cycleClosed ? "danger" : "neutral"}>
+                {periodOpen ? "Período aberto" : cycleClosed ? "Fechado" : "Período encerrado"}
+              </Badge>
               {anonymous && <Badge variant="info"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />Anônima</Badge>}
               {isSubmitted && <Badge variant="info"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Enviada</Badge>}
             </div>
@@ -396,7 +462,15 @@ export default function GenericSurveyPage() {
             <span>
               {isSubmitted
                 ? <><strong className="font-semibold text-[var(--text-primary)]">Avaliação enviada.</strong> Suas respostas ficaram registradas e não podem mais ser alteradas.</>
-                : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> Este ciclo não aceita novas respostas no momento.</>}
+                /*
+                  Mensagem definitiva quando o prazo passou. "no momento"
+                  prometia uma reabertura que não vai acontecer: o ciclo fechou
+                  por data, e data não volta atrás sozinha. Dizer isso claramente
+                  evita que a pessoa fique tentando de novo mais tarde.
+                */
+                : missedDeadline
+                  ? <><strong className="font-semibold text-[var(--text-primary)]">Período encerrado.</strong> O prazo para responder terminou{deadlineText ? ` em ${deadlineText.date} às ${deadlineText.time}` : ""}. O instrumento fica disponível apenas para consulta.</>
+                  : <><strong className="font-semibold text-[var(--text-primary)]">Somente leitura.</strong> Este ciclo não aceita novas respostas no momento.</>}
             </span>
           </p>
         )}
@@ -468,7 +542,7 @@ export default function GenericSurveyPage() {
                         {question.options.map((option) => {
                           const selected = value.optionIds?.includes(option.id) ?? false;
                           return (
-                            <label key={option.id} className={choiceClass(selected)}>
+                            <label key={option.id} className={choiceClass(selected, canEdit)}>
                               <input
                                 type="radio"
                                 className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
@@ -488,7 +562,7 @@ export default function GenericSurveyPage() {
                         {question.options.map((option) => {
                           const selected = value.optionIds?.includes(option.id) ?? false;
                           return (
-                            <label key={option.id} className={choiceClass(selected)}>
+                            <label key={option.id} className={choiceClass(selected, canEdit)}>
                               <input
                                 type="checkbox"
                                 className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
@@ -611,6 +685,40 @@ export default function GenericSurveyPage() {
         </footer>
       </div>
       <CompletionCelebration open={celebrate} onClose={() => setCelebrate(false)} message="Sua resposta foi enviada. Obrigado por participar da avaliação institucional." />
+
+      {/*
+        Aviso de chegada para quem perdeu o prazo.
+
+        Aparece uma vez por visita — a trava está em `deadlineNoticeShown`, não
+        aqui, porque este bloco é reavaliado a cada troca de etapa. Fechar pelo
+        X ou pelo Escape equivale a "visualizar": a pessoa já leu, e insistir
+        seria transformar informação em obstáculo.
+
+        Quem enviou antes do fechamento nunca chega aqui: `missedDeadline` exige
+        ausência de envio.
+      */}
+      <Dialog
+        open={deadlineNoticeOpen}
+        onOpenChange={setDeadlineNoticeOpen}
+        title="Período encerrado"
+        description={`O prazo para responder esta avaliação terminou. Não é mais possível alterar ou enviar respostas. O instrumento está disponível apenas para consulta.${
+          deadlineText ? ` O prazo terminou em ${deadlineText.date} às ${deadlineText.time}.` : ""
+        }`}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Link
+            href={catalogHref}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Voltar ao catálogo
+          </Link>
+          <Button onClick={() => setDeadlineNoticeOpen(false)}>
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            Visualizar em somente leitura
+          </Button>
+        </div>
+      </Dialog>
     </>
   );
 
