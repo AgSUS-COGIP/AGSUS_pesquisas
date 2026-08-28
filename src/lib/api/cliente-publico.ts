@@ -3,6 +3,7 @@ import type {
   DimensoesDoPublico,
   PreviaDoPublico,
   RegraDePublico,
+  PessoasEncontradas,
   ResultadoDaAplicacao,
 } from "./contratos-publico";
 
@@ -30,4 +31,17 @@ export function aplicarPublico(avaliacao: string, regra: RegraDePublico) {
     method: "POST",
     body: JSON.stringify(regra),
   });
+}
+
+/**
+ * Pessoas elegíveis para inclusão ou exclusão individual.
+ *
+ * Termo vazio devolve as primeiras em ordem alfabética — abrir o seletor e ver
+ * uma lista em branco não ajuda ninguém a entender o que ele faz.
+ */
+export function buscarPessoasDoPublico(avaliacao: string, busca: string) {
+  const consulta = busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : "";
+  return chamar<PessoasEncontradas>(
+    `/api/avaliacoes/${encodeURIComponent(avaliacao)}/publico/pessoas${consulta}`,
+  );
 }
