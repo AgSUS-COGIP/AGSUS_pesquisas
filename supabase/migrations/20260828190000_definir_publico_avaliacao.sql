@@ -164,6 +164,106 @@ as $function$
 $function$;
 
 -- ---------------------------------------------------------------------------
+-- Plano de transição — o que acontece com cada pessoa
+-- ---------------------------------------------------------------------------
+
+-- Resolver a regra diz *quem* o critério alcança. Isto diz *o que fazer* com
+-- cada pessoa, considerando o snapshot que já existe. São perguntas diferentes,
+-- e a segunda é onde mora o risco: aplicar uma regra não pode desfazer trabalho
+-- nem apagar decisão administrativa.
+--
+-- Prévia e aplicação chamam esta função. Se cada uma tivesse a sua tabela de
+-- decisão, o número mostrado deixaria de descrever o efeito no primeiro ajuste
+-- feito em uma só — que é o mesmo motivo de `fc_resolver_publico_avaliacao`
+-- existir.
+--
+-- ## As regras, e por que cada uma
+--
+--   nova pessoa que casa            -> ELIGIBLE
+--   ELIGIBLE / INVITED que casa     -> preserva
+--       INVITED registra que o convite saiu. Rebaixar para ELIGIBLE apagaria
+--       esse fato e faria a pessoa parecer nunca avisada.
+--   IN_PROGRESS / COMPLETED         -> preserva, casando ou não
+--       Trabalho feito não é revogável por mudança de critério. Quem já
+--       respondeu continua no ciclo mesmo que a regra nova não o alcance.
+--   BLOCKED que casa                -> preserva
+--       Bloqueio é ato administrativo deliberado sobre aquela pessoa, feito na
+--       tela de gestão. Uma regra de público reaplicada não pode levantá-lo sem
+--       ninguém pedir. `can_access_application` e o runtime já barram BLOCKED.
+--   EXCLUDED que casa e não está
+--   em excludePersonIds             -> ELIGIBLE (reativa)
+--       EXCLUDED significa "fora do público", e a regra nova diz que está
+--       dentro. Reativar aqui é obedecer à regra, não ignorá-la.
+--   qualquer um em excludePersonIds -> EXCLUDED
+--       Exclusão explícita vence tudo, por último.
+--   ELIGIBLE / INVITED que deixou
+--   de casar                        -> EXCLUDED
+--       Sem isto, trocar Diretoria A por Diretoria B deixaria A+B no público
+--       enquanto `settings.audience` registra só B. O snapshot precisa
+--       corresponder à regra aplicada.
+--
+-- Nada é apagado: `EXCLUDED` conserva a linha, o histórico e as respostas.
+create or replace function sigav.fc_planejar_publico_avaliacao(
+  p_aplicacao uuid,
+  p_regra jsonb
+)
+returns table (
+  sq_pessoa uuid,
+  st_casa boolean,
+  st_excluida boolean,
+  tp_situacao text,
+  tp_situacao_nova text
+)
+language sql
+stable
+security definer
+set search_path to 'pg_catalog', 'sigav', 'auth'
+as $function$
+  with resolvido as (
+    select * from sigav.fc_resolver_publico_avaliacao(p_regra)
+  ),
+  vinculo_atual as (
+    select person_id, status
+    from sigav.application_participants
+    where application_id = p_aplicacao
+      and participant_role = 'RESPONDENT'
+  ),
+  -- `full outer join` porque as duas pontas importam: quem a regra alcança e
+  -- ainda não está vinculado, e quem está vinculado e a regra deixou de
+  -- alcançar. Um `left join` só enxergaria a primeira.
+  combinado as (
+    select
+      coalesce(r.sq_pessoa, v.person_id) as pessoa,
+      r.sq_pessoa is not null as casa,
+      coalesce(r.st_excluida, false) as excluida,
+      v.status as situacao
+    from resolvido r
+    full outer join vinculo_atual v on v.person_id = r.sq_pessoa
+  )
+  select
+    pessoa,
+    casa,
+    excluida,
+    situacao,
+    case
+      -- Exclusão explícita primeiro: ela vence qualquer outra consideração.
+      when excluida then 'EXCLUDED'
+      -- Progresso é intocável, casando ou não.
+      when situacao in ('IN_PROGRESS', 'COMPLETED') then situacao
+      when casa then
+        case
+          when situacao is null then 'ELIGIBLE'
+          when situacao = 'EXCLUDED' then 'ELIGIBLE'
+          else situacao
+        end
+      -- Deixou de casar e não tem progresso: sai do público.
+      when situacao in ('ELIGIBLE', 'INVITED') then 'EXCLUDED'
+      else situacao
+    end
+  from combinado;
+$function$;
+
+-- ---------------------------------------------------------------------------
 -- Catálogo de opções por dimensão
 -- ---------------------------------------------------------------------------
 
@@ -290,6 +390,22 @@ $function$;
 -- Prévia — leitura pura, garantida pelo `stable`
 -- ---------------------------------------------------------------------------
 
+
+-- ---------------------------------------------------------------------------
+-- Prévia — leitura pura, garantida pelo `stable`
+-- ---------------------------------------------------------------------------
+
+-- A prévia descreve o **efeito da aplicação**, não só o alcance do critério.
+-- Um número que diz "284 pessoas" sem contar que 12 delas continuam bloqueadas
+-- e 30 vão sair do público descreve outra operação que não a que vai acontecer.
+--
+-- Daí os dois totais:
+--   `matchedCount`   — quem o critério alcança, já sem as exclusões explícitas;
+--   `effectiveCount` — quantas pessoas ficam com acesso depois de aplicar.
+--
+-- Eles diferem quando há bloqueio administrativo (casa mas segue barrado) ou
+-- progresso preservado (não casa mais, mas já começou e permanece).
+-- `effectiveCount` é o que precisa bater com o snapshot.
 create or replace function sigav.fc_previsualizar_publico_avaliacao(
   p_aplicacao uuid,
   p_regra jsonb,
@@ -311,16 +427,8 @@ begin
     raise exception 'Pesquisa ou ciclo não localizado.';
   end if;
 
-  with resolvido as (
-    select * from sigav.fc_resolver_publico_avaliacao(p_regra)
-  ),
-  vinculo as (
-    select r.sq_pessoa, r.tp_origem, r.st_excluida, ap.status as situacao_atual
-    from resolvido r
-    left join sigav.application_participants ap
-      on ap.application_id = p_aplicacao
-     and ap.person_id = r.sq_pessoa
-     and ap.participant_role = 'RESPONDENT'
+  with plano as (
+    select * from sigav.fc_planejar_publico_avaliacao(p_aplicacao, p_regra)
   ),
   inclusoes_pedidas as (
     select valor::uuid as id
@@ -328,18 +436,30 @@ begin
   )
   select jsonb_build_object(
     'status', 'OK',
-    -- Público efetivo: já sem os excluídos. É o número que a tela mostra.
-    'matchedCount', (select count(*) from vinculo where not st_excluida),
-    'alreadyLinkedCount', (select count(*) from vinculo
-                           where not st_excluida
-                             and situacao_atual is not null
-                             and situacao_atual <> 'EXCLUDED'),
-    'newLinkCount', (select count(*) from vinculo
-                     where not st_excluida
-                       and (situacao_atual is null or situacao_atual = 'EXCLUDED')),
-    'excludedCount', (select count(*) from vinculo where st_excluida),
-    -- Inclusão individual de quem não está ativo: não entra, e a tela precisa
-    -- dizer isso em vez de a pessoa sumir sem explicação.
+    'matchedCount', (select count(*) from plano where st_casa and not st_excluida),
+    -- O total que o snapshot terá com acesso. É este que os testes comparam
+    -- com a contagem real depois de aplicar.
+    'effectiveCount', (select count(*) from plano where tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')),
+    'newLinkCount', (select count(*) from plano where tp_situacao is null and tp_situacao_nova = 'ELIGIBLE'),
+    'reactivatedCount', (select count(*) from plano where tp_situacao = 'EXCLUDED' and tp_situacao_nova = 'ELIGIBLE'),
+    'keptCount', (select count(*) from plano
+                  where tp_situacao is not null
+                    and tp_situacao = tp_situacao_nova
+                    and tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')),
+    'excludedCount', (select count(*) from plano where st_excluida),
+    -- Quem sai do público por ter deixado de casar com a regra. Sem este
+    -- número, reduzir um público pareceria não fazer nada.
+    'removedCount', (select count(*) from plano
+                     where not st_casa
+                       and tp_situacao in ('ELIGIBLE', 'INVITED')
+                       and tp_situacao_nova = 'EXCLUDED'),
+    -- Quem já começou ou concluiu e não casa mais: permanece, de propósito.
+    'retainedWithProgressCount', (select count(*) from plano
+                                  where not st_casa
+                                    and tp_situacao in ('IN_PROGRESS', 'COMPLETED')),
+    -- Casa com a regra mas segue bloqueado por decisão administrativa.
+    'blockedKeptCount', (select count(*) from plano
+                         where st_casa and not st_excluida and tp_situacao_nova = 'BLOCKED'),
     'ineligibleIncludedCount', (select count(*) from inclusoes_pedidas i
                                 where not exists (select 1 from sigav.people p where p.id = i.id and p.active)),
     'sample', coalesce((
@@ -351,12 +471,13 @@ begin
           'jobTitle', p.job_title,
           'unit', p.metadata ->> 'unit',
           'directorate', p.metadata ->> 'directorate',
-          'origin', v.tp_origem,
-          'alreadyLinked', v.situacao_atual is not null and v.situacao_atual <> 'EXCLUDED'
+          'currentStatus', pl.tp_situacao,
+          'nextStatus', pl.tp_situacao_nova,
+          'alreadyLinked', pl.tp_situacao is not null
         ) as item
-        from vinculo v
-        join sigav.people p on p.id = v.sq_pessoa
-        where not v.st_excluida
+        from plano pl
+        join sigav.people p on p.id = pl.sq_pessoa
+        where pl.tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')
         order by p.full_name
         limit greatest(coalesce(p_limite_amostra, 50), 0)
       ) amostra
@@ -376,7 +497,23 @@ $function$;
 -- entram. Não há fatiamento em lotes de mil, e o cliente nunca envia milhares de
 -- identificadores — ele envia a regra, e o servidor a resolve.
 --
--- A ordem importa: vincula primeiro, exclui por último. Exclusão sempre vence.
+-- ## Reconciliação, não só adição
+--
+-- Aplicar uma regra é substituir o público, não somar ao anterior. Sem isso,
+-- trocar Diretoria A por Diretoria B deixaria A+B vinculados enquanto
+-- `settings.audience` registraria só B — o snapshot deixaria de descrever a
+-- regra, e ninguém teria como notar.
+--
+-- Quem deixou de casar sai por `EXCLUDED`, que preserva a linha, o histórico e
+-- as respostas. Nada é apagado. Quem já começou ou concluiu **permanece**:
+-- trabalho feito não é revogável por mudança de critério.
+--
+-- ## Uma transação, uma passagem
+--
+-- O plano é calculado uma vez e alimenta gravação e contagem no mesmo comando.
+-- CTE que modifica dados executa integralmente ainda que a consulta principal
+-- não leia o retorno dela, então `gravados` roda e as contagens saem de `plano`
+-- sem precisar de tabela temporária nem de recalcular a regra.
 create or replace function sigav.fc_aplicar_publico_avaliacao(
   p_aplicacao uuid,
   p_regra jsonb,
@@ -389,10 +526,14 @@ set search_path to 'pg_catalog', 'sigav', 'auth'
 as $function$
 declare
   v_ator uuid := sigav.current_person_id();
-  v_vinculadas integer := 0;
-  v_reativadas integer := 0;
-  v_mantidas integer := 0;
-  v_excluidas integer := 0;
+  v_novos integer := 0;
+  v_reativados integer := 0;
+  v_mantidos integer := 0;
+  v_excluidos integer := 0;
+  v_removidos integer := 0;
+  v_preservados integer := 0;
+  v_bloqueados integer := 0;
+  v_efetivo integer := 0;
   v_regra_gravada jsonb;
 begin
   if not sigav.can_manage_surveys() then
@@ -402,74 +543,73 @@ begin
     raise exception 'Pesquisa ou ciclo não localizado.';
   end if;
 
-  create temporary table tmp_publico_resolvido on commit drop as
-  select r.sq_pessoa, r.tp_origem, r.st_excluida, ap.status as situacao_anterior
-  from sigav.fc_resolver_publico_avaliacao(p_regra) r
-  left join sigav.application_participants ap
-    on ap.application_id = p_aplicacao
-   and ap.person_id = r.sq_pessoa
-   and ap.participant_role = 'RESPONDENT';
-
-  select
-    count(*) filter (where not st_excluida and situacao_anterior is null),
-    count(*) filter (where not st_excluida and situacao_anterior = 'EXCLUDED'),
-    count(*) filter (where not st_excluida and situacao_anterior is not null and situacao_anterior <> 'EXCLUDED'),
-    count(*) filter (where st_excluida)
-  into v_vinculadas, v_reativadas, v_mantidas, v_excluidas
-  from tmp_publico_resolvido;
-
-  -- 1. Materializa quem entra.
-  insert into sigav.application_participants(
-    application_id, person_id, participant_role, status, access_profile, invited_at, metadata
+  with plano as (
+    select * from sigav.fc_planejar_publico_avaliacao(p_aplicacao, p_regra)
+  ),
+  gravados as (
+    insert into sigav.application_participants(
+      application_id, person_id, participant_role, status, access_profile, invited_at, metadata
+    )
+    select
+      p_aplicacao,
+      pl.sq_pessoa,
+      'RESPONDENT',
+      pl.tp_situacao_nova,
+      nullif(btrim(p_perfil_acesso), ''),
+      -- Só quem entra no público ganha `invited_at`. Marcar a data em quem está
+      -- saindo registraria um convite que não houve.
+      case when pl.tp_situacao_nova = 'ELIGIBLE' then timezone('utc', now()) end,
+      -- A razão fica no registro: "excluída de propósito" e "deixou de casar
+      -- com a regra" produzem o mesmo estado e são decisões diferentes.
+      case
+        when pl.st_excluida then jsonb_build_object(
+          'excluded_by', v_ator,
+          'excluded_at', timezone('utc', now()),
+          'source', 'ADMIN_AUDIENCE_BUILDER',
+          'reason', 'explicit_exclusion'
+        )
+        when pl.tp_situacao_nova = 'EXCLUDED' then jsonb_build_object(
+          'removed_by', v_ator,
+          'removed_at', timezone('utc', now()),
+          'source', 'ADMIN_AUDIENCE_BUILDER',
+          'reason', 'rule_no_longer_matches'
+        )
+        else jsonb_build_object(
+          'assigned_by', v_ator,
+          'assigned_at', timezone('utc', now()),
+          'source', 'ADMIN_AUDIENCE_BUILDER',
+          'origin', pl.st_casa
+        )
+      end
+    from plano pl
+    -- Só o que muda é gravado. Sem este filtro, reaplicar a mesma regra
+    -- carimbaria `updated_at` na tabela inteira sem nada ter mudado.
+    where pl.tp_situacao is distinct from pl.tp_situacao_nova
+    on conflict (application_id, person_id, participant_role) do update
+      set status = excluded.status,
+          access_profile = coalesce(nullif(btrim(excluded.access_profile), ''), sigav.application_participants.access_profile),
+          invited_at = coalesce(sigav.application_participants.invited_at, excluded.invited_at),
+          metadata = coalesce(sigav.application_participants.metadata, '{}'::jsonb) || excluded.metadata,
+          updated_at = timezone('utc', now())
+    returning 1
   )
   select
-    p_aplicacao,
-    sq_pessoa,
-    'RESPONDENT',
-    'ELIGIBLE',
-    nullif(btrim(p_perfil_acesso), ''),
-    timezone('utc', now()),
-    jsonb_build_object(
-      'assigned_by', v_ator,
-      'assigned_at', timezone('utc', now()),
-      'source', 'ADMIN_AUDIENCE_BUILDER',
-      'origin', tp_origem
-    )
-  from tmp_publico_resolvido
-  where not st_excluida
-  on conflict (application_id, person_id, participant_role) do update
-    set status = 'ELIGIBLE',
-        access_profile = coalesce(nullif(btrim(excluded.access_profile), ''), sigav.application_participants.access_profile),
-        invited_at = coalesce(sigav.application_participants.invited_at, excluded.invited_at),
-        metadata = coalesce(sigav.application_participants.metadata, '{}'::jsonb) || excluded.metadata,
-        updated_at = timezone('utc', now());
+    count(*) filter (where tp_situacao is null and tp_situacao_nova = 'ELIGIBLE'),
+    count(*) filter (where tp_situacao = 'EXCLUDED' and tp_situacao_nova = 'ELIGIBLE'),
+    count(*) filter (where tp_situacao is not null
+                       and tp_situacao = tp_situacao_nova
+                       and tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')),
+    count(*) filter (where st_excluida),
+    count(*) filter (where not st_casa
+                       and tp_situacao in ('ELIGIBLE', 'INVITED')
+                       and tp_situacao_nova = 'EXCLUDED'),
+    count(*) filter (where not st_casa and tp_situacao in ('IN_PROGRESS', 'COMPLETED')),
+    count(*) filter (where st_casa and not st_excluida and tp_situacao_nova = 'BLOCKED'),
+    count(*) filter (where tp_situacao_nova not in ('BLOCKED', 'EXCLUDED'))
+  into v_novos, v_reativados, v_mantidos, v_excluidos, v_removidos, v_preservados, v_bloqueados, v_efetivo
+  from plano;
 
-  -- 2. Exclusões por último, e só para quem casou com a regra. Marcar
-  -- `EXCLUDED` em vez de não vincular preserva o rastro da decisão: a pessoa
-  -- entrou no critério e foi retirada de propósito. Sem isso, um recálculo
-  -- futuro a readmitiria em silêncio.
-  insert into sigav.application_participants(
-    application_id, person_id, participant_role, status, access_profile, metadata
-  )
-  select
-    p_aplicacao,
-    sq_pessoa,
-    'RESPONDENT',
-    'EXCLUDED',
-    nullif(btrim(p_perfil_acesso), ''),
-    jsonb_build_object(
-      'excluded_by', v_ator,
-      'excluded_at', timezone('utc', now()),
-      'source', 'ADMIN_AUDIENCE_BUILDER'
-    )
-  from tmp_publico_resolvido
-  where st_excluida
-  on conflict (application_id, person_id, participant_role) do update
-    set status = 'EXCLUDED',
-        metadata = coalesce(sigav.application_participants.metadata, '{}'::jsonb) || excluded.metadata,
-        updated_at = timezone('utc', now());
-
-  -- 3. Persiste a regra. Só a regra e o resumo — a lista de pessoas resolvidas
+  -- Persiste a regra. Só a regra e o resumo — a lista de pessoas resolvidas
   -- vive em `application_participants` e não é duplicada aqui.
   v_regra_gravada := jsonb_build_object(
     'version', 1,
@@ -479,7 +619,7 @@ begin
     'excludePersonIds', coalesce(p_regra -> 'excludePersonIds', '[]'::jsonb),
     'appliedAt', timezone('utc', now()),
     'appliedBy', v_ator,
-    'resultCount', v_vinculadas + v_reativadas + v_mantidas
+    'resultCount', v_efetivo
   );
 
   update sigav.survey_applications
@@ -487,9 +627,9 @@ begin
       updated_at = timezone('utc', now())
   where id = p_aplicacao;
 
-  -- 4. Auditoria pelo mecanismo existente. A regra inteira entra em `after_data`
-  -- para que a decisão seja reconstruível depois — é o que o critério de
-  -- recuperabilidade pede.
+  -- Auditoria pelo mecanismo existente. A regra inteira entra em `after_data`
+  -- para que a decisão seja reconstruível depois, e os números da transição vão
+  -- em `metadata` — inclusive os que descrevem o que **não** foi mexido.
   insert into sigav.audit_events(
     actor_person_id, event_type, entity_type, entity_id, application_id, after_data, metadata
   ) values (
@@ -501,24 +641,31 @@ begin
     v_regra_gravada,
     jsonb_build_object(
       'source', 'ADMIN_AUDIENCE_BUILDER',
-      'assignedCount', v_vinculadas,
-      'reactivatedCount', v_reativadas,
-      'keptCount', v_mantidas,
-      'excludedCount', v_excluidas
+      'assignedCount', v_novos,
+      'reactivatedCount', v_reativados,
+      'keptCount', v_mantidos,
+      'excludedCount', v_excluidos,
+      'removedCount', v_removidos,
+      'retainedWithProgressCount', v_preservados,
+      'blockedKeptCount', v_bloqueados,
+      'effectiveCount', v_efetivo
     )
   );
 
   return jsonb_build_object(
     'status', 'OK',
-    'assignedCount', v_vinculadas,
-    'reactivatedCount', v_reativadas,
-    'keptCount', v_mantidas,
-    'excludedCount', v_excluidas,
+    'assignedCount', v_novos,
+    'reactivatedCount', v_reativados,
+    'keptCount', v_mantidos,
+    'excludedCount', v_excluidos,
+    'removedCount', v_removidos,
+    'retainedWithProgressCount', v_preservados,
+    'blockedKeptCount', v_bloqueados,
+    'effectiveCount', v_efetivo,
     'audience', v_regra_gravada
   );
 end;
 $function$;
-
 -- ---------------------------------------------------------------------------
 -- Privilégios
 -- ---------------------------------------------------------------------------
@@ -526,6 +673,7 @@ $function$;
 revoke all on function sigav.fc_normalizar_rotulo(text) from public, anon;
 revoke all on function sigav.fc_dimensao_publico_atende(text, jsonb) from public, anon;
 revoke all on function sigav.fc_resolver_publico_avaliacao(jsonb) from public, anon;
+revoke all on function sigav.fc_planejar_publico_avaliacao(uuid, jsonb) from public, anon;
 revoke all on function sigav.fc_listar_dimensoes_publico() from public, anon;
 revoke all on function sigav.fc_buscar_pessoas_publico(text, integer) from public, anon;
 revoke all on function sigav.fc_previsualizar_publico_avaliacao(uuid, jsonb, integer) from public, anon;
@@ -559,6 +707,7 @@ commit;
 --   drop function if exists sigav.fc_previsualizar_publico_avaliacao(uuid, jsonb, integer);
 --   drop function if exists sigav.fc_buscar_pessoas_publico(text, integer);
 --   drop function if exists sigav.fc_listar_dimensoes_publico();
+--   drop function if exists sigav.fc_planejar_publico_avaliacao(uuid, jsonb);
 --   drop function if exists sigav.fc_resolver_publico_avaliacao(jsonb);
 --   drop function if exists sigav.fc_dimensao_publico_atende(text, jsonb);
 --   drop function if exists sigav.fc_normalizar_rotulo(text);
