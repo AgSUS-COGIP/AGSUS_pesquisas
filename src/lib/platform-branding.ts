@@ -140,10 +140,15 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     // sobrescrita pela configuração.
     logoUrl: DEFAULT_PLATFORM_BRANDING.logoUrl,
     logoPath: null,
-    // Só HTTPS: a tela de acesso é servida por HTTPS, e imagem em HTTP daria
-    // conteúdo misto além de permitir troca da arte em trânsito. Valor inválido
-    // degrada para nulo, e a arte institucional padrão volta a valer.
-    accessBackgroundUrl: typeof source.accessBackgroundUrl === "string" && source.accessBackgroundUrl.startsWith("https://")
+    // HTTPS absoluto ou caminho da própria aplicação. O HTTPS continua aceito
+    // porque as artes enviadas ao bucket foram gravadas com a URL pública do
+    // Supabase e seguem valendo enquanto não forem reenviadas; nada em HTTP
+    // entra, para não haver conteúdo misto nem troca da arte em trânsito.
+    // `/api/arquivos/...` é a origem nova, e sendo relativa herda o esquema da
+    // página. Valor inválido degrada para nulo e a arte padrão volta a valer.
+    accessBackgroundUrl: typeof source.accessBackgroundUrl === "string"
+      && (source.accessBackgroundUrl.startsWith("https://")
+        || source.accessBackgroundUrl.startsWith("/api/arquivos/"))
       ? source.accessBackgroundUrl
       : null,
     accessBackgroundPath: typeof source.accessBackgroundPath === "string" ? source.accessBackgroundPath : null,

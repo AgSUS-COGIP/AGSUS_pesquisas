@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
-import { isPublicRequest } from "./public-request";
+import { isLeituraDeArquivo, isPublicRequest } from "./public-request";
 import { SUPABASE_DB_SCHEMA } from "./schema";
 
 // Rota de API responde em JSON, inclusive quando recusa.
@@ -16,8 +16,9 @@ function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
 }
 
-function addResponseHeaders(response: NextResponse) {
-  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+function addResponseHeaders(response: NextResponse, preservarCache = false) {
+  // Imagem pública define o próprio cache na rota; o resto nunca é cacheável.
+  if (!preservarCache) response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -66,7 +67,7 @@ export async function updateSession(request: NextRequest) {
   // leitura da marca ou jornadas anônimas. Além de reduzir latência, isso impede
   // que tráfego público concorra com o limite de Auth das jornadas autenticadas.
   if (publicRequest && pathname !== "/acesso") {
-    return addResponseHeaders(response);
+    return addResponseHeaders(response, isLeituraDeArquivo(request.method, pathname));
   }
 
   const supabase = createServerClient(url, publishableKey, {

@@ -14,7 +14,7 @@ import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { enviarArquivo } from "@/lib/api/cliente-arquivos";
 import { obterIdentidadeVisual, salvarIdentidadeVisual } from "@/lib/api/cliente-construtor";
 import type { IdentidadeVisual as VisualIdentity } from "@/lib/api/contratos-construtor";
 import { DEFAULT_CDDI_VISUAL_IDENTITY } from "@/lib/survey-visual-identity";
@@ -96,30 +96,21 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
 
     setUploading(true);
     try {
-      // O envio da imagem continua indo direto ao storage do Supabase, e não
-      // por uma rota: é upload binário autenticado por cookie, com as políticas
-      // do bucket como autoridade. Passá-lo por um Route Handler só faria o
-      // arquivo trafegar duas vezes. O que virou REST foi a **gravação da
-      // identidade**, que é onde estava a regra de negócio.
-      const supabase = createBrowserSupabaseClient();
+      // Sem bucket, o upload atravessa a aplicação: é o único caminho pelo qual
+      // o navegador alcança o Postgres. A autoridade que era das políticas do
+      // bucket passou para `can_manage_surveys()`, checada no corpo da RPC. O
+      // que já era REST — a **gravação da identidade**, onde está a regra de
+      // negócio — não mudou.
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      // O caminho precisa começar pelo id da aplicação: é o que a RPC e as
-      // políticas do bucket exigem para amarrar a imagem a este ciclo.
+      // O caminho continua começando pelo id da aplicação: é o que amarra a
+      // imagem a este ciclo, e é o valor que `bannerPath` já guarda.
       const path = `${application.id}/banner.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from("survey-assets")
-        .upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-          cacheControl: "3600",
-        });
-      if (uploadError) throw uploadError;
-      const { data: publicUrlData } = supabase.storage.from("survey-assets").getPublicUrl(path);
+      const arquivo = await enviarArquivo("survey-assets", path, file);
       setVisual((current) => ({
         ...current,
-        bannerPath: path,
-        // `?v=` derrota o cache de uma hora ao substituir a capa pelo mesmo caminho.
-        bannerUrl: `${publicUrlData.publicUrl}?v=${Date.now()}`,
+        bannerPath: arquivo.caminho,
+        // `?v=` derrota o cache ao substituir a capa pelo mesmo caminho.
+        bannerUrl: `${arquivo.url}?v=${Date.now()}`,
         themeVariant: "CUSTOM",
       }));
       toast.success("Imagem enviada. Salve as alterações para publicá-la no instrumento.");

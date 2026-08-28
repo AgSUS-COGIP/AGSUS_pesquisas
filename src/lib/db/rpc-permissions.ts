@@ -20,6 +20,13 @@
 //   - fc_srv_registrar_erro_aplicacao  (bootstrap-db-dataware-usuario-unico.sql)
 //   - fc_srv_resolver_identidade_oauth (auth-identidade-oauth.sql)
 // Ambas são chamadas antes de existir sessão, por isso service_role.
+//
+// As quatro `fc_arq_*` (20260827160000_arquivos_no_banco.sql) substituem o
+// Storage do Supabase. Só a leitura é aberta a `anon`, e isso reproduz o que os
+// buckets públicos faziam: a arte de fundo aparece antes do login e a capa de
+// pesquisa aparece em `/responder/[applicationCode]`, que é rota pública. As
+// três de escrita exigem sessão, e o corpo de cada uma ainda checa
+// `can_manage_surveys()`.
 
 export type RpcRole = "anon" | "authenticated" | "service_role";
 
@@ -44,6 +51,10 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "delete_survey_question": ["authenticated"],
   "duplicate_survey_builder_item": ["authenticated"],
   "fc_agendar_envio_manual": ["authenticated"],
+  "fc_arq_gravar": ["authenticated"],
+  "fc_arq_listar": ["authenticated"],
+  "fc_arq_obter": ["anon", "authenticated", "service_role"],
+  "fc_arq_remover": ["authenticated"],
   "fc_atualizar_marca_plataforma": ["authenticated"],
   "fc_clonar_pesquisa": ["authenticated"],
   "fc_concluir_email_participante": ["service_role"],
