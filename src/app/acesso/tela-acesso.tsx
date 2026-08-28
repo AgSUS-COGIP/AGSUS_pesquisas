@@ -12,18 +12,22 @@ import { ExternalImage } from "@/components/external-image";
 import { PlatformLogo } from "@/components/platform-logo";
 import type { PlatformBranding } from "@/lib/platform-branding";
 import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
+
 /*
- * Arte padrão da tela de acesso, servida localmente de `public/`.
+ * A arte de fundo é opcional e vem só da configuração.
  *
- * Continua sendo o ponto de partida — e o que aparece enquanto a marca carrega,
- * para a tela não abrir com um retângulo vazio. A administração pode substituí-la
- * em `/admin/configuracoes` para acompanhar campanha institucional; sem
- * substituição configurada, vale esta.
+ * Havia uma imagem padrão local servida quando nada estava configurado. Ela saiu
+ * por duas razões. É genérica, e aparecia como se fosse a identidade da
+ * instituição para quem nunca configurou nada. E, pior, ela participava de um
+ * defeito: com o backend fora, a marca caía no padrão, a arte aparecia, e a tela
+ * ficava idêntica a um dia normal — ajudando a esconder que o sistema estava
+ * indisponível.
+ *
+ * Sem arte configurada, o fundo é `--surface-page`, que já é institucional.
  *
  * O que **não** volta: o sorteio de fotos externas que existia antes
- * (`/api/background/*`). A arte é institucional e local, nunca de terceiro.
+ * (`/api/background/*`). A arte é institucional, nunca de terceiro.
  */
-const BACKGROUND_IMAGE = "/acesso-fundo.png";
 
 /**
  * A palavra gravada dentro dos arquivos de assinatura do SIGAV.
@@ -281,11 +285,20 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
         A ordem de pintura basta: estes dois vêm antes no DOM e o cartão é
         posicionado (`relative`), então ele sobe sozinho.
       */}
-      <div
-        className="fixed inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? BACKGROUND_IMAGE})` }}
-        aria-hidden="true"
-      />
+      {/*
+        Sem arte configurada, sem arte. A imagem padrão que existia aqui era
+        genérica e aparecia como se fosse a identidade da instituição —
+        inclusive quando o backend estava fora e a marca caía no padrão, onde ela
+        ajudava a tela de erro a se parecer com um dia normal. O fundo da página
+        é `--surface-page`, que já é a cor institucional.
+      */}
+      {branding.accessBackgroundUrl && (
+        <div
+          className="fixed inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${branding.accessBackgroundUrl})` }}
+          aria-hidden="true"
+        />
+      )}
       {/*
         Escala do cartão por faixa de tela.
 
