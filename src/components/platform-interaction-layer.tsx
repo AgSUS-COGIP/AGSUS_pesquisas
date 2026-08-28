@@ -1,8 +1,8 @@
 "use client";
 
 import { ArrowUp } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 
 /**
  * Posição de rolagem efetiva da tela.
@@ -24,11 +24,8 @@ const shortcuts = [
 ] as const;
 
 export function PlatformInteractionLayer({ children, modules = [] }: { children: ReactNode; modules?: string[] }) {
-  const pathname = usePathname();
   const router = useRouter();
   const [showTop, setShowTop] = useState(false);
-  const [transitioning, setTransitioning] = useState(false);
-  const previousPath = useRef(pathname);
   const allowedShortcuts = useMemo(() => shortcuts.filter((item) => modules.includes(item.module)), [modules]);
 
   useEffect(() => {
@@ -41,14 +38,6 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
       document.removeEventListener("scroll", handleScroll, { capture: true });
     };
   }, []);
-
-  useEffect(() => {
-    if (previousPath.current === pathname) return;
-    previousPath.current = pathname;
-    setTransitioning(true);
-    const timeout = window.setTimeout(() => setTransitioning(false), 360);
-    return () => window.clearTimeout(timeout);
-  }, [pathname]);
 
   useEffect(() => {
     if (!allowedShortcuts.length) return;
@@ -67,14 +56,36 @@ export function PlatformInteractionLayer({ children, modules = [] }: { children:
 
   return (
     <>
-      <div aria-hidden="true" className={`pointer-events-none fixed inset-x-0 top-0 z-[150] h-[3px] origin-left bg-gradient-to-r from-cyan-400 via-emerald-400 to-blue-500 transition-all duration-300 ${transitioning ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"}`} />
+      {/*
+        A faixa de progresso que ficava aqui foi removida.
+
+        Ela não media carregamento nenhum: disparava num efeito que reage ao
+        `pathname` **já alterado** — ou seja, depois da navegação — e durava um
+        `setTimeout` fixo de 360 ms, sem relação com a tela estar pronta ou não.
+
+        Medido antes de remover, na troca para /paineis:
+
+          conteúdo da nova tela visível ....... 157 ms
+          faixa aparecia ...................... 330 ms
+          faixa sumia ......................... 646 ms
+
+        Aparecia 173 ms depois de a página estar pronta e varria por mais 316 ms
+        sobre conteúdo já renderizado. Além de não informar, atrasava a
+        percepção: a navegação leva 157 ms e parecia levar 650 ms.
+
+        Se algum dia houver tela lenta de verdade, o caminho é ligar o indicador
+        ao carregamento real — `useLinkStatus` ou o estado das consultas —, e não
+        a um temporizador.
+      */}
 
       {/*
         A troca de rota não altera a opacidade da aplicação. Antes este wrapper
         ia a `opacity-0` e voltava em 300 ms a cada pathname novo, apagando
         inclusive sidebar e cabeçalho e produzindo uma piscada perceptível.
-        A barrinha de progresso acima já comunica a transição sem desmontar ou
-        esconder a interface estável.
+
+        A navegação é rápida o bastante para dispensar aviso: medida em 157 ms
+        até o conteúdo novo aparecer. Anunciar uma espera que não existe custa
+        mais do que entrega.
       */}
       <div>{children}</div>
 
