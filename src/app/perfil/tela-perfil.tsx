@@ -51,12 +51,12 @@ export default function ProfilePage() {
           <PersonAvatar
             fullName={person.fullName}
             avatarUrl={googleAvatarUrl}
-            className="h-24 w-24 rounded-2xl"
+            className="h-24 w-24 rounded-xl"
           />
           <div>
             <p className="section-eyebrow">Foto de perfil</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-950">Gerenciada pela conta Google</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Gerenciada pela conta Google</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
               A plataforma usa automaticamente a foto da sua conta Google. Para alterá-la, atualize a imagem no Google e entre novamente na plataforma.
             </p>
           </div>
@@ -65,14 +65,14 @@ export default function ProfilePage() {
         <section className="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
           <article className="surface-card p-6">
             <div className="flex items-center justify-between gap-4">
-              <div><p className="section-eyebrow">Dados funcionais</p><h3 className="mt-1 text-lg font-semibold text-slate-950">Informações sincronizadas</h3></div>
-              <span className="text-xs font-medium text-slate-500">Somente leitura</span>
+              <div><p className="section-eyebrow">Dados funcionais</p><h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Informações sincronizadas</h3></div>
+              <span className="text-xs font-medium text-[var(--text-secondary)]">Somente leitura</span>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {fields.map(({ label, value, icon: Icon }) => (
-                <div key={label} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200"><Icon className="h-4 w-4" /></span>
-                  <div className="min-w-0"><p className="text-xs font-medium text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</p></div>
+                <div key={label} className="flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--surface-card)] text-[var(--text-secondary)] ring-1 ring-[var(--border-subtle)]"><Icon className="h-4 w-4" /></span>
+                  <div className="min-w-0"><p className="text-xs font-medium text-[var(--text-secondary)]">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)]">{value}</p></div>
                 </div>
               ))}
             </div>
@@ -80,8 +80,8 @@ export default function ProfilePage() {
 
           <aside className="surface-card p-6">
             <p className="section-eyebrow">Acesso</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-950">Perfil e permissões</h3>
-            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{user.profileLabel}</p></div>
+            <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Perfil e permissões</h3>
+            <div className="mt-5 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4"><p className="text-xs font-medium text-[var(--status-info-text)]">Perfil principal</p><p className="mt-1 font-semibold text-[var(--status-info-text)]">{user.profileLabel}</p></div>
             {/*
               Aqui havia a lista de papéis vigentes, que repetia palavra por
               palavra a caixa acima: desde `20260810120000` os perfis são
@@ -93,10 +93,10 @@ export default function ProfilePage() {
               aqui é exatamente o que aparece na navegação.
             */}
             <div className="mt-4">
-              <p className="text-xs font-medium text-slate-500">Áreas liberadas para você</p>
+              <p className="text-xs font-medium text-[var(--text-secondary)]">Áreas liberadas para você</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {navigationGroupsForModules(modules).flatMap((group) => group.items).map((item) => (
-                  <span key={item.href} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{item.label}</span>
+                  <span key={item.href} className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]">{item.label}</span>
                 ))}
               </div>
             </div>
