@@ -7,24 +7,20 @@ import {
   CorpoJsonInvalidoError,
   lerJsonLimitado,
 } from "@/lib/api/corpo-json-limitado";
-import type { RegraDePublico, ResultadoDaAplicacao } from "@/lib/api/contratos-publico";
+import type { DimensoesDoPublico, RegraDePublico } from "@/lib/api/contratos-publico";
 
-/**
- * A regra é pequena por natureza: alguns rótulos por dimensão e listas de
- * identificadores. O limite existe para que uma lista de inclusão inflada não
- * vire um corpo de requisição sem teto — o desenho da Fase 1 é justamente o
- * cliente enviar a **regra**, não milhares de identificadores.
- */
 const MAX_REGRA_BYTES = 262_144;
 
 /**
- * Aplica o público.
+ * Opções de cada dimensão, restringidas pelo que já foi escolhido.
  *
- * Mutação explícita, e só ela: a prévia tem rota própria porque confundir as
- * duas é como se perde a garantia de que visualizar não altera nada.
+ * É `POST` por transportar a regra no corpo, não por alterar estado: a RPC é
+ * `stable`, e função não-volátil não grava no PostgreSQL. Mesmo desenho da
+ * prévia.
  *
- * O servidor resolve a regra e materializa numa transação só, independentemente
- * de o resultado ter 5 ou 1.030 pessoas. Não há fatiamento em lotes.
+ * Rota própria em vez de acrescentar um verbo ao `/publico`, onde `POST` já
+ * significa "aplicar o público". Dois significados no mesmo par
+ * caminho + método é como um erro de digitação vira mil vínculos.
  */
 export async function POST(
   request: Request,
@@ -50,12 +46,9 @@ export async function POST(
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_aplicar_publico_avaliacao", {
-    p_aplicacao: id,
-    p_regra: regra,
-  });
+  const { data, error } = await supabase.rpc("fc_listar_dimensoes_publico", { p_regra: regra });
 
-  if (error) return respostaDeErro(error, "POST /api/avaliacoes/[id]/publico");
+  if (error) return respostaDeErro(error, "POST /api/avaliacoes/[id]/publico/dimensoes");
 
-  return NextResponse.json(data as ResultadoDaAplicacao);
+  return NextResponse.json((data ?? { status: "OK", dimensions: {}, incompatible: {} }) as DimensoesDoPublico);
 }

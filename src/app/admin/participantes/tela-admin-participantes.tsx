@@ -73,6 +73,10 @@ export default function AdminParticipantsPage() {
   // Marcação da busca atual. Some quando os resultados mudam: manter marcada
   // uma pessoa que saiu da lista faria a ação em lote agir no invisível.
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  // A busca devolveu uma lista estreitada por filtro institucional. Sem isso,
+  // "nenhuma pessoa encontrada" seria ambíguo entre "não existe" e "existe, mas
+  // fora do contexto que você montou".
+  const [buscaContextual, setBuscaContextual] = useState(false);
 
   const cicloSelecionado = useMemo(
     () => ciclos.find((item) => item.id === cicloId) ?? null,
@@ -90,12 +94,56 @@ export default function AdminParticipantsPage() {
     return () => { ativo = false; };
   }, []);
 
+  /*
+    As opções são recarregadas a cada mudança de filtro, porque a cascata
+    depende do que já foi escolhido: com a Diretoria definida, Unidade passa a
+    mostrar só as unidades daquela diretoria.
+
+    A dependência é a **serialização** dos filtros, não o objeto: `regra` é
+    recriado a cada alteração, e depender dele dispararia a busca também quando
+    só a lista de pessoas mudasse.
+  */
+  const filtrosSerializados = JSON.stringify(regra.filters);
+
   useEffect(() => {
     if (!cicloId) return;
     let ativo = true;
     setDimensoesIndisponiveis(false);
-    obterDimensoesDoPublico(cicloId)
-      .then((resposta) => { if (ativo) setDimensoes(resposta.dimensions ?? {}); })
+    obterDimensoesDoPublico(cicloId, { filters: JSON.parse(filtrosSerializados) })
+      .then((resposta) => {
+        if (!ativo) return;
+        setDimensoes(resposta.dimensions ?? {});
+
+        // Mudar uma dimensão anterior pode deixar uma seleção posterior fora do
+        // contexto. Quem detecta é o banco — o rótulo exibido é a grafia mais
+        // frequente dentro do contexto, e comparar textos aqui marcaria como
+        // incompatível uma seleção que continua válida.
+        //
+        // Removemos só as incompatíveis e dizemos o que foi removido. Deixar o
+        // valor na regra sem exibi-lo seria pior: a prévia contaria com um
+        // critério que a tela não mostra.
+        const incompativeis = resposta.incompatible ?? {};
+        const chavesAfetadas = CHAVES_DE_DIMENSAO.filter((chave) => (incompativeis[chave] ?? []).length > 0);
+        if (chavesAfetadas.length === 0) return;
+
+        setRegra((atual) => {
+          const filtros = { ...atual.filters };
+          for (const chave of chavesAfetadas) {
+            const removidos = new Set(incompativeis[chave] ?? []);
+            filtros[chave] = (filtros[chave] ?? []).filter((valor) => !removidos.has(valor));
+          }
+          return { ...atual, filters: filtros };
+        });
+        setPrevia(null);
+
+        const removidos = chavesAfetadas.flatMap((chave) =>
+          (incompativeis[chave] ?? []).map((valor) => `${ROTULO_DA_DIMENSAO[chave]}: ${valor}`));
+        toast.info(
+          removidos.length === 1
+            ? `${removidos[0]} saiu do critério por não existir na seleção atual.`
+            : `${removidos.length} seleções saíram do critério por não existirem na seleção atual: ${removidos.join(", ")}.`,
+        );
+      })
       .catch((erro) => {
         if (!ativo) return;
         // Ambiente sem a rotina publicada devolve 501. Sem este tratamento a
@@ -108,7 +156,7 @@ export default function AdminParticipantsPage() {
         toast.error(errorMessageFromUnknown(erro));
       });
     return () => { ativo = false; };
-  }, [cicloId]);
+  }, [cicloId, filtrosSerializados]);
 
   // Trocar de ciclo zera regra e prévia. Manter a seleção anterior mostraria
   // números de um ciclo ao lado do nome de outro.
@@ -136,7 +184,8 @@ export default function AdminParticipantsPage() {
     if (!cicloId) return;
     setBuscando(true);
     try {
-      const resposta = await buscarPessoasDoPublico(cicloId, buscaPessoa);
+      const resposta = await buscarPessoasDoPublico(cicloId, buscaPessoa, regra);
+      setBuscaContextual(resposta.contextual === true);
       setResultados(resposta.people ?? []);
       setMarcadas(new Set());
       setBuscou(true);
@@ -504,7 +553,7 @@ export default function AdminParticipantsPage() {
 
             {buscou && resultados.length === 0 && (
               <p className="mt-3 text-sm text-[var(--text-secondary)]">
-                Nenhuma pessoa ativa encontrada para esse termo.
+                Nenhuma pessoa ativa encontrada para esse termo{buscaContextual ? " dentro dos filtros institucionais escolhidos" : ""}.
               </p>
             )}
 
