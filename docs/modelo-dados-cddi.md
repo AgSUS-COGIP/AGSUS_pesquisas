@@ -117,7 +117,7 @@ As 12 competências, comportamentos, níveis e pesos serão dados configuráveis
 ## Decisões de modelagem
 
 1. `people` é cadastro institucional e não depende de uma pesquisa.
-2. `auth.users` representa conta de acesso; uma pessoa pode existir antes de possuir login.
+2. `tb_usuario_identidade` (o antigo `auth.users`) representa conta de acesso; uma pessoa pode existir antes de possuir login.
 3. `surveys` representa o produto permanente, como CDDI ou Pesquisa de Clima.
 4. `survey_versions` congela a estrutura de uma edição do questionário.
 5. `survey_applications` define período, público e regras de uma execução.

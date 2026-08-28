@@ -49,9 +49,10 @@ export const configBase = {
 
   callbacks: {
     /**
-     * `token.sub` precisa ser o `auth.users.id`, não o identificador do Google.
+     * `token.sub` precisa ser o id da conta em `sigav.tb_usuario_identidade`
+     * (o antigo `auth.users`), não o identificador do Google.
      *
-     * É esse valor que vira `auth.uid()` no banco e casa com
+     * É esse valor que vira `sigav.fc_uid_sessao()` no banco e casa com
      * `sigav.people.auth_user_id`. Quem o resolve é o callback de `signIn` da
      * configuração completa, que grava `user.id` — aqui apenas transportamos.
      */

@@ -25,6 +25,37 @@ supabase/
 
 ## Modelo de dados
 
+### `sigav` é o único schema
+
+Entre 26 e 28/08/2026 o banco desta aplicação passou de seis schemas para um. O padrão institucional AgSUS prevê um schema por aplicação (`DB_SIGLAAPLICACAO`), e as separações existentes vinham da era Supabase/PostgREST, quando "schema não exposto pela Data API" era fronteira real. Deixou de ser: a conexão é direta com uma credencial única (`usr_sip_app`) e quem autoriza é [../src/lib/db/rpc-permissions.ts](../src/lib/db/rpc-permissions.ts), não o schema onde o objeto mora.
+
+| Origem | Migration | O que virou |
+|---|---|---|
+| `public` | `20260826180000` + `20260827180000` | Tudo movido para `sigav`; schema removido |
+| `private` | `20260827170000` | Helpers de RLS e de presença, com os mesmos nomes |
+| `db_governanca` | `20260827170000` | `tb_catalogo_objeto`, `vw_resumo_migracao` |
+| `"DB_PESQUISAS"` | `20260827170000` | As 8 views institucionais, renomeadas para minúsculas (`vw_pessoa`…) |
+| `auth` | `20260828100000` | `tb_usuario_identidade`, `tb_identidade_oauth` e as funções de claims |
+| `extensions` | `20260828100000` + `20260828110000` | Dependência eliminada (`sha256()` nativo) e pgcrypto **preservada dentro de `sigav`** |
+
+**As funções de claims mudaram de nome** e são chamadas por quase toda função privilegiada:
+
+| Antes | Agora |
+|---|---|
+| `auth.uid()` | `sigav.fc_uid_sessao()` |
+| `auth.role()` | `sigav.fc_papel_sessao()` |
+| `auth.jwt()` | `sigav.fc_claims_sessao()` |
+| `auth.users` | `sigav.tb_usuario_identidade` |
+| `auth.identities` | `sigav.tb_identidade_oauth` |
+
+`auth.email()` não foi recriada — nenhuma função a chamava. As três que ficaram continuam sendo wrappers de `current_setting('request.jwt.claims')`, populado a cada transação pelo adaptador de RPC; o contrato de claims não mudou. O `search_path` padrão de função privilegiada passou de `pg_catalog, sigav, auth` para **`pg_catalog, sigav`**.
+
+Restam no banco apenas os schemas de catálogo do PostgreSQL e — em `db_dataware`, que é instância compartilhada — os de outras aplicações (`sip`, `sigepsi`) e o `public` comum, que pertencem ao administrador da instância e não a este projeto.
+
+**pgcrypto vive dentro de `sigav`** (`20260828110000`). A aplicação não depende mais dela — o hash de sessão anônima usa o `sha256()` nativo —, mas as 36 funções (`crypt`, `gen_salt`, `hmac`, `pgp_*`, `armor`…) ficam disponíveis como capacidade do banco. Foi possível instalá-la ali sem superusuário porque pgcrypto é extensão *trusted*, e `usr_sip_app` é dono de `sigav`. Dois pontos a saber: os nomes dessas funções não seguem o prefixo `fc_` e não podem ser renomeados (pertencem à extensão), por isso a exceção está registrada em `sigav.tb_catalogo_objeto`; e `gen_random_uuid()` passa a existir duas vezes no banco, sem ambiguidade — com `search_path = pg_catalog, sigav` a nativa vence, e os defaults já existentes estão presos a ela.
+
+> **A remoção de `auth` levou junto as 21 tabelas de sessão do GoTrue** (`sessions`, `refresh_tokens`, `audit_log_entries`, `mfa_*`, `saml_*`, `oauth_*`…), mortas desde que o login virou Auth.js. Isso é irreversível e não tem migration de volta: retornar exige o backup anterior. Só `users` e `identities` tinham consumidor e sobreviveram.
+
 ### Núcleo genérico — `20260730200000_initial_platform_schema.sql`
 
 ```text
@@ -103,7 +134,7 @@ Copia a versão `PUBLISHED` se houver, senão o rascunho mais recente — nunca 
 
 ### Governança e observabilidade
 
-`db_governanca.tb_catalogo_objeto` + `db_governanca.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`), `sigav.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
+`sigav.tb_catalogo_objeto` + `sigav.vw_resumo_migracao` (catálogo de conformidade de nomenclatura, restrito a `service_role`; até `20260827170000_unificar_schemas_em_sigav.sql` viviam em `db_governanca`, schema próprio já removido), `sigav.tl_erro_aplicacao` (log técnico sanitizado, sem leitura para `authenticated`).
 
 ### Marca da plataforma — `20260807093000_platform_branding_settings.sql`
 
@@ -113,7 +144,7 @@ O bucket `platform-assets` é público para leitura, limitado a 2 MB e a `image/
 
 ### Camada institucional de leitura — `20260805184500_institutional_naming_views.sql`
 
-Schema `"DB_PESQUISAS"` com views `VW_PESSOA`, `VW_PESQUISA`, `VW_APLICACAO_PESQUISA`, `VW_SUBMISSAO`, `VW_RESPOSTA`, `VW_RESPOSTA_OPCAO`, `VW_RESULTADO_COMPETENCIA`, `VW_RESULTADO_FINAL_CDDI` — colunas renomeadas para o padrão corporativo (`SQ_PESSOA`, `NO_PESSOA`, `DT_INCLUSAO`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI); a aplicação continua usando as tabelas `sigav`.
+Views `sigav.vw_pessoa`, `vw_pesquisa`, `vw_aplicacao_pesquisa`, `vw_submissao`, `vw_resposta`, `vw_resposta_opcao`, `vw_resultado_competencia`, `vw_resultado_final_cddi` — colunas com nomes corporativos (`sq_pessoa`, `no_pessoa`, `dt_inclusao`…). Todas com `security_invoker = true`, portanto **herdam a RLS** das tabelas de origem. Destinam-se a consumo analítico externo (ex.: Power BI). Viviam no schema próprio `"DB_PESQUISAS"`, com view e colunas em maiúsculas entre aspas (`"VW_PESSOA"."SQ_PESSOA"`); `20260827170000_unificar_schemas_em_sigav.sql` moveu as oito para `sigav` e as renomeou para o padrão do projeto (minúsculas, sem aspas) — ver [../docs/database-naming-standard.md](../docs/database-naming-standard.md). Esse schema nunca chegou a existir em `db_dataware` (só nascia via `supabase db reset` local), então a mudança não teve efeito em produção.
 
 ## Superfície de RPCs
 
@@ -232,7 +263,7 @@ Quem envia é `/api/tarefas/emails` (ver [../src/app/api/CLAUDE.md](../src/app/a
 
 `fc_abrir_ciclos_agendados()` não recebe grant nenhum, de propósito: é chamada de dentro de RPCs `security definer`, que executam como o dono e dispensam `execute` do papel de quem chamou.
 
-`private.can_audit_platform()` e `private.can_edit_submission(uuid)` foram movidos para o schema `private` em `20260804172000` — schema **não exposto** pela Data API, com `EXECUTE` concedido apenas a `authenticated`.
+`sigav.can_audit_platform()` e `sigav.can_edit_submission(uuid)` foram movidos para o schema `private` em `20260804172000` — schema não exposto pela Data API, com `EXECUTE` concedido apenas a `authenticated` — e voltaram para `sigav` em `20260827170000_unificar_schemas_em_sigav.sql`, quando essa separação deixou de ter efeito (a aplicação conecta com uma única credencial e quem autoriza é `RPC_PERMISSIONS`, não o schema da função).
 
 ## Regras de negócio no banco
 
@@ -291,7 +322,7 @@ Contexto completo: [../docs/auditoria-base-cddi-2026.md](../docs/auditoria-base-
 
 ### Fotos de perfil
 
-`20260810140000_usar_foto_google_automaticamente.sql` remove escolhas anteriores, usa exclusivamente a imagem de `auth.identities` com provedor Google e mantém os setters antigos apenas como ponte. Sem imagem disponível, o frontend mostra um ícone neutro; não há iniciais, upload ou avatar gerado.
+`20260810140000_usar_foto_google_automaticamente.sql` remove escolhas anteriores, usa exclusivamente a imagem de `sigav.tb_identidade_oauth` (o antigo `auth.identities`) com provedor Google e mantém os setters antigos apenas como ponte. Sem imagem disponível, o frontend mostra um ícone neutro; não há iniciais, upload ou avatar gerado.
 
 ## Convenções específicas
 
@@ -324,7 +355,7 @@ Migrations recentes (a partir de `20260804172000`) incluem o bloco de rollback c
 
 ### Nomenclatura
 
-Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para tabelas, `co_`/`sq_`/`dt_`/`ds_`/`no_`/`nu_`/`st_`/`tp_` para colunas, `pk_`/`fk_`/`uk_`/`ck_`/`in_` para constraints e índices, `vw_`/`fc_` para views e funções. Constraints **sempre** nomeadas explicitamente. Validado por `npm run db:naming` **apenas nas migrations alteradas em relação a `main`** — objetos legados (`people`, `surveys`, `submissions`…) permanecem com os nomes atuais e são catalogados em `db_governanca.tb_catalogo_objeto`. Regras completas: [../docs/database-naming-standard.md](../docs/database-naming-standard.md).
+Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para tabelas, `co_`/`sq_`/`dt_`/`ds_`/`no_`/`nu_`/`st_`/`tp_` para colunas, `pk_`/`fk_`/`uk_`/`ck_`/`in_` para constraints e índices, `vw_`/`fc_` para views e funções. Constraints **sempre** nomeadas explicitamente. Validado por `npm run db:naming` **apenas nas migrations alteradas em relação a `main`** — objetos legados (`people`, `surveys`, `submissions`…) permanecem com os nomes atuais e são catalogados em `sigav.tb_catalogo_objeto`. Regras completas: [../docs/database-naming-standard.md](../docs/database-naming-standard.md).
 
 ### Segurança obrigatória em toda migration
 
@@ -333,7 +364,7 @@ Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para
 3. Políticas, constraints e índices com nome explícito.
 4. `set search_path = pg_catalog, sigav` em toda função privilegiada.
 5. `EXECUTE` revogado de `public` e `anon` em função interna.
-6. RPC pública valida `auth.uid()`, pessoa, papel e escopo.
+6. RPC pública valida `sigav.fc_uid_sessao()`, pessoa, papel e escopo.
 7. Security e Performance Advisors executados após DDL.
 
 `20260803133300_harden_rpc_permissions.sql` aplica a regra 5 em massa: revoga `EXECUTE` de `public`/`anon` em **todas** as funções `SECURITY DEFINER` hoje localizadas em `sigav` e concede a `authenticated`. Ao criar uma nova função `SECURITY DEFINER`, repita esses grants explicitamente — o bloco `do $$` foi executado uma única vez.
@@ -344,19 +375,47 @@ Novos objetos seguem o padrão institucional AgSUS: `tb_`/`rl_`/`tl_`/`au_` para
 
 ## Testes
 
+**A stack local do Supabase deixou de ser ambiente válido deste projeto.** Ela não consegue mais aplicar as migrations — `20260828100000` precisa transferir `auth.users`, que lá pertence a `supabase_auth_admin`, e o papel que aplica migrations não é membro dele nem superusuário. Não há ajuste na migration que contorne isso, e forçar a compatibilidade só produziria dois bancos permanentemente divergentes.
+
+Ela também nunca representou produção, o que ficou claro ao medir: em 28/08/2026 a stack tinha 56 policies de RLS onde a réplica tem **zero** (a autorização real vive nas funções `security definer` e em [../src/lib/db/rpc-permissions.ts](../src/lib/db/rpc-permissions.ts)), mantinha `public` e `auth`, e — por ser reconstruída a partir das migrations *da branch* — não continha objetos que produção já tinha, vindos de migrations ainda não mescladas.
+
+**A suíte automatizada é `npm test`** (runner nativo do Node 24, sem dependência nova). São três camadas, e nenhuma delas grava: todo teste de banco roda dentro de uma transação que termina em `rollback`, porque o banco réplica local guarda hoje a única cópia dos cadastros apagados de produção.
+
+| Comando | O que cobre |
+|---|---|
+| `npm run test:banco` | Invariantes de schema, coerência entre `rpc-permissions.ts` e o catálogo, e jornadas reais com claims de sessão (contexto, portões, catálogo, marca, presença, arquivos) |
+| `npm run test:http` | A aplicação de pé: health, readiness, marca, imagens por `/api/arquivos`, recusa de rota privada sem sessão. Pula sozinho se não houver servidor na porta |
+| `npm run db:migrations` | Estático, sem banco: nomes e timestamps das migrations, e **nenhuma migration nova citando schema removido** — o guard direto contra o defeito de 28/08 |
+
+`npm test` roda as três. O `test:http` só entra se `npm run dev` estiver aberto; aponte para outra porta com `TEST_BASE_URL`.
+
+Para conferir uma migration antes de aplicar, o caminho continua sendo uma cópia descartável do banco réplica:
+
 ```bash
-supabase start
-supabase db reset       # reconstrói o banco a partir das migrations
-supabase test db        # pgTAP
-supabase stop --no-backup
+# 1. cópia instantânea da réplica (segundos, sem tocar no original)
+docker exec agsus-local psql -U postgres -c \
+  "create database db_conferencia template db_dataware"
+
+# 2. aplicar as migrations pendentes na cópia e conferir os invariantes
+docker cp supabase/tests/invariantes_schema.sql agsus-local:/tmp/inv.sql
+docker exec agsus-local psql -U postgres -d db_conferencia -v ON_ERROR_STOP=1 -f /tmp/inv.sql
+
+# 3. exercitar as RPCs afetadas de verdade, com claims de sessão
+#    (set_config('request.jwt.claims', …) e depois chamar a função)
+
+docker exec agsus-local psql -U postgres -c "drop database db_conferencia"
 ```
 
-Os testes de segurança devem afirmar que a contagem de tabelas de `sigav` com `relrowsecurity = false` é zero. **Criar tabela em `sigav` sem RLS deve quebrar o CI** — é o comportamento desejado.
+`tests/invariantes_schema.sql` é SQL puro — roda com psql em qualquer Postgres, sem extensão de teste — e afirma sete invariantes, entre eles que `sigav` é o único schema da aplicação, que **toda tabela tem RLS** (criar tabela sem RLS deve quebrar a conferência — é o comportamento desejado), que nenhum objeto cita schema removido e que o UTF-8 das funções está íntegro.
+
+> **`tests/clonar_pesquisa.sql` continua em pgTAP e ficou sem runner.** Ele valida regra de negócio (remapeamento de identificadores na clonagem), não topologia de schema, e portanto não cabia no arquivo de invariantes. Enquanto não for portado, essa cobertura está suspensa — vale portá-lo para SQL puro ou instalar pgTAP na imagem da réplica.
 
 Os specs Playwright em `../tests/` também usam o esquema reconstruído localmente, mas não substituem o pgTAP: eles validam jornadas pelo navegador. Suas fixtures gravam com chave de serviço e fazem limpeza explícita; por isso devem apontar somente para um Supabase local descartável. Configuração e comandos estão na seção **Testes** do [../README.md](../README.md).
 
 ## Pontos de atenção
 
+- **Reconstruir o banco a partir de `migrations/` só prova o que aquele histórico contém — e o histórico da sua branch não é o de produção.** Em 28/08/2026 a unificação dos schemas passou em `supabase db reset` + `supabase test db` e mesmo assim quebrou quatro funções no banco réplica, entre elas `fc_obter_contexto_plataforma()`. Elas chamavam `private.effective_platform_modules`, criada por `20260826193000_fundar_permissoes_por_modulo.sql` — uma migration que existia em `main` e ainda não tinha sido trazida para a branch de trabalho. O banco réplica veio de produção, com aquela migration aplicada; o banco reconstruído veio da branch, seis migrations atrás. O caminho quebrado, portanto, nunca chegou a ser executado no teste. Corrigido por `20260828090000_corrigir_referencias_a_private.sql`. **Toda migration que mexe em qualificador de objeto (mudança de schema, rename, `set schema`) precisa ser exercitada contra uma cópia do banco réplica, chamando as RPCs afetadas de verdade** — `create database <copia> template db_dataware` custa segundos. Junte a isso os desencontros de 10/08 e 14/08 (migration registrada cujos objetos não existem, e o contrário) e a regra é uma só: o histórico, de qualquer lado, não descreve o banco vivo.
+- **`ALTER ... SET SCHEMA` não reescreve corpo de função.** Dependência de catálogo é por OID e sobrevive; corpo e `search_path` são texto e ficam apontando para o schema antigo. O sintoma só aparece quando a função roda. Toda migration que move objeto precisa recompilar quem o chamava, pelo padrão de `pg_get_functiondef` + substituição + `execute` que `20260826180000` estabeleceu, e fechar com uma asserção de que não sobrou referência ao nome antigo.
 - **Nunca renomeie objeto legado diretamente.** Exige inventário de dependências, compatibilidade temporária, atualização de RPCs e frontend, testes de RLS/autossalvamento/envio/painéis, rollback documentado e aprovação do Data Owner.
 - **Ao aplicar SQL pela Management API, cuide do transporte do UTF-8.** O `Invoke-RestMethod` do Windows PowerShell 5.1 **destrói caractere não-ASCII no corpo da requisição**: um `í` sai do arquivo correto e chega ao banco como `U+FFFD`. O defeito é silencioso — a migration retorna sucesso, e só uma leitura por bytes o revela. Em 17/08/2026 sete migrations acentuadas entraram em produção assim, e a correção foi reaplicá-las por um cliente que serializa em UTF-8 (o `fetch` do Node serve). Confira depois de aplicar, sempre por bytes:
   ```sql

@@ -29,10 +29,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * 1. **Domínio institucional** — `sigav.institutional_domains` é a mesma
      *    fonte que `resolve_authenticated_person` consulta, então login e
      *    vinculação nunca discordam.
-     * 2. **Continuidade do vínculo** — a função procura `auth.users` pelo
-     *    e-mail antes de criar alguém novo, reaproveitando o `id` de quem já
-     *    usava a plataforma com o GoTrue. Sem isso, todo mundo entraria como
-     *    usuário novo e perderia o próprio cadastro em `sigav.people`.
+     * 2. **Continuidade do vínculo** — a função procura
+     *    `sigav.tb_usuario_identidade` (o antigo `auth.users`) pelo e-mail
+     *    antes de criar alguém novo, reaproveitando o `id` de quem já usava a
+     *    plataforma com o GoTrue. Sem isso, todo mundo entraria como usuário
+     *    novo e perderia o próprio cadastro em `sigav.people`.
      *
      * Gravar em `user.id` é o que faz o callback `jwt` de `config-base`
      * encontrar o identificador certo para pôr em `token.sub`.

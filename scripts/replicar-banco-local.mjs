@@ -12,8 +12,11 @@
 // exatamente a versão do servidor de origem, e assim a senha nunca aparece em
 // linha de comando no host — é passada ao processo pelo ambiente.
 //
-// O que É copiado: sigav (aplicação), auth (identidades — sigav.people tem FK
-// para auth.users), private (helpers de RLS) e db_governanca (catálogo).
+// O que É copiado: só `sigav`. A aplicação passou a ter um schema único — as
+// três unificações de 27/08 e a de 28/08 trouxeram para dentro dele os helpers
+// de RLS (antes em `private`), o catálogo de conformidade (`db_governanca`), as
+// views institucionais ("DB_PESQUISAS") e as contas de acesso (`auth.users` e
+// `auth.identities`, hoje `tb_usuario_identidade` e `tb_identidade_oauth`).
 // O que NÃO é copiado: sip (130 MB) e sigepsi (34 MB), aplicações de terceiros
 // que dividem a mesma instância e não têm relação com este sistema — nenhuma
 // função ou FK de sigav as referencia.
@@ -26,7 +29,7 @@ const ORIGEM_PORTA = "5432";
 const ORIGEM_DB = "db_dataware";
 const DESTINO_DB = "db_dataware";
 const DESTINO_OWNER = "usr_sip_app";
-const SCHEMAS = ["sigav", "auth", "private", "db_governanca"];
+const SCHEMAS = ["sigav"];
 const CAMINHO_DUMP = "/tmp/dataware.dump";
 
 function lerAmbiente() {
@@ -112,13 +115,12 @@ async function main() {
     console.error("\nFalhou ao criar o banco de destino.");
     process.exit(1);
   }
-  // pg_dump -n não carrega extensões (são objetos de banco, não de schema): o
-  // destino precisa de pgcrypto no mesmo schema que a origem usa.
-  await psqlLocal(
-    `create schema if not exists extensions;
-     create extension if not exists pgcrypto with schema extensions;`,
-    { banco: DESTINO_DB },
-  );
+  // Nenhuma extensão precisa ser recriada aqui. O único uso de pgcrypto era
+  // `digest(token,'sha256')`, trocado pelo `sha256()` nativo de `pg_catalog` em
+  // 20260828100000; `gen_random_uuid()` também é nativa desde o PostgreSQL 13.
+  // Se a origem ainda for anterior a essa migration, a cópia chega com as três
+  // funções de sessão anônima citando `extensions.digest` e se conserta sozinha
+  // ao rodar `aplicar-migrations.mjs`, que é o passo seguinte deste fluxo.
 
   console.log("\n== 3/4 Copiando de db_dataware (VPN precisa estar ativa) ==");
   const argsSchemas = SCHEMAS.flatMap((s) => ["-n", s]);
@@ -159,10 +161,13 @@ async function main() {
     union all select 'funcoes em sigav', count(*)::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'sigav'
     union all select 'linhas em sigav.people', count(*)::text from sigav.people
-    union all select 'linhas em auth.users', count(*)::text from auth.users
-    union all select 'funcoes auth.uid/role/jwt', count(*)::text
+    union all select 'contas em tb_usuario_identidade', count(*)::text from sigav.tb_usuario_identidade
+    union all select 'funcoes de claims da sessao', count(*)::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'auth' and p.proname in ('uid','role','jwt')
+      where n.nspname = 'sigav' and p.proname in ('fc_uid_sessao','fc_papel_sessao','fc_claims_sessao')
+    union all select 'schemas alem de sigav (deve ser 0)', count(*)::text
+      from pg_namespace where nspname not like 'pg_%'
+        and nspname not in ('information_schema', 'sigav')
     union all select 'dono das tabelas de sigav', string_agg(distinct tableowner, ', ')
       from pg_tables where schemaname = 'sigav';
   `]);

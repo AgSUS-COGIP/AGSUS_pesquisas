@@ -67,9 +67,10 @@ function shapeResult(functionName: string, result: QueryResult): unknown {
  * `role` decide o que `isRpcAllowedForRole` autoriza — é a única barreira que
  * separa uma sessão comum de uma função de cron/serviço, já que não existem
  * mais roles no Postgres para isso (ver rpc-permissions.ts). `claims` vira o
- * `request.jwt.claims` que os corpos das 155 funções e as policies legadas
- * continuam lendo via `auth.uid()`/`auth.role()`/`auth.jwt()` — nada nelas
- * precisou mudar.
+ * `request.jwt.claims` que os corpos das funções continuam lendo — hoje por
+ * `sigav.fc_uid_sessao()`/`fc_papel_sessao()`/`fc_claims_sessao()`, que
+ * sucederam `auth.uid()`/`auth.role()`/`auth.jwt()` quando o schema `auth` foi
+ * absorvido por `sigav`. O formato das claims não mudou.
  */
 export async function executeRpc(
   functionName: string,
