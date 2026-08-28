@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Hourglass, Info, ListFilter, Search, UserMinus, UserPlus, Users2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,14 +87,35 @@ export default function AdminParticipantsPage() {
   const temCriterio = regraTemCriterio(regra);
   const todasMarcadas = resultados.length > 0 && resultados.every((pessoa) => marcadas.has(pessoa.personId));
 
+  /*
+    Chegada pela jornada de configuração da avaliação.
+
+    `?ciclo=` traz o ciclo já escolhido, para quem veio da etapa anterior não ter
+    de procurar num seletor a avaliação que acabou de configurar. `?pesquisa=`
+    acompanha só para a navegação de etapas saber voltar às outras quatro — a
+    tela conhece o ciclo, não a avaliação.
+
+    Sem os parâmetros, nada muda: a tela continua sendo a porta independente de
+    gestão de público, com o seletor em branco.
+  */
+  const parametros = useSearchParams();
+  const cicloDaUrl = parametros.get("ciclo");
+  const pesquisaDaUrl = parametros.get("pesquisa");
+
   useEffect(() => {
     let ativo = true;
     listarCiclosDeParticipantes()
-      .then((lista) => { if (ativo) setCiclos(lista); })
+      .then((lista) => {
+        if (!ativo) return;
+        setCiclos(lista);
+        // Só seleciona se o ciclo existir na lista: um identificador inválido no
+        // endereço não pode deixar a tela apontando para nada, sem dizer por quê.
+        if (cicloDaUrl && lista.some((item) => item.id === cicloDaUrl)) setCicloId(cicloDaUrl);
+      })
       .catch((erro) => { if (ativo) toast.error(errorMessageFromUnknown(erro)); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, []);
+  }, [cicloDaUrl]);
 
   /*
     As opções são recarregadas a cada mudança de filtro, porque a cascata
@@ -343,7 +366,26 @@ export default function AdminParticipantsPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Público e elegibilidade" title="Participantes">
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      <Breadcrumbs items={[{ label: "Administração", href: "/admin" }, { label: "Participantes" }]} />
+      {/*
+        Chegando pela jornada, o cabeçalho é o mesmo das outras etapas — a tela
+        deixa de parecer um destino solto e passa a ser a etapa 2 de 5. Entrando
+        direto pelo menu, ela continua sendo a tela de participantes de sempre.
+      */}
+      {pesquisaDaUrl ? (
+        <CabecalhoDaConfiguracao
+          surveyId={pesquisaDaUrl}
+          applicationId={cicloId || cicloDaUrl}
+          nome={cicloSelecionado?.name}
+          etapa="publico"
+          meta={[
+            cicloSelecionado?.code,
+            cicloSelecionado ? `${cicloSelecionado.participantCount} no público atual` : null,
+          ]}
+          acao={<BotaoProximaEtapa etapa="publico" surveyId={pesquisaDaUrl} applicationId={cicloId || cicloDaUrl} />}
+        />
+      ) : (
+        <Breadcrumbs items={[{ label: "Administração", href: "/admin" }, { label: "Participantes" }]} />
+      )}
 
       <PageHeader
         eyebrow="Gestão por avaliação"

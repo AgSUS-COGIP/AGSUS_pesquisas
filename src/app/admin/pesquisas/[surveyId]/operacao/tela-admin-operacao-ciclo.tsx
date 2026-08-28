@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FilePlus2, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
@@ -13,6 +14,7 @@ import { Checkbox } from "@/components/ui/form-controls";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao, type EtapaDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
@@ -119,6 +121,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const confirm = useConfirm();
   const { surveyId } = use(params);
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  /*
+    "Ciclo" e "Revisar e publicar" são a mesma página com ênfases diferentes.
+
+    O parâmetro só decide qual etapa a navegação destaca e o que aparece
+    primeiro. As operações são as mesmas — e é isso que evita um segundo
+    mecanismo de publicação, que seria a forma mais fácil de a plataforma passar
+    a ter duas regras de quando um ciclo pode abrir.
+  */
+  const etapa: EtapaDaConfiguracao = useSearchParams().get("etapa") === "revisao" ? "revisao" : "ciclo";
   const granted = guard.state === "granted";
   const [operations, setOperations] = useState<Operations | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -391,19 +402,29 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     title={operations?.survey.name ?? "Propriedades do ciclo"}
   >
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      {/* Navegação da rota no topo do conteúdo: as ações que levam para outra
-          página ficam junto do que elas afetam, e não na barra da casca, que é
-          da aplicação. Fica fora do bloco de carregamento para que a saída da
-          tela exista antes dos dados. */}
+      {/*
+        Mesmo cabeçalho das outras etapas: a trilha substitui o botão isolado de
+        voltar, e a navegação de etapas mostra onde esta tela fica na jornada.
+        `Ciclo` e `Revisar e publicar` apontam para cá — são duas ênfases da
+        mesma página, porque ela já concentra período, avisos, checklist e as
+        ações de publicar e abrir. Duas rotas exigiriam um segundo mecanismo de
+        publicação.
+      */}
+      <CabecalhoDaConfiguracao
+        surveyId={surveyId}
+        applicationId={operations?.application?.id}
+        nome={operations?.survey.name}
+        etapa={etapa}
+        meta={[
+          operations?.survey.code,
+          operations?.application?.code ? `Ciclo ${operations.application.code}` : "Ciclo não configurado",
+          operations ? `Versão ${operations.version.number} · ${versionStatusLabel(versionStatus).toLocaleLowerCase("pt-BR")}` : null,
+          operations?.application?.anonymous ? "Anônima" : null,
+        ]}
+        acao={<BotaoProximaEtapa etapa={etapa} surveyId={surveyId} applicationId={operations?.application?.id} />}
+      />
+
       <nav aria-label="Ações da avaliação" className="flex flex-wrap items-center gap-2">
-        <Link
-          href="/admin/pesquisas"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
-          title="Voltar ao catálogo de avaliações"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar ao catálogo
-        </Link>
         {responseLink && (
           <button
             type="button"
