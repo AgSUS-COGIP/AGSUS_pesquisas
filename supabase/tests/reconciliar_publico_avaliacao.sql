@@ -17,7 +17,7 @@
 
 begin;
 
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'recon-admin@agenciasus.org.br', now(), now());
@@ -135,27 +135,36 @@ select is(
 -- Regra B — bloqueador 2: o público é substituído, não somado
 -- ---------------------------------------------------------------------------
 
--- A prévia é consultada antes de aplicar, e o valor guardado para conferência
--- depois. É a asserção que amarra prévia e efeito.
-create temporary table previa_b on commit drop as
-select (sigav.fc_previsualizar_publico_avaliacao(
-  '00000000-0000-4000-8000-000000000123',
-  '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'effectiveCount')::integer as efetivo,
-  (sigav.fc_previsualizar_publico_avaliacao(
-  '00000000-0000-4000-8000-000000000123',
-  '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'removedCount')::integer as removidos,
-  (sigav.fc_previsualizar_publico_avaliacao(
-  '00000000-0000-4000-8000-000000000123',
-  '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'retainedWithProgressCount')::integer as preservados;
+-- A prévia é consultada antes de aplicar, e os valores guardados para
+-- conferência depois. É o que amarra prévia e efeito.
+--
+-- Guardados em `set_config`, não em tabela temporária: a PR afirma não usar
+-- tabela temporária, e um teste que abre exceção à própria regra ensina que a
+-- regra admite exceções. O escopo é a transação (`true` no terceiro argumento),
+-- então o `rollback` do fim leva tudo junto.
+select set_config('teste_publico.efetivo',
+  sigav.fc_previsualizar_publico_avaliacao(
+    '00000000-0000-4000-8000-000000000123',
+    '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'effectiveCount', true);
+
+select set_config('teste_publico.removidos',
+  sigav.fc_previsualizar_publico_avaliacao(
+    '00000000-0000-4000-8000-000000000123',
+    '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'removedCount', true);
+
+select set_config('teste_publico.preservados',
+  sigav.fc_previsualizar_publico_avaliacao(
+    '00000000-0000-4000-8000-000000000123',
+    '{"filters":{"directorate":["DIR-B"]}}'::jsonb) ->> 'retainedWithProgressCount', true);
 
 select is(
-  (select removidos from previa_b),
+  current_setting('teste_publico.removidos')::integer,
   1,
   'a prévia avisa que alguém sai do público ao trocar de regra'
 );
 
 select is(
-  (select preservados from previa_b),
+  current_setting('teste_publico.preservados')::integer,
   2,
   'a prévia avisa quem permanece por já ter progresso'
 );
@@ -219,8 +228,45 @@ select is(
   (select count(*)::integer from sigav.application_participants
    where application_id = '00000000-0000-4000-8000-000000000123'
      and status not in ('BLOCKED', 'EXCLUDED')),
-  (select efetivo from previa_b),
+  current_setting('teste_publico.efetivo')::integer,
   'a contagem da prévia corresponde ao snapshot efetivo depois de aplicar'
+);
+
+-- ---------------------------------------------------------------------------
+-- Bloqueio não é levantado por caminho indireto
+-- ---------------------------------------------------------------------------
+
+-- Havia um caminho de dois passos que desfazia a sanção sem ninguém pedir:
+-- excluir a pessoa bloqueada pela regra (BLOCKED -> EXCLUDED) e reaplicar sem a
+-- exclusão (EXCLUDED -> ELIGIBLE). A exclusão vinha antes da preservação de
+-- BLOCKED no plano, e o construtor de público acabava com poder que a própria
+-- PR dizia não ter.
+
+select sigav.fc_aplicar_publico_avaliacao(
+  '00000000-0000-4000-8000-000000000123',
+  '{"filters":{"directorate":["DIR-A"]},"excludePersonIds":["00000000-0000-4000-8000-000000000114"]}'::jsonb
+);
+
+select is(
+  (select status from sigav.application_participants
+   where application_id = '00000000-0000-4000-8000-000000000123'
+     and person_id = '00000000-0000-4000-8000-000000000114'),
+  'BLOCKED',
+  'pessoa bloqueada e excluída explicitamente continua BLOCKED, não vira EXCLUDED'
+);
+
+-- O segundo passo do caminho antigo. Sem a correção, aqui viraria ELIGIBLE.
+select sigav.fc_aplicar_publico_avaliacao(
+  '00000000-0000-4000-8000-000000000123',
+  '{"filters":{"directorate":["DIR-A"]}}'::jsonb
+);
+
+select is(
+  (select status from sigav.application_participants
+   where application_id = '00000000-0000-4000-8000-000000000123'
+     and person_id = '00000000-0000-4000-8000-000000000114'),
+  'BLOCKED',
+  'reaplicar a regra sem a exclusão não levanta o bloqueio administrativo'
 );
 
 select * from finish();
