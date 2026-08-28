@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Hourglass, Info, ListFilter, Search, UserMinus, UserPlus, Users2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PeopleBaseSummaryCard } from "@/components/people-base-summary";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,7 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { listarCiclosDeParticipantes } from "@/lib/api/cliente-pessoas";
 import { aplicarPublico, buscarPessoasDoPublico, obterDimensoesDoPublico, previsualizarPublico } from "@/lib/api/cliente-publico";
+import { obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
 import {
   CHAVES_DE_DIMENSAO,
   ROTULO_DA_DIMENSAO,
@@ -85,14 +88,78 @@ export default function AdminParticipantsPage() {
   const temCriterio = regraTemCriterio(regra);
   const todasMarcadas = resultados.length > 0 && resultados.every((pessoa) => marcadas.has(pessoa.personId));
 
+  /*
+    Chegada pela jornada de configuração da avaliação.
+
+    `?ciclo=` traz o ciclo já escolhido, para quem veio da etapa anterior não ter
+    de procurar num seletor a avaliação que acabou de configurar. `?pesquisa=`
+    acompanha só para a navegação de etapas saber voltar às outras quatro — a
+    tela conhece o ciclo, não a avaliação.
+
+    Sem os parâmetros, nada muda: a tela continua sendo a porta independente de
+    gestão de público, com o seletor em branco.
+  */
+  const parametros = useSearchParams();
+  const cicloDaUrl = parametros.get("ciclo");
+  const pesquisaDaUrl = parametros.get("pesquisa");
+
+  /**
+   * Contexto da jornada, **depois de confirmado** que os dois identificadores
+   * do endereço descrevem o mesmo objeto.
+   *
+   * Nulo enquanto não confirmado, e nulo também quando não batem — nesse caso a
+   * tela volta a ser a de participantes de sempre, com o seletor livre, em vez
+   * de operar sobre uma combinação que não existe.
+   */
+  const [jornada, setJornada] = useState<{ surveyId: string; applicationId: string } | null>(null);
+
   useEffect(() => {
     let ativo = true;
     listarCiclosDeParticipantes()
-      .then((lista) => { if (ativo) setCiclos(lista); })
+      .then((lista) => {
+        if (!ativo) return;
+        setCiclos(lista);
+        // Só seleciona se o ciclo existir na lista: um identificador inválido no
+        // endereço não pode deixar a tela apontando para nada, sem dizer por quê.
+        if (cicloDaUrl && lista.some((item) => item.id === cicloDaUrl)) setCicloId(cicloDaUrl);
+      })
       .catch((erro) => { if (ativo) toast.error(errorMessageFromUnknown(erro)); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, []);
+  }, [cicloDaUrl]);
+
+  /*
+    A correspondência entre avaliação e ciclo é verificada, não presumida.
+
+    O endereço traz dois identificadores independentes, e nada impede que
+    cheguem desencontrados — link antigo, ciclo recriado, endereço editado à mão.
+    Confiar neles daria uma régua de etapas navegando para a avaliação A
+    enquanto o público é definido para o ciclo B.
+
+    A confirmação usa `obterOperacaoDoCiclo`, que já devolve o ciclo vigente da
+    avaliação. Nenhuma RPC nova: a pergunta "qual ciclo é desta avaliação?" já
+    tinha resposta.
+  */
+  useEffect(() => {
+    if (!pesquisaDaUrl || !cicloDaUrl) { setJornada(null); return; }
+    let ativo = true;
+    obterOperacaoDoCiclo(pesquisaDaUrl)
+      .then((operacao) => {
+        if (!ativo) return;
+        if (operacao.application?.id === cicloDaUrl) {
+          setJornada({ surveyId: pesquisaDaUrl, applicationId: cicloDaUrl });
+          return;
+        }
+        setJornada(null);
+        toast.error("O endereço aponta para um ciclo que não pertence a esta avaliação. Escolha o ciclo abaixo.");
+      })
+      .catch(() => {
+        // Falhar a verificação não pode travar a tela: ela volta ao modo
+        // independente, que funciona sozinho, em vez de ficar sem saída.
+        if (ativo) setJornada(null);
+      });
+    return () => { ativo = false; };
+  }, [pesquisaDaUrl, cicloDaUrl]);
 
   /*
     As opções são recarregadas a cada mudança de filtro, porque a cascata
@@ -343,7 +410,26 @@ export default function AdminParticipantsPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Público e elegibilidade" title="Participantes">
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      <Breadcrumbs items={[{ label: "Administração", href: "/admin" }, { label: "Participantes" }]} />
+      {/*
+        Chegando pela jornada, o cabeçalho é o mesmo das outras etapas — a tela
+        deixa de parecer um destino solto e passa a ser a etapa 2 de 5. Entrando
+        direto pelo menu, ela continua sendo a tela de participantes de sempre.
+      */}
+      {jornada ? (
+        <CabecalhoDaConfiguracao
+          surveyId={jornada.surveyId}
+          applicationId={jornada.applicationId}
+          nome={cicloSelecionado?.name}
+          etapa="publico"
+          meta={[
+            cicloSelecionado?.code,
+            cicloSelecionado ? `${cicloSelecionado.participantCount} no público atual` : null,
+          ]}
+          acao={<BotaoProximaEtapa etapa="publico" surveyId={jornada.surveyId} applicationId={jornada.applicationId} />}
+        />
+      ) : (
+        <Breadcrumbs items={[{ label: "Administração", href: "/admin" }, { label: "Participantes" }]} />
+      )}
 
       <PageHeader
         eyebrow="Gestão por avaliação"
@@ -377,16 +463,45 @@ export default function AdminParticipantsPage() {
           />
         ) : (
           <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,26rem)_1fr] lg:items-end">
-            <Select
-              label="Ciclo"
-              value={cicloId}
-              onChange={(evento) => selecionarCiclo(evento.target.value)}
-            >
-              <option value="">Selecione a avaliação</option>
-              {ciclos.map((item) => (
-                <option key={item.id} value={item.id}>{item.name} · {item.code}</option>
-              ))}
-            </Select>
+            {/*
+              Dentro da jornada o ciclo é fixo, não escolhido.
+
+              Com o seletor habilitado dava para trocar de ciclo enquanto
+              `?pesquisa=` continuava apontando para a avaliação anterior — e a
+              régua de etapas levaria de volta para a avaliação A enquanto o
+              público estava sendo definido para o ciclo B. Uma combinação que
+              não existe, montada sem ninguém perceber.
+
+              Fixar é melhor que sincronizar: para trocar o ciclo aqui eu teria
+              de descobrir a avaliação dele e reescrever o endereço, e cada passo
+              disso é uma chance nova de os dois se separarem. Quem quer outra
+              avaliação volta pelo catálogo, que é de onde a jornada parte.
+            */}
+            {jornada ? (
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Ciclo</p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {cicloSelecionado ? `${cicloSelecionado.name} · ${cicloSelecionado.code}` : "Carregando..."}
+                </p>
+                <Link
+                  href="/admin/participantes"
+                  className="mt-2 inline-block text-xs font-semibold text-[var(--brand-primary)] underline underline-offset-4"
+                >
+                  Definir público de outra avaliação
+                </Link>
+              </div>
+            ) : (
+              <Select
+                label="Ciclo"
+                value={cicloId}
+                onChange={(evento) => selecionarCiclo(evento.target.value)}
+              >
+                <option value="">Selecione a avaliação</option>
+                {ciclos.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name} · {item.code}</option>
+                ))}
+              </Select>
+            )}
             {cicloSelecionado && (
               <div className="flex flex-wrap items-center gap-2 pb-1">
                 <Badge variant="neutral">{cicloSelecionado.participantCount} no público atual</Badge>

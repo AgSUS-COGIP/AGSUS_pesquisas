@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/form-controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -173,17 +174,17 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
       title="Identidade visual"
     >
       <div className="mx-auto w-full max-w-[1400px] space-y-5">
-        {/* Fica fora do bloco de carregamento de propósito: a saída da tela precisa
-            existir antes dos dados e sobreviver a uma falha da RPC. */}
-        <nav aria-label="Ações da avaliação">
-          <Link
-            href={`/admin/pesquisas/${surveyId}/operacao`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar às propriedades
-          </Link>
-        </nav>
+        {/* Fica fora do bloco de carregamento de propósito: a navegação da
+            jornada precisa existir antes dos dados e sobreviver a uma falha da
+            RPC — sem ela, um erro aqui deixaria a pessoa sem saída visível. */}
+        <CabecalhoDaConfiguracao
+          surveyId={surveyId}
+          applicationId={application?.id}
+          nome={application?.name}
+          etapa="identidade"
+          meta={[application?.code, "Capa e textos de abertura"]}
+          acao={<BotaoProximaEtapa etapa="identidade" surveyId={surveyId} applicationId={application?.id} />}
+        />
 
         {dataLoading || !application ? (
           <div className="space-y-6" aria-live="polite" aria-busy="true">
@@ -196,11 +197,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           </div>
         ) : (
           <>
-            <PageHeader
-              eyebrow={application.code}
-              title="Identidade visual do instrumento"
-              description="Defina a imagem de capa e os textos exibidos no início da avaliação, edital ou ciclo."
-            />
+            {/* O nome da avaliação já é o título do cabeçalho da jornada; aqui
+                basta dizer o que esta etapa faz. */}
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Identidade visual</h3>
 
             <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
               <Surface className="p-6">
