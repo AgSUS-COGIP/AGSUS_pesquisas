@@ -9,7 +9,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.mjs\"",
+    "test:banco": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/banco/*.test.mjs\"",
+    "test:http": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/http/*.test.mjs\"",
+    "db:migrations": "node scripts/validar-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
