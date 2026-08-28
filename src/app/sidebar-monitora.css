@@ -48,8 +48,8 @@
     max-height: 100dvh !important;
     contain: layout paint;
     border-right-color: rgba(148, 163, 184, 0.24) !important;
-    background: linear-gradient(180deg, var(--sidebar-background) 0%, color-mix(in srgb, var(--sidebar-background) 82%, var(--brand-solid)) 54%, var(--sidebar-background) 100%) !important;
-    box-shadow: 14px 0 38px -30px rgba(2, 20, 38, 0.9) !important;
+    background: var(--sidebar-background) !important;
+    box-shadow: none !important;
   }
 
   aside.platform-desktop-sidebar > div,
@@ -65,21 +65,36 @@
     background: transparent !important;
   }
 
-  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:first-child {
-    color: #67e8f9 !important;
-  }
+  /*
+    As duas regras que ficavam aqui pintavam o nome do produto e o da
+    organização por posição — `span:first-child` e `span:last-child` dentro do
+    conjunto da marca. O markup mudou: o nome do produto virou `<strong>`, e os
+    seletores deixaram de descrever a árvore.
 
-  aside.platform-desktop-sidebar > div > div:first-child a > span:last-child span:last-child {
-    color: #ffffff !important;
-  }
+    O resultado era hierarquia invertida. O primeiro seletor não casava com
+    nada; o segundo acertava a linha **secundária** e a forçava a branco puro
+    com `!important`, deixando "AgSUS" (11 px) mais claro que "SIGAV" (15 px),
+    que é o nome principal.
+
+    Sem elas, valem as classes do componente, que já dizem o certo:
+    `--sidebar-foreground` no principal e `--sidebar-muted` no secundário.
+
+    Lição para quem for mexer: estilizar por posição de irmão amarra o CSS à
+    ordem exata das tags. Quando o markup muda, a regra não falha — ela passa a
+    acertar outro elemento, em silêncio.
+  */
 
   aside.platform-desktop-sidebar section > p {
-    color: rgba(219, 234, 254, 0.62) !important;
+    color: rgba(219, 234, 254, 0.66) !important;
+    letter-spacing: 0.04em !important;
+    text-transform: none !important;
   }
 
   aside.platform-desktop-sidebar nav a {
     color: rgba(239, 246, 255, 0.86) !important;
-    border: 1px solid transparent;
+    border: 0 !important;
+    border-left: 2px solid transparent !important;
+    border-radius: 0.5rem !important;
   }
 
   aside.platform-desktop-sidebar nav a:hover {
@@ -88,31 +103,20 @@
   }
 
   aside.platform-desktop-sidebar nav a > span:first-child {
-    background: rgba(255, 255, 255, 0.08) !important;
+    background: transparent !important;
     color: #dbeafe !important;
   }
 
   aside.platform-desktop-sidebar nav a[aria-current="page"] {
-    border-color: rgba(125, 211, 252, 0.45) !important;
-    background: linear-gradient(135deg, var(--brand-solid), color-mix(in srgb, var(--brand-solid) 72%, #38bdf8)) !important;
+    border-left-color: var(--brand-accent) !important;
+    background: rgba(255, 255, 255, 0.11) !important;
     color: #ffffff !important;
-    box-shadow: 0 12px 26px -18px rgba(0, 0, 0, 0.9) !important;
+    box-shadow: none !important;
   }
 
   aside.platform-desktop-sidebar nav a[aria-current="page"] > span:first-child {
-    background: rgba(255, 255, 255, 0.14) !important;
+    background: transparent !important;
     color: #ffffff !important;
-  }
-
-  aside.platform-desktop-sidebar > div > button {
-    border-color: rgba(125, 211, 252, 0.5) !important;
-    background: var(--brand-solid) !important;
-    color: #ffffff !important;
-    box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.85) !important;
-  }
-
-  aside.platform-desktop-sidebar > div > button:hover {
-    background: var(--brand-solid-hover) !important;
   }
 
   aside.platform-desktop-sidebar > div > div:last-child {
@@ -191,28 +195,65 @@
  * Fora do bloco `@media` de 1024px porque o drawer móvel rola pelo mesmo motivo.
  */
 aside.platform-desktop-sidebar .overflow-y-auto,
-.platform-mobile-drawer .overflow-y-auto {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto) {
   scrollbar-width: thin;
   scrollbar-color: rgba(219, 234, 254, 0.28) transparent;
 }
 
 aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar {
   width: 6px;
 }
 
 aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-track,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-track {
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar-track {
   background: transparent;
 }
 
-aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-thumb,
-.platform-mobile-drawer .overflow-y-auto::-webkit-scrollbar-thumb {
+aside.platform-desktop-sidebar .overflow-y-auto::-webkit-scrollbar-thumb {
   background-color: rgba(219, 234, 254, 0.28);
   border-radius: 999px;
 }
 
-aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb,
-.platform-mobile-drawer .overflow-y-auto:hover::-webkit-scrollbar-thumb {
+aside.platform-desktop-sidebar .overflow-y-auto:hover::-webkit-scrollbar-thumb {
   background-color: rgba(219, 234, 254, 0.45);
+}
+
+/*
+ * A gaveta móvel tem painel claro, então o polegar claro do bloco acima
+ * desapareceria nela. Aqui ele é escuro e translúcido — a mesma discrição, na
+ * direção oposta —, e acompanha o tema pelo token de borda.
+ */
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto) {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto)::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 999px;
+}
+
+:is(.platform-mobile-drawer.overflow-y-auto, .platform-mobile-drawer .overflow-y-auto):hover::-webkit-scrollbar-thumb {
+  background-color: var(--text-muted);
+}
+
+/*
+ * Logotipo na gaveta móvel, tema escuro.
+ *
+ * A regra em React (`useNegativeLogo`) cobre a barra do desktop, cujo fundo vem
+ * da cor configurada e não muda com o tema. A gaveta é outro caso: o fundo é
+ * `--surface-card`, branco no tema claro e escuro no tema escuro. No claro o
+ * logotipo original lê bem; no escuro ele some.
+ *
+ * Fica no CSS porque o atributo de tema já está no `<html>` antes da primeira
+ * pintura — resolver isso em React exigiria detectar tema no cliente e
+ * reintroduziria o flash que o script de arranque existe para evitar.
+ *
+ * Restrito a `img`: o fallback de `PlatformLogo` é um `span` com iniciais, e
+ * achatá-lo em branco apagaria o texto junto com o fundo.
+ */
+html[data-agsus-theme="dark"] .platform-mobile-drawer img.platform-brand-logo {
+  /* `.96` e não `1` — o branco puro dava contraste 17.98 e tornava o logotipo o
+     elemento mais brilhante do painel. Ver o comentário em `platform-shell.tsx`. */
+  filter: brightness(0) invert(.96);
 }

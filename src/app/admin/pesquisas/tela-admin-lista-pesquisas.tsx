@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ArchiveRestore, CalendarDays, CopyPlus, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, Share2, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarDays, CopyPlus, Eye, FileEdit, FilePlus2, FileQuestion, Hourglass, Search, Share2, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/confirmation-provider";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -461,6 +461,9 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDe
   deleting: boolean;
 }) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
+  // Mesma regra do construtor (`version.status === "DRAFT"`), lida do campo que
+  // `list_managed_surveys` já devolve. Sem duplicar critério nem inventar outro.
+  const versionIsDraft = survey.versionStatus === "DRAFT";
   const archived = Boolean(survey.archivedAt);
   const busy = cloning || archiving || deleting;
 
@@ -556,13 +559,27 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDe
       )}
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {/*
+          O construtor só edita enquanto a versão está em rascunho — é o que ele
+          próprio decide, por `version.status === "DRAFT"`. Com a versão
+          publicada, "Editar formulário" prometia o que a tela seguinte não
+          entrega: quem clicava chegava ao construtor protegido, sem ação útil.
+
+          O destino continua existindo, porque consultar o instrumento publicado
+          é legítimo. O que muda é o que o botão diz. A ação principal do cartão
+          já é "Propriedades", que leva à operação do ciclo — onde de fato há o
+          que fazer depois de publicado.
+        */}
         <Link
           href={`/admin/pesquisas/${survey.surveyId}`}
-          title="Editar seções, perguntas e alternativas"
+          title={versionIsDraft
+            ? "Editar seções, perguntas e alternativas"
+            : "Consultar o instrumento publicado. A versão está protegida e não aceita edição."}
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
         >
-          <FileEdit className="h-4 w-4" aria-hidden="true" />
-          Editar formulário
+          {versionIsDraft
+            ? <><FileEdit className="h-4 w-4" aria-hidden="true" />Editar formulário</>
+            : <><Eye className="h-4 w-4" aria-hidden="true" />Ver instrumento</>}
         </Link>
         <Link
           href={`/admin/pesquisas/${survey.surveyId}/operacao`}

@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, FileText, LayoutDashboard, RefreshCw, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, ExternalLink, FileText, Megaphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { FullPageState } from "@/components/full-page-state";
 import { PersonAvatar } from "@/components/person-avatar";
+import { usePlatformBranding } from "@/components/platform-branding-provider";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { PlatformShell, PlatformSkeleton } from "@/components/platform-shell";
 import { PlatformWelcome, useWelcomeState } from "@/components/platform-welcome";
@@ -16,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
+import { compareSurveyPriority, selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
 import { timeGreeting } from "@/lib/greeting";
 
@@ -27,7 +28,7 @@ import { timeGreeting } from "@/lib/greeting";
 function stateLabel(state: string) {
   if (state === "COMPLETED") return "Concluída";
   if (state === "IN_PROGRESS") return "Em andamento";
-  if (state === "CLOSED") return "Encerrada";
+  if (state === "CLOSED") return "Fechado";
   if (state === "SCHEDULED") return "Agendada";
   return "Pendente";
 }
@@ -35,7 +36,9 @@ function stateLabel(state: string) {
 function stateVariant(state: string) {
   if (state === "COMPLETED") return "success" as const;
   if (state === "IN_PROGRESS") return "warning" as const;
-  if (state === "CLOSED") return "neutral" as const;
+  // Vermelho, não cinza. Perder o prazo é desfecho, não ausência de estado — e
+  // `neutral` fazia o item fechado se parecer com qualquer outro da lista.
+  if (state === "CLOSED") return "danger" as const;
   if (state === "SCHEDULED") return "info" as const;
   return "outline" as const;
 }
@@ -63,6 +66,7 @@ export default function ParticipantAreaPage() {
   // o destino padrão pós-login — a resposta correta é redirecionar para
   // Pesquisas, não apresentar "acesso restrito".
   const guard = usePlatformGuard();
+  const { branding } = usePlatformBranding();
   const granted = guard.state === "granted";
   const router = useRouter();
   const [salutation, setSalutation] = useState("Olá");
@@ -104,9 +108,12 @@ export default function ParticipantAreaPage() {
     volta a ter função — o que vem depois da próxima ação.
   */
   const otherItems = useMemo(
-    () => catalog.filter((item) => item.applicationId !== priorityItem?.applicationId),
+    () => catalog
+      .filter((item) => item.applicationId !== priorityItem?.applicationId)
+      .toSorted(compareSurveyPriority),
     [catalog, priorityItem],
   );
+  const hasMoreActions = otherItems.some((item) => ["PENDING", "IN_PROGRESS"].includes(itemState(item)));
 
   /**
    * Data do prazo mais próximo entre o que a pessoa ainda pode resolver.
@@ -141,19 +148,11 @@ export default function ParticipantAreaPage() {
 
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
-  const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
+
   // `?? fullName` porque `split` é tipado como podendo não ter o índice 0 —
   // nome com espaço no início devolveria vazio, e é melhor o nome inteiro que
   // uma saudação sem ninguém.
   const firstName = person.fullName.split(/\s+/).filter(Boolean)[0] ?? person.fullName;
-
-  // A administração não tem atalho aqui: a central foi retirada da navegação e
-  // cada módulo administrativo tem entrada própria no menu lateral.
-  const actions = [
-    { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar avaliações", icon: FileText },
-    ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliar", icon: Users2 }] : []),
-    ...(modules.includes(PLATFORM_MODULE.DASHBOARDS) ? [{ href: "/paineis", title: "Painéis", text: "Indicadores e acompanhamento dos ciclos", icon: LayoutDashboard }] : []),
-  ];
 
   // A legenda de cada indicador responde "e daí?": urgência quando há prazo
   // apertado, percentual quando o número sozinho não diz se está bem.
@@ -163,16 +162,19 @@ export default function ParticipantAreaPage() {
       label: "Pendentes",
       value: metrics.pending,
       description: metrics.pending === 0 ? "nada aguardando você" : "aguardando você começar",
+      href: "/pesquisas?situacao=OPEN",
     },
     {
       label: "Em andamento",
       value: metrics.inProgress,
       description: metrics.inProgress === 0 ? "nenhuma iniciada" : "já iniciadas, faltam enviar",
+      href: "/pesquisas?situacao=DRAFT",
     },
     {
       label: "Concluídas",
       value: metrics.completed,
       description: metrics.total ? `${metrics.completionRate}% do que está disponível` : "enviadas e registradas",
+      href: "/pesquisas?situacao=COMPLETED",
     },
     {
       label: "Prazo mais próximo",
@@ -201,15 +203,20 @@ export default function ParticipantAreaPage() {
             ? `até ${nextDeadlineDate}`
             : urgentLabel,
       alert: metrics.urgent > 0,
+      href: "/pesquisas?situacao=OPEN",
     },
   ];
 
   // Mesma fonte que alimenta a métrica "Prazo mais próximo" e os cartões do
   // catálogo — por isso os números concordam.
   const priorityDeadline = priorityItem ? deadlineLabel(deadlineStatus(priorityItem.closesAt, new Date())) : null;
+  const showAnnouncement = branding.homeAnnouncementEnabled
+    && Boolean(branding.homeAnnouncementTitle)
+    && Boolean(branding.homeAnnouncementMessage);
+  const externalAnnouncementLink = branding.homeAnnouncementLink?.startsWith("https://") ?? false;
 
   return (
-    <PlatformShell user={user} eyebrow="Ambiente institucional" title="Visão geral">
+    <PlatformShell user={user} title="Visão geral">
       {/*
         Tentei antes forçar a página a ocupar a altura da janela, com
         `min-height` e a jornada crescendo para absorver a sobra. Em monitor
@@ -227,17 +234,53 @@ export default function ParticipantAreaPage() {
         instituição começava à esquerda dos cartões — e ainda desperdiçava 360px
         de largura justamente na tela em que sobrava espaço.
       */}
-      <div className="flex w-full flex-col gap-5">
+      <div className="flex w-full flex-col gap-6">
         {/* Recepção da primeira visita. Some ao ser dispensada e não volta. */}
         <PlatformWelcome visible={welcome.visible} onDismiss={welcome.dismiss} firstName={firstName} />
+        {showAnnouncement ? (
+          <section
+            aria-label="Comunicado institucional"
+            className="flex flex-col gap-3 border-l-[3px] border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-4 py-3 sm:flex-row sm:items-center"
+          >
+            <span className="shrink-0 text-[var(--status-info-text)]">
+              <Megaphone className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-[var(--status-info-text)]">Comunicado institucional</p>
+              <h2 className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">{branding.homeAnnouncementTitle}</h2>
+              <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{branding.homeAnnouncementMessage}</p>
+            </div>
+            {branding.homeAnnouncementLink ? (
+              externalAnnouncementLink ? (
+                <a
+                  href={branding.homeAnnouncementLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  {branding.homeAnnouncementLinkLabel}
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
+              ) : (
+                <Link
+                  href={branding.homeAnnouncementLink}
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]"
+                >
+                  {branding.homeAnnouncementLinkLabel}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )
+            ) : null}
+          </section>
+        ) : null}
         {/*
           Identificação e métricas deixaram de ser cartões dentro de cartão. A
           faixa usa espaço e tipografia para separar — não borda —, e a régua
           vertical entre os números vem só a partir de `sm`, onde há largura
           para ela significar alguma coisa.
         */}
-        <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-          <article className="@container flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+          <article className="@container flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 sm:p-6">
             {/*
               A saudação sai enquanto a recepção estiver no ar: a faixa acima já
               diz "Boas-vindas, {nome}", e repetir "Boa tarde, {nome}" logo
@@ -263,7 +306,7 @@ export default function ParticipantAreaPage() {
               só ~700px, e "Prazo mais próximo" quebrava em duas linhas do mesmo
               jeito. O breakpoint estava medindo a coisa errada.
             */}
-            <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
+            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
               {metricTiles.map((tile, index) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
@@ -273,20 +316,25 @@ export default function ParticipantAreaPage() {
                 const unknown = catalogLoading || catalogFailed;
                 // O recuo acompanha a régua: só existe onde ela existe.
                 return (
-                  <div key={tile.label} className={index > 0 ? "@4xl:pl-6" : undefined}>
-                    <dt className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--text-secondary)]">{tile.label}</dt>
-                    <dd>
+                  <Link
+                    key={tile.label}
+                    href={tile.href}
+                    aria-label={`Ver avaliações: ${tile.label}`}
+                    className={`group rounded-md px-2 py-1 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
+                  >
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</span>
+                    <span className="block">
                       <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
                         {unknown ? "—" : tile.value}
                       </strong>
                       <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
                         {catalogLoading ? "carregando" : catalogFailed ? "indisponível" : tile.description}
                       </span>
-                    </dd>
-                  </div>
+                    </span>
+                  </Link>
                 );
               })}
-            </dl>
+            </nav>
           </article>
 
           {/*
@@ -294,7 +342,7 @@ export default function ParticipantAreaPage() {
             recebe fundo de marca. Antes ela competia de igual para igual com
             quatro atalhos e uma lista.
           */}
-          <aside aria-label="Próxima ação" className="flex flex-col rounded-2xl border border-[var(--brand-primary)]/15 bg-[var(--status-info-bg)] p-5 shadow-[var(--shadow-card)] sm:p-6">
+          <aside aria-label="Próxima ação" className="flex flex-col rounded-lg border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-5 sm:p-6">
             {catalogLoading ? (
               <div className="space-y-3" aria-busy="true">
                 <Skeleton className="h-4 w-24" />
@@ -319,10 +367,10 @@ export default function ParticipantAreaPage() {
             ) : priorityItem ? <>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Próxima ação</p>
+                  <p className="text-xs font-semibold text-[var(--status-info-text)]">Próxima ação</p>
                   <h3 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)]">{priorityItem.applicationName}</h3>
                 </div>
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-[var(--brand-primary)]">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[var(--surface-card)] text-[var(--brand-primary)]">
                   <CalendarClock className="h-5 w-5" aria-hidden="true" />
                 </span>
               </div>
@@ -339,7 +387,7 @@ export default function ParticipantAreaPage() {
 
               <Link
                 href={applicationHref(priorityItem)}
-                className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand-solid)] px-5 text-sm font-semibold text-[var(--text-on-brand)] shadow-sm transition hover:bg-[var(--brand-solid-hover)]"
+                className="institutional-action mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition"
               >
                 {itemState(priorityItem) === "IN_PROGRESS" ? "Continuar de onde parei" : "Abrir avaliação"}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -366,11 +414,12 @@ export default function ParticipantAreaPage() {
           explica a falha e oferece nova tentativa.
         */}
         {catalogLoading || catalogFailed || otherItems.length ? (
-        <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]">
+        <article className="flex flex-col overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5 sm:p-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Sua jornada</p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Suas outras avaliações</h2>
+                <p className="text-xs font-medium text-[var(--text-secondary)]">Avaliações</p>
+                <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--text-primary)]">{hasMoreActions ? "Próximas pendências" : "Acompanhe também"}</h2>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">{hasMoreActions ? "Ordenadas primeiro pelo que já foi iniciado e depois pelo prazo." : "Histórico e ciclos que não exigem ação neste momento."}</p>
               </div>
               <Link href="/pesquisas" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--surface-hover)]">
                 Ver catálogo
@@ -414,7 +463,11 @@ export default function ParticipantAreaPage() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{item.applicationName}</strong>
-                          <small className="mt-1 block truncate text-xs text-[var(--text-secondary)]">{item.surveyName} · {item.questions} {item.questions === 1 ? "pergunta" : "perguntas"}</small>
+                          <small className="mt-1 block truncate text-xs text-[var(--text-secondary)]">
+                            {["PENDING", "IN_PROGRESS"].includes(state)
+                              ? `${item.surveyName} · prazo ${dateLabel(item.closesAt)}`
+                              : `${item.surveyName} · ${item.questions} ${item.questions === 1 ? "pergunta" : "perguntas"}`}
+                          </small>
                         </span>
                         <Badge variant={stateVariant(state)} className="hidden sm:inline-flex">{stateLabel(state)}</Badge>
                         <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-1 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />
@@ -428,24 +481,17 @@ export default function ParticipantAreaPage() {
         ) : null}
 
         {/*
-          Atalhos como faixa de links, não como cartões: eles repetem destinos que
-          já existem no menu lateral, então servem de conveniência — não competem
-          com a próxima ação nem com a jornada.
+          A faixa de atalhos "Pesquisas · Minha equipe · Painéis" foi removida.
+
+          O próprio comentário que estava aqui reconhecia o problema: eles
+          repetiam destinos que já existem no menu lateral. Um atalho que duplica
+          a navegação não acrescenta caminho — ocupa o fim da tela repetindo o
+          que a barra já mostra, e ainda concorre com a lista de avaliações, que
+          é o conteúdo próprio desta página.
+
+          Os três destinos continuam a um clique, no menu lateral, com o item
+          ativo indicando onde a pessoa está — coisa que a faixa não fazia.
         */}
-        <nav aria-label="Acessos principais" className="flex flex-wrap gap-2">
-          {actions.map(({ href, title, text, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              title={text}
-              className="group inline-flex min-h-11 flex-1 items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-card)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)] sm:min-w-52 sm:flex-none"
-            >
-              <Icon className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
-              <span className="truncate">{title}</span>
-              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />
-            </Link>
-          ))}
-        </nav>
       </div>
     </PlatformShell>
   );
