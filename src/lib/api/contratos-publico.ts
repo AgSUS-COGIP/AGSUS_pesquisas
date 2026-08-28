@@ -76,14 +76,32 @@ export type PessoaDaPrevia = {
   alreadyLinked: boolean;
 };
 
-/** Resultado da prévia. Leitura pura — nada aqui altera o público. */
+/**
+ * Resultado da prévia. Leitura pura — nada aqui altera o público.
+ *
+ * Dois totais, porque descrevem coisas diferentes:
+ *
+ * - `matchedCount` é o alcance do critério;
+ * - `effectiveCount` é quantas pessoas ficam com acesso depois de aplicar.
+ *
+ * Eles divergem quando há bloqueio administrativo (a pessoa casa com a regra mas
+ * segue barrada) ou progresso preservado (não casa mais, mas já começou e
+ * permanece). O número que descreve a operação é o segundo.
+ */
 export type PreviaDoPublico = {
   status: "OK";
-  /** Público efetivo, já sem as pessoas excluídas. */
   matchedCount: number;
-  alreadyLinkedCount: number;
+  effectiveCount: number;
   newLinkCount: number;
+  reactivatedCount: number;
+  keptCount: number;
   excludedCount: number;
+  /** Deixaram de casar com a regra e saem do público. */
+  removedCount: number;
+  /** Deixaram de casar, mas já começaram ou concluíram: permanecem. */
+  retainedWithProgressCount: number;
+  /** Casam com a regra e seguem bloqueadas por decisão administrativa. */
+  blockedKeptCount: number;
   /** Pessoas incluídas à mão que não passam na elegibilidade. */
   ineligibleIncludedCount: number;
   sample: PessoaDaPrevia[];
@@ -95,6 +113,10 @@ export type ResultadoDaAplicacao = {
   reactivatedCount: number;
   keptCount: number;
   excludedCount: number;
+  removedCount: number;
+  retainedWithProgressCount: number;
+  blockedKeptCount: number;
+  effectiveCount: number;
 };
 
 /** Regra vazia — ponto de partida da tela. */

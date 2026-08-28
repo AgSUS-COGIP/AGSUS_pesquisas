@@ -220,13 +220,19 @@ export default function AdminParticipantsPage() {
   async function confirmarAplicacao() {
     if (!cicloId || !previa || !cicloSelecionado) return;
 
+    // A confirmação precisa dizer o que sai, não só o que entra. Confirmar uma
+    // troca de critério sem saber que 30 pessoas deixam o público é confirmar
+    // outra operação.
+    const saida = previa.removedCount > 0
+      ? ` ${previa.removedCount} ${previa.removedCount === 1 ? "pessoa sai" : "pessoas saem"} do público.`
+      : "";
     const confirmado = await confirm({
       title: "Aplicar o público?",
       description:
-        `${previa.matchedCount} ${previa.matchedCount === 1 ? "pessoa passa" : "pessoas passam"} a compor o público de "${cicloSelecionado.name}". ` +
-        `${previa.newLinkCount} ${previa.newLinkCount === 1 ? "vínculo novo" : "vínculos novos"} e ` +
-        `${previa.excludedCount} ${previa.excludedCount === 1 ? "exclusão registrada" : "exclusões registradas"}.`,
+        `"${cicloSelecionado.name}" fica com ${previa.effectiveCount} ${previa.effectiveCount === 1 ? "pessoa" : "pessoas"}. ` +
+        `${previa.newLinkCount} ${previa.newLinkCount === 1 ? "entra agora" : "entram agora"}.${saida}`,
       confirmLabel: "Aplicar público",
+      tone: previa.removedCount > 0 ? "danger" : "primary",
       showReviewNotice: false,
     });
     if (!confirmado) return;
@@ -235,10 +241,10 @@ export default function AdminParticipantsPage() {
     try {
       const resultado = await aplicarPublico(cicloId, regra);
       toast.success(
-        `Público aplicado: ${resultado.assignedCount} novo(s), ${resultado.reactivatedCount} reativado(s), ${resultado.keptCount} mantido(s).`,
+        `Público aplicado: ${resultado.effectiveCount} no total — ${resultado.assignedCount} novo(s), ${resultado.keptCount} mantido(s), ${resultado.removedCount} fora.`,
       );
       setCiclos((atuais) => atuais.map((item) => item.id === cicloId
-        ? { ...item, participantCount: previa.matchedCount }
+        ? { ...item, participantCount: previa.effectiveCount }
         : item));
       await calcularPrevia();
     } catch (erro) {
@@ -555,30 +561,63 @@ export default function AdminParticipantsPage() {
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label="Público encontrado" value={previa.matchedCount} description="já sem as pessoas excluídas" />
+              {/* O total em destaque é o efetivo, não o alcance do critério: é
+                  ele que descreve como o público fica depois de aplicar. */}
+              <StatCard label="Público depois de aplicar" value={previa.effectiveCount} description={`o critério alcança ${previa.matchedCount}`} />
               <StatCard label="Vínculos novos" value={previa.newLinkCount} description="pessoas que ainda não estavam" />
-              <StatCard label="Já vinculadas" value={previa.alreadyLinkedCount} description="permanecem como estão" />
-              <StatCard label="Exclusões" value={previa.excludedCount} description="casaram com o critério e foram retiradas" />
+              <StatCard label="Mantidas" value={previa.keptCount} description="já estavam e continuam" />
+              <StatCard label="Saem do público" value={previa.removedCount} description="deixaram de casar com o critério" />
             </div>
 
+            {/* Os avisos só aparecem quando têm o que dizer. Cartão de zero é
+                ruído que ensina a ignorar a área inteira. */}
+            {previa.removedCount > 0 && (
+              <p role="status" className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4 text-sm leading-6 text-[var(--status-warning-text)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <strong className="font-semibold">Aplicar substitui o público, não soma ao anterior.</strong>{" "}
+                  {previa.removedCount} {previa.removedCount === 1 ? "pessoa sai" : "pessoas saem"} porque o critério novo não {previa.removedCount === 1 ? "a alcança" : "as alcança"}.
+                  O vínculo e o histórico continuam registrados — ninguém é apagado.
+                </span>
+              </p>
+            )}
+
+            {previa.retainedWithProgressCount > 0 && (
+              <p role="status" className="mt-3 flex items-start gap-3 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  {previa.retainedWithProgressCount} {previa.retainedWithProgressCount === 1 ? "pessoa permanece" : "pessoas permanecem"} no público mesmo sem casar com o critério, por já {previa.retainedWithProgressCount === 1 ? "ter começado ou concluído" : "terem começado ou concluído"} a avaliação. Trabalho feito não é desfeito por mudança de critério.
+                </span>
+              </p>
+            )}
+
+            {previa.blockedKeptCount > 0 && (
+              <p role="status" className="mt-3 flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  {previa.blockedKeptCount} {previa.blockedKeptCount === 1 ? "pessoa casa" : "pessoas casam"} com o critério mas {previa.blockedKeptCount === 1 ? "segue bloqueada" : "seguem bloqueadas"} por decisão administrativa, e {previa.blockedKeptCount === 1 ? "continua" : "continuam"} assim. Para liberar, use a gestão do público vinculado.
+                </span>
+              </p>
+            )}
+
             {previa.ineligibleIncludedCount > 0 && (
-              <p role="status" className="mt-4 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4 text-sm leading-6 text-[var(--status-warning-text)]">
+              <p role="status" className="mt-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4 text-sm leading-6 text-[var(--status-warning-text)]">
                 {previa.ineligibleIncludedCount} {previa.ineligibleIncludedCount === 1 ? "pessoa incluída não está" : "pessoas incluídas não estão"} ativa(s) na base e por isso não {previa.ineligibleIncludedCount === 1 ? "entra" : "entram"} no público.
               </p>
             )}
 
-            {previa.matchedCount === 0 ? (
+            {previa.effectiveCount === 0 ? (
               <EmptyState
                 className="mt-4"
                 title="Nenhuma pessoa alcançada"
-                description="O critério atual não encontra ninguém ativo na base. Revise as escolhas antes de aplicar."
+                description="O critério atual não deixa ninguém no público. Revise as escolhas antes de aplicar."
               />
             ) : (
               <div className="mt-5">
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Amostra do público
                   <span className="ml-2 font-normal text-[var(--text-secondary)]">
-                    {previa.sample.length} de {previa.matchedCount}
+                    {previa.sample.length} de {previa.effectiveCount}
                   </span>
                 </h3>
                 <div className="mt-3 overflow-x-auto">
@@ -612,13 +651,13 @@ export default function AdminParticipantsPage() {
 
             {/* Etapa 4 — a confirmação */}
             <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border-subtle)] pt-5">
-              <Button onClick={() => void confirmarAplicacao()} disabled={aplicando || previa.matchedCount === 0}>
+              <Button onClick={() => void confirmarAplicacao()} disabled={aplicando || previa.effectiveCount === 0}>
                 {aplicando
                   ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Aplicando...</>
                   : <><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Aplicar público</>}
               </Button>
               <p className="text-sm text-[var(--text-secondary)]">
-                O público fica registrado como está agora e não muda sozinho se alguém trocar de cargo depois.
+                O público fica registrado como está agora e não muda sozinho se alguém trocar de cargo depois. Aplicar de novo substitui o público pelo critério vigente.
               </p>
             </div>
           </Surface>
