@@ -108,3 +108,18 @@ export function regraTemCriterio(regra: RegraDePublico) {
   if ((regra.includePersonIds ?? []).length > 0) return true;
   return CHAVES_DE_DIMENSAO.some((chave) => (regra.filters[chave] ?? []).length > 0);
 }
+
+/** Pessoa devolvida pela busca do seletor individual. */
+export type PessoaEncontrada = {
+  personId: string;
+  fullName: string;
+  employeeNumber: string;
+  jobTitle: string | null;
+  unit: string | null;
+  directorate: string | null;
+};
+
+export type PessoasEncontradas = {
+  status: "OK" | "FORBIDDEN";
+  people: PessoaEncontrada[];
+};

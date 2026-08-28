@@ -12,7 +12,7 @@
 
 begin;
 
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-0000000000c1', 'authenticated', 'authenticated', 'publico-admin@agenciasus.org.br', now(), now());
@@ -182,6 +182,32 @@ select is(
      and event_type = 'APPLICATION_AUDIENCE_APPLIED'),
   1,
   'a aplicação é auditada pelo mecanismo existente'
+);
+
+-- ---------------------------------------------------------------------------
+-- Busca de pessoa, para inclusão e exclusão individual
+-- ---------------------------------------------------------------------------
+
+-- A busca administrativa existente exige `employment_status = 'ATIVO'`,
+-- enquanto a elegibilidade desta fase é `active`. Se o seletor usasse aquela,
+-- alguém elegível pelo filtro ficaria invisível na busca — e não haveria como
+-- explicar a diferença a quem opera.
+select is(
+  (select sigav.fc_buscar_pessoas_publico('ana assessora') -> 'people' -> 0 ->> 'fullName'),
+  'Ana Assessora',
+  'a busca encontra apesar da diferença de acento e caixa no termo'
+);
+
+select is(
+  (select jsonb_array_length(sigav.fc_buscar_pessoas_publico('Davi') -> 'people')),
+  0,
+  'pessoa inativa não aparece na busca, coerente com a elegibilidade da fase'
+);
+
+select is(
+  (select sigav.fc_buscar_pessoas_publico('TESTE-PUB-2') -> 'people' -> 0 ->> 'fullName'),
+  'Bruno Assessor',
+  'a busca aceita matrícula, não só nome'
 );
 
 select * from finish();

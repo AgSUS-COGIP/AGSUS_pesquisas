@@ -220,6 +220,69 @@ as $function$
 $function$;
 
 -- ---------------------------------------------------------------------------
+-- Busca de pessoa, para inclusão e exclusão individual
+-- ---------------------------------------------------------------------------
+
+-- `search_admin_people_for_application` já busca pessoas, mas **não serve
+-- aqui**: ela exige `active and employment_status = 'ATIVO'`, enquanto a
+-- elegibilidade desta fase é `active` e só. Reusá-la deixaria invisível no
+-- seletor justamente quem a regra considera elegível — a pessoa não apareceria
+-- na busca, mas entraria pelo filtro, e ninguém entenderia por quê.
+--
+-- Duas telas com dois conjuntos elegíveis diferentes é o tipo de divergência que
+-- já custou uma reconciliação neste repositório. Enquanto os predicados legados
+-- não convergirem, esta busca usa o desta fase.
+create or replace function sigav.fc_buscar_pessoas_publico(
+  p_busca text default null,
+  p_limite integer default 20
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path to 'pg_catalog', 'sigav', 'auth'
+as $function$
+  with termo as (
+    select sigav.fc_normalizar_rotulo(p_busca) as valor
+  ),
+  encontradas as (
+    select p.id, p.full_name, p.employee_number, p.job_title,
+           p.metadata ->> 'unit' as unidade,
+           p.metadata ->> 'directorate' as diretoria
+    from sigav.people p, termo t
+    where p.active
+      and (
+        t.valor is null
+        or sigav.fc_normalizar_rotulo(p.full_name) like '%' || t.valor || '%'
+        or sigav.fc_normalizar_rotulo(p.employee_number) like '%' || t.valor || '%'
+        or sigav.fc_normalizar_rotulo(p.institutional_email) like '%' || t.valor || '%'
+      )
+    order by p.full_name
+    -- Teto rígido: a lista é um seletor, não um relatório. `least` impede que
+    -- um parâmetro grande transforme a busca em varredura da base inteira.
+    limit least(greatest(coalesce(p_limite, 20), 1), 50)
+  )
+  select case
+    when not sigav.can_manage_surveys()
+      then jsonb_build_object('status', 'FORBIDDEN')
+    else jsonb_build_object(
+      'status', 'OK',
+      'people', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'personId', id,
+          'fullName', full_name,
+          'employeeNumber', employee_number,
+          'jobTitle', job_title,
+          'unit', unidade,
+          'directorate', diretoria
+        ) order by full_name)
+        from encontradas
+      ), '[]'::jsonb)
+    )
+  end;
+$function$;
+
+-- ---------------------------------------------------------------------------
 -- Prévia — leitura pura, garantida pelo `stable`
 -- ---------------------------------------------------------------------------
 
@@ -460,10 +523,12 @@ revoke all on function sigav.fc_normalizar_rotulo(text) from public, anon;
 revoke all on function sigav.fc_dimensao_publico_atende(text, jsonb) from public, anon;
 revoke all on function sigav.fc_resolver_publico_avaliacao(jsonb) from public, anon;
 revoke all on function sigav.fc_listar_dimensoes_publico() from public, anon;
+revoke all on function sigav.fc_buscar_pessoas_publico(text, integer) from public, anon;
 revoke all on function sigav.fc_previsualizar_publico_avaliacao(uuid, jsonb, integer) from public, anon;
 revoke all on function sigav.fc_aplicar_publico_avaliacao(uuid, jsonb, text) from public, anon;
 
 grant execute on function sigav.fc_listar_dimensoes_publico() to authenticated;
+grant execute on function sigav.fc_buscar_pessoas_publico(text, integer) to authenticated;
 grant execute on function sigav.fc_previsualizar_publico_avaliacao(uuid, jsonb, integer) to authenticated;
 grant execute on function sigav.fc_aplicar_publico_avaliacao(uuid, jsonb, text) to authenticated;
 
@@ -488,6 +553,7 @@ commit;
 -- begin;
 --   drop function if exists sigav.fc_aplicar_publico_avaliacao(uuid, jsonb, text);
 --   drop function if exists sigav.fc_previsualizar_publico_avaliacao(uuid, jsonb, integer);
+--   drop function if exists sigav.fc_buscar_pessoas_publico(text, integer);
 --   drop function if exists sigav.fc_listar_dimensoes_publico();
 --   drop function if exists sigav.fc_resolver_publico_avaliacao(jsonb);
 --   drop function if exists sigav.fc_dimensao_publico_atende(text, jsonb);

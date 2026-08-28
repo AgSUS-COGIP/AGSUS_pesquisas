@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Hourglass, Info, ListFilter, Users2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Hourglass, Info, ListFilter, Search, UserMinus, UserPlus, Users2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
 import { PlatformGuardState } from "@/components/platform-guard-state";
@@ -10,13 +10,13 @@ import { useConfirm } from "@/components/confirmation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { Checkbox, Select } from "@/components/ui/form-controls";
+import { Checkbox, Input, Select } from "@/components/ui/form-controls";
 import { Breadcrumbs } from "@/components/ui/page-navigation";
 import { PageHeader, StatCard, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { listarCiclosDeParticipantes } from "@/lib/api/cliente-pessoas";
-import { aplicarPublico, obterDimensoesDoPublico, previsualizarPublico } from "@/lib/api/cliente-publico";
+import { aplicarPublico, buscarPessoasDoPublico, obterDimensoesDoPublico, previsualizarPublico } from "@/lib/api/cliente-publico";
 import {
   CHAVES_DE_DIMENSAO,
   ROTULO_DA_DIMENSAO,
@@ -24,6 +24,7 @@ import {
   regraVazia,
   type ChaveDeDimensao,
   type DimensoesDoPublico,
+  type PessoaEncontrada,
   type PreviaDoPublico,
   type RegraDePublico,
 } from "@/lib/api/contratos-publico";
@@ -57,6 +58,13 @@ export default function AdminDefinirPublicoPage() {
   const [calculando, setCalculando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [dimensoesIndisponiveis, setDimensoesIndisponiveis] = useState(false);
+  const [buscaPessoa, setBuscaPessoa] = useState("");
+  const [resultados, setResultados] = useState<PessoaEncontrada[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [buscou, setBuscou] = useState(false);
+  // Nome de cada pessoa escolhida, guardado no momento da escolha. As listas da
+  // regra carregam identificadores, e mostrar UUID a quem opera não é opção.
+  const [nomesDePessoas, setNomesDePessoas] = useState<Record<string, string>>({});
 
   const cicloSelecionado = useMemo(
     () => ciclos.find((item) => item.id === cicloId) ?? null,
@@ -99,6 +107,12 @@ export default function AdminDefinirPublicoPage() {
     setCicloId(id);
     setRegra(regraVazia());
     setPrevia(null);
+    // O seletor de pessoas também zera: nomes escolhidos para um ciclo não
+    // devem reaparecer como se pertencessem ao seguinte.
+    setBuscaPessoa("");
+    setResultados([]);
+    setBuscou(false);
+    setNomesDePessoas({});
   }
 
   // Qualquer mudança na regra invalida a prévia: número velho ao lado de
@@ -106,6 +120,44 @@ export default function AdminDefinirPublicoPage() {
   function alterarRegra(proxima: RegraDePublico) {
     setRegra(proxima);
     setPrevia(null);
+  }
+
+  async function buscarPessoas() {
+    if (!cicloId) return;
+    setBuscando(true);
+    try {
+      const resposta = await buscarPessoasDoPublico(cicloId, buscaPessoa);
+      setResultados(resposta.people ?? []);
+      setBuscou(true);
+    } catch (erro) {
+      toast.error(errorMessageFromUnknown(erro));
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  /**
+   * Alterna a pessoa entre as listas.
+   *
+   * Incluir e excluir são mutuamente exclusivos: pôr alguém nas duas listas
+   * significaria pedir e desfazer o mesmo pedido, e a exclusão venceria em
+   * silêncio. Escolher um lado remove o outro.
+   */
+  function alternarPessoa(chave: "includePersonIds" | "excludePersonIds", pessoa: PessoaEncontrada) {
+    const oposta = chave === "includePersonIds" ? "excludePersonIds" : "includePersonIds";
+    const atuais = regra[chave] ?? [];
+    const jaEsta = atuais.includes(pessoa.personId);
+
+    setNomesDePessoas((mapa) => ({ ...mapa, [pessoa.personId]: pessoa.fullName }));
+    alterarRegra({
+      ...regra,
+      [chave]: jaEsta ? atuais.filter((id) => id !== pessoa.personId) : [...atuais, pessoa.personId],
+      [oposta]: (regra[oposta] ?? []).filter((id) => id !== pessoa.personId),
+    });
+  }
+
+  function removerPessoa(chave: "includePersonIds" | "excludePersonIds", id: string) {
+    alterarRegra({ ...regra, [chave]: (regra[chave] ?? []).filter((item) => item !== id) });
   }
 
   function alternarValor(dimensao: ChaveDeDimensao, valor: string) {
@@ -302,6 +354,113 @@ export default function AdminDefinirPublicoPage() {
               })}
             </div>
           )}
+
+          {/*
+            Pessoa é a sexta dimensão, e não cabe numa lista de opções: são
+            1.030 nomes. Aqui ela é busca, e cada resultado tem as duas ações
+            possíveis — somar ao público ou tirá-lo dele.
+
+            Vale para quando o filtro não alcança alguém que precisa responder, e
+            para o contrário: alguém que o filtro alcançou mas não deve entrar.
+          */}
+          <section className="mt-6 rounded-xl border border-[var(--border-subtle)] p-4">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Pessoa</h3>
+            <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+              Inclusões somam ao que os filtros alcançaram. Exclusões prevalecem sobre tudo.
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <Input
+                label="Buscar por nome, matrícula ou e-mail"
+                value={buscaPessoa}
+                onChange={(evento) => setBuscaPessoa(evento.target.value)}
+                onKeyDown={(evento) => { if (evento.key === "Enter") { evento.preventDefault(); void buscarPessoas(); } }}
+                containerClassName="min-w-0 flex-1 basis-72"
+                placeholder="Ex.: Maria, 12345, maria@..."
+              />
+              {/* Mesma causa do aviso acima: a busca é outra função da mesma
+                  migration. Oferecer um botão que só sabe falhar é pior do que
+                  desabilitá-lo. */}
+              <Button variant="secondary" onClick={() => void buscarPessoas()} disabled={buscando || dimensoesIndisponiveis}>
+                {buscando
+                  ? <><Hourglass className="h-4 w-4 animate-pulse" aria-hidden="true" />Buscando...</>
+                  : <><Search className="h-4 w-4" aria-hidden="true" />Buscar</>}
+              </Button>
+            </div>
+
+            {resultados.length > 0 && (
+              <ul className="mt-3 max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-lg border border-[var(--border-subtle)]">
+                {resultados.map((pessoa) => {
+                  const incluida = (regra.includePersonIds ?? []).includes(pessoa.personId);
+                  const excluida = (regra.excludePersonIds ?? []).includes(pessoa.personId);
+                  return (
+                    <li key={pessoa.personId} className="flex flex-wrap items-center gap-3 p-3">
+                      <span className="min-w-0 flex-1">
+                        <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{pessoa.fullName}</strong>
+                        <small className="block truncate text-xs text-[var(--text-secondary)]">
+                          {[pessoa.employeeNumber, pessoa.jobTitle, pessoa.unit].filter(Boolean).join(" · ")}
+                        </small>
+                      </span>
+                      <span className="flex shrink-0 gap-2">
+                        <Button
+                          variant={incluida ? "primary" : "secondary"}
+                          onClick={() => alternarPessoa("includePersonIds", pessoa)}
+                        >
+                          <UserPlus className="h-4 w-4" aria-hidden="true" />
+                          {incluida ? "Incluída" : "Incluir"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => alternarPessoa("excludePersonIds", pessoa)}
+                          className={excluida ? "border-[var(--status-danger-border)] text-[var(--status-danger-text)]" : undefined}
+                        >
+                          <UserMinus className="h-4 w-4" aria-hidden="true" />
+                          {excluida ? "Excluída" : "Excluir"}
+                        </Button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {buscou && resultados.length === 0 && (
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">
+                Nenhuma pessoa ativa encontrada para esse termo.
+              </p>
+            )}
+
+            {/* As escolhas ficam visíveis mesmo depois de a busca ser limpa —
+                senão a regra teria efeito sem que nada na tela o mostrasse. */}
+            {[
+              { chave: "includePersonIds" as const, titulo: "Incluídas", tom: "success" as const },
+              { chave: "excludePersonIds" as const, titulo: "Excluídas", tom: "danger" as const },
+            ].map(({ chave, titulo, tom }) => {
+              const ids = regra[chave] ?? [];
+              if (ids.length === 0) return null;
+              return (
+                <div key={chave} className="mt-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-[.08em] text-[var(--text-muted)]">{titulo} ({ids.length})</h4>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {ids.map((id) => (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          onClick={() => removerPessoa(chave, id)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-1 text-xs font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
+                        >
+                          <Badge variant={tom} className="px-1.5 py-0 text-[10px]">{titulo === "Incluídas" ? "+" : "−"}</Badge>
+                          {nomesDePessoas[id] ?? id.slice(0, 8)}
+                          <X className="h-3 w-3" aria-hidden="true" />
+                          <span className="sr-only">Remover {nomesDePessoas[id] ?? "pessoa"} da lista de {titulo.toLowerCase()}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </section>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button onClick={() => void calcularPrevia()} disabled={!temCriterio || calculando}>
