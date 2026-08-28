@@ -43,9 +43,19 @@ export type OpcaoDeDimensao = {
   count: number;
 };
 
+/**
+ * Opções por dimensão, já restringidas pelo que foi escolhido antes.
+ *
+ * `incompatible` traz as seleções que saíram do contexto — por exemplo, uma
+ * Unidade que deixou de existir quando a Diretoria mudou. Quem calcula é o
+ * banco, não a tela: o rótulo exibido é a grafia mais frequente **dentro do
+ * contexto**, então comparar textos no cliente marcaria como incompatível uma
+ * seleção que continua válida.
+ */
 export type DimensoesDoPublico = {
   status: "OK" | "FORBIDDEN";
   dimensions: Partial<Record<ChaveDeDimensao, OpcaoDeDimensao[]>>;
+  incompatible: Partial<Record<ChaveDeDimensao, string[]>>;
 };
 
 /**
@@ -155,5 +165,7 @@ export type PessoaEncontrada = {
 
 export type PessoasEncontradas = {
   status: "OK" | "FORBIDDEN";
+  /** A lista está estreitada por filtro institucional já escolhido. */
+  contextual: boolean;
   people: PessoaEncontrada[];
 };
