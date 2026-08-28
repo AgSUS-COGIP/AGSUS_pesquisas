@@ -50,6 +50,8 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
   const [application, setApplication] = useState<ApplicationSummary | null>(null);
+  // O cabeçalho da jornada nomeia a avaliação; o ciclo vai para a linha de apoio.
+  const [nomeDaAvaliacao, setNomeDaAvaliacao] = useState<string | null>(null);
   const [visual, setVisual] = useState<VisualIdentity>(EMPTY_VISUAL);
   const [dataLoading, setDataLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,6 +72,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           code: dados.applicationCode,
           name: dados.applicationName,
         });
+        setNomeDaAvaliacao(dados.surveyName);
         setVisual({ ...EMPTY_VISUAL, ...(dados.visualIdentity ?? {}) });
       } catch (loadError) {
         if (!active) return;
@@ -180,9 +183,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
         <CabecalhoDaConfiguracao
           surveyId={surveyId}
           applicationId={application?.id}
-          nome={application?.name}
+          nome={nomeDaAvaliacao ?? undefined}
           etapa="identidade"
-          meta={[application?.code, "Capa e textos de abertura"]}
+          meta={[application?.code ? `Ciclo ${application.code}` : null, "Capa e textos de abertura"]}
           acao={<BotaoProximaEtapa etapa="identidade" surveyId={surveyId} applicationId={application?.id} />}
         />
 
