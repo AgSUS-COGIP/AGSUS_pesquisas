@@ -524,9 +524,21 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
           <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
               {focus ? (
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[var(--border-subtle)] bg-white shadow-[0_8px_22px_-18px_rgba(7,59,98,.8)]">
-                  <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={30} height={30} sizes="30px" loading={brandingLoading} className="h-7 w-7 object-contain text-[10px]" />
-                </span>
+                /*
+                  Logotipo direto no cabeçalho, sem contêiner.
+                  A placa branca com borda e sombra que existia aqui não tinha
+                  função: o cabeçalho do modo foco já é claro, então ela não
+                  criava contraste — só desenhava a moldura de um botão em volta
+                  de algo que não é clicável. Convite falso é pior que enfeite.
+                  A arte azul original já resolve sobre este fundo.
+
+                  36px e `max-w-none` pelo mesmo motivo da barra lateral: o
+                  tamanho aqui é deliberado, e a regra global
+                  `img { max-width: 100% }` o encolheria quando a linha aperta.
+                  Sem a classe `platform-brand-logo`, que marca o logotipo da
+                  barra e do drawer — os únicos que recebem tratamento negativo.
+                */
+                <PlatformLogo src={branding.logoUrl} alt="" organizationName={branding.organizationName} width={36} height={36} sizes="36px" loading={brandingLoading} className="h-9 w-9 max-w-none shrink-0 object-contain text-[10px]" />
               ) : (
                 <>
                   {/*
