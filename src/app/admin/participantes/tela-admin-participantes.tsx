@@ -105,11 +105,36 @@ export default function AdminParticipantsPage() {
   */
   const filtrosSerializados = JSON.stringify(regra.filters);
 
+  /*
+    Resultado de busca pertence ao contexto em que foi obtido.
+
+    Mudar a Diretoria muda quem é oferecido — mas a lista da busca anterior
+    continuava na tela, clicável, com as marcações de pé. Dava para incluir em
+    lote pessoas que o contexto novo não oferece mais, e a interface não dizia
+    nada a respeito. O resultado ficava certo (inclusão individual é adicional
+    ao filtro, por desenho), mas ninguém teria pedido aquilo.
+
+    Descartar é melhor que refazer sozinho: refazer dispararia uma busca a cada
+    clique em qualquer dimensão, e devolveria uma lista que a pessoa não pediu
+    naquele momento. O campo de texto permanece — o termo continua válido,
+    basta buscar de novo.
+
+    `allEligible` entra na dependência porque ele desliga o contexto: marcar a
+    caixa alarga a busca de volta para a instituição inteira, e o resultado
+    anterior também deixa de descrever o que está disponível.
+  */
+  useEffect(() => {
+    setResultados([]);
+    setMarcadas(new Set());
+    setBuscou(false);
+    setBuscaContextual(false);
+  }, [filtrosSerializados, regra.allEligible]);
+
   useEffect(() => {
     if (!cicloId) return;
     let ativo = true;
     setDimensoesIndisponiveis(false);
-    obterDimensoesDoPublico(cicloId, { filters: JSON.parse(filtrosSerializados) })
+    obterDimensoesDoPublico(cicloId, { filters: JSON.parse(filtrosSerializados), allEligible: regra.allEligible })
       .then((resposta) => {
         if (!ativo) return;
         setDimensoes(resposta.dimensions ?? {});
@@ -156,7 +181,7 @@ export default function AdminParticipantsPage() {
         toast.error(errorMessageFromUnknown(erro));
       });
     return () => { ativo = false; };
-  }, [cicloId, filtrosSerializados]);
+  }, [cicloId, filtrosSerializados, regra.allEligible]);
 
   // Trocar de ciclo zera regra e prévia. Manter a seleção anterior mostraria
   // números de um ciclo ao lado do nome de outro.
