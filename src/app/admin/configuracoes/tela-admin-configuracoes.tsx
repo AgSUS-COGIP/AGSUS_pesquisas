@@ -75,7 +75,7 @@ import {
   nextAccessOffset,
   previousAccessOffset,
 } from "@/lib/access-pagination";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { enviarArquivo, listarArquivos, removerArquivo } from "@/lib/api/cliente-arquivos";
 import {
   atualizarMarcaDaPlataforma,
   definirComunicadoDaPaginaInicial,
@@ -405,23 +405,13 @@ export default function PlatformSettingsPage() {
 
   const loadGallery = useCallback(async () => {
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.storage.from("platform-assets").list("branding", {
-        limit: 100,
-        sortBy: { column: "created_at", order: "desc" },
-      });
-      if (error) throw error;
+      const arquivos = await listarArquivos("platform-assets", "branding/");
       setGallery(
-        (data ?? [])
-          .filter((item) => item.name && !item.name.startsWith("."))
-          .map((item) => {
-            const path = `branding/${item.name}`;
-            return {
-              path,
-              url: supabase.storage.from("platform-assets").getPublicUrl(path).data.publicUrl,
-              sizeKb: Math.round(((item.metadata?.size as number) ?? 0) / 1024),
-            };
-          }),
+        arquivos.map((item) => ({
+          path: item.caminho,
+          url: item.url,
+          sizeKb: Math.round(item.tamanho / 1024),
+        })),
       );
     } catch (listError) {
       // A galeria é acessório: falhar aqui não pode impedir configurar o resto.
@@ -537,9 +527,7 @@ export default function PlatformSettingsPage() {
 
     setUploadingBackground(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.storage.from("platform-assets").remove([item.path]);
-      if (error) throw error;
+      await removerArquivo("platform-assets", item.path);
       await loadGallery();
       toast.success("Arte removida do armazenamento.");
     } catch (deleteError) {
@@ -621,34 +609,28 @@ export default function PlatformSettingsPage() {
       return;
     }
     setUploadingBackground(true);
-    const supabase = createBrowserSupabaseClient();
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    // O caminho precisa começar com `branding/`: é o que a política de inserção
-    // do bucket exige (`name like 'branding/%'`). Usar outra pasta devolve
-    // "new row violates row-level security policy" — a política é a regra, e o
-    // caminho é que se ajusta a ela.
+    // O caminho continua sob `branding/`: a política do bucket que o exigia não
+    // existe mais, mas é o prefixo que a galeria lista e o que separa as artes
+    // de acesso do resto do balde.
     const path = `branding/acesso-${crypto.randomUUID()}.${extension}`;
     try {
-      const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
-      if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
+      const arquivo = await enviarArquivo("platform-assets", path, file);
 
-      // O envio ao storage continua sendo direto do navegador — Storage não é
-      // RPC, e a política do bucket é quem autoriza. Só a gravação da
-      // configuração passou para a rota REST, e o rollback segue valendo: se
-      // ela falhar, o arquivo recém-enviado sai do armazenamento, senão o
-      // storage acumularia imagens que nenhuma configuração aponta.
+      // O rollback segue valendo: se a gravação da configuração falhar, o
+      // arquivo recém-enviado sai do armazenamento, senão o acervo acumularia
+      // imagens que nenhuma configuração aponta.
       try {
-        await definirFundoDeAcesso(publicUrl.publicUrl, path);
+        await definirFundoDeAcesso(arquivo.url, arquivo.caminho);
       } catch (saveError) {
-        await supabase.storage.from("platform-assets").remove([path]);
+        await removerArquivo("platform-assets", arquivo.caminho);
         throw saveError;
       }
 
       queryClient.setQueryData(platformBrandingQueryKey, {
         ...branding,
-        accessBackgroundUrl: publicUrl.publicUrl,
-        accessBackgroundPath: path,
+        accessBackgroundUrl: arquivo.url,
+        accessBackgroundPath: arquivo.caminho,
       });
       // A arte recém-enviada precisa aparecer na galeria na hora: sem isso,
       // ela só surgiria no próximo carregamento da tela.
@@ -697,9 +679,7 @@ export default function PlatformSettingsPage() {
 
     try {
       if (caminhoAnterior) {
-        const { error: removeError } = await createBrowserSupabaseClient()
-          .storage.from("platform-assets").remove([caminhoAnterior]);
-        if (removeError) throw removeError;
+        await removerArquivo("platform-assets", caminhoAnterior);
         await loadGallery();
       }
     } catch (cleanupError) {

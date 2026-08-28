@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { ERRO_SESSAO_RENOVAVEL, type ErroApi } from "@/lib/api/contratos";
-import { isPublicRequest } from "@/lib/supabase/public-request";
+import { isLeituraDeArquivo, isPublicRequest } from "@/lib/supabase/public-request";
 import { configBase } from "./config-base";
 
 /**
@@ -19,8 +19,9 @@ function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
 }
 
-function addResponseHeaders(response: NextResponse) {
-  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+function addResponseHeaders(response: NextResponse, preservarCache = false) {
+  // Imagem pública define o próprio cache na rota; o resto nunca é cacheável.
+  if (!preservarCache) response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -41,7 +42,7 @@ export async function updateSessionAuthJs(request: NextRequest) {
   // Tráfego público que não precisa saber se existe sessão não paga o custo de
   // verificação. `/acesso` é exceção porque manda sessão válida para `/area`.
   if (publicRequest && pathname !== "/acesso") {
-    return addResponseHeaders(NextResponse.next({ request }));
+    return addResponseHeaders(NextResponse.next({ request }), isLeituraDeArquivo(request.method, pathname));
   }
 
   const sessao = await lerSessao();

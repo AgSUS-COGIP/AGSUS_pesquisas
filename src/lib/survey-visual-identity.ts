@@ -24,11 +24,17 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-// Só HTTPS: o banner é renderizado em página autenticada e uma origem `http:`
-// causaria conteúdo misto, além de permitir substituição da imagem em trânsito.
-function httpsUrl(value: unknown): string | null {
+// HTTPS absoluto ou caminho da própria aplicação. Uma origem `http:` causaria
+// conteúdo misto e permitiria substituição da imagem em trânsito, então segue
+// recusada. As capas enviadas ao bucket ficaram gravadas com a URL pública do
+// Supabase e continuam válidas; as novas chegam como `/api/arquivos/...`, que
+// por ser relativa herda o esquema da página.
+function urlDeImagem(value: unknown): string | null {
   const candidate = text(value);
   if (!candidate) return null;
+  // O `?v=` que a tela acrescenta para derrotar cache faz parte do valor
+  // gravado, então a comparação é por prefixo e não por igualdade.
+  if (candidate.startsWith("/api/arquivos/")) return candidate;
   try {
     const url = new URL(candidate);
     return url.protocol === "https:" ? url.toString() : null;
@@ -57,7 +63,7 @@ export function resolveSurveyVisualIdentity(
     ? "CUSTOM"
     : "INSTITUTIONAL";
   const customBannerUrl = themeVariant === "CUSTOM"
-    ? httpsUrl(visualIdentity.bannerUrl)
+    ? urlDeImagem(visualIdentity.bannerUrl)
     : null;
 
   return {
