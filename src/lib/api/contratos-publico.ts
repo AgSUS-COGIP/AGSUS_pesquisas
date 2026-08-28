@@ -66,13 +66,25 @@ export type RegraDePublico = {
   excludePersonIds?: string[];
 };
 
+/**
+ * Pessoa na amostra da prévia.
+ *
+ * `currentStatus` é o vínculo de hoje — nulo para quem ainda não está no ciclo —
+ * e `nextStatus` é o que a aplicação gravaria. Ver os dois lado a lado é o que
+ * permite conferir a transição antes de confirmá-la.
+ *
+ * Substituíram `origin` (`FILTRO`/`INCLUSAO`), que dizia como a pessoa entrou na
+ * regra. Era informação sobre o critério, não sobre o efeito, e a prévia deixou
+ * de devolvê-la quando passou a descrever a transição.
+ */
 export type PessoaDaPrevia = {
   personId: string;
   fullName: string;
   jobTitle: string | null;
   unit: string | null;
   directorate: string | null;
-  origin: "FILTRO" | "INCLUSAO";
+  currentStatus: string | null;
+  nextStatus: string;
   alreadyLinked: boolean;
 };
 

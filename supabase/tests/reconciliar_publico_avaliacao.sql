@@ -17,7 +17,7 @@
 
 begin;
 
-select plan(13);
+select plan(14);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'recon-admin@agenciasus.org.br', now(), now());
@@ -49,13 +49,13 @@ insert into sigav.survey_applications (id, survey_version_id, code, name, status
 values ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000122', 'TESTE-RECON-1', 'Ciclo', 'DRAFT');
 
 -- Snapshot anterior, com os cinco estados que a aplicação precisa respeitar.
-insert into sigav.application_participants (application_id, person_id, participant_role, status)
+insert into sigav.application_participants (application_id, person_id, participant_role, status, access_profile)
 values
-  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000111', 'RESPONDENT', 'ELIGIBLE'),
-  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000112', 'RESPONDENT', 'IN_PROGRESS'),
-  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000113', 'RESPONDENT', 'COMPLETED'),
-  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000114', 'RESPONDENT', 'BLOCKED'),
-  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000115', 'RESPONDENT', 'EXCLUDED');
+  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000111', 'RESPONDENT', 'ELIGIBLE', null),
+  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000112', 'RESPONDENT', 'IN_PROGRESS', 'GESTOR-DE-TESTE'),
+  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000113', 'RESPONDENT', 'COMPLETED', null),
+  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000114', 'RESPONDENT', 'BLOCKED', null),
+  ('00000000-0000-4000-8000-000000000123', '00000000-0000-4000-8000-000000000115', 'RESPONDENT', 'EXCLUDED', null);
 
 select set_config(
   'request.jwt.claims',
@@ -202,6 +202,16 @@ select results_eq(
            ('Seis DiretoriaB'::text, 'ELIGIBLE'::text),
            ('Tres Concluido'::text, 'COMPLETED'::text)$$,
   'o público efetivo é o alcançado pela regra mais quem já tinha progresso'
+);
+
+-- `p_perfil_acesso` é o padrão para vínculo **novo**. Aplicá-lo a quem já tem
+-- perfil próprio rebaixaria a pessoa ao padrão a cada reaplicação da regra.
+select is(
+  (select access_profile from sigav.application_participants
+   where application_id = '00000000-0000-4000-8000-000000000123'
+     and person_id = '00000000-0000-4000-8000-000000000112'),
+  'GESTOR-DE-TESTE',
+  'perfil de acesso de vínculo existente sobrevive à aplicação da regra'
 );
 
 -- A asserção que amarra tudo: o número prometido é o número entregue.

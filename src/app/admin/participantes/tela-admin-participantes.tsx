@@ -243,9 +243,12 @@ export default function AdminParticipantsPage() {
       toast.success(
         `Público aplicado: ${resultado.effectiveCount} no total — ${resultado.assignedCount} novo(s), ${resultado.keptCount} mantido(s), ${resultado.removedCount} fora.`,
       );
-      setCiclos((atuais) => atuais.map((item) => item.id === cicloId
-        ? { ...item, participantCount: previa.effectiveCount }
-        : item));
+      // Recarrega do servidor em vez de atualizar o número em memória.
+      // `participantCount` da listagem e `effectiveCount` da prévia contam
+      // coisas diferentes — a listagem inclui quem está bloqueado, a prévia
+      // não. Escrever um no lugar do outro faria o número mudar sozinho no
+      // próximo carregamento da página, sem nada ter acontecido.
+      setCiclos(await listarCiclosDeParticipantes());
       await calcularPrevia();
     } catch (erro) {
       toast.error(errorMessageFromUnknown(erro));
