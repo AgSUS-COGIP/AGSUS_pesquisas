@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(13);
+select plan(16);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-000000000501', 'authenticated', 'authenticated', 'casc-admin@agenciasus.org.br', now(), now());
@@ -169,6 +169,47 @@ select is(
     sigav.fc_buscar_pessoas_publico('Ana', 20, '{"filters":{"directorate":["DGP"]}}'::jsonb) -> 'people')),
   0,
   'a busca de pessoa não oferece quem está fora do contexto institucional'
+);
+
+-- ---------------------------------------------------------------------------
+-- `allEligible` desliga o contexto
+-- ---------------------------------------------------------------------------
+
+-- Com `allEligible` ligado o público é toda a instituição — e é justamente aí
+-- que excluir alguém específico faz mais sentido. Se um filtro de Diretoria
+-- tivesse sobrado da montagem anterior, a busca ficaria presa a ele e não
+-- ofereceria quem está fora, embora essa pessoa esteja no público.
+--
+-- Ana é da DAIS e o filtro aponta para a DGP; com `allEligible`, ela precisa
+-- aparecer. O contraste com a asserção anterior é o teste: mesma busca, mesmo
+-- filtro, resultado oposto por causa da caixa marcada.
+select is(
+  (select sigav.fc_buscar_pessoas_publico(
+    'Ana', 20, '{"filters":{"directorate":["DGP"]},"allEligible":true}'::jsonb)
+    -> 'people' -> 0 ->> 'fullName'),
+  'Ana Assessora',
+  'com allEligible, a busca alcança pessoa ativa de outra Diretoria'
+);
+
+-- `contextual` descreve se a lista está estreitada. Dizer que está, quando
+-- `allEligible` desligou os filtros, faria a tela explicar uma ausência que não
+-- existe.
+select is(
+  (select sigav.fc_buscar_pessoas_publico(
+    null, 20, '{"filters":{"directorate":["DGP"]},"allEligible":true}'::jsonb) ->> 'contextual'),
+  'false',
+  'contextual acompanha allEligible: sem restrição, sem aviso de contexto'
+);
+
+-- A listagem de dimensões recebe o mesmo tratamento. Manter `allEligible`
+-- significando uma coisa na resolução e outra na oferta é como as divergências
+-- deste projeto começaram.
+select is(
+  (select jsonb_array_length(
+    sigav.fc_listar_dimensoes_publico('{"filters":{"directorate":["DAIS"]},"allEligible":true}'::jsonb)
+      -> 'dimensions' -> 'unit')),
+  3,
+  'com allEligible, as dimensões deixam de ser restringidas pelos filtros'
 );
 
 select * from finish();
