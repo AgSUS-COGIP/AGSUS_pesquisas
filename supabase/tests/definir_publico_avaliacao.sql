@@ -12,7 +12,7 @@
 
 begin;
 
-select plan(17);
+select plan(18);
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-4000-8000-0000000000c1', 'authenticated', 'authenticated', 'publico-admin@agenciasus.org.br', now(), now());
@@ -208,6 +208,15 @@ select is(
   (select sigav.fc_buscar_pessoas_publico('TESTE-PUB-2') -> 'people' -> 0 ->> 'fullName'),
   'Bruno Assessor',
   'a busca aceita matrícula, não só nome'
+);
+
+-- Buscar por cargo é o que torna a seleção em lote útil: "assessor" traz o
+-- grupo inteiro de uma vez. Ana e Bruno são Assessor e estão ativos; Davi
+-- também é Assessor mas está inativo e não entra.
+select is(
+  (select jsonb_array_length(sigav.fc_buscar_pessoas_publico('assessor') -> 'people')),
+  2,
+  'a busca por cargo traz o grupo, respeitando a elegibilidade'
 );
 
 select * from finish();

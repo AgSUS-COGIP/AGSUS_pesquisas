@@ -256,6 +256,10 @@ as $function$
         or sigav.fc_normalizar_rotulo(p.full_name) like '%' || t.valor || '%'
         or sigav.fc_normalizar_rotulo(p.employee_number) like '%' || t.valor || '%'
         or sigav.fc_normalizar_rotulo(p.institutional_email) like '%' || t.valor || '%'
+        -- Cargo também: "assessor" é a forma mais natural de achar um grupo de
+        -- pessoas para incluir de uma vez, e sem isso a única saída seria o
+        -- filtro de dimensão — que resolve outro problema, o de compor a regra.
+        or sigav.fc_normalizar_rotulo(p.job_title) like '%' || t.valor || '%'
       )
     order by p.full_name
     -- Teto rígido: a lista é um seletor, não um relatório. `least` impede que
