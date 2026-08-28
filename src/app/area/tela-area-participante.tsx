@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, ExternalLink, FileText, LayoutDashboard, Megaphone, RefreshCw, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, ExternalLink, FileText, Megaphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -146,19 +146,11 @@ export default function ParticipantAreaPage() {
 
   if (!hasHomeModule) return <PlatformSkeleton title="Redirecionando para Pesquisas" />;
 
-  const isLeader = modules.includes(PLATFORM_MODULE.TEAM);
+
   // `?? fullName` porque `split` é tipado como podendo não ter o índice 0 —
   // nome com espaço no início devolveria vazio, e é melhor o nome inteiro que
   // uma saudação sem ninguém.
   const firstName = person.fullName.split(/\s+/).filter(Boolean)[0] ?? person.fullName;
-
-  // A administração não tem atalho aqui: a central foi retirada da navegação e
-  // cada módulo administrativo tem entrada própria no menu lateral.
-  const actions = [
-    { href: "/pesquisas", title: "Pesquisas", text: "Iniciar, continuar ou consultar avaliações", icon: FileText },
-    ...(isLeader ? [{ href: "/equipe", title: "Minha equipe", text: "Acompanhar integrantes e avaliar", icon: Users2 }] : []),
-    ...(modules.includes(PLATFORM_MODULE.DASHBOARDS) ? [{ href: "/paineis", title: "Painéis", text: "Indicadores e acompanhamento dos ciclos", icon: LayoutDashboard }] : []),
-  ];
 
   // A legenda de cada indicador responde "e daí?": urgência quando há prazo
   // apertado, percentual quando o número sozinho não diz se está bem.
@@ -487,24 +479,17 @@ export default function ParticipantAreaPage() {
         ) : null}
 
         {/*
-          Atalhos como faixa de links, não como cartões: eles repetem destinos que
-          já existem no menu lateral, então servem de conveniência — não competem
-          com a próxima ação nem com a jornada.
+          A faixa de atalhos "Pesquisas · Minha equipe · Painéis" foi removida.
+
+          O próprio comentário que estava aqui reconhecia o problema: eles
+          repetiam destinos que já existem no menu lateral. Um atalho que duplica
+          a navegação não acrescenta caminho — ocupa o fim da tela repetindo o
+          que a barra já mostra, e ainda concorre com a lista de avaliações, que
+          é o conteúdo próprio desta página.
+
+          Os três destinos continuam a um clique, no menu lateral, com o item
+          ativo indicando onde a pessoa está — coisa que a faixa não fazia.
         */}
-        <nav aria-label="Acessos principais" className="flex flex-wrap gap-1 border-t border-[var(--border-subtle)] pt-4">
-          {actions.map(({ href, title, text, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              title={text}
-              className="group inline-flex min-h-10 flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] sm:flex-none"
-            >
-              <Icon className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" aria-hidden="true" />
-              <span className="truncate">{title}</span>
-              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--brand-primary)]" aria-hidden="true" />
-            </Link>
-          ))}
-        </nav>
       </div>
     </PlatformShell>
   );
