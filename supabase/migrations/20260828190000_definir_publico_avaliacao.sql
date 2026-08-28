@@ -330,7 +330,19 @@ as $function$
     excluida,
     situacao,
     case
-      -- Exclusão explícita primeiro: ela vence qualquer outra consideração.
+      -- BLOCKED antes de tudo, **inclusive antes da exclusão explícita**.
+      --
+      -- Com a exclusão vindo primeiro, existia um caminho de dois passos que
+      -- levantava o bloqueio sem ninguém pedir: bloquear a pessoa, excluí-la
+      -- pela regra (BLOCKED -> EXCLUDED) e reaplicar sem a exclusão
+      -- (EXCLUDED -> ELIGIBLE). O construtor de público desfazia uma sanção
+      -- administrativa por um caminho que não se anuncia em lugar nenhum.
+      --
+      -- A exclusão continua registrada na regra e na auditoria; ela só não
+      -- apaga o estado mais forte. Para liberar, usa-se a gestão do público
+      -- vinculado, que é onde o bloqueio foi criado.
+      when situacao = 'BLOCKED' then 'BLOCKED'
+      -- Exclusão explícita vence o resto.
       when excluida then 'EXCLUDED'
       -- Progresso é intocável, casando ou não.
       when situacao in ('IN_PROGRESS', 'COMPLETED') then situacao
@@ -530,7 +542,9 @@ begin
                   where tp_situacao is not null
                     and tp_situacao = tp_situacao_nova
                     and tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')),
-    'excludedCount', (select count(*) from plano where st_excluida),
+    -- Exclusões que de fato tomaram efeito. Quem estava bloqueado e foi
+    -- excluído continua bloqueado, então não conta como exclusão.
+    'excludedCount', (select count(*) from plano where st_excluida and tp_situacao_nova = 'EXCLUDED'),
     -- Quem sai do público por ter deixado de casar com a regra. Sem este
     -- número, reduzir um público pareceria não fazer nada.
     'removedCount', (select count(*) from plano
@@ -543,7 +557,7 @@ begin
                                     and tp_situacao in ('IN_PROGRESS', 'COMPLETED')),
     -- Casa com a regra mas segue bloqueado por decisão administrativa.
     'blockedKeptCount', (select count(*) from plano
-                         where st_casa and not st_excluida and tp_situacao_nova = 'BLOCKED'),
+                         where st_casa and tp_situacao_nova = 'BLOCKED'),
     'ineligibleIncludedCount', (select count(*) from inclusoes_pedidas i
                                 where not exists (select 1 from sigav.people p where p.id = i.id and p.active)),
     'sample', coalesce((
@@ -686,12 +700,12 @@ begin
     count(*) filter (where tp_situacao is not null
                        and tp_situacao = tp_situacao_nova
                        and tp_situacao_nova not in ('BLOCKED', 'EXCLUDED')),
-    count(*) filter (where st_excluida),
+    count(*) filter (where st_excluida and tp_situacao_nova = 'EXCLUDED'),
     count(*) filter (where not st_casa
                        and tp_situacao in ('ELIGIBLE', 'INVITED')
                        and tp_situacao_nova = 'EXCLUDED'),
     count(*) filter (where not st_casa and tp_situacao in ('IN_PROGRESS', 'COMPLETED')),
-    count(*) filter (where st_casa and not st_excluida and tp_situacao_nova = 'BLOCKED'),
+    count(*) filter (where st_casa and tp_situacao_nova = 'BLOCKED'),
     count(*) filter (where tp_situacao_nova not in ('BLOCKED', 'EXCLUDED'))
   into v_novos, v_reativados, v_mantidos, v_excluidos, v_removidos, v_preservados, v_bloqueados, v_efetivo
   from plano;
