@@ -6,14 +6,15 @@ import { usaAuthJs } from "@/lib/auth/provedor";
  * Identidade da sessão, no formato de claims que o banco espera.
  *
  * Este é o único ponto do código que sabe de onde vem o login. O adaptador de
- * RPC injeta o que sai daqui em `request.jwt.claims`, e as 156 funções do banco
- * o leem por `auth.uid()` / `auth.role()` / `auth.jwt()` — exatamente como o
- * PostgREST fazia. Trocar o provedor de identidade é trocar esta função.
+ * RPC injeta o que sai daqui em `request.jwt.claims`, e as funções do banco o
+ * leem por `sigav.fc_uid_sessao()` / `fc_papel_sessao()` / `fc_claims_sessao()`
+ * — exatamente como o PostgREST fazia quando essas funções ainda viviam no
+ * schema `auth`. Trocar o provedor de identidade é trocar esta função.
  *
  * O contrato de claims foi extraído das migrations e é pequeno:
- *   - `sub`   → vira `auth.uid()`, casa com `sigav.people.auth_user_id`;
- *   - `email` → lido por `auth.jwt() ->> 'email'` na vinculação institucional;
- *   - `role`  → lido por `auth.role()`, distingue serviço de sessão comum;
+ *   - `sub`   → vira `fc_uid_sessao()`, casa com `sigav.people.auth_user_id`;
+ *   - `email` → lido por `fc_claims_sessao() ->> 'email'` na vinculação institucional;
+ *   - `role`  → lido por `fc_papel_sessao()`, distingue serviço de sessão comum;
  *   - `user_metadata.full_name` / `.name` → nome de exibição no primeiro acesso.
  *
  * As claims são montadas aqui, e não gravadas dentro do cookie: o cookie do

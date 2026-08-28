@@ -94,12 +94,12 @@ Toda migração deve, no mesmo arquivo:
 4. nomear policies, constraints e índices;
 5. fixar `search_path` de funções privilegiadas;
 6. revogar `EXECUTE` de `public`, `anon` e `authenticated` quando a função for interna;
-7. validar `auth.uid()`, pessoa, papel e escopo em RPCs públicas;
+7. validar `sigav.fc_uid_sessao()`, pessoa, papel e escopo em RPCs públicas;
 8. executar Security e Performance Advisors após DDL.
 
 ## Objetos legados
 
-Os objetos atuais permanecem temporariamente com os nomes existentes para preservar compatibilidade. Cada objeto deve ser registrado em `db_governanca.tb_catalogo_objeto` com:
+Os objetos atuais permanecem temporariamente com os nomes existentes para preservar compatibilidade. Cada objeto deve ser registrado em `sigav.tb_catalogo_objeto` com:
 
 - nome atual;
 - nome proposto;
