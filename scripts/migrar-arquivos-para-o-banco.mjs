@@ -1,5 +1,5 @@
 // Traz para `sigav.tb_arquivo` as imagens que ainda são servidas pelo Storage
-// do Supabase, e reescreve as URLs gravadas para `/api/arquivos/...`.
+// do PostgreSQL, e reescreve as URLs gravadas para `/api/arquivos/...`.
 //
 // Uso:
 //   node --env-file=.env.local scripts/migrar-arquivos-para-o-banco.mjs           (relatório, não grava)
@@ -9,7 +9,7 @@
 // tabela e as RPCs que substituem os buckets, mas migration não baixa arquivo
 // da internet — os bytes ficaram para trás. Enquanto isso, a arte de fundo da
 // tela de acesso e a capa de ciclo continuam vindo de
-// `https://<projeto>.supabase.co/storage/...`, o que significa que a aplicação
+// `https://<projeto>.PostgreSQL.co/storage/...`, o que significa que a aplicação
 // ainda depende de um serviço que ela pretende desligar. No dia em que aquele
 // projeto sair do ar, as duas imagens somem — em produção e no ambiente local.
 //

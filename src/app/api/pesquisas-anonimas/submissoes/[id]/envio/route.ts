@@ -17,8 +17,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
   if (limitResponse) return limitResponse;
 
-  const supabase = createAdminRpcClient();
-  const { data, error } = await supabase.rpc("fc_srv_enviar_resp_anon", { target_submission_id: id, target_session_token: token });
+  const banco = createAdminRpcClient();
+  const { data, error } = await banco.rpc("fc_srv_enviar_resp_anon", { target_submission_id: id, target_session_token: token });
   if (error) return respostaDeErro(error, "POST /api/pesquisas-anonimas/submissoes/[id]/envio");
   return NextResponse.json(data);
 }

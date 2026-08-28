@@ -30,7 +30,7 @@
 -- db_dataware é um banco Postgres 16 compartilhado com outras aplicações da
 -- empresa (schemas "sip" e "sigepsi"). O schema "sigav" e os dados desta
 -- aplicação já foram restaurados via pg_dump/pg_restore de um projeto
--- Supabase real: 155 funções, 35 tabelas, auth.users com 29 linhas reais e
+-- PostgreSQL real: 155 funções, 35 tabelas, auth.users com 29 linhas reais e
 -- sigav.people com 1030 linhas já estão presentes e corretos.
 --
 -- O que NÃO veio na restauração (roles são objetos de CLUSTER, não de banco,
@@ -43,7 +43,7 @@
 --   - O schema "DB_PESQUISAS" (views analíticas para BI) não existe.
 --
 -- Este script foi montado por extração automática das 192 migrations do
--- histórico do projeto (supabase/migrations), cruzando cada GRANT/POLICY
+-- histórico do projeto (database/migrations), cruzando cada GRANT/POLICY
 -- contra o catálogo REAL do banco de destino — não apenas replay cego do
 -- histórico. Statements cujo alvo (tabela/função) não existe mais ao vivo
 -- foram excluídos e estão listados no apêndice ao final, para revisão manual.
@@ -55,9 +55,9 @@
 --   2. Todo o script está em uma única transação: se qualquer statement
 --      falhar, nada é aplicado. Isso é deliberado num banco compartilhado.
 --   3. Este script NÃO é uma migration versionada do projeto (não deve ir
---      para supabase/migrations/) — é um script de bootstrap de um ambiente
---      que não participa do supabase_migrations.schema_migrations local.
---      Trate-o como scripts/diagnostico-supabase.sql e
+--      para database/migrations/) — é um script de bootstrap de um ambiente
+--      que não participa do sigav.tb_migracao local.
+--      Trate-o como scripts/diagnostico-PostgreSQL.sql e
 --      scripts/reconciliar-historico-migrations.sql: script de operação,
 --      não histórico versionado do schema.
 --
@@ -68,7 +68,7 @@ begin;
 -- ----------------------------------------------------------------------------
 -- 1. Roles do contrato PostgREST
 -- ----------------------------------------------------------------------------
--- Convenção real do Supabase (self-hosted): NOLOGIN NOINHERIT, e service_role
+-- Convenção real do PostgreSQL (self-hosted): NOLOGIN NOINHERIT, e service_role
 -- com BYPASSRLS. Como aqui a aplicação conecta diretamente como usr_sip_app
 -- (sem um proxy "authenticator" separado), o adaptador fará "set local role"
 -- a partir dessa conexão — por isso a role de conexão precisa ser MEMBRO das
@@ -125,7 +125,7 @@ alter default privileges for role usr_sip_app in schema sigav
 -- 4. Hardening de RPCs (baseline replicado de 20260803133300_harden_rpc_permissions.sql)
 -- ----------------------------------------------------------------------------
 -- A migration original rodou uma vez só, sobre "public", e ficou registrada
--- em supabase/CLAUDE.md como convenção do projeto ("regra 5: EXECUTE
+-- em database/README.md como convenção do projeto ("regra 5: EXECUTE
 -- revogado de public/anon em função interna"). Replicado aqui contra o
 -- estado ATUAL de sigav para cobrir tanto as funções antigas quanto as
 -- criadas depois — é idempotente e não deveria remover nada que os grants
@@ -151,7 +151,7 @@ begin
 end;
 $$;
 
--- Exceção documentada (supabase/CLAUDE.md, seção "Helpers internos"):
+-- Exceção documentada (database/README.md, seção "Helpers internos"):
 -- fc_abrir_ciclos_agendados() não recebe grant nenhum de propósito — só é
 -- chamada de dentro de outras RPCs security definer.
 revoke execute on function sigav.fc_abrir_ciclos_agendados() from authenticated;
@@ -1551,7 +1551,7 @@ commit;
 -- confirmar que a exclusão foi consciente, não um esquecimento.
 --
 -- Funções genuinamente removidas/renomeadas ao longo da história (confirmado
--- contra supabase/CLAUDE.md e o catálogo ao vivo):
+-- contra database/README.md e o catálogo ao vivo):
 --   - can_audit_platform() / can_edit_submission(uuid): mudaram de "public"
 --     para o schema "private" em 20260804172000 — os grants corretos para
 --     private.can_audit_platform()/private.can_edit_submission(uuid) JÁ

@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Informe o código da avaliação.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("start_or_resume_my_survey_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("start_or_resume_my_survey_submission", {
     target_application_code: applicationCode,
   });
 

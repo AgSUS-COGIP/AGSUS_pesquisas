@@ -18,8 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://envajznrzfuuumcdtvcj.supabase.co
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: validation-placeholder
       CI: true
     steps:
       - uses: actions/checkout@v4
@@ -33,20 +31,8 @@ jobs:
       - name: Production build
         run: npm run build
 
-  # A reconstrução do banco pela stack do Supabase saiu daqui em 28/08/2026, e
-  # não por escolha: a stack não consegue aplicar
-  # `20260828100000_unificar_auth_e_extensions_em_sigav.sql`, porque lá as
-  # tabelas de `auth` pertencem a `supabase_auth_admin` e o papel que aplica
-  # migrations não é membro dele. Também não valia o que aparentava: aquele
-  # banco tinha 56 policies de RLS onde a réplica de produção tem zero, e era
-  # reconstruído a partir das migrations *da branch*, que podem estar atrás de
-  # `main` — foi assim que uma unificação passou no CI e quebrou quatro funções
-  # em produção.
-  #
-  # A conferência funcional passou a rodar localmente, contra uma cópia do banco
-  # réplica: `npm run test:banco` (ver supabase/CLAUDE.md, seção Testes). O que
-  # o CI ainda consegue afirmar sem banco algum é o que está abaixo — e a regra
-  # de schema removido é justamente a que guarda contra repetir aquele defeito.
+  # A validação funcional exige uma cópia do banco e roda fora do CI. Aqui
+  # verificamos a integridade estática do conjunto de migrations versionado.
   migrations:
     name: Migration static checks
     runs-on: ubuntu-latest

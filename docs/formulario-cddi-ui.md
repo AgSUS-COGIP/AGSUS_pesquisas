@@ -1,6 +1,6 @@
 # Experiência do formulário CDDI
 
-A primeira interface funcional do CDDI 2026 utiliza a definição de formulário armazenada no Supabase.
+A primeira interface funcional do CDDI 2026 utiliza a definição de formulário armazenada no PostgreSQL.
 
 ## Referências de experiência
 

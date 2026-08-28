@@ -17,8 +17,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Informe a avaliação e a pessoa a incluir.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("add_person_to_my_team", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("add_person_to_my_team", {
     target_application_id: corpo.applicationId,
     target_person_id: corpo.personId,
   });

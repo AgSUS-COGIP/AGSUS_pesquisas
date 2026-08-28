@@ -18,8 +18,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Informe o código do ciclo.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("get_cddi_monitoring_dashboard", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("get_cddi_monitoring_dashboard", {
     target_application_code: ciclo,
   });
 

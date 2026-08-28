@@ -1,6 +1,6 @@
 // Topologia do banco depois da unificação: `sigav` é o único schema.
 //
-// O corpo das verificações mora em `supabase/tests/invariantes_schema.sql`, e
+// O corpo das verificações mora em `database/tests/invariantes_schema.sql`, e
 // este arquivo apenas o executa. São dois consumidores com necessidades
 // diferentes — o SQL puro roda com psql contra produção, onde não há Node; a
 // suíte precisa do mesmo veredito dentro do runner — e manter as regras em dois
@@ -15,7 +15,7 @@ after(encerrarPool);
 
 test("invariantes de schema passam contra o banco configurado", async () => {
   const sql = await readFile(
-    new URL("../../supabase/tests/invariantes_schema.sql", import.meta.url),
+    new URL("../../database/tests/invariantes_schema.sql", import.meta.url),
     "utf8",
   );
 

@@ -34,8 +34,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o enunciado e o tipo da pergunta.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("update_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("update_survey_question", {
     target_question_id: perguntaId,
     question_title: title,
     question_description: typeof corpo.description === "string" ? corpo.description : "",
@@ -65,8 +65,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de avaliação ou de pergunta inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("delete_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("delete_survey_question", {
     target_question_id: perguntaId,
   });
 

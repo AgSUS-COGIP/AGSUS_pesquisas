@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Informe o código do ciclo.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("get_my_cddi_identity", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("get_my_cddi_identity", {
     target_application_code: codigo,
   });
 

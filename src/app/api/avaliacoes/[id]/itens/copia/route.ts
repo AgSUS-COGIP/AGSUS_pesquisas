@@ -38,8 +38,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de item inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("duplicate_survey_builder_item", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("duplicate_survey_builder_item", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,
   });

@@ -33,8 +33,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o nome completo da pessoa.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("update_platform_admin_person", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("update_platform_admin_person", {
     target_person_id: id,
     target_full_name: fullName,
     target_institutional_email: corpo.institutionalEmail ?? null,

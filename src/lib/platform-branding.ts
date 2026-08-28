@@ -142,7 +142,7 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     logoPath: null,
     // HTTPS absoluto ou caminho da própria aplicação. O HTTPS continua aceito
     // porque as artes enviadas ao bucket foram gravadas com a URL pública do
-    // Supabase e seguem valendo enquanto não forem reenviadas; nada em HTTP
+    // banco e seguem valendo enquanto não forem reenviadas; nada em HTTP
     // entra, para não haver conteúdo misto nem troca da arte em trânsito.
     // `/api/arquivos/...` é a origem nova, e sendo relativa herda o esquema da
     // página. Valor inválido degrada para nulo e a arte padrão volta a valer.

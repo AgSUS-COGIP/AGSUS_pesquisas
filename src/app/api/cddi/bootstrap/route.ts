@@ -22,11 +22,11 @@ export async function POST(request: Request) {
     ? corpo.applicationCode.trim()
     : "";
 
-  const supabase = await createServerRpcClient();
+  const banco = await createServerRpcClient();
   let applicationCode = requestedCode;
 
   if (!applicationCode) {
-    const { data: cycleData, error: cycleError } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
+    const { data: cycleData, error: cycleError } = await banco.rpc("fc_obter_ciclo_cddi_vigente");
     if (cycleError) return respostaDeErro(cycleError, "POST /api/cddi/bootstrap [ciclo]");
 
     const cycle = cycleData as { code?: string } | null;
@@ -40,15 +40,15 @@ export async function POST(request: Request) {
   }
 
   const [formResult, submissionResult, identityResult] = await Promise.all([
-    supabase.rpc("fc_obter_formulario_publico", {
+    banco.rpc("fc_obter_formulario_publico", {
       target_application_code: applicationCode,
     }),
-    supabase.rpc("start_or_resume_my_cddi_submission", {
+    banco.rpc("start_or_resume_my_cddi_submission", {
       target_application_code: applicationCode,
       target_submission_type: "AUTO",
       target_subject_person_id: null,
     }),
-    supabase.rpc("get_my_cddi_identity", {
+    banco.rpc("get_my_cddi_identity", {
       target_application_code: applicationCode,
     }),
   ]);

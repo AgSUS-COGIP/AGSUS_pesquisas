@@ -1,6 +1,3 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { usaAuthJs } from "@/lib/auth/provedor";
 
 /**
  * Identidade da sessão, no formato de claims que o banco espera.
@@ -8,8 +5,7 @@ import { usaAuthJs } from "@/lib/auth/provedor";
  * Este é o único ponto do código que sabe de onde vem o login. O adaptador de
  * RPC injeta o que sai daqui em `request.jwt.claims`, e as funções do banco o
  * leem por `sigav.fc_uid_sessao()` / `fc_papel_sessao()` / `fc_claims_sessao()`
- * — exatamente como o PostgREST fazia quando essas funções ainda viviam no
- * schema `auth`. Trocar o provedor de identidade é trocar esta função.
+ * — preservando o contrato de sessão esperado pelas funções do banco.
  *
  * O contrato de claims foi extraído das migrations e é pequeno:
  *   - `sub`   → vira `fc_uid_sessao()`, casa com `sigav.people.auth_user_id`;
@@ -41,11 +37,8 @@ function montarClaims(dados: {
   };
 }
 
-/** Sessão do Auth.js (provedor novo). */
-async function claimsDoAuthJs(): Promise<ClaimsBanco | null> {
-  // Import dinâmico: `@/lib/auth` arrasta o adaptador de banco (`pg`), e este
-  // módulo é alcançado por caminhos que não devem carregá-lo quando a bandeira
-  // aponta para o Supabase.
+/** Sessão autenticada, lida pelo Auth.js. */
+async function claimsDaSessao(): Promise<ClaimsBanco | null> {
   const { auth } = await import("@/lib/auth");
   const sessao = await auth();
   if (!sessao?.user) return null;
@@ -57,32 +50,6 @@ async function claimsDoAuthJs(): Promise<ClaimsBanco | null> {
   });
 }
 
-/** Sessão do Supabase Auth (provedor atual, padrão). */
-async function claimsDoSupabase(): Promise<ClaimsBanco | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return null;
-
-  const cookieStore = await cookies();
-  const supabase = createServerClient(url, publishableKey, {
-    cookies: {
-      getAll: () => cookieStore.getAll(),
-      setAll: () => {
-        // Esta chamada só lê a sessão para extrair claims; renovar cookie é
-        // responsabilidade do proxy.
-      },
-    },
-  });
-
-  const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims) return null;
-
-  // O GoTrue já entrega o formato que o banco espera — repassamos como está
-  // para não perder claim que alguma função leia e que não esteja no contrato
-  // mínimo documentado acima.
-  return data.claims as ClaimsBanco;
-}
-
 export async function getCurrentAuthClaims(): Promise<ClaimsBanco | null> {
-  return usaAuthJs() ? claimsDoAuthJs() : claimsDoSupabase();
+  return claimsDaSessao();
 }

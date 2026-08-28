@@ -77,8 +77,8 @@ export async function POST(request: Request) {
         ? "HOMOLOGACAO"
         : "DESENVOLVIMENTO";
 
-    const supabase = createAdminRpcClient();
-    const { error } = await supabase.rpc("fc_srv_registrar_erro_aplicacao", {
+    const banco = createAdminRpcClient();
+    const { error } = await banco.rpc("fc_srv_registrar_erro_aplicacao", {
       p_co_referencia: reference,
       p_no_rota: route,
       p_tp_erro: type,

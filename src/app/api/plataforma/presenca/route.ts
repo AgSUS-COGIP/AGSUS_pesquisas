@@ -20,8 +20,8 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe o estado do recurso e selecione ao menos um perfil.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_definir_presenca_plataforma", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_presenca_plataforma", {
     fl_ativa_param: body.ativa,
     tx_perfis_param: roles,
   });

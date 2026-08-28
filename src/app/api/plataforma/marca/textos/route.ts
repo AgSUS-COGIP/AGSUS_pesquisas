@@ -26,8 +26,8 @@ export async function PUT(request: Request) {
   const texto = (valor: unknown) =>
     typeof valor === "string" && valor.trim() ? valor.trim() : null;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_definir_textos_marca", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_textos_marca", {
     p_expansao: texto(corpo.expansao),
     p_saudacao: texto(corpo.saudacao),
     p_instrucao: texto(corpo.instrucao),

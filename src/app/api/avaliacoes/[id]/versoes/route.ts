@@ -17,8 +17,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_criar_nova_versao_pesquisa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_criar_nova_versao_pesquisa", {
     p_pesquisa: id,
   });
 

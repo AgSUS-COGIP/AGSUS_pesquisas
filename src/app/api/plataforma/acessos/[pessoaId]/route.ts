@@ -38,8 +38,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe o perfil a conceder.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_definir_perfil_pessoa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_perfil_pessoa", {
     p_pessoa: pessoaId,
     p_perfil: perfil,
   });

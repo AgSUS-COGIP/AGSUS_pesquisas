@@ -4,7 +4,7 @@ import { respostaDeErro, respostaDeEntradaInvalida, respostaDeFalha } from "@/li
 import { BALDES, TIPOS_DE_IMAGEM, TAMANHO_MAXIMO_ARQUIVO, type Balde } from "@/lib/api/contratos-arquivos";
 
 /**
- * Imagens da plataforma, no lugar do Storage do Supabase.
+ * Imagens da plataforma, no lugar do Storage do banco.
  *
  * O endereço reproduz o dos buckets — `<balde>/<caminho>` — de propósito: os
  * caminhos já gravados em `accessBackgroundPath` e no `settings` das aplicações

@@ -9,8 +9,8 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  * `POST /api/avaliacoes/[id]/copia`, não por uma rota própria.
  */
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_modelos_avaliacao");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_modelos_avaliacao");
 
   if (error) return respostaDeErro(error, "GET /api/modelos-avaliacao");
 

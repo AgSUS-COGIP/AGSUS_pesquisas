@@ -1,4 +1,4 @@
-// Aplica as migrations versionadas de `supabase/migrations/` no banco apontado
+// Aplica as migrations versionadas de `database/migrations/` no banco apontado
 // pelas variáveis de conexão da aplicação (hoje a réplica local; amanhã o
 // db_dataware da empresa).
 //
@@ -8,10 +8,8 @@
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes=20260826193000,20260827123000
 //
-// POR QUE ESTE SCRIPT EXISTE: `supabase db push` não vale mais. Ele fala com o
-// histórico em `supabase_migrations.schema_migrations`, que é um schema do
-// Supabase e não veio junto quando o esquema passou para o db_dataware — lá a
-// aplicação tem um schema só, `sigav`, e mais nada (`public`, `private`,
+// O histórico é mantido junto da aplicação, em `sigav.tb_migracao`. O banco
+// tem um schema de aplicação, `sigav`, e mais nada (`public`, `private`,
 // `db_governanca`, `"DB_PESQUISAS"`, `auth` e `extensions` existiram por um
 // tempo, até serem unificados entre 26 e 28/08/2026). Sem histórico, o push
 // tentaria reaplicar as 192 migrations sobre objetos que já existem. O
@@ -31,7 +29,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DIRETORIO_MIGRATIONS = path.join(RAIZ, "supabase", "migrations");
+const DIRETORIO_MIGRATIONS = path.join(RAIZ, "database", "migrations");
 
 // Chave fixa e arbitrária do lock consultivo. Só precisa ser estável e não
 // colidir com outra aplicação da instância; o valor em si não tem significado.
@@ -63,7 +61,7 @@ alter table ${SCHEMA}.tb_migracao enable row level security;
 revoke all on ${SCHEMA}.tb_migracao from public;
 
 comment on table ${SCHEMA}.tb_migracao is
-  'Histórico de migrations aplicadas. Substitui supabase_migrations.schema_migrations, que não existe no db_dataware. Mantido por scripts/aplicar-migrations.mjs.';
+  'Histórico de migrations aplicadas, mantido por scripts/aplicar-migrations.mjs.';
 `;
 
 function lerConfiguracaoConexao() {

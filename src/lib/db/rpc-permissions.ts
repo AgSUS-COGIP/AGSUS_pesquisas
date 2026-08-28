@@ -1,5 +1,5 @@
 // Gerado automaticamente: replay cronológico de TODOS os GRANT/REVOKE das 192
-// migrations do projeto Supabase original, cruzado contra o catálogo real do
+// migrations do projeto banco original, cruzado contra o catálogo real do
 // banco (sigav/private). Não editar à mão — regenerar quando permissões mudarem.
 //
 // Substitui, em nível de aplicação, a distinção anon/authenticated/service_role
@@ -16,13 +16,13 @@
 //     por decisão de projeto só é chamada de dentro de outra security definer).
 //
 // Exceções acrescentadas fora do histórico de migrations (funções criadas
-// pelos scripts de bootstrap, não por migration do projeto Supabase):
+// pelos scripts de bootstrap, não por migration do projeto banco):
 //   - fc_srv_registrar_erro_aplicacao  (bootstrap-db-dataware-usuario-unico.sql)
 //   - fc_srv_resolver_identidade_oauth (auth-identidade-oauth.sql)
 // Ambas são chamadas antes de existir sessão, por isso service_role.
 //
 // As quatro `fc_arq_*` (20260827160000_arquivos_no_banco.sql) substituem o
-// Storage do Supabase. Só a leitura é aberta a `anon`, e isso reproduz o que os
+// Storage do banco. Só a leitura é aberta a `anon`, e isso reproduz o que os
 // buckets públicos faziam: a arte de fundo aparece antes do login e a capa de
 // pesquisa aparece em `/responder/[applicationCode]`, que é rota pública. As
 // três de escrita exigem sessão, e o corpo de cada uma ainda checa

@@ -21,8 +21,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe o código da avaliação.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_obter_formulario_publico", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_obter_formulario_publico", {
     target_application_code: codigoAplicacao,
   });
 

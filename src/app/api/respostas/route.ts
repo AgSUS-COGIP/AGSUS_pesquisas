@@ -22,8 +22,8 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 100;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_respostas_ciclo", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_respostas_ciclo", {
     p_codigo_ciclo: ciclo,
     p_busca: busca,
     p_limite: limite,

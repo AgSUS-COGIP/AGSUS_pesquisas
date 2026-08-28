@@ -24,13 +24,9 @@ export const revalidate = 60;
  * que um cookie inválido nunca seja anexado a `fc_obter_marca_publica()`.
  */
 async function fetchBranding() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-    return DEFAULT_PLATFORM_BRANDING;
-  }
-
   try {
-    const supabase = createPublicRpcClient();
-    const { data, error } = await supabase.rpc("fc_obter_marca_publica");
+    const banco = createPublicRpcClient();
+    const { data, error } = await banco.rpc("fc_obter_marca_publica");
     if (error || !data) return DEFAULT_PLATFORM_BRANDING;
     return normalizePlatformBranding(data);
   } catch {

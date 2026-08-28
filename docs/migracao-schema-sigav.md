@@ -18,7 +18,7 @@ com **`sigav` como único schema da aplicação**. As etapas seguintes:
 
 O quadro completo do estado final, incluindo os nomes novos das funções de
 claims e das tabelas de identidade, está em
-[../supabase/CLAUDE.md](../supabase/CLAUDE.md).
+[../database/README.md](../database/README.md).
 
 Duas operações são **condicionais**, porque o `db_dataware` é instância
 compartilhada com `sip` e `sigepsi` e a aplicação não é dona de tudo. Em ambos
@@ -44,7 +44,7 @@ as funções do pgcrypto dentro de `sigav`, não descartá-las.
 ## Implantação
 
 A mudança do banco e a publicação da aplicação devem ocorrer na mesma janela de
-manutenção. `supabase db push` **não** se aplica mais: o histórico vive em
+manutenção. `PostgreSQL db push` **não** se aplica mais: o histórico vive em
 `sigav.tb_migracao` e quem aplica é `scripts/aplicar-migrations.mjs` (a razão
 está no cabeçalho daquele arquivo).
 
@@ -59,7 +59,7 @@ está no cabeçalho daquele arquivo).
      "create database db_conferencia template db_dataware"
    ```
 
-   Aplique as migrations na cópia, rode `supabase/tests/invariantes_schema.sql`
+   Aplique as migrations na cópia, rode `database/tests/invariantes_schema.sql`
    e chame as RPCs afetadas com claims de sessão de verdade.
 4. Liste o que está pendente, sem aplicar:
 
@@ -82,7 +82,7 @@ está no cabeçalho daquele arquivo).
 ## Verificação no banco
 
 ```bash
-docker cp supabase/tests/invariantes_schema.sql agsus-local:/tmp/inv.sql
+docker cp database/tests/invariantes_schema.sql agsus-local:/tmp/inv.sql
 docker exec agsus-local psql -U postgres -d db_dataware -v ON_ERROR_STOP=1 -f /tmp/inv.sql
 ```
 
@@ -93,8 +93,8 @@ reverte a transação inteira se encontrar inconsistência.
 
 ## Ambiente local
 
-A stack local do Supabase não é mais ambiente deste projeto — ela não consegue
-aplicar `20260828100000` (as tabelas de `auth` pertencem a `supabase_auth_admin`
+A stack local do PostgreSQL não é mais ambiente deste projeto — ela não consegue
+aplicar `20260828100000` (as tabelas de `auth` pertencem a `PostgreSQL_auth_admin`
 lá) e nunca representou produção. O ambiente de desenvolvimento é a réplica em
 Docker criada por `scripts/replicar-banco-local.mjs`, apontada no `.env.local`
 por `EMPRESA_DATABASE_URL`.
