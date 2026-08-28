@@ -70,12 +70,16 @@ export default function AdminParticipantsPage() {
   // Nome de cada pessoa escolhida, guardado no momento da escolha. As listas da
   // regra carregam identificadores, e mostrar UUID a quem opera não é opção.
   const [nomesDePessoas, setNomesDePessoas] = useState<Record<string, string>>({});
+  // Marcação da busca atual. Some quando os resultados mudam: manter marcada
+  // uma pessoa que saiu da lista faria a ação em lote agir no invisível.
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
 
   const cicloSelecionado = useMemo(
     () => ciclos.find((item) => item.id === cicloId) ?? null,
     [ciclos, cicloId],
   );
   const temCriterio = regraTemCriterio(regra);
+  const todasMarcadas = resultados.length > 0 && resultados.every((pessoa) => marcadas.has(pessoa.personId));
 
   useEffect(() => {
     let ativo = true;
@@ -117,6 +121,7 @@ export default function AdminParticipantsPage() {
     setBuscaPessoa("");
     setResultados([]);
     setBuscou(false);
+    setMarcadas(new Set());
     setNomesDePessoas({});
   }
 
@@ -133,6 +138,7 @@ export default function AdminParticipantsPage() {
     try {
       const resposta = await buscarPessoasDoPublico(cicloId, buscaPessoa);
       setResultados(resposta.people ?? []);
+      setMarcadas(new Set());
       setBuscou(true);
     } catch (erro) {
       toast.error(errorMessageFromUnknown(erro));
@@ -141,24 +147,50 @@ export default function AdminParticipantsPage() {
     }
   }
 
+  function alternarMarcada(pessoa: PessoaEncontrada) {
+    setNomesDePessoas((mapa) => ({ ...mapa, [pessoa.personId]: pessoa.fullName }));
+    setMarcadas((atuais) => {
+      const proximas = new Set(atuais);
+      if (proximas.has(pessoa.personId)) proximas.delete(pessoa.personId);
+      else proximas.add(pessoa.personId);
+      return proximas;
+    });
+  }
+
+  function alternarTodasMarcadas() {
+    if (todasMarcadas) {
+      setMarcadas(new Set());
+      return;
+    }
+    setNomesDePessoas((mapa) => ({
+      ...mapa,
+      ...Object.fromEntries(resultados.map((pessoa) => [pessoa.personId, pessoa.fullName])),
+    }));
+    setMarcadas(new Set(resultados.map((pessoa) => pessoa.personId)));
+  }
+
   /**
-   * Alterna a pessoa entre as listas.
+   * Move as pessoas marcadas para uma das listas.
    *
    * Incluir e excluir são mutuamente exclusivos: pôr alguém nas duas listas
    * significaria pedir e desfazer o mesmo pedido, e a exclusão venceria em
-   * silêncio. Escolher um lado remove o outro.
+   * silêncio. Entrar numa lista remove da outra.
+   *
+   * A marcação é limpa depois de aplicar — deixá-la de pé faria o próximo
+   * clique agir de novo sobre as mesmas pessoas sem que ninguém pedisse.
    */
-  function alternarPessoa(chave: "includePersonIds" | "excludePersonIds", pessoa: PessoaEncontrada) {
+  function aplicarEmLote(chave: "includePersonIds" | "excludePersonIds") {
+    if (marcadas.size === 0) return;
     const oposta = chave === "includePersonIds" ? "excludePersonIds" : "includePersonIds";
+    const escolhidas = Array.from(marcadas);
     const atuais = regra[chave] ?? [];
-    const jaEsta = atuais.includes(pessoa.personId);
 
-    setNomesDePessoas((mapa) => ({ ...mapa, [pessoa.personId]: pessoa.fullName }));
     alterarRegra({
       ...regra,
-      [chave]: jaEsta ? atuais.filter((id) => id !== pessoa.personId) : [...atuais, pessoa.personId],
-      [oposta]: (regra[oposta] ?? []).filter((id) => id !== pessoa.personId),
+      [chave]: Array.from(new Set([...atuais, ...escolhidas])),
+      [oposta]: (regra[oposta] ?? []).filter((id) => !marcadas.has(id)),
     });
+    setMarcadas(new Set());
   }
 
   function removerPessoa(chave: "includePersonIds" | "excludePersonIds", id: string) {
@@ -376,12 +408,12 @@ export default function AdminParticipantsPage() {
 
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <Input
-                label="Buscar por nome, matrícula ou e-mail"
+                label="Buscar por nome, matrícula, e-mail ou cargo"
                 value={buscaPessoa}
                 onChange={(evento) => setBuscaPessoa(evento.target.value)}
                 onKeyDown={(evento) => { if (evento.key === "Enter") { evento.preventDefault(); void buscarPessoas(); } }}
                 containerClassName="min-w-0 flex-1 basis-72"
-                placeholder="Ex.: Maria, 12345, maria@..."
+                placeholder="Ex.: Maria, 12345, Assessor"
               />
               {/* Mesma causa do aviso acima: a busca é outra função da mesma
                   migration. Oferecer um botão que só sabe falhar é pior do que
@@ -394,39 +426,71 @@ export default function AdminParticipantsPage() {
             </div>
 
             {resultados.length > 0 && (
-              <ul className="mt-3 max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-lg border border-[var(--border-subtle)]">
-                {resultados.map((pessoa) => {
-                  const incluida = (regra.includePersonIds ?? []).includes(pessoa.personId);
-                  const excluida = (regra.excludePersonIds ?? []).includes(pessoa.personId);
-                  return (
-                    <li key={pessoa.personId} className="flex flex-wrap items-center gap-3 p-3">
-                      <span className="min-w-0 flex-1">
-                        <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{pessoa.fullName}</strong>
-                        <small className="block truncate text-xs text-[var(--text-secondary)]">
-                          {[pessoa.employeeNumber, pessoa.jobTitle, pessoa.unit].filter(Boolean).join(" · ")}
-                        </small>
-                      </span>
-                      <span className="flex shrink-0 gap-2">
-                        <Button
-                          variant={incluida ? "primary" : "secondary"}
-                          onClick={() => alternarPessoa("includePersonIds", pessoa)}
-                        >
-                          <UserPlus className="h-4 w-4" aria-hidden="true" />
-                          {incluida ? "Incluída" : "Incluir"}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => alternarPessoa("excludePersonIds", pessoa)}
-                          className={excluida ? "border-[var(--status-danger-border)] text-[var(--status-danger-text)]" : undefined}
-                        >
-                          <UserMinus className="h-4 w-4" aria-hidden="true" />
-                          {excluida ? "Excluída" : "Excluir"}
-                        </Button>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <>
+                {/*
+                  Marcar e agir em bloco, em vez de um botão por linha. Buscar
+                  "assessor" traz dezenas de pessoas, e incluir uma a uma seria
+                  o mesmo trabalho manual que esta tela existe para eliminar.
+
+                  A ação fica acima da lista e não dentro dela: com a lista
+                  rolando, um rodapé de ações sairia de vista justamente quando
+                  a seleção fica grande.
+                */}
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2">
+                  <label className="flex cursor-pointer items-center gap-2 px-2 text-sm text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={todasMarcadas}
+                      // Estado intermediário quando parte está marcada: sem ele
+                      // a caixa mostraria "nada marcado" com metade selecionada.
+                      ref={(elemento) => { if (elemento) elemento.indeterminate = marcadas.size > 0 && !todasMarcadas; }}
+                      onChange={alternarTodasMarcadas}
+                      className="h-4 w-4 accent-[var(--brand-solid)]"
+                    />
+                    {marcadas.size > 0 ? `${marcadas.size} selecionada(s)` : "Selecionar todas"}
+                  </label>
+                  <span className="flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => aplicarEmLote("includePersonIds")} disabled={marcadas.size === 0}>
+                      <UserPlus className="h-4 w-4" aria-hidden="true" />
+                      Incluir selecionadas
+                    </Button>
+                    <Button variant="secondary" onClick={() => aplicarEmLote("excludePersonIds")} disabled={marcadas.size === 0}>
+                      <UserMinus className="h-4 w-4" aria-hidden="true" />
+                      Excluir selecionadas
+                    </Button>
+                  </span>
+                </div>
+
+                <ul className="mt-2 max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-lg border border-[var(--border-subtle)]">
+                  {resultados.map((pessoa) => {
+                    const incluida = (regra.includePersonIds ?? []).includes(pessoa.personId);
+                    const excluida = (regra.excludePersonIds ?? []).includes(pessoa.personId);
+                    return (
+                      <li key={pessoa.personId}>
+                        <label className="flex cursor-pointer items-center gap-3 p-3 transition hover:bg-[var(--surface-hover)]">
+                          <input
+                            type="checkbox"
+                            checked={marcadas.has(pessoa.personId)}
+                            onChange={() => alternarMarcada(pessoa)}
+                            className="h-4 w-4 shrink-0 accent-[var(--brand-solid)]"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <strong className="block truncate text-sm font-semibold text-[var(--text-primary)]">{pessoa.fullName}</strong>
+                            <small className="block truncate text-xs text-[var(--text-secondary)]">
+                              {[pessoa.employeeNumber, pessoa.jobTitle, pessoa.unit].filter(Boolean).join(" · ")}
+                            </small>
+                          </span>
+                          {/* Só o estado atual. As ações vivem no bloco acima —
+                              dois caminhos para a mesma coisa na mesma linha é
+                              como a tela vira adivinhação. */}
+                          {incluida && <Badge variant="success" className="shrink-0">Incluída</Badge>}
+                          {excluida && <Badge variant="danger" className="shrink-0">Excluída</Badge>}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
 
             {buscou && resultados.length === 0 && (
