@@ -10,7 +10,7 @@
 --
 -- Este arquivo é script de OPERAÇÃO, não migration versionada: mesma categoria
 -- de scripts/bootstrap-db-dataware-usuario-unico.sql e
--- scripts/diagnostico-postgresql.sql. Não entra em database/migrations/ nem em
+-- scripts/manutencao-pre-pico.sql. Não entra em database/migrations/ nem em
 -- sigav.tb_migracao.
 --
 -- USO — por padrão não altera nada, só relata:

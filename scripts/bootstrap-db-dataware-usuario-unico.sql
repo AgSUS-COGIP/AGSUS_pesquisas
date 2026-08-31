@@ -2,7 +2,8 @@
 -- Bootstrap de db_dataware — arquitetura de usuário único
 -- ============================================================================
 --
--- Substitui scripts/restaurar-contrato-postgrest-empresa.sql (superseded):
+-- Substitui o antigo scripts/restaurar-contrato-postgrest-empresa.sql, removido
+-- em 31/08/2026 (recuperável por `git log -- scripts/`):
 -- usr_sip_app não tem CREATEROLE nesta instância compartilhada (sip,
 -- sigepsi), então a distinção anon/authenticated/service_role deixou de ser
 -- feita por roles do Postgres e passou para a aplicação

@@ -15,10 +15,12 @@
 //   - as que o histórico revoga de todos (ex.: fc_abrir_ciclos_agendados, que
 //     por decisão de projeto só é chamada de dentro de outra security definer).
 //
-// Exceções acrescentadas fora do histórico de migrations (funções criadas
-// pelos scripts de bootstrap, não por migration do projeto banco):
-//   - fc_srv_registrar_erro_aplicacao  (bootstrap-db-dataware-usuario-unico.sql)
-//   - fc_srv_resolver_identidade_oauth (auth-identidade-oauth.sql)
+// Exceções acrescentadas fora do histórico de migrations do banco original:
+//   - fc_srv_registrar_erro_aplicacao  (scripts/bootstrap-db-dataware-usuario-unico.sql)
+//   - fc_srv_resolver_identidade_oauth (hoje versionada, em
+//     20260831140000_trazer_resolvedor_oauth_para_as_migrations.sql — o script
+//     de bootstrap que a criava foi removido por ficar congelado no schema
+//     pré-unificação e regredir o banco ao ser executado)
 // Ambas são chamadas antes de existir sessão, por isso service_role.
 //
 // As quatro `fc_arq_*` (20260827160000_arquivos_no_banco.sql) substituem o
@@ -153,7 +155,6 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "search_admin_people_for_application": ["authenticated"],
   "search_team_candidates": ["authenticated"],
   "set_admin_application_participant_status": ["authenticated"],
-  "set_my_avatar_choice": ["authenticated"],
   "set_my_avatar_url": ["authenticated"],
   "set_platform_admin_leadership_link": ["authenticated"],
   "start_or_resume_my_cddi_submission": ["authenticated"],
