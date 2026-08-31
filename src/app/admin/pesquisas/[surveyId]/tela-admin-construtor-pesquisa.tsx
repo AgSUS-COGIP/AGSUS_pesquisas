@@ -655,7 +655,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     <PlatformShell
       user={guard.user}
       eyebrow="Administração"
-      title={builder?.survey.name ?? "Studio de avaliação"}
+      // Rótulo fixo da rota, não o nome da avaliação: o cabeçalho da jornada
+      // logo abaixo já o anuncia, e repeti-lo aqui fazia o mesmo texto aparecer
+      // três vezes seguidas — barra superior, trilha e título.
+      title="Estrutura da avaliação"
     >
       {dataLoading ? (
         <div className="flex min-h-[50vh] items-center justify-center">

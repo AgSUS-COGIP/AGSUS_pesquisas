@@ -373,9 +373,27 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       description: "Antecipa a abertura: libera o formulário imediatamente, sem esperar a data agendada.",
       tone: "primary",
       available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
-      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
-        ? "O checklist ainda aponta pendências que impedem a abertura."
-        : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
+      /*
+        O motivo é derivado, não fixo.
+
+        `readyToOpen` reúne três exigências — checklist válido, versão publicada
+        e período coerente com encerramento no futuro. A mensagem culpava sempre
+        o checklist, então uma versão ainda em rascunho aparecia como pendência
+        de checklist logo abaixo do selo "Sem bloqueios", que lê a mesma
+        validação e a declara limpa. Quem lesse os dois via a tela se
+        contradizer e não ficava sabendo o que fazer.
+
+        A ordem segue a da resolução: sem checklist válido nada mais adianta;
+        depois vem publicar; o período fica por último porque é o único ajustável
+        nesta mesma tela.
+      */
+      blockedReason: !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+        ? `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`
+        : blockingIssues.length > 0
+          ? `Resolva ${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} do checklist antes de abrir.`
+          : versionStatus !== "PUBLISHED"
+            ? "Publique a versão antes de abrir o ciclo."
+            : "Defina um período com encerramento no futuro antes de abrir o ciclo.",
     },
     {
       action: "NEW_VERSION",
@@ -478,7 +496,9 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   return <PlatformShell
     user={guard.user}
     eyebrow="Administração · Propriedades"
-    title={operations?.survey.name ?? "Propriedades do ciclo"}
+    // Rótulo fixo da rota, como nas outras etapas. O nome da avaliação é dito
+    // uma vez, pelo cabeçalho da jornada.
+    title={etapa === "revisao" ? "Revisar e publicar" : "Configuração do ciclo"}
   >
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       {/*

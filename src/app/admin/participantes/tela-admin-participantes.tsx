@@ -111,7 +111,16 @@ export default function AdminParticipantsPage() {
    * tela volta a ser a de participantes de sempre, com o seletor livre, em vez
    * de operar sobre uma combinação que não existe.
    */
-  const [jornada, setJornada] = useState<{ surveyId: string; applicationId: string } | null>(null);
+  /*
+    `nomeDaAvaliacao` vem junto porque o cabeçalho da jornada identifica a
+    avaliação, não o ciclo. A resposta de `obterOperacaoDoCiclo` já traz o nome;
+    guardá-lo aqui não custa nenhuma consulta a mais.
+  */
+  const [jornada, setJornada] = useState<{
+    surveyId: string;
+    applicationId: string;
+    nomeDaAvaliacao: string;
+  } | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -147,7 +156,11 @@ export default function AdminParticipantsPage() {
       .then((operacao) => {
         if (!ativo) return;
         if (operacao.application?.id === cicloDaUrl) {
-          setJornada({ surveyId: pesquisaDaUrl, applicationId: cicloDaUrl });
+          setJornada({
+            surveyId: pesquisaDaUrl,
+            applicationId: cicloDaUrl,
+            nomeDaAvaliacao: operacao.survey.name,
+          });
           return;
         }
         setJornada(null);
@@ -419,10 +432,10 @@ export default function AdminParticipantsPage() {
         <CabecalhoDaConfiguracao
           surveyId={jornada.surveyId}
           applicationId={jornada.applicationId}
-          nome={cicloSelecionado?.name}
+          nome={jornada.nomeDaAvaliacao}
           etapa="publico"
           meta={[
-            cicloSelecionado?.code,
+            cicloSelecionado ? `Ciclo ${cicloSelecionado.code}` : null,
             cicloSelecionado ? `${cicloSelecionado.participantCount} no público atual` : null,
           ]}
           acao={<BotaoProximaEtapa etapa="publico" surveyId={jornada.surveyId} applicationId={jornada.applicationId} />}
