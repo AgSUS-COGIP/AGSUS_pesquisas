@@ -32,7 +32,8 @@ import { URGENT_DEADLINE_DAYS, type SurveyItemState } from "./survey-catalog";
  * são estados: são o universo dentro do qual os estados são contados. Pintá-los
  * com a família de um estado faria o total parecer uma situação — e deixaria
  * dois indicadores vizinhos com a mesma cor significando coisas diferentes.
- * Eles seguem no azul institucional, que já era a cor deles.
+ * Por isso `total` permanece distinto na tipagem, mas usa tratamento visual
+ * neutro: a cor fica reservada aos estados que realmente carregam significado.
  *
  * ## Por que não há família para "agendado"
  *
@@ -59,7 +60,7 @@ export type TomSemantico = "total" | "info" | "success" | "warning" | "danger" |
 
 /** Variante de `Badge` correspondente ao tom. */
 export const VARIANTE_DE_BADGE: Record<TomSemantico, "info" | "success" | "warning" | "danger" | "neutral"> = {
-  total: "info",
+  total: "neutral",
   info: "info",
   success: "success",
   warning: "warning",
@@ -69,7 +70,7 @@ export const VARIANTE_DE_BADGE: Record<TomSemantico, "info" | "success" | "warni
 
 /** Classes de texto por tom, para número e rótulo tonalizados. */
 export const TEXTO_DO_TOM: Record<TomSemantico, string> = {
-  total: "text-[var(--brand-primary)]",
+  total: "text-[var(--text-secondary)]",
   info: "text-[var(--status-info-text)]",
   success: "text-[var(--status-success-text)]",
   warning: "text-[var(--status-warning-text)]",
@@ -79,7 +80,7 @@ export const TEXTO_DO_TOM: Record<TomSemantico, string> = {
 
 /** Classes de borda por tom, para o traço fino de um cartão ou indicador. */
 export const BORDA_DO_TOM: Record<TomSemantico, string> = {
-  total: "border-[var(--brand-primary)]",
+  total: "border-[var(--border-strong)]",
   info: "border-[var(--status-info-border)]",
   success: "border-[var(--status-success-border)]",
   warning: "border-[var(--status-warning-border)]",
@@ -89,7 +90,7 @@ export const BORDA_DO_TOM: Record<TomSemantico, string> = {
 
 /** Classes de fundo e texto por tom, para o ícone-marcador de uma linha. */
 export const MARCADOR_DO_TOM: Record<TomSemantico, string> = {
-  total: "bg-[var(--surface-muted)] text-[var(--brand-primary)]",
+  total: "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
   info: "bg-[var(--status-info-bg)] text-[var(--status-info-text)]",
   success: "bg-[var(--status-success-bg)] text-[var(--status-success-text)]",
   warning: "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]",
