@@ -8,7 +8,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { obterPool, encerrarPool } from "../apoio/banco.mjs";
 
 after(encerrarPool);
@@ -34,6 +34,27 @@ test("invariantes de schema passam contra o banco configurado", async () => {
   assert.ok(
     avisos.some((a) => a.includes("todos os invariantes passaram")),
     `os invariantes não chegaram ao fim. Avisos: ${avisos.join(" | ")}`,
+  );
+});
+
+test("todas as migrations versionadas constam no histórico do banco local", async () => {
+  const arquivos = await readdir(
+    new URL("../../database/migrations/", import.meta.url),
+  );
+  const versoesDoDisco = arquivos
+    .filter((nome) => nome.endsWith(".sql"))
+    .map((nome) => nome.split("_", 1)[0])
+    .sort();
+
+  const { rows } = await obterPool().query(
+    "select co_versao from sigav.tb_migracao order by co_versao",
+  );
+  const versoesDoBanco = rows.map((linha) => linha.co_versao);
+
+  assert.deepEqual(
+    versoesDoBanco,
+    versoesDoDisco,
+    "o histórico do banco e o diretório de migrations não cobrem as mesmas versões",
   );
 });
 

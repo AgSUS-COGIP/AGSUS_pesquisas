@@ -80,7 +80,7 @@ export function PlatformGuardState({
       <FullPageState
         tone="restricted"
         title={restrictedTitle || "Acesso restrito"}
-        description={restrictedDescription || "Seu perfil não possui permissão para acessar este módulo."}
+        description={restrictedDescription || "Sua conta não possui permissão para acessar este módulo."}
       />
     );
   }

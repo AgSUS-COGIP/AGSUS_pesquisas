@@ -1,5 +1,4 @@
-import { normalizePlatformModules, resolvePlatformRole, type PlatformModule } from "./platform-modules";
-import { PLATFORM_ROLE_LABELS } from "./platform-roles";
+import { normalizePlatformModules, type PlatformModule } from "./platform-modules";
 import type { PlatformContext } from "./platform-context";
 
 /**
@@ -15,7 +14,6 @@ export type PlatformShellUser = {
   employeeNumber: string;
   profileLabel: string;
   avatarUrl?: string | null;
-  roles?: string[];
   modules: PlatformModule[];
 };
 
@@ -71,9 +69,8 @@ export function resolvePlatformGuard({ context, loading, error, requiredModule }
       fullName: person.fullName,
       institutionalEmail: person.institutionalEmail,
       employeeNumber: person.employeeNumber,
-      profileLabel: PLATFORM_ROLE_LABELS[resolvePlatformRole(context.roles)],
+      profileLabel: "Usuário autenticado",
       avatarUrl: person.avatarUrl,
-      roles: context.roles,
       modules,
     },
   };

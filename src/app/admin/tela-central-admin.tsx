@@ -10,15 +10,15 @@ import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 
-// Cada cartão declara o módulo que o libera — o mesmo mapa de perfis que governa
-// o menu, sem lista de exceções por rota. `hint` responde "o que eu consigo
+// Cada cartão declara a permissão que o libera — a mesma lista que governa o
+// menu, sem exceções por rota. `hint` responde "o que eu consigo
 // fazer aqui?"; o texto anterior ("Construtor disponível") ocupava o lugar de
 // uma métrica sem ser uma.
 const cards = [
   { href: "/admin/pesquisas", module: PLATFORM_MODULE.ADMIN_SURVEYS, tag: "Configuração", title: "Avaliações e ciclos", description: "Crie instrumentos, organize seções e perguntas, defina períodos e publique versões controladas.", hint: "Construir formulário · abrir e encerrar ciclo", icon: FileCog },
   { href: "/admin/participantes", module: PLATFORM_MODULE.ADMIN_PARTICIPANTS, tag: "Público", title: "Participantes", description: "Escolha quem responde cada avaliação e trate bloqueios, reativações e exclusões.", hint: "Vincular pessoas · individual ou em lote", icon: Users2 },
   { href: "/admin/equipes", module: PLATFORM_MODULE.ADMIN_TEAMS, tag: "Estrutura", title: "Equipes e lideranças", description: "Corrija dados funcionais e defina quem avalia quem em cada ciclo.", hint: "Exige justificativa · fica em auditoria", icon: Network },
-  { href: "/admin/configuracoes", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Sistema", title: "Configurações do sistema", description: "Marca, aparência e perfis de acesso das pessoas — em um só lugar.", hint: "Marca, aparência e acessos", icon: Settings2 },
+  { href: "/admin/configuracoes", module: PLATFORM_MODULE.ADMIN_ACCESS, tag: "Sistema", title: "Configurações do sistema", description: "Marca, aparência e permissões das pessoas — em um só lugar.", hint: "Marca, aparência e acessos", icon: Settings2 },
   { href: "/paineis", module: PLATFORM_MODULE.DASHBOARDS, tag: "Governança", title: "Painéis e indicadores", description: "Acompanhe adesão, conclusão e inconsistências dos ciclos em andamento.", hint: "Somente leitura", icon: BarChart3 },
 ];
 
@@ -32,7 +32,7 @@ const FLOW_STEPS = [
 const GUARANTEES = [
   ["Versionamento", "Publicar congela a estrutura; versões anteriores continuam consultáveis."],
   ["Rastreabilidade", "Operações críticas ficam registradas em auditoria, com autor e momento."],
-  ["Segregação", "Cada perfil enxerga apenas os módulos que lhe cabem."],
+  ["Segregação", "Cada conta enxerga somente os módulos que suas permissões liberam."],
   ["Privacidade", "Dados pessoais ficam no banco institucional, nunca no repositório."],
 ] as const;
 
@@ -42,14 +42,14 @@ export default function AdminDashboardPage() {
   const guard = usePlatformGuard();
 
   if (guard.state !== "granted") {
-    return <PlatformGuardState guard={guard} title="administração" unidentifiedTitle="Não foi possível abrir a administração" restrictedTitle="Central administrativa restrita" restrictedDescription="Seu perfil não possui permissão para acessar os módulos de administração." />;
+    return <PlatformGuardState guard={guard} title="administração" unidentifiedTitle="Não foi possível abrir a administração" restrictedTitle="Central administrativa restrita" restrictedDescription="Sua conta não possui permissão para acessar os módulos de administração." />;
   }
 
   const { modules } = guard;
   // A central abre para qualquer módulo administrativo — a regra é o prefixo,
   // não a lista de cartões (que inclui atalhos não administrativos, como /paineis).
   if (!modules.some((module) => module.startsWith("ADMIN_"))) {
-    return <FullPageState tone="restricted" title="Central administrativa restrita" description="Seu perfil não possui permissão para acessar os módulos de administração." />;
+    return <FullPageState tone="restricted" title="Central administrativa restrita" description="Sua conta não possui permissão para acessar os módulos de administração." />;
   }
 
   const visibleCards = cards.filter((card) => modules.includes(card.module));

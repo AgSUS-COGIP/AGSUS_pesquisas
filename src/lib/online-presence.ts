@@ -1,5 +1,3 @@
-import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS, platformRoleLabel } from "./platform-roles";
-
 export type OnlinePresencePerson = {
   personId: string;
   fullName: string;
@@ -18,7 +16,7 @@ function text(value: unknown) {
  * ## Por que não é mais o mapa do Realtime
  *
  * A presença deixou de usar canal Realtime privado em `20260821100000`. O
- * desenho pretendido — todos anunciam, só perfis configurados enxergam — não é
+ * desenho pretendido — todos anunciam, só contas autorizadas enxergam — não é
  * possível ali: o protocolo exige permissão de **leitura** para entrar no
  * canal, e sem entrar não se consegue anunciar. O resultado em produção era o
  * pior dos dois mundos: a lista mostrava apenas quem podia vê-la, e todos os
@@ -26,11 +24,9 @@ function text(value: unknown) {
  *
  * Hoje a fonte é uma tabela com batida de presença, e a autorização é do banco.
  *
- * O banco devolve o **código** do perfil, não o rótulo — a tradução é de
- * `platformRoleLabel()`, a mesma do resto da interface. Perfil **ausente** cai
- * em "Participante", que é o piso do modelo de papéis (pessoa sem atribuição
- * vigente é participante). Código **desconhecido** aparece como veio, e não
- * traduzido para o piso: inventar um rótulo esconderia dado inesperado no banco.
+ * Perfis funcionais não fazem mais parte da identidade. Toda pessoa da lista
+ * está sob a mesma role técnica e recebe o mesmo rótulo; o acesso à lista é
+ * controlado separadamente pela permissão `ONLINE_PRESENCE`.
  */
 export function normalizeOnlinePresenceList(value: unknown): OnlinePresencePerson[] {
   if (!Array.isArray(value)) return [];
@@ -43,14 +39,11 @@ export function normalizeOnlinePresenceList(value: unknown): OnlinePresencePerso
     const fullName = text(source.fullName);
     if (!personId || !fullName) continue;
 
-    const roleCode = text(source.roleCode);
     people.set(personId, {
       personId,
       fullName,
       avatarUrl: text(source.avatarUrl),
-      profileLabel: roleCode
-        ? platformRoleLabel(roleCode)
-        : PLATFORM_ROLE_LABELS[PLATFORM_ROLE.PARTICIPANT],
+      profileLabel: "Usuário autenticado",
       onlineAt: text(source.onlineAt) ?? "",
     });
   }

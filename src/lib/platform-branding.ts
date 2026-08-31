@@ -61,9 +61,8 @@ export type PlatformBranding = {
    * produziria tela ilegível na primeira combinação infeliz.
    */
   accessPanelColor: string | null;
-  /** Liga o canal e define os perfis que podem participar e visualizar. */
+  /** Liga o registro de presença; a visualização depende de `ONLINE_PRESENCE`. */
   onlinePresenceEnabled: boolean;
-  onlinePresenceViewerRoles: string[];
   /** Comunicado institucional opcional exibido no topo da página inicial. */
   homeAnnouncementEnabled: boolean;
   homeAnnouncementTitle: string;
@@ -93,7 +92,6 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   accessBackgroundPath: null,
   accessPanelColor: null,
   onlinePresenceEnabled: true,
-  onlinePresenceViewerRoles: ["ADMINISTRATOR", "SURVEY_MANAGER"],
   homeAnnouncementEnabled: false,
   homeAnnouncementTitle: "",
   homeAnnouncementMessage: "",
@@ -160,9 +158,6 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     onlinePresenceEnabled: typeof source.onlinePresenceEnabled === "boolean"
       ? source.onlinePresenceEnabled
       : DEFAULT_PLATFORM_BRANDING.onlinePresenceEnabled,
-    onlinePresenceViewerRoles: Array.isArray(source.onlinePresenceViewerRoles)
-      ? source.onlinePresenceViewerRoles.filter((role): role is string => typeof role === "string")
-      : DEFAULT_PLATFORM_BRANDING.onlinePresenceViewerRoles,
     homeAnnouncementEnabled: source.homeAnnouncementEnabled === true,
     homeAnnouncementTitle: text(source.homeAnnouncementTitle, "").slice(0, 120),
     homeAnnouncementMessage: text(source.homeAnnouncementMessage, "").slice(0, 400),

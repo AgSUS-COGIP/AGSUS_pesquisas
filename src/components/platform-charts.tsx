@@ -8,7 +8,6 @@ import {
   type DistributionItem,
   type SeriesPoint,
 } from "@/lib/chart-data";
-import { cn } from "@/lib/utils";
 
 /**
  * Componentes de gráfico reutilizáveis dos painéis.
@@ -38,60 +37,6 @@ export function ChartEmptyState({ title, description, icon }: { title: string; d
         {description ? <p className="mt-1 max-w-md text-sm leading-6 text-[var(--text-muted)]">{description}</p> : null}
       </div>
     </div>
-  );
-}
-
-/** Cartão de indicador (KPI). `eyebrow` é opcional — nada é fixado a uma avaliação. */
-export function StatTile({ icon, label, value, hint, accent, eyebrow }: { icon?: ReactNode; label: string; value: ReactNode; hint?: string; accent?: string; eyebrow?: string }) {
-  return (
-    <article className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        {icon ? <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", accent)}>{icon}</div> : <span aria-hidden="true" />}
-        {eyebrow ? <span className="truncate text-[10px] font-black uppercase tracking-[.12em] text-[var(--text-muted)]">{eyebrow}</span> : null}
-      </div>
-      <p className="mt-4 truncate text-xs font-bold text-[var(--text-secondary)]">{label}</p>
-      <strong className="mt-1 block truncate text-3xl font-black tracking-tight text-[var(--text-primary)]">{value}</strong>
-      {hint ? <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">{hint}</span> : null}
-    </article>
-  );
-}
-
-export type MetricStripItem = {
-  label: string;
-  value: ReactNode;
-  hint?: string;
-  icon?: ReactNode;
-  tone?: "brand" | "success" | "warning" | "neutral";
-};
-
-/** Indicadores contínuos, para evitar uma grade de cartões desconectados. */
-export function MetricStrip({ items, ariaLabel }: { items: ReadonlyArray<MetricStripItem>; ariaLabel: string }) {
-  const toneClass = {
-    brand: "bg-[var(--status-info-bg)] text-[var(--status-info-text)]",
-    success: "bg-[var(--status-success-bg)] text-[var(--status-success-text)]",
-    warning: "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]",
-    neutral: "bg-[var(--surface-interactive)] text-[var(--text-secondary)]",
-  } as const;
-
-  return (
-    <section className="metric-strip overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--surface-card)]" aria-label={ariaLabel}>
-      <div className="metric-strip-grid grid sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <article key={item.label} data-tone={item.tone ?? "neutral"} className="metric-strip-item flex min-w-0 gap-3 border-b border-[var(--border-subtle)] px-4 py-4 last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:last:border-r-0">
-            {item.icon ? (
-              <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full", toneClass[item.tone ?? "neutral"])} aria-hidden="true">
-                {item.icon}
-              </span>
-            ) : null}
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-[var(--text-secondary)]">{item.label}</p>
-              <strong className="mt-0.5 block text-2xl font-black tabular-nums tracking-tight text-[var(--text-primary)]">{item.value}</strong>
-              {item.hint ? <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{item.hint}</p> : null}
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 

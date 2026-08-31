@@ -17,7 +17,7 @@ Origem principal dos dados cadastrais e de elegibilidade.
 | Centro de custo | `people.cost_center` |
 | Diretoria / Unidade / Coordenação | `organizational_units` em hierarquia |
 | Status / Situação detalhada | `people.employment_status` e `people.metadata` |
-| Perfil de acesso | `person_role_assignments` |
+| Permissões de acesso | `person_module_permissions` |
 | Participa do ciclo | `application_participants.status` |
 | Chave participante | chave de origem em `people.source_key` ou metadado da importação |
 
