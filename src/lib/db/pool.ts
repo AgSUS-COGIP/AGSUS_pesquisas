@@ -1,11 +1,14 @@
 import { Pool } from "pg";
 
 /**
- * Conexão direta com db_dataware (Postgres da empresa), usada no lugar da
- * Data API do banco. Uma única credencial (usr_sip_app, dona de todas as
- * tabelas/funções de `sigav`) — não há roles anon/authenticated/service_role
- * neste cluster. A distinção de quem pode chamar cada RPC é feita em nível de
- * aplicação por rpc-permissions.ts, não pelo Postgres.
+ * Conexão direta com db_dataware, usada no lugar da Data API do banco. Este é
+ * o pool de RUNTIME: no ambiente local conecta como `app_user` (DML e EXECUTE
+ * em `sigav`, zero DDL); a estrutura pertence a `migration_user`, usada só por
+ * scripts/aplicar-migrations.mjs (ver scripts/separar-usuarios-app-e-migration.sql).
+ * Na instância da empresa ainda vale a credencial única `usr_sip_app`. Não há
+ * roles anon/authenticated/service_role em nenhum dos dois — a distinção de
+ * quem pode chamar cada RPC é feita em nível de aplicação por
+ * rpc-permissions.ts, não pelo Postgres.
  */
 
 const ENV_URL_VARIABLES = ["EMPRESA_DATABASE_URL"] as const;

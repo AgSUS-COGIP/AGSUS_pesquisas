@@ -78,8 +78,14 @@ function lerConfiguracaoConexao() {
   const normalizada = bruta.startsWith("jdbc:") ? bruta.slice(5) : bruta;
   const url = new URL(normalizada);
 
-  const user = process.env.USERNAME_DATABASE_URL?.trim() || url.username;
-  const password = process.env.PASSWORD_DATABASE_URL?.trim() || url.password;
+  // Migration é DDL, e DDL é trabalho da DONA do schema (migration_user) — o
+  // runtime (app_user) não tem esse poder de propósito. As variáveis
+  // MIGRATION_* têm precedência; na ausência delas (ambiente de credencial
+  // única, como o db_dataware da empresa hoje), valem as do runtime.
+  const user = process.env.MIGRATION_USERNAME_DATABASE_URL?.trim()
+    || process.env.USERNAME_DATABASE_URL?.trim() || url.username;
+  const password = process.env.MIGRATION_PASSWORD_DATABASE_URL?.trim()
+    || process.env.PASSWORD_DATABASE_URL?.trim() || url.password;
   if (!user || !password) {
     console.error("USERNAME_DATABASE_URL e PASSWORD_DATABASE_URL precisam estar no ambiente.");
     process.exit(1);

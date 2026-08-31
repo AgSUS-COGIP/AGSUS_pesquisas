@@ -93,7 +93,8 @@ Toda migração deve, no mesmo arquivo:
 3. conceder apenas os grants necessários;
 4. nomear policies, constraints e índices;
 5. fixar `search_path` de funções privilegiadas;
-6. revogar `EXECUTE` de `public`, `anon` e `authenticated` quando a função for interna;
+6. revogar `EXECUTE` de `public` quando a função for interna — o cluster tem uma role só,
+   `usr_sip_app`, e nenhum `grant`/`revoke` nomeia role (ver `docs/operacao-permissoes.md`);
 7. validar `sigav.fc_uid_sessao()`, pessoa, papel e escopo em RPCs públicas;
 8. executar Security e Performance Advisors após DDL.
 
