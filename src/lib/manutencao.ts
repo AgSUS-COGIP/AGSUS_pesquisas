@@ -87,6 +87,9 @@ export function normalizarEstadoDeManutencao(bruto: unknown): EstadoDeManutencao
  */
 const ROTAS_SEMPRE_LIBERADAS = Object.freeze([
   "/acesso",
+  // O destino do rewrite. Sem ele a própria tela de manutenção seria reescrita
+  // para si mesma a cada requisição.
+  "/manutencao",
   "/api/health",
   "/api/health/readiness",
   // O próprio control plane administrativo: sem ele, desligar a manutenção
@@ -158,7 +161,20 @@ export type EstadoOperacional =
 
 export type EntradaOperacional = {
   prontidao: Prontidao;
-  manutencao: EstadoDeManutencao;
+  /**
+   * `null` significa **não foi possível ler o control plane** — e não "não há
+   * manutenção".
+   *
+   * A distinção existe para que a leitura falhar não vire pane. Se o control
+   * plane está fora e a plataforma está saudável, o conservador é deixar
+   * passar: bloquear todo mundo por não conseguir ler uma bandeira transforma
+   * uma indisponibilidade de configuração numa queda total, sem que ninguém
+   * tenha pedido manutenção. Quem opera vê o aviso no log.
+   *
+   * O contrário — queda de backend — continua fechando, porque ali a plataforma
+   * realmente não atende.
+   */
+  manutencao: EstadoDeManutencao | null;
   pathname: string;
   papel: PlatformRoleCode | null;
 };
@@ -190,6 +206,9 @@ export function resolverEstadoOperacional({
   if (ehRotaSempreLiberada(pathname)) return { situacao: "liberado" };
 
   if (ehQuedaDeBackend(prontidao)) return { situacao: "indisponivel" };
+
+  // Control plane ilegível com plataforma saudável não bloqueia ninguém.
+  if (!manutencao) return { situacao: "liberado" };
 
   const ehSuperadmin = papel === PLATFORM_ROLE.SUPER_ADMIN;
 
