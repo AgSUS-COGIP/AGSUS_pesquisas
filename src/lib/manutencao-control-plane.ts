@@ -25,15 +25,26 @@ import {
  * nunca aparece em variável `NEXT_PUBLIC_*`, nunca volta numa resposta e nunca
  * entra em log, nem truncado.
  *
- * ## Production e Preview são stores separados
+ * ## Um store, duas chaves de ambiente
  *
- * Cada ambiente aponta para o seu. Assim exercitar manutenção em Preview não
- * pode, por construção, alterar o estado operacional de produção: não é uma
- * convenção de nome, é outro store com outro identificador.
+ * O plano Hobby permite um único Global Config. Para preservar a independência
+ * operacional entre Production e Preview, os ambientes usam chaves diferentes
+ * dentro do mesmo store: `maintenance-production` e `maintenance-preview`.
+ *
+ * Qualquer ambiente que não seja explicitamente `production` cai na chave de
+ * Preview. Isso é deliberado: desenvolvimento local nunca deve conseguir tocar
+ * o estado de produção por acidente.
  */
 
-/** A chave única guardada no store. */
-const CHAVE = "maintenance";
+export type AmbienteDoControlPlane = "production" | "preview";
+
+export function ambienteDoControlPlane(vercelEnv: string | undefined = process.env.VERCEL_ENV): AmbienteDoControlPlane {
+  return vercelEnv === "production" ? "production" : "preview";
+}
+
+export function chaveDoControlPlane(vercelEnv: string | undefined = process.env.VERCEL_ENV) {
+  return `maintenance-${ambienteDoControlPlane(vercelEnv)}`;
+}
 
 export type LeituraDoControlPlane =
   | { ok: true; estado: EstadoDeManutencao }
@@ -69,9 +80,9 @@ export async function lerManutencao(): Promise<LeituraDoControlPlane> {
   if (!cliente) return { ok: false, motivo: "nao-configurado" };
 
   try {
-    const bruto = await cliente.get(CHAVE);
+    const bruto = await cliente.get(chaveDoControlPlane());
     // Chave ausente é um store recém-criado, e não uma falha: significa que
-    // nunca houve manutenção.
+    // nunca houve manutenção naquele ambiente.
     if (bruto === undefined) return { ok: true, estado: MANUTENCAO_INATIVA };
     return { ok: true, estado: normalizarEstadoDeManutencao(bruto) };
   } catch (erro) {
@@ -100,7 +111,7 @@ export async function estadoParaDecisao(): Promise<EstadoDeManutencao | null> {
 export type ResultadoDaEscrita = { ok: true } | { ok: false; motivo: string };
 
 /**
- * Grava o estado no store deste ambiente.
+ * Grava o estado na chave correspondente ao ambiente atual.
  *
  * `upsert` porque a chave pode não existir ainda — um store recém-criado está
  * vazio, e exigir criação antes da primeira atualização faria a primeira
@@ -129,7 +140,7 @@ export async function gravarManutencao(estado: EstadoDeManutencao): Promise<Resu
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        items: [{ operation: "upsert", key: CHAVE, value: estado }],
+        items: [{ operation: "upsert", key: chaveDoControlPlane(), value: estado }],
       }),
       cache: "no-store",
     });
