@@ -28,7 +28,10 @@ const ORIGEM_HOST = "10.200.10.3";
 const ORIGEM_PORTA = "5432";
 const ORIGEM_DB = "db_dataware";
 const DESTINO_DB = "db_dataware";
-const DESTINO_OWNER = "usr_sip_app";
+// Localmente a credencial única da empresa (usr_sip_app) é separada em duas:
+// migration_user (dona, DDL) e app_user (runtime). O dump restaurado pertence
+// à dona; o app_user é criado depois por separar-usuarios-app-e-migration.sql.
+const DESTINO_OWNER = "migration_user";
 const SCHEMAS = ["sigav"];
 const CAMINHO_DUMP = "/tmp/dataware.dump";
 
@@ -173,14 +176,22 @@ async function main() {
   `]);
 
   console.log(`
-Pronto. Para a aplicação usar o banco local, aponte no .env.local:
+Pronto. Falta UM passo: o dump da empresa não traz o app_user nem as policies
+de RLS dele — recrie a arquitetura de três roles (idempotente):
+
+  docker exec -i ${CONTAINER} psql -U postgres -d ${DESTINO_DB} -v ON_ERROR_STOP=1 \\
+    < scripts/separar-usuarios-app-e-migration.sql
+
+Depois, no .env.local (runtime e DDL separados):
 
   EMPRESA_DATABASE_URL=postgresql://localhost:55432/${DESTINO_DB}
-  USERNAME_DATABASE_URL=${DESTINO_OWNER}
+  USERNAME_DATABASE_URL=app_user
   PASSWORD_DATABASE_URL=dev_local_only
+  MIGRATION_USERNAME_DATABASE_URL=${DESTINO_OWNER}
+  MIGRATION_PASSWORD_DATABASE_URL=dev_local_only
 
-Guarde as linhas atuais (as do 10.200.10.3) comentadas ao lado, para poder
-voltar ao banco da empresa quando precisar conferir algo em produção.
+Guarde as linhas da empresa (as do 10.200.10.3) comentadas ao lado, para poder
+voltar ao banco de produção quando precisar conferir algo lá.
 `);
 }
 

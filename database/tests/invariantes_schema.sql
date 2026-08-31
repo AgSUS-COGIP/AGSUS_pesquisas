@@ -211,6 +211,150 @@ begin
   end if;
   raise notice 'ok 7 — UTF-8 íntegro em todas as funções';
 
+  -- 8. Só as roles da arquitetura decidem acesso ----------------------------
+  -- Desde 20260828140000 a autorização é inteiramente da aplicação
+  -- (rpc-permissions.ts e sigav.person_module_permissions). Uma role do
+  -- Postgres fora da arquitetura com privilégio em objeto de sigav
+  -- significaria que voltou a existir um segundo caminho de acesso — e o
+  -- segundo caminho é o que ninguém lembra de revisar.
+  --
+  -- Duas arquiteturas convivem, e o invariante aceita ambas pelo DONO do
+  -- schema: no db_dataware da empresa a credencial única `usr_sip_app` é dona
+  -- e única concessionária; na réplica local ela foi separada em
+  -- `migration_user` (dona, DDL) e `app_user` (runtime, DML + EXECUTE via
+  -- policies explícitas) — scripts/separar-usuarios-app-e-migration.sql.
+  --
+  -- A falha é sobre PRIVILÉGIO, não sobre existência: remover role do catálogo
+  -- exige CREATEROLE, e role sem privilégio algum não é porta de entrada. Role
+  -- legada que ainda exista vira aviso, com o script que a remove.
+  declare
+    v_dona_oid oid;
+    v_dona_nome text;
+  begin
+    select n.nspowner, r.rolname
+      into v_dona_oid, v_dona_nome
+      from pg_namespace n
+      join pg_roles r on r.oid = n.nspowner
+     where n.nspname = 'sigav';
+
+    if v_dona_nome not in ('usr_sip_app', 'migration_user') then
+      raise exception 'INVARIANTE 8: o dono de sigav é "%" — esperava usr_sip_app (empresa) ou migration_user (local).',
+        v_dona_nome;
+    end if;
+
+    with concessoes as (
+      select a.grantee, 'tabela ' || c.relname as objeto
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(c.relacl) a
+       where n.nspname = 'sigav'
+      union all
+      -- Só função da aplicação: em `sigav` moram também as do pgcrypto, cujo
+      -- dono é o administrador da instância. A ACL delas não está ao alcance de
+      -- quem corrigiria a violação, e um invariante que ninguém pode satisfazer
+      -- é ruído — as regressões possíveis estão todas em objeto da dona.
+      select a.grantee, 'função ' || p.proname
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) a
+       where n.nspname = 'sigav'
+         and p.proowner = v_dona_oid
+      union all
+      select a.grantee, 'schema sigav'
+        from pg_namespace n
+        cross join lateral aclexplode(n.nspacl) a
+       where n.nspname = 'sigav'
+      union all
+      -- Policies: quem aparece numa policy de RLS enxerga linhas. Só app_user
+      -- (e a dona, que dispensa policy) podem estar aqui.
+      select pr.oid, 'policy ' || p.polname || ' em ' || c.relname
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral unnest(p.polroles) papel(oid)
+        join pg_roles pr on pr.oid = papel.oid
+       where n.nspname = 'sigav'
+    )
+    select count(*), coalesce(string_agg(distinct r.rolname || ' em ' || co.objeto, ', '), '')
+      into v_quantidade, v_detalhe
+      from concessoes co
+      join pg_roles r on r.oid = co.grantee
+     where r.oid <> v_dona_oid
+       and r.rolname <> 'app_user'
+       and not r.rolsuper
+       and r.rolname not like 'pg\_%';
+
+    if v_quantidade <> 0 then
+      raise exception 'INVARIANTE 8: % concessão(ões) a role fora da arquitetura (dona=%, runtime=app_user): %',
+        v_quantidade, v_dona_nome, v_detalhe;
+    end if;
+
+    -- O runtime não pode ser dono de nada nem criar objetos: DDL é da dona.
+    if exists (select 1 from pg_roles where rolname = 'app_user') then
+      if has_schema_privilege('app_user', 'sigav', 'create') then
+        raise exception 'INVARIANTE 8: app_user tem CREATE no schema sigav — runtime não faz DDL.';
+      end if;
+      select count(*) into v_quantidade from (
+        select 1 from pg_class c where c.relowner = 'app_user'::regrole
+        union all
+        select 1 from pg_proc p where p.proowner = 'app_user'::regrole
+      ) posse;
+      if v_quantidade <> 0 then
+        raise exception 'INVARIANTE 8: app_user é dona de % objeto(s) — runtime não possui nada.', v_quantidade;
+      end if;
+    end if;
+
+    raise notice 'ok 8 — privilégios em sigav restritos à arquitetura (dona=%, runtime=app_user)', v_dona_nome;
+  end;
+
+  select count(*), coalesce(string_agg(rolname, ', ' order by rolname), '')
+    into v_quantidade, v_detalhe
+    from pg_roles
+   where rolname in (
+           'anon', 'authenticated', 'service_role', 'authenticator',
+           'dashboard_user', 'pgbouncer', 'supabase_admin',
+           'supabase_auth_admin', 'supabase_read_only_user',
+           'supabase_storage_admin'
+         );
+
+  if v_quantidade <> 0 then
+    raise notice 'aviso 8 — % role(s) legada(s) sem privilégio ainda no catálogo: %', v_quantidade, v_detalhe;
+    raise notice '         o drop exige CREATEROLE: scripts/remover-roles-legadas-do-cluster.sql';
+  end if;
+
+  -- 9. Perfil de acesso tem uma morada só ----------------------------------
+  -- Desde 20260828150000 as tabelas de perfil saíram do banco: autorização é
+  -- `person_module_permissions` sobre `platform_modules`, e preset é interface
+  -- (`src/lib/platform-access-presets.ts`). Duas moradas para a mesma decisão
+  -- foi o que fez `system_roles` sobreviver quatro migrations depois de deixar
+  -- de decidir nada — a que ninguém usa é a que ninguém revisa.
+  select count(*), coalesce(string_agg(nome, ', ' order by nome), '')
+    into v_quantidade, v_detalhe
+    from (
+      select c.relname as nome
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'sigav'
+         and c.relname in ('system_roles', 'person_role_assignments',
+                           'role_module_permissions')
+      union all
+      select p.proname
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'sigav'
+         and p.proname in ('fc_definir_perfil_pessoa', 'list_access_workspace')
+    ) legado;
+
+  if v_quantidade <> 0 then
+    raise exception 'INVARIANTE 9: objeto de perfil legado de volta em sigav: %', v_detalhe;
+  end if;
+
+  if to_regclass('sigav.person_module_permissions') is null
+     or to_regclass('sigav.platform_modules') is null then
+    raise exception 'INVARIANTE 9: falta a tabela que hoje decide o acesso.';
+  end if;
+  raise notice 'ok 9 — perfil de acesso só em person_module_permissions';
+
   raise notice '--- todos os invariantes passaram ---';
 end;
 $invariantes$;
