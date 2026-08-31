@@ -19,7 +19,8 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
-import { PARTICIPANT_ROLE_MODULES, resolvePlatformRole } from "@/lib/platform-modules";
+import { PARTICIPANT_ROLE_MODULES, resolvePlatformRole, type PlatformModule } from "@/lib/platform-modules";
+import { useModulosEmManutencao } from "@/lib/manutencao-cliente";
 import { isSuperAdminOnlyRoute } from "@/lib/platform-support";
 import { finishLocalSignOut } from "@/lib/local-sign-out";
 import {
@@ -153,7 +154,7 @@ function BrandLockup({ compact, branding, brandingLoading, mobile = false }: { c
  */
 type NavTip = { label: string; description: string; top: number } | null;
 
-function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip }: { group: PlatformNavGroup; pathname: string; compact: boolean; mobile?: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void }) {
+function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip, emManutencao }: { group: PlatformNavGroup; pathname: string; compact: boolean; mobile?: boolean; onNavigate?: () => void; onTip?: (tip: NavTip) => void; emManutencao: readonly PlatformModule[] }) {
   /*
     A casca renderiza a navegação duas vezes — a barra do desktop e a gaveta do
     celular. O id derivado do título do grupo era o mesmo nas duas, então cada
@@ -172,6 +173,15 @@ function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip 
       <nav className="mt-2 space-y-1" aria-label={compact ? `Navegação — ${group.title}` : undefined}>
         {group.items.map((item) => {
           const active = isPlatformNavItemActive(pathname, item);
+          /*
+            O item continua visível, com o estado dito em texto.
+
+            Esconder comunicaria a coisa errada: sumir do menu é o que acontece
+            quando o perfil não tem o módulo. Quem perdesse "Painéis" de vista
+            concluiria que a própria permissão mudou, e iria pedir acesso a quem
+            administra em vez de esperar a manutenção acabar.
+          */
+          const paradoParaManutencao = Boolean(item.module && emManutencao.includes(item.module));
           return (
             <Link
               key={item.href}
@@ -213,7 +223,14 @@ function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip 
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? "bg-white/10" : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-[var(--brand-primary)]"}`} aria-hidden="true">
                 <PlatformIcon name={item.icon} className="h-[18px] w-[18px]" />
               </span>
-              {!compact ? <span className="platform-sidebar-expanded-only truncate">{item.label}</span> : null}
+              {!compact ? (
+                <span className="platform-sidebar-expanded-only min-w-0 truncate">
+                  {item.label}
+                  {paradoParaManutencao ? (
+                    <span className="block truncate text-[11px] font-normal opacity-80">Em manutenção</span>
+                  ) : null}
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -225,6 +242,9 @@ function NavGroup({ group, pathname, compact, mobile = false, onNavigate, onTip 
 function SidebarContent({ user, branding, brandingLoading, compact, modules, mobile = false, onNavigate, onSignOut, onTip }: { user: PlatformUser; branding: PlatformBranding; brandingLoading: boolean; compact: boolean; modules: string[]; mobile?: boolean; onNavigate?: () => void; onSignOut: () => void; onTip?: (tip: NavTip) => void }) {
   const pathname = usePathname();
   const groups = navigationGroupsForModules(modules);
+  // A casca desenha a navegação duas vezes (barra e gaveta); o hook deduplica
+  // sozinho porque a leitura é a mesma e não guarda estado entre montagens.
+  const emManutencao = useModulosEmManutencao() ?? [];
 
   return (
     <div className={`relative flex h-full min-h-0 flex-col ${mobile ? "overflow-visible bg-[var(--surface-card)] text-[var(--text-primary)]" : "overflow-hidden bg-[var(--sidebar-background)] text-[var(--sidebar-foreground)]"}`}>
@@ -261,7 +281,7 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         no celular.
       */}
       <div className={`px-2.5 pb-4 ${mobile ? "" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"}`}>
-        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} mobile={mobile} onNavigate={onNavigate} onTip={onTip} />)}
+        {groups.map((group) => <NavGroup key={group.title} group={group} pathname={pathname} compact={compact && !mobile} mobile={mobile} onNavigate={onNavigate} onTip={onTip} emManutencao={emManutencao} />)}
       </div>
       <div className={`shrink-0 border-t border-[var(--border-subtle)] p-2.5 ${mobile ? "bg-[var(--surface-card)]" : "bg-transparent"}`}>
         {/*

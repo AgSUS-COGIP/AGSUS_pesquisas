@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { type PlatformModule } from "@/lib/platform-modules";
+import { useModulosEmManutencao } from "./manutencao-cliente";
 import { resolvePlatformGuard, type PlatformGuardDecision } from "@/lib/platform-guard";
 import { chamar, ErroDeApi } from "@/lib/api/requisicao";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -195,9 +196,11 @@ export function usePlatformGuard(
   requiredModule?: PlatformModule,
   options: { enabled?: boolean } = {},
 ): PlatformGuardDecision {
-  const { context, loading, error } = usePlatformContext(options.enabled ?? true);
+  const ativo = options.enabled ?? true;
+  const { context, loading, error } = usePlatformContext(ativo);
+  const modulosEmManutencao = useModulosEmManutencao(ativo);
   return useMemo(
-    () => resolvePlatformGuard({ context, loading, error, requiredModule }),
-    [context, loading, error, requiredModule],
+    () => resolvePlatformGuard({ context, loading, error, requiredModule, modulosEmManutencao }),
+    [context, loading, error, requiredModule, modulosEmManutencao],
   );
 }
