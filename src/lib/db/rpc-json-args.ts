@@ -18,7 +18,6 @@ export const RPC_JSON_ARGS: Readonly<Record<string, readonly string[]>> = {
   "fc_srv_gravar_resp_anon": ["target_json"],
   "fc_srv_registrar_erro_aplicacao": ["p_ds_contexto"],
   "save_my_survey_answer": ["target_json"],
-  "set_my_avatar_choice": ["p_avatar_config"],
   "sync_cddi_manager_rows": ["p_rows"],
   "sync_people_base_rows": ["p_rows"],
   "update_survey_question": ["question_options"],
