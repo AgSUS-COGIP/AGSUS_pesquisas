@@ -1,35 +1,80 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ehRotaSempreLiberada } from "@/lib/manutencao";
 import { estadoParaDecisao } from "@/lib/manutencao-control-plane";
+import { PLATFORM_ROLE } from "@/lib/platform-roles";
 import { updateSession } from "@/lib/supabase/proxy";
+import { SUPABASE_DB_SCHEMA } from "@/lib/supabase/schema";
 
 /**
- * Manutenção global é decidida aqui, antes de qualquer leitura do banco.
+ * Durante manutenção global o proxy precisa tomar uma decisão que normalmente
+ * pertence à aplicação: distinguir Superadmin de todo o restante.
  *
- * ## Por que no middleware
+ * Fazer essa leitura em toda requisição normal anularia uma das vantagens do
+ * gate no proxy. Por isso ela só acontece quando a bandeira global já está
+ * ativa. Nesse estado, uma ida ao banco por requisição administrativa é um
+ * custo deliberado para preservar o caminho de recuperação sem abrir a
+ * plataforma para outras pessoas.
+ */
+async function ehSuperadminAutenticado(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) return false;
+
+  try {
+    const supabase = createServerClient(url, publishableKey, {
+      db: { schema: SUPABASE_DB_SCHEMA },
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        // Esta leitura é só para decidir o bypass. Renovação e persistência de
+        // sessão continuam centralizadas em `updateSession()` quando a
+        // requisição é liberada.
+        setAll() {},
+      },
+    });
+
+    const { data: claims, error: erroDeClaims } = await supabase.auth.getClaims();
+    if (!claims?.claims?.sub || erroDeClaims) return false;
+
+    const { data, error } = await supabase.rpc("fc_obter_contexto_plataforma");
+    if (error) {
+      console.warn("maintenance_superadmin_check_failed", { codigo: error.code });
+      return false;
+    }
+
+    const contexto = data as { roles?: string[] } | null;
+    return Boolean(contexto?.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN));
+  } catch (error) {
+    console.warn("maintenance_superadmin_check_failed", {
+      mensagem: error instanceof Error ? error.message : "erro-desconhecido",
+    });
+    return false;
+  }
+}
+
+export function deveBloquearManutencaoGlobal(globalAtiva: boolean, ehSuperadmin: boolean) {
+  return globalAtiva && !ehSuperadmin;
+}
+
+/**
+ * Manutenção global é decidida aqui antes de a página carregar seus dados.
  *
- * Parar a plataforma precisa acontecer antes de a página tentar carregar
- * dados — senão cada rota bloqueada ainda paga uma ida ao PostgreSQL para
- * descobrir que não vai renderizar, e a manutenção deixa de aliviar justamente
- * o que ela deveria aliviar. A leitura do Edge Config não toca o banco e é
- * barata o bastante para acontecer em toda requisição.
+ * O caminho normal continua sem tocar o banco: lemos apenas o Global Config.
+ * Quando `global=true`, fazemos uma exceção controlada e resolvemos o papel da
+ * sessão. Superadmin segue para `updateSession()` e entra na plataforma em modo
+ * administrativo; qualquer outra pessoa continua recebendo a tela/503 de
+ * manutenção.
  *
- * ## Por que este gate não conhece o papel da pessoa
+ * Se a identificação administrativa falhar, o comportamento é conservador:
+ * não concedemos bypass. As rotas de recuperação explicitamente liberadas
+ * (`/admin/configuracoes` e `/api/plataforma/manutencao`) permanecem disponíveis
+ * para que a manutenção possa ser desligada, e o painel da Vercel continua como
+ * último recurso independente do banco.
  *
- * O papel institucional vem de `fc_obter_contexto_plataforma`, que é uma ida ao
- * banco — exatamente o que este ponto existe para evitar. Então aqui a
- * manutenção global bloqueia **todo mundo**, e quem administra continua
- * entrando pelas rotas sempre liberadas: `/admin/configuracoes` e
- * `/api/plataforma/manutencao`, que são a tela e a API por onde a manutenção é
- * desligada.
- *
- * Não é um desvio escondido: são rotas autenticadas, com papel conferido no
- * servidor, e a mesma decisão fina — com papel — é tomada dentro da aplicação
- * pela guarda de plataforma. Aqui é o gate grosso, que nunca tranca a saída.
- *
- * A manutenção **por módulo** não é decidida aqui de propósito: ela precisa
- * distinguir Superadmin de usuário comum, e essa informação só existe depois do
- * contexto institucional.
+ * A manutenção por módulo não é decidida aqui: a guarda da aplicação já conhece
+ * o papel e concede o mesmo desvio apenas ao Superadmin.
  */
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -37,6 +82,13 @@ export async function proxy(request: NextRequest) {
   if (!ehRotaSempreLiberada(pathname)) {
     const manutencao = await estadoParaDecisao();
     if (manutencao?.global) {
+      const superadmin = await ehSuperadminAutenticado(request);
+
+      if (!deveBloquearManutencaoGlobal(true, superadmin)) {
+        console.warn("maintenance_superadmin_bypass", { pathname });
+        return updateSession(request);
+      }
+
       console.warn("maintenance_global_active", { pathname });
 
       // Rota de API responde em JSON, inclusive quando recusa: um `fetch` que
