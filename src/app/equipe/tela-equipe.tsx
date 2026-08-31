@@ -63,7 +63,7 @@ function normalizedStatus(status: string | null): Exclude<StatusFilter, "ALL"> {
 function statusVariant(state: Exclude<StatusFilter, "ALL">) {
   if (state === "SUBMITTED") return "success" as const;
   if (state === "DRAFT") return "info" as const;
-  return "warning" as const;
+  return "neutral" as const;
 }
 function dateTime(value: string | null) {
   if (!value) return "Sem atividade registrada";
@@ -288,7 +288,7 @@ export default function TeamPage() {
 
       <section aria-label="Resumo da equipe" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Integrantes" value={loadingTeam ? "—" : workspace?.total ?? 0} description="pessoas na sua equipe neste ciclo" />
-        <StatCard label="Não iniciadas" value={loadingTeam ? "—" : notStarted} description="ainda sem nenhuma resposta" tom="warning" />
+        <StatCard label="Não iniciadas" value={loadingTeam ? "—" : notStarted} description="ainda sem nenhuma resposta" tom="neutral" />
         <StatCard label="Em preenchimento" value={loadingTeam ? "—" : drafts} description="começadas, faltam enviar" tom="info" />
         <StatCard label="Enviadas" value={loadingTeam ? "—" : sent} description="concluídas e registradas" tom="success" />
       </section>
