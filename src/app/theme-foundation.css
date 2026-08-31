@@ -34,23 +34,6 @@
   --status-danger-bg: #fff0f0;
   --status-danger-border: #efaaaa;
   --status-danger-text: #a12121;
-
-  /*
-    Agendado — a quinta família, e a única acrescentada aqui.
-
-    Existe porque "vai acontecer" não cabe em nenhuma das quatro. Em `info` ele
-    se confunde com "em andamento", e a diferença entre um ciclo que já aceita
-    resposta e um que ainda não aceita é justamente o que a pessoa precisa ver
-    antes de clicar. Em `warning` ele viraria pendência, e não há nada a fazer
-    a respeito de uma data futura.
-
-    O violeta fica **reservado** a este significado. Roxo decorativo espalhado
-    pela interface é o que descaracteriza o tom institucional, e é o que esta
-    reserva impede: se ele aparece, quer dizer futuro.
-  */
-  --status-scheduled-bg: #f4f0fd;
-  --status-scheduled-border: #c3b0ee;
-  --status-scheduled-text: #553196;
 }
 
 html[data-agsus-theme="dark"] {
@@ -80,12 +63,6 @@ html[data-agsus-theme="dark"] {
   --status-danger-bg: rgba(185, 28, 28, .2);
   --status-danger-border: #a94444;
   --status-danger-text: #ffc2c2;
-  /* Mesma construção das outras quatro no escuro: fundo translúcido sobre a
-     superfície do tema, borda sólida e texto claro o bastante para passar em AA
-     sobre o cartão — medido, não estimado. */
-  --status-scheduled-bg: rgba(109, 68, 190, .24);
-  --status-scheduled-border: #7d5cc4;
-  --status-scheduled-text: #d9c9ff;
   scrollbar-color: var(--border-strong) var(--surface-page);
 }
 

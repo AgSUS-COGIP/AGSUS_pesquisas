@@ -129,7 +129,7 @@ function SurveysPageContent() {
   // `StatCard` para virar uma faixa. `alert` liga o realce de urgência sem que a
   // cor seja o único indicador — a legenda continua dizendo quantas vencem.
   const metricTiles = [
-    { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false, tom: "info" as const },
+    { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false, tom: "total" as const },
     {
       label: "Pendentes",
       // `metrics.pending`, não `metrics.actionable`. `actionable` é

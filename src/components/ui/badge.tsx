@@ -12,8 +12,6 @@ const badgeVariants = cva(
         success: "bg-[var(--status-success-bg)] text-[var(--status-success-text)] ring-1 ring-inset ring-[var(--status-success-border)]",
         warning: "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] ring-1 ring-inset ring-[var(--status-warning-border)]",
         danger: "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] ring-1 ring-inset ring-[var(--status-danger-border)]",
-        /** Futuro/agendado. Violeta reservado a este significado — ver `theme-foundation.css`. */
-        scheduled: "bg-[var(--status-scheduled-bg)] text-[var(--status-scheduled-text)] ring-1 ring-inset ring-[var(--status-scheduled-border)]",
         outline: "bg-[var(--surface-card)] text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border-strong)]",
       },
     },

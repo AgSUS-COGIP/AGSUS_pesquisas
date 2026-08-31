@@ -20,13 +20,33 @@ import { URGENT_DEADLINE_DAYS, type SurveyItemState } from "./survey-catalog";
  * ## O vocabulário
  *
  * ```text
- * info       informação, disponível, em progresso
+ * total      contagem-base, o denominador — não é estado
+ * info       informação de estado, em progresso, agendado
  * success    aberto, concluído, está bem
  * warning    pendência, prazo apertado, precisa de atenção
  * danger     atraso, bloqueio, problema
- * scheduled  futuro — violeta reservado a este significado
  * neutral    sem estado, encerrado normalmente
  * ```
+ *
+ * `total` existe porque "Disponíveis 3", "Integrantes 9" e "Avaliações 6" não
+ * são estados: são o universo dentro do qual os estados são contados. Pintá-los
+ * com a família de um estado faria o total parecer uma situação — e deixaria
+ * dois indicadores vizinhos com a mesma cor significando coisas diferentes.
+ * Eles seguem no azul institucional, que já era a cor deles.
+ *
+ * ## Por que não há família para "agendado"
+ *
+ * Houve uma, em violeta, pela ideia de que futuro merece cor própria. Ela saiu
+ * depois de medida contra a interface real: a `primaryColor` configurada da
+ * plataforma é roxa hoje, e os botões de ação — "Nova avaliação", "Continuar",
+ * "Avaliar equipe lado a lado" — são roxos por causa dela. O violeta do selo
+ * ficava a **1,27** de contraste do roxo dos botões, ou seja, praticamente a
+ * mesma cor: um selo "Agendada" passaria a parecer um botão.
+ *
+ * A cor principal é configurável e muda sem deploy, então nenhum matiz é seguro
+ * por definição — reservar um para status é apostar contra uma configuração que
+ * a administração pode trocar amanhã. Agendado usa `info`, que é o que o
+ * próprio guia manda fazer quando não há razão forte para uma família nova.
  *
  * ## O que este módulo não faz
  *
@@ -35,45 +55,45 @@ import { URGENT_DEADLINE_DAYS, type SurveyItemState } from "./survey-catalog";
  * responderam. Recalcular qualquer uma das duas criaria uma segunda verdade que
  * divergiria da primeira na próxima regra de negócio.
  */
-export type TomSemantico = "info" | "success" | "warning" | "danger" | "scheduled" | "neutral";
+export type TomSemantico = "total" | "info" | "success" | "warning" | "danger" | "neutral";
 
 /** Variante de `Badge` correspondente ao tom. */
-export const VARIANTE_DE_BADGE: Record<TomSemantico, "info" | "success" | "warning" | "danger" | "scheduled" | "neutral"> = {
+export const VARIANTE_DE_BADGE: Record<TomSemantico, "info" | "success" | "warning" | "danger" | "neutral"> = {
+  total: "info",
   info: "info",
   success: "success",
   warning: "warning",
   danger: "danger",
-  scheduled: "scheduled",
   neutral: "neutral",
 };
 
 /** Classes de texto por tom, para número e rótulo tonalizados. */
 export const TEXTO_DO_TOM: Record<TomSemantico, string> = {
+  total: "text-[var(--brand-primary)]",
   info: "text-[var(--status-info-text)]",
   success: "text-[var(--status-success-text)]",
   warning: "text-[var(--status-warning-text)]",
   danger: "text-[var(--status-danger-text)]",
-  scheduled: "text-[var(--status-scheduled-text)]",
   neutral: "text-[var(--text-secondary)]",
 };
 
 /** Classes de borda por tom, para o traço fino de um cartão ou indicador. */
 export const BORDA_DO_TOM: Record<TomSemantico, string> = {
+  total: "border-[var(--brand-primary)]",
   info: "border-[var(--status-info-border)]",
   success: "border-[var(--status-success-border)]",
   warning: "border-[var(--status-warning-border)]",
   danger: "border-[var(--status-danger-border)]",
-  scheduled: "border-[var(--status-scheduled-border)]",
   neutral: "border-[var(--border-strong)]",
 };
 
 /** Classes de fundo e texto por tom, para o ícone-marcador de uma linha. */
 export const MARCADOR_DO_TOM: Record<TomSemantico, string> = {
+  total: "bg-[var(--surface-muted)] text-[var(--brand-primary)]",
   info: "bg-[var(--status-info-bg)] text-[var(--status-info-text)]",
   success: "bg-[var(--status-success-bg)] text-[var(--status-success-text)]",
   warning: "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]",
   danger: "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]",
-  scheduled: "bg-[var(--status-scheduled-bg)] text-[var(--status-scheduled-text)]",
   neutral: "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
 };
 
@@ -92,9 +112,8 @@ export function tomDoEstadoDaAvaliacao(estado: SurveyItemState): TomSemantico {
     case "COMPLETED":
       return "success";
     case "IN_PROGRESS":
-      return "info";
     case "SCHEDULED":
-      return "scheduled";
+      return "info";
     case "CLOSED":
       return "neutral";
     case "PENDING":
@@ -111,8 +130,7 @@ export function tomDoEstadoDaAvaliacao(estado: SurveyItemState): TomSemantico {
  */
 export function tomDaSituacaoDoCiclo(status: string): TomSemantico {
   if (status === "OPEN") return "success";
-  if (status === "SCHEDULED") return "scheduled";
-  if (status === "CLOSED") return "neutral";
+  if (status === "SCHEDULED") return "info";
   return "neutral";
 }
 
