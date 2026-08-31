@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEmailConfigurationStatus } from "@/config/email";
-import { AdminSupabaseConfigurationError, createAdminSupabaseClient, getAdminSupabaseConfigurationStatus } from "@/lib/supabase/admin";
-import { RPCS_CRITICAS } from "@/lib/rpc-criticas";
+import { verificarProntidao } from "@/lib/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +19,13 @@ export const dynamic = "force-dynamic";
  * respondia `ok` nesse estado: ele só conferia configuração. Aconteceu duas
  * vezes em agosto de 2026.
  *
+ * ## A verificação agora mora fora desta rota
+ *
+ * `verificarProntidao()` (`@/lib/readiness`) é a definição, e esta rota é
+ * apenas um de seus consumidores — o outro é a tela de acesso, que antes
+ * inferia saúde a partir da leitura da marca e por isso discordava daqui.
+ * Duas regras para a mesma pergunta produziam login normal com o banco fora.
+ *
  * ## O que a resposta revela — e o que não revela
  *
  * O corpo público traz apenas `ready` ou `degraded`. Nem nome de variável, nem
@@ -36,42 +41,13 @@ export async function GET() {
     "Cache-Control": "no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
   };
-  const degradado = (motivo: string, detalhe?: unknown) => {
-    console.warn("[readiness] degradado:", motivo, detalhe ?? "");
+
+  const prontidao = await verificarProntidao();
+
+  if (prontidao.estado !== "pronta") {
+    console.warn("[readiness] degradado:", prontidao.estado, prontidao.detalhe);
     return NextResponse.json({ status: "degraded" }, { status: 503, headers: cabecalhos });
-  };
-
-  const faltando = [
-    ...getAdminSupabaseConfigurationStatus().missingVariables,
-    ...getEmailConfigurationStatus().missingVariables,
-  ];
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-  if (!process.env.CRON_SECRET?.trim()) faltando.push("CRON_SECRET");
-
-  if (faltando.length) return degradado("configuração ausente", faltando.join(", "));
-
-  try {
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.rpc("fc_srv_verificar_contrato_rpc", {
-      p_nomes: [...RPCS_CRITICAS],
-    });
-
-    // A própria função de verificação pode faltar — é o caso de um ambiente
-    // atrás da migration que a criou. Isso **é** incompatibilidade de esquema,
-    // e não uma falha a ser engolida.
-    if (error) return degradado("verificação de contrato falhou", `${error.code} ${error.message}`);
-
-    const resultado = data as { compatible?: boolean; missing?: string[] } | null;
-    if (!resultado?.compatible) {
-      return degradado("RPCs ausentes no esquema", resultado?.missing?.join(", ") ?? "desconhecido");
-    }
-
-    return NextResponse.json({ status: "ready" }, { status: 200, headers: cabecalhos });
-  } catch (erro) {
-    if (erro instanceof AdminSupabaseConfigurationError) {
-      return degradado("configuração administrativa incompleta", erro.message);
-    }
-    return degradado("banco inacessível", erro);
   }
+
+  return NextResponse.json({ status: "ready" }, { status: 200, headers: cabecalhos });
 }
