@@ -17,8 +17,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSurveyCatalog } from "@/hooks/use-survey-catalog";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
-import { compareSurveyPriority, selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState } from "@/lib/survey-catalog";
+import { compareSurveyPriority, selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState, type SurveyItemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
+import {
+  BORDA_DO_TOM,
+  MARCADOR_DO_TOM,
+  TEXTO_DO_TOM,
+  VARIANTE_DE_BADGE,
+  tomDoEstadoDaAvaliacao,
+  tomDoPrazo,
+} from "@/lib/tom-semantico";
 import { timeGreeting } from "@/lib/greeting";
 
 // A regra de saudação vive em `@/lib/greeting`, testada e compartilhada com a
@@ -33,14 +41,22 @@ function stateLabel(state: string) {
   return "Pendente";
 }
 
-function stateVariant(state: string) {
-  if (state === "COMPLETED") return "success" as const;
-  if (state === "IN_PROGRESS") return "warning" as const;
-  // Vermelho, não cinza. Perder o prazo é desfecho, não ausência de estado — e
-  // `neutral` fazia o item fechado se parecer com qualquer outro da lista.
-  if (state === "CLOSED") return "danger" as const;
-  if (state === "SCHEDULED") return "info" as const;
-  return "outline" as const;
+/*
+  O selo passou a usar a gramática compartilhada.
+
+  Duas correções em relação ao mapa anterior. "Em andamento" era âmbar — a cor
+  que o produto usa para pendência, ou seja, para o que exige ação; continuar
+  algo já iniciado não é isso. E "Fechada" era vermelha, com a justificativa de
+  que perder o prazo é desfecho e não ausência de estado.
+
+  A intenção do vermelho era legítima, mas o alvo estava errado: ele marcava
+  todo ciclo encerrado, inclusive o que fechou normalmente depois de todo mundo
+  responder. Vermelho que aparece no caso comum deixa de significar problema.
+  O ciclo encerrado é neutro; o vermelho fica reservado ao prazo vencido com
+  resposta pendente, que tem tom próprio.
+*/
+function stateVariant(state: SurveyItemState) {
+  return VARIANTE_DE_BADGE[tomDoEstadoDaAvaliacao(state)];
 }
 
 function dateLabel(value: string | null) {
@@ -163,18 +179,21 @@ export default function ParticipantAreaPage() {
       value: metrics.pending,
       description: metrics.pending === 0 ? "nada aguardando você" : "aguardando você começar",
       href: "/pesquisas?situacao=OPEN",
+      tom: "warning" as const,
     },
     {
       label: "Em andamento",
       value: metrics.inProgress,
       description: metrics.inProgress === 0 ? "nenhuma iniciada" : "já iniciadas, faltam enviar",
       href: "/pesquisas?situacao=DRAFT",
+      tom: "info" as const,
     },
     {
       label: "Concluídas",
       value: metrics.completed,
       description: metrics.total ? `${metrics.completionRate}% do que está disponível` : "enviadas e registradas",
       href: "/pesquisas?situacao=COMPLETED",
+      tom: "success" as const,
     },
     {
       label: "Prazo mais próximo",
@@ -204,6 +223,21 @@ export default function ParticipantAreaPage() {
             : urgentLabel,
       alert: metrics.urgent > 0,
       href: "/pesquisas?situacao=OPEN",
+      /*
+        O único tom dinâmico dos quatro, e o único que faz sentido ser: prazo
+        confortável não pede atenção; prazo curto pede.
+
+        `tomDoPrazo` recebe o que `summarizeSurveyCatalog` já apurou, então o
+        corte de urgência continua sendo um só no produto — o mesmo que a
+        legenda ao lado usa para dizer "vencem em até 7 dias".
+      */
+      tom: tomDoPrazo(
+        metrics.nextDeadlineDays === null
+          ? { state: "none" }
+          : metrics.nextDeadlineDays === 0
+            ? { state: "today" }
+            : { state: "counting", days: metrics.nextDeadlineDays },
+      ),
     },
   ];
 
@@ -306,8 +340,8 @@ export default function ParticipantAreaPage() {
               só ~700px, e "Prazo mais próximo" quebrava em duas linhas do mesmo
               jeito. O breakpoint estava medindo a coisa errada.
             */}
-            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
-              {metricTiles.map((tile, index) => {
+            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4">
+              {metricTiles.map((tile) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
                 const highlight = !catalogLoading && !catalogFailed && tile.alert;
@@ -320,14 +354,24 @@ export default function ParticipantAreaPage() {
                     key={tile.label}
                     href={tile.href}
                     aria-label={`Ver avaliações: ${tile.label}`}
-                    className={`group rounded-md px-2 py-1 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
+                    className={`group rounded-md border-l-2 py-1 pl-3 pr-2 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${unknown ? BORDA_DO_TOM.neutral : BORDA_DO_TOM[tile.tom]}`}
                   >
                     <span className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</span>
                     <span className="block">
-                      <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${highlight ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                      {/*
+                        O número passa a carregar o tom do que conta. Antes os
+                        quatro eram azul institucional: "Pendentes" e
+                        "Concluídas" — estados opostos — ficavam idênticos, e a
+                        tela só distinguia urgência, nunca significado.
+
+                        Sem catálogo o tom é suspenso junto com o número: pintar
+                        um traço de verde ou âmbar afirmaria um estado que não
+                        foi possível apurar.
+                      */}
+                      <strong className={`mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums ${unknown ? "text-[var(--text-secondary)]" : TEXTO_DO_TOM[tile.tom]}`}>
                         {unknown ? "—" : tile.value}
                       </strong>
-                      <span className={`mt-2 block text-xs leading-4 ${highlight ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
+                      <span className={`mt-2 block text-xs leading-4 ${highlight ? `font-semibold ${TEXTO_DO_TOM.warning}` : "text-[var(--text-secondary)]"}`}>
                         {catalogLoading ? "carregando" : catalogFailed ? "indisponível" : tile.description}
                       </span>
                     </span>
@@ -454,11 +498,17 @@ export default function ParticipantAreaPage() {
                   return (
                     <li key={item.applicationId}>
                       <Link href={applicationHref(item)} className="group flex items-center gap-4 p-5 transition hover:bg-[var(--surface-hover)]">
-                        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
-                          state === "COMPLETED" ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                            : state === "IN_PROGRESS" ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
-                            : "bg-[var(--surface-muted)] text-[var(--brand-primary)]"
-                        }`}>
+                        {/*
+                          O marcador segue a gramática compartilhada. Antes,
+                          "Em andamento" era âmbar aqui e no catálogo, enquanto
+                          âmbar em todo o resto do produto quer dizer pendência
+                          — algo que exige ação. Uma avaliação já iniciada não
+                          exige nada além de continuar.
+
+                          A linha não recebe fundo: só o marcador é tonalizado,
+                          e o selo à direita continua nomeando o estado.
+                        */}
+                        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${MARCADOR_DO_TOM[tomDoEstadoDaAvaliacao(state)]}`}>
                           {state === "COMPLETED" ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <FileText className="h-5 w-5" aria-hidden="true" />}
                         </span>
                         <span className="min-w-0 flex-1">

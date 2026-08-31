@@ -8,7 +8,16 @@
   --surface-interactive: #f7fafc;
   --surface-overlay: rgba(255, 255, 255, .92);
   --border-strong: #b9c8d5;
-  --text-muted: #718096;
+  /*
+    Era `#718096`, que dá 4,02:1 sobre o cartão branco — abaixo do mínimo da
+    WCAG AA para os 12px em que este token é usado: legendas de indicador,
+    códigos de avaliação, rodapé e trilha.
+
+    O ajuste é o menor que atravessa o limite (4,79:1) e mantém a hierarquia:
+    `--text-muted` continua mais claro que `--text-secondary` (5,12:1), então
+    nada troca de papel. O escuro já passava e ficou como estava.
+  */
+  --text-muted: #66738a;
   --text-on-brand: #ffffff;
   --control-bg: #ffffff;
   --control-hover: #edf5fa;
