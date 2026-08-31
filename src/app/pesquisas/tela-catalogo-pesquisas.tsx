@@ -285,8 +285,14 @@ function SurveysPageContent() {
                   Só o número recebe cor. Pintar a aba inteira faria seis botões
                   coloridos disputarem atenção com a seleção, que é a informação
                   que o filtro precisa comunicar primeiro.
+
+                  Sem caixa em volta. Ela existia para destacar o número de um
+                  rótulo da mesma cor; agora que o número tem cor própria, o
+                  fundo virou um segundo contorno dentro de um botão que já é
+                  contornado — caixa dentro de caixa, seis vezes na mesma linha.
+                  O peso da fonte basta para separá-lo do rótulo.
                 */}
-                <span className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums bg-[var(--surface-card)] ${TEXTO_DO_TOM[tomDoFiltro(item.key)]}`}>{counts[item.key]}</span>
+                <span className={`text-[11px] font-semibold tabular-nums ${TEXTO_DO_TOM[tomDoFiltro(item.key)]}`}>{counts[item.key]}</span>
               </button>
             ))}
           </div>
