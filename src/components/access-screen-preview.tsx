@@ -12,7 +12,8 @@ type AccessScreenPreviewProps = {
   greeting: string;
   instruction: string;
   panelColor: string | null;
-  backgroundUrl: string;
+  /** Nulo quando não há arte configurada: a prévia mostra o fundo institucional. */
+  backgroundUrl: string | null;
   className?: string;
 };
 
@@ -46,7 +47,7 @@ export function AccessScreenPreview({
   return (
     <div
       className={`overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-cover bg-center p-4 ${className ?? ""}`}
-      style={{ backgroundImage: `url(${backgroundUrl})` }}
+      style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})` } : { backgroundColor: "var(--surface-page)" }}
       role="img"
       aria-label="Prévia da tela de acesso com os valores atuais"
     >

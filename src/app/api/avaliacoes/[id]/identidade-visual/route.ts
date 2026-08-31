@@ -56,7 +56,14 @@ export async function GET(
 
   if (error) return respostaDeErro(error, "GET /api/avaliacoes/[id]/identidade-visual");
 
-  return NextResponse.json(data as IdentidadeVisualAplicacao);
+  // O nome da avaliação acompanha a resposta porque o cabeçalho da jornada
+  // identifica a avaliação, e não o ciclo. Ele já estava em mãos: `construtor`
+  // é lido acima para achar o `application_id` e era descartado inteiro.
+  // Nenhuma consulta a mais.
+  return NextResponse.json({
+    ...(data as IdentidadeVisualAplicacao),
+    surveyName: construtor?.survey.name ?? null,
+  } satisfies IdentidadeVisualAplicacao);
 }
 
 /** Campo de texto opcional: string vazia e ausência valem o mesmo para a RPC. */

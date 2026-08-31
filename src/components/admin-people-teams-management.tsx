@@ -78,7 +78,7 @@ function formatDate(value: string) {
 }
 
 function Field({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  return <label className="block"><span className="text-xs font-bold text-slate-600">{label}</span><input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500" /></label>;
+  return <label className="block"><span className="text-xs font-bold text-[var(--text-secondary)]">{label}</span><input disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 outline-none transition focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-secondary)]" /></label>;
 }
 
 /**
@@ -297,23 +297,23 @@ export function AdminPeopleTeamsManagement() {
     } finally { setWorking(false); }
   }
 
-  if (loading) return <div className="grid min-h-64 place-items-center rounded-3xl border border-slate-200 bg-white"><Loader2 className="h-7 w-7 animate-spin text-slate-500" /></div>;
+  if (loading) return <div className="grid min-h-64 place-items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)]"><Loader2 className="h-7 w-7 animate-spin text-[var(--text-secondary)]" /></div>;
 
   return <div className="space-y-5">
-    <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Gestão institucional">
-      <button type="button" role="tab" aria-selected={tab === "people"} onClick={() => setTab("people")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black ${tab === "people" ? "bg-[var(--brand-solid)] text-white" : "text-slate-600 hover:bg-slate-50"}`}><UserRoundCog className="h-4 w-4" />Dados funcionais</button>
-      <button type="button" role="tab" aria-selected={tab === "teams"} onClick={() => setTab("teams")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black ${tab === "teams" ? "bg-[var(--brand-solid)] text-white" : "text-slate-600 hover:bg-slate-50"}`}><UsersRound className="h-4 w-4" />Equipes e lideranças</button>
+    <div className="inline-flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-1 shadow-sm" role="tablist" aria-label="Gestão institucional">
+      <button type="button" role="tab" aria-selected={tab === "people"} onClick={() => setTab("people")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold ${tab === "people" ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"}`}><UserRoundCog className="h-4 w-4" />Dados funcionais</button>
+      <button type="button" role="tab" aria-selected={tab === "teams"} onClick={() => setTab("teams")} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold ${tab === "teams" ? "bg-[var(--brand-solid)] text-[var(--text-on-brand)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"}`}><UsersRound className="h-4 w-4" />Equipes e lideranças</button>
     </div>
 
     {tab === "people" ? <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-4"><label className="relative block"><Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, matrícula, e-mail ou unidade" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" /></label></div>
-        <div className="max-h-[42rem] divide-y divide-slate-100 overflow-y-auto">{people.map((person) => <button key={person.personId} type="button" onClick={() => { setSelectedPerson(person); setForm(personToForm(person)); void loadAudit(person.personId).catch((error) => toast.error(errorMessageFromUnknown(error))); }} className={`w-full p-4 text-left transition hover:bg-slate-50 ${selectedPerson?.personId === person.personId ? "bg-blue-50" : ""}`}><strong className="block truncate text-sm text-slate-900">{person.fullName}</strong><span className="mt-1 block truncate text-xs text-slate-500">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${person.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{person.active ? "Ativo" : "Inativo"}</span></button>)}</div>
+      <section className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm">
+        <div className="border-b border-[var(--border-subtle)] p-4"><label className="relative block"><Search className="absolute left-3 top-3.5 h-4 w-4 text-[var(--text-muted)]"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, matrícula, e-mail ou unidade" className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-10 pr-3 outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-[var(--status-info-border)]" /></label></div>
+        <div className="max-h-[42rem] divide-y divide-slate-100 overflow-y-auto">{people.map((person) => <button key={person.personId} type="button" onClick={() => { setSelectedPerson(person); setForm(personToForm(person)); void loadAudit(person.personId).catch((error) => toast.error(errorMessageFromUnknown(error))); }} className={`w-full p-4 text-left transition hover:bg-[var(--surface-muted)] ${selectedPerson?.personId === person.personId ? "bg-[var(--status-info-bg)]" : ""}`}><strong className="block truncate text-sm text-[var(--text-primary)]">{person.fullName}</strong><span className="mt-1 block truncate text-xs text-[var(--text-secondary)]">{person.employeeNumber} · {person.jobTitle || "Cargo não informado"}</span><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${person.active ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"}`}>{person.active ? "Ativo" : "Inativo"}</span></button>)}</div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        {!selectedPerson || !form ? <div className="grid min-h-80 place-items-center text-center text-slate-500"><div><UserRoundCog className="mx-auto h-9 w-9"/><p className="mt-3 font-bold">Selecione uma pessoa para consultar e editar a ficha funcional.</p></div></div> : <>
-          <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Ficha institucional</p><h2 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">{selectedPerson.fullName}</h2><p className="mt-1 text-sm text-slate-500">Matrícula {selectedPerson.employeeNumber} · atualização {formatDate(selectedPerson.updatedAt)}</p></div><button type="button" onClick={() => void Promise.all([searchPeople(search), loadAudit(selectedPerson.personId)])} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Atualizar</button></div>
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6">
+        {!selectedPerson || !form ? <div className="grid min-h-80 place-items-center text-center text-[var(--text-secondary)]"><div><UserRoundCog className="mx-auto h-9 w-9"/><p className="mt-3 font-bold">Selecione uma pessoa para consultar e editar a ficha funcional.</p></div></div> : <>
+          <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] pb-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--status-success-text)]">Ficha institucional</p><h2 className="mt-1 text-2xl font-semibold text-[var(--brand-primary)]">{selectedPerson.fullName}</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">Matrícula {selectedPerson.employeeNumber} · atualização {formatDate(selectedPerson.updatedAt)}</p></div><button type="button" onClick={() => void Promise.all([searchPeople(search), loadAudit(selectedPerson.personId)])} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"><RefreshCw className="h-4 w-4"/>Atualizar</button></div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Matrícula (não editável)" value={selectedPerson.employeeNumber} onChange={() => undefined} disabled />
             <Field label="Nome completo" value={form.fullName} onChange={(value) => setForm({ ...form, fullName: value })} />
@@ -324,18 +324,18 @@ export function AdminPeopleTeamsManagement() {
             <Field label="Coordenação" value={form.coordination} onChange={(value) => setForm({ ...form, coordination: value })} />
             <Field label="Centro de custo" value={form.costCenter} onChange={(value) => setForm({ ...form, costCenter: value })} />
             <Field label="Situação funcional" value={form.employmentStatus} onChange={(value) => setForm({ ...form, employmentStatus: value })} />
-            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 md:mt-6"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4"/><span className="text-sm font-bold text-slate-700">Pessoa ativa no sistema</span></label>
+            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[var(--border-subtle)] px-3 md:mt-6"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4"/><span className="text-sm font-bold text-[var(--text-primary)]">Pessoa ativa no sistema</span></label>
           </div>
-          <label className="mt-5 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} rows={3} placeholder="Explique o motivo da correção funcional" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" /></label>
-          <div className="mt-4 flex justify-end"><button type="button" disabled={working || form.justification.trim().length < 10} onClick={() => void savePerson()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar alteração</button></div>
-          <div className="mt-7 border-t border-slate-200 pt-5"><div className="flex items-center gap-2"><History className="h-4 w-4 text-slate-500"/><h3 className="font-black text-[var(--brand-primary)]">Histórico recente</h3></div><div className="mt-3 space-y-3">{audit.length ? audit.map((event) => <article key={event.eventId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm text-slate-800">Alteração de dados funcionais</strong><time className="text-xs text-slate-500">{formatDate(event.createdAt)}</time></div><p className="mt-1 text-xs text-slate-500">Por {event.actorName || "Administrador não identificado"}</p>{event.justification && <p className="mt-2 text-sm text-slate-700">{event.justification}</p>}</article>) : <p className="text-sm text-slate-500">Nenhuma alteração administrativa registrada para esta pessoa.</p>}</div></div>
+          <label className="mt-5 block"><span className="text-xs font-bold text-[var(--text-secondary)]">Justificativa obrigatória</span><textarea value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} rows={3} placeholder="Explique o motivo da correção funcional" className="mt-1.5 w-full rounded-xl border border-[var(--border-subtle)] p-3 outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)]" /></label>
+          <div className="mt-4 flex justify-end"><button type="button" disabled={working || form.justification.trim().length < 10} onClick={() => void savePerson()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-semibold text-[var(--text-on-brand)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)]">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar alteração</button></div>
+          <div className="mt-7 border-t border-[var(--border-subtle)] pt-5"><div className="flex items-center gap-2"><History className="h-4 w-4 text-[var(--text-secondary)]"/><h3 className="font-semibold text-[var(--brand-primary)]">Histórico recente</h3></div><div className="mt-3 space-y-3">{audit.length ? audit.map((event) => <article key={event.eventId} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm text-[var(--text-primary)]">Alteração de dados funcionais</strong><time className="text-xs text-[var(--text-secondary)]">{formatDate(event.createdAt)}</time></div><p className="mt-1 text-xs text-[var(--text-secondary)]">Por {event.actorName || "Administrador não identificado"}</p>{event.justification && <p className="mt-2 text-sm text-[var(--text-primary)]">{event.justification}</p>}</article>) : <p className="text-sm text-[var(--text-secondary)]">Nenhuma alteração administrativa registrada para esta pessoa.</p>}</div></div>
         </>}
       </section>
     </div> : <div className="space-y-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
           <label>
-            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Ciclo CDDI</span>
+            <span className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--text-secondary)]">Ciclo CDDI</span>
             <select
               value={applicationId}
               disabled={!applications.length}
@@ -343,7 +343,7 @@ export function AdminPeopleTeamsManagement() {
                 setTeamSearch("");
                 setApplicationId(event.target.value);
               }}
-              className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
+              className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 font-bold outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)] disabled:bg-[var(--surface-muted)]"
             >
               {applications.length ? applications.map((application) => (
                 <option key={application.id} value={application.id}>{application.code} — {application.name}</option>
@@ -351,13 +351,13 @@ export function AdminPeopleTeamsManagement() {
             </select>
           </label>
           <label className="relative">
-            <span className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Buscar vínculo</span>
-            <Search className="absolute bottom-4 left-4 h-4 w-4 text-slate-400"/>
-            <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100" placeholder="Liderança, integrante ou matrícula"/>
+            <span className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--text-secondary)]">Buscar vínculo</span>
+            <Search className="absolute bottom-4 left-4 h-4 w-4 text-[var(--text-muted)]"/>
+            <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] pl-11 pr-4 outline-none focus:border-[var(--focus-ring)] focus:bg-[var(--surface-card)] focus:ring-4 focus:ring-[var(--status-info-border)]" placeholder="Liderança, integrante ou matrícula"/>
           </label>
-          <button type="button" disabled={!applicationId} onClick={() => void loadLinks(applicationId, teamSearch)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"><RefreshCw className="h-4 w-4"/>Atualizar</button>
+          <button type="button" disabled={!applicationId} onClick={() => void loadLinks(applicationId, teamSearch)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-muted)]"><RefreshCw className="h-4 w-4"/>Atualizar</button>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-2xl bg-blue-50 p-4 text-sm text-[var(--brand-primary)]">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl bg-[var(--status-info-bg)] p-4 text-sm text-[var(--brand-primary)]">
           <span><strong>{activeLinkTotal}</strong> vínculos ativos no ciclo.</span>
           {teamSearch.trim() ? <span><strong>{linkMatchTotal}</strong> registros correspondem à busca.</span> : null}
           <span>Correções encerram o vínculo anterior sem apagar o histórico.</span>
@@ -367,11 +367,11 @@ export function AdminPeopleTeamsManagement() {
       {/* Fila de trabalho: sem chefia vinculada, a pessoa fica bloqueada na
           etapa de identificação do CDDI. A lista traz o gestor que a base
           indicava e o motivo, para a correção não ser uma busca às cegas. */}
-      <section aria-label="Pessoas sem chefia vinculada" className="overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm">
+      <section aria-label="Pessoas sem chefia vinculada" className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.14em] text-[var(--status-warning-text)]">Pendências do ciclo</p>
-            <h2 className="mt-1 text-xl font-black text-[var(--brand-primary)]">
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--status-warning-text)]">Pendências do ciclo</p>
+            <h2 className="mt-1 text-xl font-semibold text-[var(--brand-primary)]">
               {pendingLoading ? "Verificando pendências..." : `${pending.length} ${pending.length === 1 ? "pessoa sem chefia" : "pessoas sem chefia"}`}
             </h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
@@ -381,7 +381,7 @@ export function AdminPeopleTeamsManagement() {
                 : ""}
             </p>
           </div>
-          <button type="button" onClick={() => void loadPending(applicationId).catch((error) => toast.error(errorMessageFromUnknown(error)))} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-black text-[var(--text-primary)] hover:bg-[var(--surface-hover)]">
+          <button type="button" onClick={() => void loadPending(applicationId).catch((error) => toast.error(errorMessageFromUnknown(error)))} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-hover)]">
             <RefreshCw className="h-4 w-4" aria-hidden="true" />Atualizar
           </button>
         </div>
@@ -393,7 +393,7 @@ export function AdminPeopleTeamsManagement() {
                 inteiro. Vem primeiro porque é o maior ganho por ação. */}
             {missingManagers.length ? (
               <div className="border-b border-[var(--border-subtle)] p-5">
-                <h3 className="text-sm font-black text-[var(--text-primary)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   {missingManagers.length} {missingManagers.length === 1 ? "gestor não está" : "gestores não estão"} cadastrado{missingManagers.length === 1 ? "" : "s"} na plataforma
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
@@ -408,7 +408,7 @@ export function AdminPeopleTeamsManagement() {
                         <strong className="block truncate text-sm text-[var(--text-primary)]">{group.name}</strong>
                         <span className="block truncate text-xs text-[var(--text-secondary)]">{group.email}</span>
                       </span>
-                      <span className="shrink-0 rounded-full bg-[var(--status-warning-bg)] px-2.5 py-1 text-[11px] font-black text-[var(--status-warning-text)]">
+                      <span className="shrink-0 rounded-full bg-[var(--status-warning-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--status-warning-text)]">
                         {group.people.length} {group.people.length === 1 ? "pessoa" : "pessoas"}
                       </span>
                     </li>
@@ -419,7 +419,7 @@ export function AdminPeopleTeamsManagement() {
 
             {individualPending.length ? (
               <div className="p-5">
-                <h3 className="text-sm font-black text-[var(--text-primary)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   {individualPending.length} {individualPending.length === 1 ? "pessoa precisa" : "pessoas precisam"} de definição individual
                 </h3>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">A base não informou gestor para elas — defina a chefia caso a caso.</p>
@@ -435,7 +435,7 @@ export function AdminPeopleTeamsManagement() {
                             {item.organizationalUnit ? ` · ${item.organizationalUnit}` : ""}
                           </span>
                         </div>
-                        <span className="inline-flex w-fit items-center rounded-full bg-[var(--status-warning-bg)] px-2.5 py-1 text-[11px] font-black text-[var(--status-warning-text)]" title={reason.hint}>
+                        <span className="inline-flex w-fit items-center rounded-full bg-[var(--status-warning-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--status-warning-text)]" title={reason.hint}>
                           {reason.label}
                         </span>
                         <button
@@ -449,7 +449,7 @@ export function AdminPeopleTeamsManagement() {
                             setLeaderSearch("");
                             document.getElementById("definir-lideranca")?.scrollIntoView({ behavior: "smooth", block: "start" });
                           }}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand-solid)] px-4 text-sm font-black text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)] lg:justify-self-end"
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand-solid)] px-4 text-sm font-semibold text-[var(--text-on-brand)] transition hover:bg-[var(--brand-solid-hover)] lg:justify-self-end"
                         >
                           Definir chefia
                         </button>
@@ -465,13 +465,13 @@ export function AdminPeopleTeamsManagement() {
         )}
       </section>
 
-      <section id="definir-lideranca" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-xs font-black uppercase tracking-[.14em] text-emerald-700">Correção administrativa</p>
-        <h2 className="mt-1 text-2xl font-black text-[var(--brand-primary)]">Definir liderança da pessoa</h2>
-        <p className="mt-2 text-sm text-slate-500">A busca consulta toda a base institucional e o vínculo será aplicado somente ao ciclo CDDI selecionado.</p>
+      <section id="definir-lideranca" className="scroll-mt-24 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-sm sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--status-success-text)]">Correção administrativa</p>
+        <h2 className="mt-1 text-2xl font-semibold text-[var(--brand-primary)]">Definir liderança da pessoa</h2>
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">A busca consulta toda a base institucional e o vínculo será aplicado somente ao ciclo CDDI selecionado.</p>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <div>
-            <label htmlFor="leadership-subordinate" className="block text-xs font-bold text-slate-600">Integrante</label>
+            <label htmlFor="leadership-subordinate" className="block text-xs font-bold text-[var(--text-secondary)]">Integrante</label>
             <input
               id="leadership-subordinate"
               role="combobox"
@@ -481,23 +481,23 @@ export function AdminPeopleTeamsManagement() {
               value={subordinateSearch}
               onChange={(event) => { setSubordinateSearch(event.target.value); setSubordinate(null); }}
               placeholder="Digite pelo menos 2 letras ou a matrícula"
-              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--border-subtle)] px-3 outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)]"
             />
             {!subordinate && subordinateSearch.trim().length >= 2 ? (
-              <div id="leadership-subordinate-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                {subordinateLookup.loading ? <p className="px-3 py-3 text-sm text-slate-500">Buscando na base completa…</p> : null}
-                {subordinateLookup.failed ? <p className="px-3 py-3 text-sm text-red-600">Não foi possível buscar integrantes.</p> : null}
-                {!subordinateLookup.loading && !subordinateLookup.failed && subordinateLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-slate-500">Nenhuma pessoa ativa encontrada.</p> : null}
+              <div id="leadership-subordinate-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-lg">
+                {subordinateLookup.loading ? <p className="px-3 py-3 text-sm text-[var(--text-secondary)]">Buscando na base completa…</p> : null}
+                {subordinateLookup.failed ? <p className="px-3 py-3 text-sm text-[var(--status-danger-text)]">Não foi possível buscar integrantes.</p> : null}
+                {!subordinateLookup.loading && !subordinateLookup.failed && subordinateLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-[var(--text-secondary)]">Nenhuma pessoa ativa encontrada.</p> : null}
                 {subordinateLookup.options.map((person) => (
-                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setSubordinate(person); setSubordinateSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50">
-                    <strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span>
+                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setSubordinate(person); setSubordinateSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-[var(--border-subtle)] px-3 py-2 text-left text-sm last:border-0 hover:bg-[var(--surface-muted)]">
+                    <strong>{person.fullName}</strong><span className="ml-2 text-[var(--text-secondary)]">{person.employeeNumber}</span>
                   </button>
                 ))}
               </div>
             ) : null}
           </div>
           <div>
-            <label htmlFor="leadership-leader" className="block text-xs font-bold text-slate-600">Nova liderança</label>
+            <label htmlFor="leadership-leader" className="block text-xs font-bold text-[var(--text-secondary)]">Nova liderança</label>
             <input
               id="leadership-leader"
               role="combobox"
@@ -507,27 +507,27 @@ export function AdminPeopleTeamsManagement() {
               value={leaderSearch}
               onChange={(event) => { setLeaderSearch(event.target.value); setLeader(null); }}
               placeholder="Digite pelo menos 2 letras ou a matrícula"
-              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--border-subtle)] px-3 outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)]"
             />
             {!leader && leaderSearch.trim().length >= 2 ? (
-              <div id="leadership-leader-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                {leaderLookup.loading ? <p className="px-3 py-3 text-sm text-slate-500">Buscando na base completa…</p> : null}
-                {leaderLookup.failed ? <p className="px-3 py-3 text-sm text-red-600">Não foi possível buscar lideranças.</p> : null}
-                {!leaderLookup.loading && !leaderLookup.failed && leaderLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-slate-500">Nenhuma pessoa ativa encontrada.</p> : null}
+              <div id="leadership-leader-options" role="listbox" className="mt-2 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-lg">
+                {leaderLookup.loading ? <p className="px-3 py-3 text-sm text-[var(--text-secondary)]">Buscando na base completa…</p> : null}
+                {leaderLookup.failed ? <p className="px-3 py-3 text-sm text-[var(--status-danger-text)]">Não foi possível buscar lideranças.</p> : null}
+                {!leaderLookup.loading && !leaderLookup.failed && leaderLookup.options.length === 0 ? <p className="px-3 py-3 text-sm text-[var(--text-secondary)]">Nenhuma pessoa ativa encontrada.</p> : null}
                 {leaderLookup.options.map((person) => (
-                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setLeader(person); setLeaderSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50">
-                    <strong>{person.fullName}</strong><span className="ml-2 text-slate-500">{person.employeeNumber}</span>
+                  <button key={person.personId} role="option" aria-selected="false" type="button" onClick={() => { setLeader(person); setLeaderSearch(`${person.fullName} · ${person.employeeNumber}`); }} className="block w-full border-b border-[var(--border-subtle)] px-3 py-2 text-left text-sm last:border-0 hover:bg-[var(--surface-muted)]">
+                    <strong>{person.fullName}</strong><span className="ml-2 text-[var(--text-secondary)]">{person.employeeNumber}</span>
                   </button>
                 ))}
               </div>
             ) : null}
           </div>
         </div>
-        <label className="mt-4 block"><span className="text-xs font-bold text-slate-600">Justificativa obrigatória</span><textarea value={leadershipJustification} onChange={(event) => setLeadershipJustification(event.target.value)} rows={3} placeholder="Explique o motivo da inclusão ou troca de liderança" className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"/></label>
-        <div className="mt-4 flex justify-end"><button type="button" disabled={working || !applicationId || !subordinate || !leader || leadershipJustification.trim().length < 10} onClick={() => void saveLeadership()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar vínculo</button></div>
+        <label className="mt-4 block"><span className="text-xs font-bold text-[var(--text-secondary)]">Justificativa obrigatória</span><textarea value={leadershipJustification} onChange={(event) => setLeadershipJustification(event.target.value)} rows={3} placeholder="Explique o motivo da inclusão ou troca de liderança" className="mt-1.5 w-full rounded-xl border border-[var(--border-subtle)] p-3 outline-none focus:border-[var(--focus-ring)] focus:ring-4 focus:ring-[var(--status-info-border)]"/></label>
+        <div className="mt-4 flex justify-end"><button type="button" disabled={working || !applicationId || !subordinate || !leader || leadershipJustification.trim().length < 10} onClick={() => void saveLeadership()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-solid)] px-5 font-semibold text-[var(--text-on-brand)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)]">{working ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar vínculo</button></div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><h2 className="text-xl font-black text-[var(--brand-primary)]">Vínculos do ciclo</h2></div><div className="divide-y divide-slate-100">{links.length ? links.map((link) => <article key={link.linkId} className={`grid gap-3 p-5 md:grid-cols-[1fr_auto_1fr_auto] md:items-center ${link.status !== "ACTIVE" || link.validTo ? "bg-slate-50 opacity-70" : ""}`}><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Integrante</span><strong className="mt-1 block text-slate-900">{link.subordinateName}</strong><span className="text-xs text-slate-500">{link.subordinateEmployeeNumber}</span></div><span className="hidden text-slate-300 md:block">→</span><div><span className="text-xs font-black uppercase tracking-[.12em] text-slate-400">Liderança</span><strong className="mt-1 block text-slate-900">{link.leaderName}</strong><span className="text-xs text-slate-500">{link.leaderEmployeeNumber}</span></div><span className={`rounded-full px-3 py-1 text-xs font-black ${link.status === "ACTIVE" && !link.validTo ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{link.status === "ACTIVE" && !link.validTo ? "Ativo" : "Encerrado"}</span></article>) : <p className="p-8 text-center text-sm text-slate-500">Nenhum vínculo encontrado para este ciclo.</p>}</div></section>
+      <section className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm"><div className="border-b border-[var(--border-subtle)] p-5"><h2 className="text-xl font-semibold text-[var(--brand-primary)]">Vínculos do ciclo</h2></div><div className="divide-y divide-slate-100">{links.length ? links.map((link) => <article key={link.linkId} className={`grid gap-3 p-5 md:grid-cols-[1fr_auto_1fr_auto] md:items-center ${link.status !== "ACTIVE" || link.validTo ? "bg-[var(--surface-muted)] opacity-70" : ""}`}><div><span className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-muted)]">Integrante</span><strong className="mt-1 block text-[var(--text-primary)]">{link.subordinateName}</strong><span className="text-xs text-[var(--text-secondary)]">{link.subordinateEmployeeNumber}</span></div><span className="hidden text-[var(--text-muted)] md:block">→</span><div><span className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-muted)]">Liderança</span><strong className="mt-1 block text-[var(--text-primary)]">{link.leaderName}</strong><span className="text-xs text-[var(--text-secondary)]">{link.leaderEmployeeNumber}</span></div><span className={`rounded-full px-3 py-1 text-xs font-semibold ${link.status === "ACTIVE" && !link.validTo ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]" : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"}`}>{link.status === "ACTIVE" && !link.validTo ? "Ativo" : "Encerrado"}</span></article>) : <p className="p-8 text-center text-sm text-[var(--text-secondary)]">Nenhum vínculo encontrado para este ciclo.</p>}</div></section>
     </div>}
   </div>;
 }

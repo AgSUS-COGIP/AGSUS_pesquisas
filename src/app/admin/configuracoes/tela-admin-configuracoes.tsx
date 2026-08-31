@@ -1043,7 +1043,7 @@ export default function PlatformSettingsPage() {
                     greeting={textos.saudacao || DEFAULT_PLATFORM_BRANDING.accessGreeting}
                     instruction={textos.instrucao || DEFAULT_PLATFORM_BRANDING.accessInstruction}
                     panelColor={branding.accessPanelColor}
-                    backgroundUrl={branding.accessBackgroundUrl ?? "/acesso-fundo.png"}
+                    backgroundUrl={branding.accessBackgroundUrl}
                   />
                   <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
                     Reprodução em escala menor. A arte e a cor do painel são configuradas em Aparência.
@@ -1101,9 +1101,9 @@ export default function PlatformSettingsPage() {
                     <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
                       <div
                         className="h-24 w-40 shrink-0 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-cover bg-center"
-                        style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? "/acesso-fundo.png"})` }}
+                        style={branding.accessBackgroundUrl ? { backgroundImage: `url(${branding.accessBackgroundUrl})` } : { backgroundColor: "var(--surface-page)" }}
                         role="img"
-                        aria-label={branding.accessBackgroundUrl ? "Prévia do fundo configurado" : "Prévia da arte institucional padrão"}
+                        aria-label={branding.accessBackgroundUrl ? "Prévia do fundo configurado" : "Sem arte configurada — a tela de acesso usa o fundo institucional"}
                       />
                       <div className="flex-1">
                         <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]">

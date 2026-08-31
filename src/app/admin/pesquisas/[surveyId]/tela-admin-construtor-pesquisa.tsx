@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   AlignLeft,
   ArrowDown,
-  ArrowLeft,
+
   ArrowUp,
   CalendarDays,
   Check,
@@ -25,13 +25,14 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
+
   ToggleLeft,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { PlatformGuardState } from "@/components/platform-guard-state";
 import { useConfirm } from "@/components/confirmation-provider";
 import { Button } from "@/components/ui/button";
@@ -155,12 +156,12 @@ function UnsavedChangesNotice() {
   return (
     <div
       role="status"
-      className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950"
+      className="mb-5 flex items-start gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] p-4 text-[var(--status-warning-text)]"
     >
       <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
       <div>
-        <p className="text-sm font-black">Alterações não salvas</p>
-        <p className="mt-1 text-xs leading-5 text-amber-800">
+        <p className="text-sm font-semibold">Alterações não salvas</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--status-warning-text)]">
           Salve antes de fechar esta janela para não perder o que foi alterado.
         </p>
       </div>
@@ -187,6 +188,30 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
   const [rules, setRules] = useState<RegraCondicional[]>([]);
   const [ruleDraft, setRuleDraft] = useState<RuleDraft | null>(null);
   const [ruleTargetLabel, setRuleTargetLabel] = useState("");
+  /*
+    Indicador de gravação.
+
+    Seção e pergunta são persistidas ao confirmar o editor — não existe rascunho
+    global esperando um botão "Salvar". Mas a tela não dizia isso: o aviso era
+    um toast que some, e quem fecha o diálogo fica sem sinal de que o trabalho
+    ficou guardado.
+
+    O estado vive num lugar só, alimentado por `avisarSalvo`, chamado nos mesmos
+    pontos em que o sucesso já era anunciado. "Salvo" apaga sozinho depois de
+    alguns segundos: indicador permanente vira decoração e deixa de ser lido.
+  */
+  const [gravacao, setGravacao] = useState<"ocioso" | "salvo">("ocioso");
+
+  const avisarSalvo = useCallback((mensagem: string) => {
+    toast.success(mensagem);
+    setGravacao("salvo");
+  }, []);
+
+  useEffect(() => {
+    if (gravacao !== "salvo") return;
+    const temporizador = window.setTimeout(() => setGravacao("ocioso"), 4000);
+    return () => window.clearTimeout(temporizador);
+  }, [gravacao]);
 
   const loadBuilder = useCallback(async (showLoader = true) => {
     if (showLoader) setDataLoading(true);
@@ -277,7 +302,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         description: draft.description || null,
         conditions: draft.conditions.map(normalizeCondition),
       });
-      toast.success("Regra salva.");
+      avisarSalvo("Regra salva.");
       setRuleDraft(null);
       await loadBuilder(false);
     } catch (saveRuleError) {
@@ -311,7 +336,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     setWorking(true);
     try {
       await excluirRegraCondicional(surveyId, targetId);
-      toast.success("Regra removida.");
+      avisarSalvo("Regra removida.");
       setRuleDraft(null);
       await loadBuilder(false);
     } catch (removeRuleError) {
@@ -452,7 +477,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         await atualizarSecao(surveyId, sectionEditor.sectionId, entrada);
       }
 
-      toast.success(sectionEditor.mode === "create" ? "Seção adicionada." : "Seção atualizada.");
+      avisarSalvo(sectionEditor.mode === "create" ? "Seção adicionada." : "Seção atualizada.");
       setSectionEditor(null);
       setSectionErrors([]);
       await loadBuilder(false);
@@ -493,7 +518,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         await atualizarPergunta(surveyId, questionEditor.questionId, conteudo);
       }
 
-      toast.success(questionEditor.mode === "create" ? "Pergunta adicionada." : "Pergunta atualizada.");
+      avisarSalvo(questionEditor.mode === "create" ? "Pergunta adicionada." : "Pergunta atualizada.");
       setQuestionEditor(null);
       setQuestionErrors([]);
       await loadBuilder(false);
@@ -511,7 +536,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     setWorking(true);
     try {
       await excluirPergunta(surveyId, deleteTarget.id);
-      toast.success("Pergunta excluída.");
+      avisarSalvo("Pergunta excluída.");
       setDeleteTarget(null);
       await loadBuilder(false);
     } catch (deleteError) {
@@ -555,7 +580,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         questionMoveEditor.targetSectionId,
       );
 
-      toast.success("Pergunta movida para a nova seção.");
+      avisarSalvo("Pergunta movida para a nova seção.");
       setQuestionMoveEditor(null);
       await loadBuilder(false);
     } catch (moveError) {
@@ -583,7 +608,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     try {
       await duplicarItemDoConstrutor(surveyId, itemType, itemId);
 
-      toast.success(
+      avisarSalvo(
         itemType === "SECTION"
           ? "Seção duplicada ao final do formulário."
           : "Pergunta duplicada ao final da seção.",
@@ -606,7 +631,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     try {
       await reordenarItemDoConstrutor(surveyId, itemType, itemId, direction);
 
-      toast.success(
+      avisarSalvo(
         `${itemType === "SECTION" ? "Seção" : "Pergunta"} movida para ${direction === "UP" ? "cima" : "baixo"}.`,
       );
       await loadBuilder(false);
@@ -630,7 +655,10 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
     <PlatformShell
       user={guard.user}
       eyebrow="Administração"
-      title={builder?.survey.name ?? "Studio de avaliação"}
+      // Rótulo fixo da rota, não o nome da avaliação: o cabeçalho da jornada
+      // logo abaixo já o anuncia, e repeti-lo aqui fazia o mesmo texto aparecer
+      // três vezes seguidas — barra superior, trilha e título.
+      title="Estrutura da avaliação"
     >
       {dataLoading ? (
         <div className="flex min-h-[50vh] items-center justify-center">
@@ -643,80 +671,77 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
         </div>
       ) : (
         <>
-          {/* Navegação da tela dentro do conteúdo principal, e não na barra
-              superior: o cabeçalho é da casca da aplicação, então ações da rota
-              ficam junto do que elas afetam. */}
-          <nav aria-label="Ações do formulário" className="mb-5 flex flex-wrap items-center gap-2">
-            <Link
-              href="/admin/pesquisas"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Voltar ao catálogo
-            </Link>
-          </nav>
+          {/*
+            Cabeçalho compacto no lugar do cartão que ocupava a primeira dobra.
 
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:p-8">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[var(--brand-primary)]">{builder.survey.code}</span>
-                  <span className={isDraft
-                    ? "rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800"
-                    : "rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-800"
-                  }>
-                    {isDraft ? "Rascunho editável" : "Versão protegida"}
-                  </span>
-                </div>
-                <div className="mt-5 flex items-start gap-4">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[var(--brand-solid)] text-white shadow-sm">
-                    <Sparkles className="h-6 w-6" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h2 className="text-2xl font-black text-[var(--brand-primary)] sm:text-3xl">Studio de avaliação</h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-                      Organize seções, edite perguntas e revise alternativas em um fluxo seguro antes da publicação.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              {isDraft ? (
-                <Button size="lg" onClick={openNewSection}>
-                  <Plus className="h-5 w-5" aria-hidden="true" /> Nova seção
-                </Button>
-              ) : (
-                <div className="flex max-w-sm flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
-                    <p className="text-sm leading-5"><strong className="block">Conteúdo imutável</strong>Esta versão foi publicada. Para alterar, crie uma nova versão em Propriedades do ciclo.</p>
-                  </div>
-                  <Link
-                    href={`/admin/pesquisas/${surveyId}/operacao`}
-                    className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-700 px-3.5 text-xs font-bold text-white transition hover:bg-emerald-800"
-                  >
-                    Ir para Propriedades do ciclo
-                  </Link>
-                </div>
-              )}
-            </div>
-            <div className="grid border-t border-slate-200 bg-slate-50/70 sm:grid-cols-3">
-              {[
-                ["Seções", builder.sections.length],
-                ["Perguntas", totalQuestions],
-                // Era `builder.application.status` cru: a tela exibia "OPEN"
-                // enquanto /operacao e /equipe mostravam "Aberto" para o mesmo
-                // ciclo. Código do banco não é rótulo de interface.
-                ["Ciclo", cycleStatusLabel(builder.application.status)],
-              ].map(([label, value], index) => (
-                <div key={String(label)} className={`px-6 py-4 ${index > 0 ? "border-t border-slate-200 sm:border-l sm:border-t-0" : ""}`}>
-                  <p className="text-[11px] font-black uppercase tracking-[.14em] text-slate-400">{label}</p>
-                  <strong className="mt-1 block text-lg font-black text-[var(--brand-primary)]">{value}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
+            O que saiu: ícone decorativo de 48px, título "Studio de avaliação",
+            parágrafo explicando o que um construtor de formulário faz, e uma
+            faixa de três indicadores em caixas separadas. Tudo isso dizia à
+            pessoa em que tela ela já sabia estar, e empurrava a estrutura da
+            avaliação — o conteúdo — para baixo da dobra.
 
-          <div className="mt-6 space-y-5">
+            O nome da avaliação virou o título; código, estado e contagens cabem
+            numa linha de texto. As mesmas informações, sem a moldura.
+          */}
+          <CabecalhoDaConfiguracao
+            surveyId={surveyId}
+            applicationId={builder.application.id}
+            nome={builder.survey.name}
+            etapa="estrutura"
+            meta={[
+              builder.survey.code,
+              isDraft ? "Rascunho editável" : "Versão publicada",
+              `${builder.sections.length} ${builder.sections.length === 1 ? "seção" : "seções"}`,
+              `${totalQuestions} ${totalQuestions === 1 ? "pergunta" : "perguntas"}`,
+              // `cycleStatusLabel` porque `application.status` é código do banco:
+              // a tela chegou a exibir "OPEN" enquanto as vizinhas diziam
+              // "Aberto" para o mesmo ciclo.
+              `Ciclo ${cycleStatusLabel(builder.application.status).toLowerCase()}`,
+            ]}
+            acao={<>
+              {/*
+                Diz que a gravação já aconteceu, no lugar de um botão "Salvar"
+                que sugeriria o contrário. Fica ao lado da ação seguinte porque
+                é a mesma pergunta: "posso seguir?".
+              */}
+              {(working || itemOperation !== null) ? (
+                <span role="status" className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  Salvando...
+                </span>
+              ) : gravacao === "salvo" ? (
+                <span role="status" className="inline-flex items-center gap-1.5 text-sm text-[var(--status-success-text)]">
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  Salvo
+                </span>
+              ) : null}
+              <BotaoProximaEtapa etapa="estrutura" surveyId={surveyId} applicationId={builder.application.id} />
+            </>}
+          />
+
+          {!isDraft && (
+            <p role="status" className="mt-5 flex items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-secondary)]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                <strong className="font-semibold text-[var(--text-primary)]">Versão publicada.</strong>{" "}
+                A estrutura não pode mais ser alterada. Para mudar perguntas, crie uma nova versão na etapa{" "}
+                <Link href={`/admin/pesquisas/${surveyId}/operacao`} className="font-semibold text-[var(--brand-primary)] underline underline-offset-4">
+                  Ciclo
+                </Link>.
+              </span>
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Estrutura</h3>
+            {isDraft && (
+              <Button variant="secondary" onClick={openNewSection}>
+                <Plus className="h-4 w-4" aria-hidden="true" /> Nova seção
+              </Button>
+            )}
+          </div>
+
+          <div className="mt-4 space-y-4">
             {builder.sections.length === 0 ? (
               <EmptyState
                 title="Comece pela primeira seção"
@@ -758,21 +783,21 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                 return (
                   <section
                     key={section.id}
-                    className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                    className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-sm"
                   >
-                    <header className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+                    <header className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                       <div className="flex min-w-0 items-start gap-4">
-                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-[var(--brand-primary)]">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-info-bg)] font-semibold text-[var(--brand-primary)]">
                           {sectionIndex + 1}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[.12em] text-[var(--brand-secondary)]">
+                          <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--brand-secondary)]">
                             {section.code}
                           </p>
-                          <h3 className="mt-1 text-xl font-black text-[var(--brand-primary)]">
+                          <h3 className="mt-1 text-xl font-semibold text-[var(--brand-primary)]">
                             {section.title}
                           </h3>
-                          <p className="mt-1 text-sm leading-6 text-slate-500">
+                          <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
                             {section.description || "Sem descrição."}
                           </p>
                           {rulesByTarget.has(section.id) && (
@@ -786,13 +811,13 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                       {isDraft && (
                         <div className="flex flex-wrap gap-2 sm:justify-end">
                           <div
-                            className="flex overflow-hidden rounded-lg border border-slate-200"
+                            className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)]"
                             aria-label={`Ordenar seção ${section.title}`}
                           >
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="w-9 rounded-none border-r border-slate-200 px-0"
+                              className="w-9 rounded-none border-r border-[var(--border-subtle)] px-0"
                               disabled={!sectionMoves.up || mutationDisabled}
                               aria-label={`Mover a seção ${section.title} para cima`}
                               title="Mover seção para cima"
@@ -903,21 +928,21 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
 
                             return (
                               <li key={question.id}>
-                                <article className="group flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-start">
-                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-black text-[var(--brand-primary)]">
+                                <article className="group flex flex-col gap-4 rounded-xl border border-[var(--border-subtle)] p-4 transition hover:border-[var(--border-strong)] hover:shadow-sm sm:flex-row sm:items-start">
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--surface-muted)] text-sm font-semibold text-[var(--brand-primary)]">
                                     {index + 1}
                                   </span>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <strong className="text-slate-900">
+                                      <strong className="text-[var(--text-primary)]">
                                         {question.title}
                                       </strong>
                                       {question.required && (
-                                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-700">
+                                        <span className="rounded-full bg-[var(--status-danger-bg)] px-2.5 py-1 text-[10px] font-semibold text-[var(--status-danger-text)]">
                                           Obrigatória
                                         </span>
                                       )}
-                                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600">
+                                      <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
                                         {questionTypeLabel(
                                           question.questionType,
                                         )}
@@ -936,7 +961,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                       </p>
                                     )}
                                     {question.description && (
-                                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                                      <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
                                         {question.description}
                                       </p>
                                     )}
@@ -945,7 +970,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                         {question.options.map((option) => (
                                           <span
                                             key={`${question.id}-${option.id ?? option.value}`}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600"
+                                            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)]"
                                           >
                                             {option.label}
                                           </span>
@@ -956,13 +981,13 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                   {isDraft && (
                                     <div className="flex shrink-0 flex-wrap gap-2">
                                       <div
-                                        className="flex overflow-hidden rounded-lg border border-slate-200"
+                                        className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)]"
                                         aria-label={`Ordenar pergunta ${question.title}`}
                                       >
                                         <Button
                                           variant="ghost"
                                           size="sm"
-                                          className="w-9 rounded-none border-r border-slate-200 px-0"
+                                          className="w-9 rounded-none border-r border-[var(--border-subtle)] px-0"
                                           disabled={
                                             !questionMoves.up ||
                                             mutationDisabled
@@ -1099,7 +1124,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="text-red-700 hover:bg-red-50"
+                                        className="text-[var(--status-danger-text)] hover:bg-[var(--status-danger-bg)]"
                                         disabled={mutationDisabled}
                                         onClick={() =>
                                           setDeleteTarget(question)
@@ -1135,7 +1160,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                               </Button>
                             ) : undefined
                           }
-                          className="border-slate-200 bg-slate-50/50"
+                          className="border-[var(--border-subtle)] bg-[var(--surface-muted)]/50"
                         />
                       )}
                     </div>
@@ -1220,7 +1245,7 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               />
 
               <fieldset>
-                <legend className="text-sm font-semibold text-slate-800">Tipo de resposta</legend>
+                <legend className="text-sm font-semibold text-[var(--text-primary)]">Tipo de resposta</legend>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {QUESTION_TYPES.map(({ value, label }) => {
                     const Icon = QUESTION_TYPE_ICONS[value];
@@ -1238,8 +1263,8 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
                             : questionEditor.optionsText,
                         })}
                         className={selected
-                          ? "flex items-center gap-3 rounded-xl border border-blue-400 bg-blue-50 p-3 text-left text-sm font-black text-[var(--brand-primary)] shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-                          : "flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                          ? "flex items-center gap-3 rounded-xl border border-[var(--focus-ring)] bg-[var(--status-info-bg)] p-3 text-left text-sm font-semibold text-[var(--brand-primary)] shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--status-info-border)]"
+                          : "flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 text-left text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--status-info-border)]"
                         }
                       >
                         <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -1296,14 +1321,14 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
               void moveQuestionToSection();
             }}
           >
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[.12em] text-blue-700">
+            <div className="rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--status-info-text)]">
                 Pergunta selecionada
               </p>
-              <p className="mt-2 text-sm font-black text-[var(--brand-primary)]">
+              <p className="mt-2 text-sm font-semibold text-[var(--brand-primary)]">
                 {questionMoveEditor.questionTitle}
               </p>
-              <p className="mt-1 text-xs text-blue-800">
+              <p className="mt-1 text-xs text-[var(--status-info-text)]">
                 Seção atual: {moveSourceSection?.title ?? "Não identificada"}
               </p>
             </div>
@@ -1363,8 +1388,8 @@ export default function SurveyBuilderPage({ params }: { params: Promise<{ survey
       >
         {deleteTarget && (
           <div>
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm font-semibold text-red-950">{deleteTarget.title}</p>
+            <div className="rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4">
+              <p className="text-sm font-semibold text-[var(--status-danger-text)]">{deleteTarget.title}</p>
             </div>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="secondary" disabled={working} onClick={() => setDeleteTarget(null)}>Cancelar</Button>
