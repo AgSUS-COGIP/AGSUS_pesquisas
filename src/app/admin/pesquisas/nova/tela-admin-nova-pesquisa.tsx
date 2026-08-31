@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Loader2, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, FileText, Loader2, Send, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -145,8 +145,24 @@ export default function NewSurveyPage() {
 
   return <PlatformShell user={guard.user} eyebrow="Administração" title="Nova avaliação">
     <section className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-      <form onSubmit={form.handleSubmit((formValues) => submit(formValues, "DRAFT"))} noValidate className="rounded-[2rem] border border-[var(--border-subtle)] bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex items-start gap-4"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[var(--brand-primary)]"><Sparkles className="h-6 w-6" /></div><div><p className="text-xs font-black uppercase tracking-[.16em] text-[var(--brand-secondary)]">Construtor institucional</p><h2 className="mt-1 text-3xl font-black text-[var(--brand-primary)]">Crie a base da avaliação</h2><p className="mt-2 leading-7 text-slate-600">O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução. Depois você poderá adicionar perguntas e público.</p></div></div>
+      <form onSubmit={form.handleSubmit((formValues) => submit(formValues, "DRAFT"))} noValidate className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-sm sm:p-8">
+        {/*
+          Saíram o ícone decorativo, a etiqueta "Construtor institucional" em
+          maiúsculas espaçadas e o título de 3xl. Esta é a porta de entrada da
+          jornada de configuração, e ela abria com mais moldura do que a etapa
+          seguinte — a pessoa criava a avaliação numa linguagem e caía em outra.
+
+          O texto explicativo ficou: aqui ele diz o que a ação **cria**, que não
+          é óbvio e evita a surpresa de ver versão, ciclo e seção aparecerem sem
+          terem sido pedidos.
+        */}
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">Crie a base da avaliação</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            O sistema criará a avaliação, a primeira versão, o ciclo inicial e uma seção de introdução.
+            Depois você poderá adicionar perguntas e público.
+          </p>
+        </div>
 
         <ol className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Etapas da criação">
           {STEPS.map((item, index) => {
@@ -156,22 +172,22 @@ export default function NewSurveyPage() {
                 key={item.title}
                 aria-current={state === "current" ? "step" : undefined}
                 className={state === "current"
-                  ? "rounded-2xl border border-blue-300 bg-blue-50 p-4"
+                  ? "rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4"
                   : state === "done"
-                    ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
-                    : "rounded-2xl border border-slate-200 bg-slate-50 p-4"}
+                    ? "rounded-xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] p-4"
+                    : "rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4"}
               >
                 <div className="flex items-center gap-2">
                   <span className={state === "done"
-                    ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-600 text-xs font-black text-white"
+                    ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--status-success-text)] text-xs font-semibold text-[var(--surface-card)]"
                     : state === "current"
-                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--brand-solid)] text-xs font-black text-white"
-                      : "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-300 text-xs font-black text-white"}>
+                      ? "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--brand-solid)] text-xs font-semibold text-white"
+                      : "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--border-strong)] text-xs font-semibold text-[var(--surface-card)]"}>
                     {state === "done" ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
                   </span>
-                  <p className={state === "todo" ? "text-sm font-black text-slate-500" : "text-sm font-black text-[var(--brand-primary)]"}>{item.title}</p>
+                  <p className={state === "todo" ? "text-sm font-semibold text-[var(--text-secondary)]" : "text-sm font-semibold text-[var(--brand-primary)]"}>{item.title}</p>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-500">{item.description}</p>
+                <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">{item.description}</p>
               </li>
             );
           })}
@@ -225,7 +241,7 @@ export default function NewSurveyPage() {
 
         {step === LAST_STEP && (
           <div className="mt-8 space-y-4">
-            <dl className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:grid-cols-2">
+            <dl className="grid gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)]/70 p-5 sm:grid-cols-2">
               {[
                 ["Código institucional", values.code.toUpperCase() || "Não informado"],
                 ["Nome da avaliação", values.name || "Não informado"],
@@ -236,19 +252,19 @@ export default function NewSurveyPage() {
                 ["Identificação", identificationLabel(values.anonymous)],
               ].map(([label, value]) => (
                 <div key={label}>
-                  <dt className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">{label}</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--text-muted)]">{label}</dt>
                   <dd className="mt-1 text-sm font-bold text-[var(--brand-primary)]">{value}</dd>
                 </div>
               ))}
             </dl>
             {values.description && (
-              <div className="rounded-2xl border border-slate-200 p-5">
-                <p className="text-[11px] font-black uppercase tracking-[.12em] text-slate-400">Descrição</p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">{values.description}</p>
+              <div className="rounded-xl border border-[var(--border-subtle)] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--text-muted)]">Descrição</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--text-secondary)]">{values.description}</p>
               </div>
             )}
-            <p className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-              <strong className="font-black">Criar rascunho</strong> registra a avaliação e volta ao catálogo. <strong className="font-black">Criar e configurar</strong> registra o mesmo rascunho e abre o construtor para adicionar as perguntas. A publicação acontece depois, nas propriedades do ciclo.
+            <p className="rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4 text-sm leading-6 text-[var(--status-info-text)]">
+              <strong className="font-semibold">Criar rascunho</strong> registra a avaliação e volta ao catálogo. <strong className="font-semibold">Criar e configurar</strong> registra o mesmo rascunho e abre o construtor para adicionar as perguntas. A publicação acontece depois, nas propriedades do ciclo.
             </p>
           </div>
         )}
@@ -261,7 +277,7 @@ export default function NewSurveyPage() {
             </Button>
           )}
 
-          <Link href="/admin/pesquisas" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100">Cancelar</Link>
+          <Link href="/admin/pesquisas" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] px-4 text-sm font-semibold text-[var(--status-danger-text)] transition hover:bg-[var(--status-danger-bg)]">Cancelar</Link>
 
           {step < LAST_STEP ? (
             <Button size="lg" onClick={() => void goToNextStep()}>
@@ -289,8 +305,8 @@ export default function NewSurveyPage() {
       </form>
 
       <aside className="space-y-5">
-        <article className="rounded-2xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-6 shadow-sm"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]"><ShieldCheck className="h-6 w-6" /></span><h3 className="mt-4 text-xl font-black text-[var(--text-primary)]">Governança desde o início</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Toda avaliação nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da administração.</p></article>
-        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-[var(--border-subtle)] bg-white p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-black text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-slate-600">{text}</p></article>)}
+        <article className="rounded-xl border border-[var(--border-subtle)] border-t-[3px] border-t-[var(--brand-solid)] bg-[var(--surface-card)] p-6 shadow-sm"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)]"><ShieldCheck className="h-6 w-6" /></span><h3 className="mt-4 text-xl font-semibold text-[var(--text-primary)]">Governança desde o início</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Toda avaliação nasce em rascunho, com versão controlada e autoria registrada. A publicação ocorre somente após revisão da administração.</p></article>
+        {[{ icon: FileText, title: "Próximo passo", text: "Adicionar seções, perguntas e alternativas no construtor." },{ icon: CalendarDays, title: "Ciclo", text: "Definir período, público, regras de acesso e notificações." }].map(({icon:Icon,title,text}) => <article key={title} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-sm"><Icon className="h-6 w-6 text-[var(--brand-secondary)]" /><h3 className="mt-4 text-lg font-semibold text-[var(--brand-primary)]">{title}</h3><p className="mt-2 leading-6 text-[var(--text-secondary)]">{text}</p></article>)}
       </aside>
     </section>
   </PlatformShell>;

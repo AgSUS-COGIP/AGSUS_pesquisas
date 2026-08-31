@@ -10,6 +10,10 @@
 
 export const RPC_JSON_ARGS: Readonly<Record<string, readonly string[]>> = {
   "add_survey_question": ["question_options"],
+  "fc_aplicar_publico_avaliacao": ["p_regra"],
+  "fc_buscar_pessoas_publico": ["p_regra"],
+  "fc_listar_dimensoes_publico": ["p_regra"],
+  "fc_previsualizar_publico_avaliacao": ["p_regra"],
   "fc_salvar_regra_condicional": ["p_condicoes"],
   "fc_srv_gravar_resp_anon": ["target_json"],
   "fc_srv_registrar_erro_aplicacao": ["p_ds_contexto"],

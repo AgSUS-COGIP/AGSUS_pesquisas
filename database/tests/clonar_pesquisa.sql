@@ -8,7 +8,7 @@ begin;
 
 select plan(24);
 
-insert into auth.users (id, aud, role, email, created_at, updated_at)
+insert into sigav.tb_usuario_identidade (id, aud, role, email, created_at, updated_at)
 values
   ('00000000-0000-4000-8000-00000000d001', 'authenticated', 'authenticated', 'clone-admin@agenciasus.org.br', now(), now()),
   ('00000000-0000-4000-8000-00000000d003', 'authenticated', 'authenticated', 'clone-comum@agenciasus.org.br', now(), now());
@@ -18,8 +18,16 @@ values
   ('00000000-0000-4000-8000-00000000d002', '00000000-0000-4000-8000-00000000d001', 'TESTE-CLONE-ADMIN', 'Administração de Teste', 'clone-admin@agenciasus.org.br'),
   ('00000000-0000-4000-8000-00000000d004', '00000000-0000-4000-8000-00000000d003', 'TESTE-CLONE-COMUM', 'Pessoa Comum de Teste', 'clone-comum@agenciasus.org.br');
 
-insert into sigav.person_role_assignments (person_id, role_id)
-select '00000000-0000-4000-8000-00000000d002', id from sigav.system_roles where code = 'SURVEY_MANAGER';
+-- Preset Admin — era a role SURVEY_MANAGER, e as tabelas de perfil saíram do
+-- banco em 20260828150000_remover_perfis_legados_do_banco.sql. A autorização
+-- hoje é permissão por pessoa; as funções sob teste exigem ADMIN_SURVEYS, via
+-- can_manage_surveys().
+insert into sigav.person_module_permissions (person_id, module_code, allowed)
+select '00000000-0000-4000-8000-00000000d002', modulo, true
+  from unnest(array[
+    'HOME', 'SURVEYS', 'DASHBOARDS', 'ONLINE_PRESENCE',
+    'ADMIN_SURVEYS', 'ADMIN_PARTICIPANTS'
+  ]) modulo;
 
 select set_config(
   'request.jwt.claims',

@@ -325,7 +325,7 @@ export default function AdminSurveysPage() {
         chegaria tarde demais para essa escolha.
       */}
       {templates.length > 0 && (
-        <section aria-label="Modelos de avaliação" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
+        <section aria-label="Modelos de avaliação" className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--brand-secondary)]">Comece a partir de um modelo</p>
@@ -363,7 +363,7 @@ export default function AdminSurveysPage() {
         </section>
       )}
 
-      <section aria-label="Catálogo de avaliações" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
+      <section aria-label="Catálogo de avaliações" className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">{showingArchived ? "Arquivadas" : "Catálogo administrativo"}</h3>
@@ -405,7 +405,7 @@ export default function AdminSurveysPage() {
           {dataLoading ? (
             <div className="grid gap-4 xl:grid-cols-2" aria-live="polite" aria-busy="true">
               <span className="sr-only">Carregando o catálogo de avaliações.</span>
-              {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-2xl" />)}
+              {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-xl" />)}
             </div>
           ) : filtered.length ? (
             <ul className="grid gap-4 xl:grid-cols-2">
@@ -468,7 +468,7 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDe
   const busy = cloning || archiving || deleting;
 
   return (
-    <article className={`flex h-full flex-col rounded-2xl border p-5 shadow-[var(--shadow-card)] transition ${archived ? "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]"}`}>
+    <article className={`flex h-full flex-col rounded-xl border p-5 transition ${archived ? "border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)]" : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-strong)]"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -526,25 +526,33 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDe
         />
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-2">
-        {[
-          ["Versão", survey.versionNumber],
-          ["Seções", survey.sections],
-          ["Perguntas", survey.questions],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 text-center">
-            <dt className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">{label}</dt>
-            <dd className="mt-1 text-lg font-semibold text-[var(--brand-primary)]">{value}</dd>
-          </div>
-        ))}
-      </dl>
+      {/*
+        Três números numa linha de texto, no lugar de três caixas.
 
-      <div className="mt-4 flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+        Cada cartão trazia `VERSÃO`, `SEÇÕES` e `PERGUNTAS` em quadros próprios,
+        com rótulo em maiúsculas espaçadas e o valor em destaque. Numa lista de
+        cinco avaliações, isso são quinze caixas competindo pela atenção para
+        dizer números que ninguém compara entre cartões — quem olha o catálogo
+        procura *qual* avaliação abrir, não quantas seções ela tem.
+
+        Como frase, os mesmos números ocupam uma linha e continuam legíveis.
+        Sobra espaço para o ciclo e o período, que é o que decide a escolha.
+      */}
+      <p className="mt-3 text-sm text-[var(--text-secondary)]">
+        Versão {survey.versionNumber} · {survey.sections} {survey.sections === 1 ? "seção" : "seções"} · {survey.questions} {survey.questions === 1 ? "pergunta" : "perguntas"}
+      </p>
+
+      {/*
+        O ciclo perdeu a caixa cinza e ganhou uma borda superior. A informação é
+        a mesma; o que sai é uma superfície dentro de outra superfície — o padrão
+        que fazia o cartão parecer um painel em vez de um item de lista.
+      */}
+      <div className="mt-3 flex-1 border-t border-[var(--border-subtle)] pt-3">
         <p className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
           <CalendarDays className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
           <span className="min-w-0 truncate">{survey.applicationName ?? "Ciclo não configurado"}</span>
         </p>
-        <p className="mt-1.5 pl-6 text-xs leading-5 text-[var(--text-secondary)]">
+        <p className="mt-1 pl-6 text-xs leading-5 text-[var(--text-secondary)]">
           {survey.opensAt || survey.closesAt
             ? <>Abre {dateLabel(survey.opensAt)} · encerra {dateLabel(survey.closesAt)}</>
             : "Período ainda não definido."}

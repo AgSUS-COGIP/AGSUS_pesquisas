@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle, AlertTriangle, ArrowLeft, Ban, CalendarCheck2, CheckCircle2, CircleSlash, Clock3, Copy, EyeOff, FilePlus2, FileStack, Hourglass, Image as ImageIcon, Info, ListChecks, Lock, Mail, PlayCircle, RotateCcw, Save, Send, ShieldCheck, SquarePen, Users2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformShell } from "@/components/platform-shell";
@@ -13,11 +14,12 @@ import { Checkbox } from "@/components/ui/form-controls";
 import { Dialog } from "@/components/ui/overlay-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao, enderecoDaEtapa, type EtapaDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { InfoTooltip } from "@/components/ui/tooltip";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
+import { criarNovaVersaoPesquisa, definirNotificacaoEmail, executarAcaoDoCiclo, obterIdentidadeVisual, obterOperacaoDoCiclo } from "@/lib/api/cliente-construtor";
 import type { OperacaoCiclo, PendenciaCiclo } from "@/lib/api/contratos-construtor";
 import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage } from "@/lib/survey-cycle-period";
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
@@ -119,6 +121,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const confirm = useConfirm();
   const { surveyId } = use(params);
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
+  /*
+    "Ciclo" e "Revisar e publicar" são a mesma página com ênfases diferentes.
+
+    O parâmetro só decide qual etapa a navegação destaca e o que aparece
+    primeiro. As operações são as mesmas — e é isso que evita um segundo
+    mecanismo de publicação, que seria a forma mais fácil de a plataforma passar
+    a ter duas regras de quando um ciclo pode abrir.
+  */
+  const etapa: EtapaDaConfiguracao = useSearchParams().get("etapa") === "revisao" ? "revisao" : "ciclo";
   const granted = guard.state === "granted";
   const [operations, setOperations] = useState<Operations | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -126,6 +137,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [interruptDialogOpen, setInterruptDialogOpen] = useState(false);
+  /*
+    Estado da capa, buscado só na etapa de revisão.
+
+    `get_survey_operations` não devolve a identidade visual, e não vou ampliá-la
+    por causa de uma linha de resumo: a rota de identidade já responde essa
+    pergunta, e é uma chamada a mais apenas nesta etapa. Nulo enquanto carrega
+    ou se falhar — a revisão não trava por causa da capa.
+  */
+  const [capaPersonalizada, setCapaPersonalizada] = useState<boolean | null>(null);
 
   const loadOperations = useCallback(async () => {
     setDataLoading(true);
@@ -144,6 +164,15 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   useEffect(() => {
     if (granted) void loadOperations();
   }, [granted, loadOperations]);
+
+  useEffect(() => {
+    if (!granted || etapa !== "revisao") return;
+    let ativo = true;
+    obterIdentidadeVisual(surveyId)
+      .then((dados) => { if (ativo) setCapaPersonalizada(dados.visualIdentity?.themeVariant === "CUSTOM"); })
+      .catch(() => { if (ativo) setCapaPersonalizada(null); });
+    return () => { ativo = false; };
+  }, [granted, etapa, surveyId]);
 
   async function runAction(action: string) {
     if (!operations?.application) return toast.error("O ciclo de aplicação ainda não foi criado.");
@@ -344,9 +373,27 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       description: "Antecipa a abertura: libera o formulário imediatamente, sem esperar a data agendada.",
       tone: "primary",
       available: operations.readyToOpen && ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? ""),
-      blockedReason: ["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
-        ? "O checklist ainda aponta pendências que impedem a abertura."
-        : `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`,
+      /*
+        O motivo é derivado, não fixo.
+
+        `readyToOpen` reúne três exigências — checklist válido, versão publicada
+        e período coerente com encerramento no futuro. A mensagem culpava sempre
+        o checklist, então uma versão ainda em rascunho aparecia como pendência
+        de checklist logo abaixo do selo "Sem bloqueios", que lê a mesma
+        validação e a declara limpa. Quem lesse os dois via a tela se
+        contradizer e não ficava sabendo o que fazer.
+
+        A ordem segue a da resolução: sem checklist válido nada mais adianta;
+        depois vem publicar; o período fica por último porque é o único ajustável
+        nesta mesma tela.
+      */
+      blockedReason: !["DRAFT", "SCHEDULED"].includes(cycleStatus ?? "")
+        ? `Só é possível abrir um ciclo em rascunho ou agendado — este está ${cycleStatusLabel(cycleStatus).toLocaleLowerCase("pt-BR")}.`
+        : blockingIssues.length > 0
+          ? `Resolva ${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"} do checklist antes de abrir.`
+          : versionStatus !== "PUBLISHED"
+            ? "Publique a versão antes de abrir o ciclo."
+            : "Defina um período com encerramento no futuro antes de abrir o ciclo.",
     },
     {
       action: "NEW_VERSION",
@@ -385,25 +432,98 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
         : `/pesquisas/${encodeURIComponent(operations.application.code)}`
     : null;
 
+  /*
+    O bloco de operações é definido uma vez e posicionado conforme a etapa.
+
+    Em "Ciclo" ele fica ao fim, depois de período e avisos — é o desfecho de
+    uma configuração. Em "Revisar e publicar" ele sobe para o topo, junto do
+    resumo, porque ali publicar é o assunto, não a consequência.
+
+    Definido, não duplicado: são os mesmos `cycleActions`, os mesmos handlers e
+    a mesma `manage_survey_cycle`. Copiar a JSX criaria dois botões de publicar
+    que divergiriam na primeira correção feita em um só deles.
+  */
+  const blocoDeAcoes = operations ? (
+    <div>
+      {versionStatus === "DRAFT" && !operations.readyToPublish && <p role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-sm leading-6 text-[var(--status-danger-text)]">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+        <span><strong className="font-semibold">Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio indicado" : "bloqueios indicados"} no checklist antes de publicar esta versão.</span>
+      </p>}
+
+      <ul aria-label="Operações do ciclo" className="flex flex-wrap items-center gap-2">
+        {cycleActions.map((item) => {
+          const isInterrupt = item.action === "INTERRUPT";
+          const isNewVersion = item.action === "NEW_VERSION";
+          const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
+          return (
+            <li key={item.action} className="flex">
+              <ActionButton
+                item={item}
+                working={isWorking}
+                busy={working !== null}
+                onRun={() => (isInterrupt
+                  ? setInterruptDialogOpen(true)
+                  : isNewVersion
+                    ? void runCreateNewVersion()
+                    : void runAction(item.action))}
+              />
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Os motivos de bloqueio saem de baixo de cada botão e viram uma lista
+          só. Embaixo do botão, a frase era mais larga que ele, invadia o
+          vizinho e deixava a fileira com alturas desiguais; aqui cada linha
+          nomeia a ação a que se refere e continua ligada a ela por
+          `aria-describedby`, sem exigir hover. */}
+      {blockedActions.length > 0 && (
+        <ul className="mt-4 space-y-1.5 border-t border-[var(--border-subtle)] pt-4">
+          {blockedActions.map((item) => (
+            <li
+              key={item.action}
+              id={`acao-${item.action}-nota`}
+              className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]"
+            >
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+              <span><span className="font-semibold text-[var(--text-primary)]">{item.label}:</span> {item.blockedReason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  ) : null;
   return <PlatformShell
     user={guard.user}
     eyebrow="Administração · Propriedades"
-    title={operations?.survey.name ?? "Propriedades do ciclo"}
+    // Rótulo fixo da rota, como nas outras etapas. O nome da avaliação é dito
+    // uma vez, pelo cabeçalho da jornada.
+    title={etapa === "revisao" ? "Revisar e publicar" : "Configuração do ciclo"}
   >
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      {/* Navegação da rota no topo do conteúdo: as ações que levam para outra
-          página ficam junto do que elas afetam, e não na barra da casca, que é
-          da aplicação. Fica fora do bloco de carregamento para que a saída da
-          tela exista antes dos dados. */}
+      {/*
+        Mesmo cabeçalho das outras etapas: a trilha substitui o botão isolado de
+        voltar, e a navegação de etapas mostra onde esta tela fica na jornada.
+        `Ciclo` e `Revisar e publicar` apontam para cá — são duas ênfases da
+        mesma página, porque ela já concentra período, avisos, checklist e as
+        ações de publicar e abrir. Duas rotas exigiriam um segundo mecanismo de
+        publicação.
+      */}
+      <CabecalhoDaConfiguracao
+        surveyId={surveyId}
+        applicationId={operations?.application?.id}
+        nome={operations?.survey.name}
+        etapa={etapa}
+        meta={[
+          operations?.survey.code,
+          operations?.application?.code ? `Ciclo ${operations.application.code}` : "Ciclo não configurado",
+          operations ? `Versão ${operations.version.number} · ${versionStatusLabel(versionStatus).toLocaleLowerCase("pt-BR")}` : null,
+          operations?.application?.anonymous ? "Anônima" : null,
+        ]}
+        acao={<BotaoProximaEtapa etapa={etapa} surveyId={surveyId} applicationId={operations?.application?.id} />}
+      />
+
       <nav aria-label="Ações da avaliação" className="flex flex-wrap items-center gap-2">
-        <Link
-          href="/admin/pesquisas"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-4 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)]"
-          title="Voltar ao catálogo de avaliações"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar ao catálogo
-        </Link>
         {responseLink && (
           <button
             type="button"
@@ -435,9 +555,97 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
       </nav>
 
       {dataLoading || !operations ? <OperationsSkeleton /> : <>
+        {/*
+          A revisão é uma leitura, não um formulário.
+
+          Trocar só a aba destacada não bastava: a pessoa chegava na última etapa
+          e via a mesma tela de configurar período. Aqui ela encontra, em ordem,
+          o que precisa conferir antes de publicar — e as operações logo abaixo,
+          movidas para cá em vez de duplicadas.
+
+          Os números saem de `operations.metrics`, que a página já carregava e
+          não usava por inteiro.
+        */}
+        {etapa === "revisao" && (
+          <>
+            <Surface className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Antes de publicar</h3>
+                <Badge variant={operations.readyToPublish ? "success" : "warning"}>
+                  {operations.readyToPublish
+                    ? "Sem bloqueios"
+                    : `${blockingIssues.length} ${blockingIssues.length === 1 ? "bloqueio" : "bloqueios"}`}
+                </Badge>
+              </div>
+
+              <dl className="mt-4 divide-y divide-[var(--border-subtle)] text-sm">
+                {[
+                  {
+                    rotulo: "Público definido",
+                    valor: `${operations.metrics.participants} ${operations.metrics.participants === 1 ? "pessoa" : "pessoas"}`,
+                    alerta: operations.metrics.participants === 0,
+                    onde: enderecoDaEtapa("publico", surveyId, operations.application?.id),
+                  },
+                  {
+                    rotulo: "Perguntas",
+                    valor: `${operations.metrics.questions} no total · ${operations.metrics.requiredQuestions} ${operations.metrics.requiredQuestions === 1 ? "obrigatória" : "obrigatórias"}`,
+                    alerta: operations.metrics.questions === 0,
+                    onde: enderecoDaEtapa("estrutura", surveyId, operations.application?.id),
+                  },
+                  {
+                    rotulo: "Período",
+                    valor: operations.application?.opensAt || operations.application?.closesAt
+                      ? `${dateLabel(operations.application?.opensAt)} até ${dateLabel(operations.application?.closesAt)}`
+                      : "Não definido",
+                    alerta: !operations.application?.opensAt && !operations.application?.closesAt,
+                    onde: enderecoDaEtapa("ciclo", surveyId, operations.application?.id),
+                  },
+                  {
+                    rotulo: "Identidade",
+                    // Nulo é "ainda não sei", não "não tem" — dizer o segundo
+                    // seria afirmar o que não foi lido.
+                    valor: capaPersonalizada === null
+                      ? "—"
+                      : capaPersonalizada ? "Capa personalizada" : "Capa institucional padrão",
+                    alerta: false,
+                    onde: enderecoDaEtapa("identidade", surveyId, operations.application?.id),
+                  },
+                ].map((linha) => (
+                  <div key={linha.rotulo} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
+                    <dt className="text-[var(--text-secondary)]">{linha.rotulo}</dt>
+                    <dd className="flex items-center gap-3">
+                      <span className={linha.alerta ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-primary)]"}>
+                        {linha.valor}
+                      </span>
+                      <Link href={linha.onde} className="text-xs font-semibold text-[var(--brand-primary)] underline underline-offset-4">
+                        Ajustar
+                      </Link>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              {operations.issues.length > 0 && (
+                <ul className="mt-4 space-y-1.5 border-t border-[var(--border-subtle)] pt-4">
+                  {operations.issues.map((issue, indice) => (
+                    <li key={`${issue.severity}-${indice}`} className="flex items-start gap-2 text-xs leading-5">
+                      {issue.severity === "BLOCKING"
+                        ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-danger-text)]" aria-hidden="true" />
+                        : <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />}
+                      <span className="text-[var(--text-secondary)]">{issue.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Surface>
+
+            {blocoDeAcoes}
+          </>
+        )}
+
         <PageHeader
           eyebrow={`${operations.survey.code} · Ciclo ${operations.application?.code ?? "não configurado"}`}
-          title="Propriedades do ciclo"
+          title={etapa === "revisao" ? "Configuração do ciclo" : "Propriedades do ciclo"}
           description="Publique a versão, defina o período e controle abertura e encerramento."
           actions={<>
             <Badge variant={cycleStatusVariant(cycleStatus)} title={`Código interno do ciclo: ${cycleStatus ?? "—"}`}>
@@ -600,54 +808,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
           </div>
         </Surface>}
 
-        <div>
-          {versionStatus === "DRAFT" && !operations.readyToPublish && <p role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 text-sm leading-6 text-[var(--status-danger-text)]">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-            <span><strong className="font-semibold">Publicação protegida.</strong> Corrija {blockingIssues.length} {blockingIssues.length === 1 ? "bloqueio indicado" : "bloqueios indicados"} no checklist antes de publicar esta versão.</span>
-          </p>}
-
-          <ul aria-label="Operações do ciclo" className="flex flex-wrap items-center gap-2">
-            {cycleActions.map((item) => {
-              const isInterrupt = item.action === "INTERRUPT";
-              const isNewVersion = item.action === "NEW_VERSION";
-              const isWorking = isInterrupt ? working === "CLOSE" || working === "CANCEL" : working === item.action;
-              return (
-                <li key={item.action} className="flex">
-                  <ActionButton
-                    item={item}
-                    working={isWorking}
-                    busy={working !== null}
-                    onRun={() => (isInterrupt
-                      ? setInterruptDialogOpen(true)
-                      : isNewVersion
-                        ? void runCreateNewVersion()
-                        : void runAction(item.action))}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Os motivos de bloqueio saem de baixo de cada botão e viram uma lista
-              só. Embaixo do botão, a frase era mais larga que ele, invadia o
-              vizinho e deixava a fileira com alturas desiguais; aqui cada linha
-              nomeia a ação a que se refere e continua ligada a ela por
-              `aria-describedby`, sem exigir hover. */}
-          {blockedActions.length > 0 && (
-            <ul className="mt-4 space-y-1.5 border-t border-[var(--border-subtle)] pt-4">
-              {blockedActions.map((item) => (
-                <li
-                  key={item.action}
-                  id={`acao-${item.action}-nota`}
-                  className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]"
-                >
-                  <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-                  <span><span className="font-semibold text-[var(--text-primary)]">{item.label}:</span> {item.blockedReason}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {etapa === "ciclo" ? blocoDeAcoes : null}
 
         <Dialog
           open={interruptDialogOpen}
