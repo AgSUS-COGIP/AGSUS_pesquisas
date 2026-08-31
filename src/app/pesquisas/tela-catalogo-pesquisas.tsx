@@ -17,6 +17,15 @@ import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { cn } from "@/lib/utils";
 import { summarizeSurveyCatalog, surveyApplicationHref, surveyItemState, type SurveyCatalogItem } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
+import {
+  BORDA_DO_TOM,
+  TEXTO_DO_TOM,
+  VARIANTE_DE_BADGE,
+  tomDaSituacaoDoCiclo,
+  tomDoEnvio,
+  tomDoEstadoDaAvaliacao,
+  tomDoPrazo,
+} from "@/lib/tom-semantico";
 
 type FilterKey = "ALL" | "OPEN" | "DRAFT" | "COMPLETED" | "SCHEDULED" | "CLOSED";
 
@@ -59,15 +68,28 @@ const filters: Array<{ key: FilterKey; label: string }> = [
   { key: "CLOSED", label: "Fechadas" },
 ];
 
-const stateBadgeVariant: Record<Exclude<FilterKey, "ALL">, "success" | "warning" | "info" | "outline" | "neutral" | "danger"> = {
-  OPEN: "success",
-  DRAFT: "warning",
-  COMPLETED: "info",
-  SCHEDULED: "outline",
-  // Vermelho institucional. O selo é o único elemento acionável do topo do
-  // cartão, e cinza fazia o prazo perdido passar despercebido.
-  CLOSED: "danger",
-};
+/*
+  O tom do cartão — usado pelo selo e pelo traço superior, que dizem a mesma
+  coisa — vem da gramática compartilhada.
+
+  O mapa anterior contrariava o resto do produto em três pontos: "Em andamento"
+  era âmbar e "Concluída" era azul — as duas famílias trocadas —, e "Fechada"
+  era vermelha.
+
+  O vermelho vinha da intenção certa: não deixar o prazo perdido passar
+  despercebido. Mas ele marcava o **ciclo encerrado**, que é o desfecho normal
+  de toda avaliação, e não o prazo perdido. O resultado era vermelho em quase
+  todo cartão antigo, e vermelho que aparece sempre deixa de significar
+  problema. Quem cuida da urgência agora é o tom do prazo, que distingue
+  "encerrou" de "venceu com resposta pendente".
+*/
+function tomDoCartao(estado: Exclude<FilterKey, "ALL">) {
+  if (estado === "OPEN") return tomDaSituacaoDoCiclo("OPEN");
+  if (estado === "DRAFT") return tomDoEstadoDaAvaliacao("IN_PROGRESS");
+  if (estado === "COMPLETED") return tomDoEstadoDaAvaliacao("COMPLETED");
+  if (estado === "SCHEDULED") return tomDoEstadoDaAvaliacao("SCHEDULED");
+  return tomDoEstadoDaAvaliacao("CLOSED");
+}
 
 function filterFromQuery(value: string | null): FilterKey {
   const normalized = value?.toUpperCase();
@@ -107,7 +129,7 @@ function SurveysPageContent() {
   // `StatCard` para virar uma faixa. `alert` liga o realce de urgência sem que a
   // cor seja o único indicador — a legenda continua dizendo quantas vencem.
   const metricTiles = [
-    { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false },
+    { label: "Disponíveis", value: metrics.total, description: "total destinado ao seu perfil", alert: false, tom: "info" as const },
     {
       label: "Pendentes",
       // `metrics.pending`, não `metrics.actionable`. `actionable` é
@@ -121,13 +143,15 @@ function SurveysPageContent() {
         ? `${metrics.urgent} ${metrics.urgent === 1 ? "vence" : "vencem"} em até 7 dias`
         : "ainda não iniciadas",
       alert: !catalogLoading && metrics.urgent > 0,
+      tom: "warning" as const,
     },
-    { label: "Em andamento", value: metrics.inProgress, description: "iniciadas e ainda não enviadas", alert: false },
+    { label: "Em andamento", value: metrics.inProgress, description: "iniciadas e ainda não enviadas", alert: false, tom: "info" as const },
     {
       label: "Finalizadas",
       value: metrics.completed,
       description: metrics.total ? `${metrics.completionRate}% do total` : "respondidas e enviadas",
       alert: false,
+      tom: "success" as const,
     },
   ];
 
@@ -196,13 +220,24 @@ function SurveysPageContent() {
           */}
           <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
             {metricTiles.map((tile, index) => (
+              /*
+                O número carrega o tom do que ele conta, em vez de todos serem
+                azul institucional. Antes, "Pendentes" e "Finalizadas" tinham a
+                mesma cor: dois estados opostos, visualmente iguais.
+
+                Só o número muda de cor. A régua que separa os indicadores
+                continua neutra — colori-la também somaria um segundo separador
+                ao `divide-x` que já existe, e a faixa ganharia peso sem ganhar
+                informação. Rótulo e legenda seguem dizendo tudo, então quem não
+                distingue as cores não perde nada.
+              */
               <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
                 <dt className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</dt>
                 <dd>
-                  <strong className={`mt-1.5 block text-2xl font-semibold leading-none tabular-nums ${tile.alert ? "text-[var(--status-warning-text)]" : "text-[var(--brand-primary)]"}`}>
+                  <strong className={`mt-1.5 block text-2xl font-semibold leading-none tabular-nums ${TEXTO_DO_TOM[tile.tom]}`}>
                     {catalogLoading ? "—" : tile.value}
                   </strong>
-                  <span className={`mt-2 block text-xs leading-4 ${tile.alert ? "font-semibold text-[var(--status-warning-text)]" : "text-[var(--text-muted)]"}`}>
+                  <span className={`mt-2 block text-xs leading-4 ${tile.alert ? `font-semibold ${TEXTO_DO_TOM.warning}` : "text-[var(--text-secondary)]"}`}>
                     {catalogLoading ? "carregando" : tile.description}
                   </span>
                 </dd>
@@ -252,6 +287,31 @@ function SurveysPageContent() {
               const completed = state === "COMPLETED";
               const deadline = deadlineStatus(item.closesAt, new Date());
               const showCountdown = item.applicationStatus === "OPEN" && (deadline.state === "counting" || deadline.state === "today");
+              /*
+                A contagem era sempre âmbar, faltassem 3 dias ou 60. Cor que não
+                varia com a urgência não informa urgência — só ocupa a mesma
+                atenção em todo cartão, e some no meio dos demais quando o prazo
+                de fato aperta.
+
+                `tomDoPrazo` lê o que `deadlineStatus` já apurou; nada é
+                recalculado aqui.
+              */
+              const tomDoContador = tomDoPrazo(deadline);
+              const tomDoEnvioDoItem = tomDoEnvio(item.submissionStatus, completed);
+              /*
+                Traço e selo dizem a mesma coisa, de propósito.
+
+                Tentei antes fazer o traço seguir o estado do item — o que a
+                pessoa tem a fazer — enquanto o selo seguia a situação do ciclo.
+                Medido na tela, o resultado foi um cartão com selo verde
+                "Aberta" e traço âmbar: duas cores concorrentes afirmando coisas
+                diferentes no mesmo canto, e nenhuma legenda explicando a
+                distinção. O traço é reforço do selo, não um segundo canal.
+
+                A urgência de quem ainda não começou continua sendo dita — pelo
+                contador de prazo, que tem tom próprio e um texto ao lado.
+              */
+              const tom = tomDoCartao(state === "ALL" ? "OPEN" : state);
               return (
                 /*
                   Cartão enxugado. Saíram a faixa de gradiente (repetida em todo
@@ -260,14 +320,27 @@ function SurveysPageContent() {
                   informa algo acionável — e as caixas cinza em volta dos metadados.
                   Os códigos continuam visíveis, como texto secundário.
                 */
-                <Surface key={item.applicationId} className="group flex min-h-56 flex-col overflow-hidden rounded-lg transition-colors hover:border-[var(--border-strong)]">
+                /*
+                  Traço superior de 3px, e não cartão colorido: a situação fica
+                  legível de longe sem que o conteúdo perca a superfície neutra
+                  em que se lê. `border-t-[3px]` é a mesma espessura que a tela
+                  de Configurações já usa para marcar seção.
+
+                  Não substitui o selo — é redundância deliberada. Quem não
+                  distingue as cores continua lendo "Aberta", "Agendada" ou
+                  "Fechado" no selo ao lado do título.
+                */
+                <Surface
+                  key={item.applicationId}
+                  className={`group flex min-h-56 flex-col overflow-hidden rounded-lg border-t-[3px] transition-colors hover:border-[var(--border-strong)] ${BORDA_DO_TOM[tom]}`}
+                >
   {/* ↓ min-w-0 é obrigatório aqui para que o flex respeite a largura do card */}
   <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
     <div className="flex items-start justify-between gap-3">
       <h3 className="min-w-0 line-clamp-2 break-words text-lg font-semibold leading-snug tracking-tight text-[var(--text-primary)]">
         {item.applicationName}
       </h3>
-      <Badge variant={stateBadgeVariant[state === "ALL" ? "OPEN" : state]} className="shrink-0">
+      <Badge variant={VARIANTE_DE_BADGE[tom]} className="shrink-0">
         {completed ? "Concluída" : state === "DRAFT" ? "Em andamento" : statusLabel(item.applicationStatus)}
       </Badge>
     </div>
@@ -294,7 +367,7 @@ function SurveysPageContent() {
         <span className="truncate">Prazo: {dateLabel(item.closesAt)}</span>
       </span>
       {showCountdown ? (
-        <span className="inline-flex min-w-0 items-center gap-1.5 break-words font-semibold text-[var(--status-warning-text)]" aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
+        <span className={`inline-flex min-w-0 items-center gap-1.5 break-words font-semibold ${TEXTO_DO_TOM[tomDoContador]}`} aria-label={`Prazo: ${deadlineLabel(deadline)}`}>
           <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">{deadlineLabel(deadline)}</span>
         </span>
@@ -302,11 +375,16 @@ function SurveysPageContent() {
     </div>
 
     <div className="mt-auto flex min-w-0 items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
-      <span className="inline-flex min-w-0 items-center gap-2 truncate text-xs font-semibold text-[var(--text-secondary)]">
+      {/*
+        O ícone acompanha o tom, e o texto continua dizendo tudo: quem não
+        distingue as cores lê "Envio concluído", "Rascunho salvo" ou "Não
+        iniciada" exatamente como antes.
+      */}
+      <span className={`inline-flex min-w-0 items-center gap-2 truncate text-xs font-semibold ${TEXTO_DO_TOM[tomDoEnvioDoItem]}`}>
         {completed ? (
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--status-success-text)]" aria-hidden="true" />
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
         ) : (
-          <FileText className="h-4 w-4 shrink-0 text-[var(--brand-secondary)]" aria-hidden="true" />
+          <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
         )}
         <span className="truncate">
           {completed ? "Envio concluído" : item.submissionStatus === "DRAFT" ? "Rascunho salvo" : "Não iniciada"}

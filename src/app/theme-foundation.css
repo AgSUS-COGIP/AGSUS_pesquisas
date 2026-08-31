@@ -8,7 +8,16 @@
   --surface-interactive: #f7fafc;
   --surface-overlay: rgba(255, 255, 255, .92);
   --border-strong: #b9c8d5;
-  --text-muted: #718096;
+  /*
+    Era `#718096`, que dá 4,02:1 sobre o cartão branco — abaixo do mínimo da
+    WCAG AA para os 12px em que este token é usado: legendas de indicador,
+    códigos de avaliação, rodapé e trilha.
+
+    O ajuste é o menor que atravessa o limite (4,79:1) e mantém a hierarquia:
+    `--text-muted` continua mais claro que `--text-secondary` (5,12:1), então
+    nada troca de papel. O escuro já passava e ficou como estava.
+  */
+  --text-muted: #66738a;
   --text-on-brand: #ffffff;
   --control-bg: #ffffff;
   --control-hover: #edf5fa;
@@ -25,6 +34,23 @@
   --status-danger-bg: #fff0f0;
   --status-danger-border: #efaaaa;
   --status-danger-text: #a12121;
+
+  /*
+    Agendado — a quinta família, e a única acrescentada aqui.
+
+    Existe porque "vai acontecer" não cabe em nenhuma das quatro. Em `info` ele
+    se confunde com "em andamento", e a diferença entre um ciclo que já aceita
+    resposta e um que ainda não aceita é justamente o que a pessoa precisa ver
+    antes de clicar. Em `warning` ele viraria pendência, e não há nada a fazer
+    a respeito de uma data futura.
+
+    O violeta fica **reservado** a este significado. Roxo decorativo espalhado
+    pela interface é o que descaracteriza o tom institucional, e é o que esta
+    reserva impede: se ele aparece, quer dizer futuro.
+  */
+  --status-scheduled-bg: #f4f0fd;
+  --status-scheduled-border: #c3b0ee;
+  --status-scheduled-text: #553196;
 }
 
 html[data-agsus-theme="dark"] {
@@ -54,6 +80,12 @@ html[data-agsus-theme="dark"] {
   --status-danger-bg: rgba(185, 28, 28, .2);
   --status-danger-border: #a94444;
   --status-danger-text: #ffc2c2;
+  /* Mesma construção das outras quatro no escuro: fundo translúcido sobre a
+     superfície do tema, borda sólida e texto claro o bastante para passar em AA
+     sobre o cartão — medido, não estimado. */
+  --status-scheduled-bg: rgba(109, 68, 190, .24);
+  --status-scheduled-border: #7d5cc4;
+  --status-scheduled-text: #d9c9ff;
   scrollbar-color: var(--border-strong) var(--surface-page);
 }
 
