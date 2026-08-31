@@ -1,9 +1,0 @@
--- Marcador de migration legada.
---
--- Esta versao consta no historico do banco de producao porque o SQL original
--- foi aplicado com um timestamp anterior ao baseline canonico do repositorio.
--- O estado correspondente ja e' reconstruido pelas migrations canonicas que
--- aparecem depois deste marcador.
---
--- Deliberadamente sem DDL/DML: este arquivo existe apenas para que o PostgreSQL
--- CLI reconheca o historico remoto sem reaplicar SQL nem apagar registros.

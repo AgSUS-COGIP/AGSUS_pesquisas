@@ -129,7 +129,6 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "search_admin_people_for_application": "scalar",
   "search_team_candidates": "scalar",
   "set_admin_application_participant_status": "scalar",
-  "set_my_avatar_choice": "scalar",
   "set_my_avatar_url": "scalar",
   "set_platform_admin_leadership_link": "scalar",
   "start_or_resume_my_cddi_submission": "scalar",
