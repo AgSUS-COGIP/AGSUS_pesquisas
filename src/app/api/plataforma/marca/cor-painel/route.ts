@@ -20,8 +20,8 @@ export async function PUT(request: Request) {
 
   const cor = typeof corpo.cor === "string" && corpo.cor.trim() ? corpo.cor.trim() : null;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_definir_cor_painel_acesso", { p_cor: cor });
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_cor_painel_acesso", { p_cor: cor });
 
   if (error) return respostaDeErro(error, "PUT /api/plataforma/marca/cor-painel");
 

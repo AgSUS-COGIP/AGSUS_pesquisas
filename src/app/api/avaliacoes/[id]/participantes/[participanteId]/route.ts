@@ -33,8 +33,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Situação inválida para um participante.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("set_admin_application_participant_status", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("set_admin_application_participant_status", {
     target_participant_id: participanteId,
     target_status: corpo.status,
   });

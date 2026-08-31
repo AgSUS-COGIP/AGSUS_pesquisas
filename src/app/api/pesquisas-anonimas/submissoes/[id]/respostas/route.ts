@@ -41,8 +41,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (!ehEntradaDeResposta(body)) return respostaDeEntradaInvalida(erroNaEntradaDeResposta(body) ?? "Resposta inválida.");
-  const supabase = createAdminRpcClient();
-  const { data, error } = await supabase.rpc("fc_srv_gravar_resp_anon", {
+  const banco = createAdminRpcClient();
+  const { data, error } = await banco.rpc("fc_srv_gravar_resp_anon", {
     target_submission_id: id, target_session_token: token, target_question_id: body.questionId,
     target_option_ids: body.optionIds ?? null, target_text: body.text ?? null, target_number: body.number ?? null,
     target_boolean: body.boolean ?? null, target_date: body.date ?? null, target_datetime: body.datetime ?? null, target_json: body.json ?? null,

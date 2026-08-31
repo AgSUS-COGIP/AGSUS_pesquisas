@@ -25,8 +25,8 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 100;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("list_platform_admin_leadership_links", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("list_platform_admin_leadership_links", {
     target_application_id: avaliacao,
     target_search: busca,
     target_limit: limite,
@@ -50,8 +50,8 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe a avaliação, o integrante e a liderança do vínculo.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("set_platform_admin_leadership_link", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("set_platform_admin_leadership_link", {
     target_application_id: corpo.applicationId,
     target_subordinate_person_id: corpo.subordinatePersonId,
     target_leader_person_id: corpo.leaderPersonId,

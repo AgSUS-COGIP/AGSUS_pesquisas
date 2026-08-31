@@ -12,8 +12,8 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_obter_ciclo_cddi_vigente");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_obter_ciclo_cddi_vigente");
 
   if (error) return respostaDeErro(error, "GET /api/cddi/ciclo-vigente");
 

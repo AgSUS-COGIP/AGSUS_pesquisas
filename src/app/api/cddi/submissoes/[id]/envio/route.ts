@@ -21,8 +21,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de submissão inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("submit_my_cddi_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("submit_my_cddi_submission", {
     target_submission_id: id,
   });
 

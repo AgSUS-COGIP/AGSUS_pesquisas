@@ -4,7 +4,7 @@ Este projeto adota o documento **Padrão Institucional de Nomenclatura — Objet
 
 ## Adaptação PostgreSQL
 
-O padrão institucional define nomes em maiúsculas para banco relacional. Como o PostgreSQL converte identificadores não delimitados para minúsculas e o uso de nomes entre aspas prejudica portabilidade, PostgREST, Supabase e manutenção, este projeto usa os mesmos prefixos e a mesma semântica em minúsculas.
+O padrão institucional define nomes em maiúsculas para banco relacional. Como o PostgreSQL converte identificadores não delimitados para minúsculas e o uso de nomes entre aspas prejudica portabilidade, PostgREST, PostgreSQL e manutenção, este projeto usa os mesmos prefixos e a mesma semântica em minúsculas.
 
 Exemplos:
 
@@ -84,7 +84,7 @@ Constraints devem ser nomeadas explicitamente. Não use `primary key`, `unique` 
 - `tbi_`, `tai_`, `tbu_`, `tau_`, `tbd_`, `tad_`, `tba_`, `taa_`, `tio_` para triggers;
 - `tra_` trigger de auditoria.
 
-## Segurança Supabase
+## Segurança PostgreSQL
 
 Toda migração deve, no mesmo arquivo:
 
@@ -93,13 +93,14 @@ Toda migração deve, no mesmo arquivo:
 3. conceder apenas os grants necessários;
 4. nomear policies, constraints e índices;
 5. fixar `search_path` de funções privilegiadas;
-6. revogar `EXECUTE` de `public`, `anon` e `authenticated` quando a função for interna;
-7. validar `auth.uid()`, pessoa, papel e escopo em RPCs públicas;
+6. revogar `EXECUTE` de `public` quando a função for interna — o cluster tem uma role só,
+   `usr_sip_app`, e nenhum `grant`/`revoke` nomeia role (ver `docs/operacao-permissoes.md`);
+7. validar `sigav.fc_uid_sessao()`, pessoa, papel e escopo em RPCs públicas;
 8. executar Security e Performance Advisors após DDL.
 
 ## Objetos legados
 
-Os objetos atuais permanecem temporariamente com os nomes existentes para preservar compatibilidade. Cada objeto deve ser registrado em `db_governanca.tb_catalogo_objeto` com:
+Os objetos atuais permanecem temporariamente com os nomes existentes para preservar compatibilidade. Cada objeto deve ser registrado em `sigav.tb_catalogo_objeto` com:
 
 - nome atual;
 - nome proposto;

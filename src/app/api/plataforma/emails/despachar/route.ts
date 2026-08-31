@@ -25,8 +25,8 @@ export const dynamic = "force-dynamic";
  * dado vindo do cliente.
  */
 export async function POST() {
-  const supabase = await createServerRpcClient();
-  const { data: contexto, error: contextoError } = await supabase.rpc("fc_obter_contexto_plataforma");
+  const banco = await createServerRpcClient();
+  const { data: contexto, error: contextoError } = await banco.rpc("fc_obter_contexto_plataforma");
 
   if (contextoError) {
     console.error("POST /api/plataforma/emails/despachar:", contextoError.message);

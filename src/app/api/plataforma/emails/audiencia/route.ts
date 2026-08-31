@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
   const busca = request.nextUrl.searchParams.get("busca");
   const limite = Number(request.nextUrl.searchParams.get("limite") ?? 500);
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_audiencia_email", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_audiencia_email", {
     p_aplicacao: avaliacao,
     p_situacao: situacao,
     p_busca: busca || null,

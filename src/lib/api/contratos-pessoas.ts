@@ -293,15 +293,18 @@ export type RemoverRespostaEntrada = {
 
 // ── Plataforma: marca e acessos ───────────────────────────────────────────────
 
-/** Perfil disponível na matriz de acessos. */
-export type PerfilDeAcesso = {
+/** Permissão disponível na matriz de acessos. */
+export type PermissaoDeAcesso = {
   code: string;
   name: string;
   description: string | null;
+  category: string;
+  position: number;
+  required: boolean;
 };
 
-/** Pessoa na matriz de acessos, com os papéis vigentes dela. */
-export type PessoaComPerfis = {
+/** Pessoa na matriz de acessos, com suas permissões efetivas. */
+export type PessoaComPermissoes = {
   personId: string;
   fullName: string;
   employeeNumber: string | null;
@@ -309,14 +312,15 @@ export type PessoaComPerfis = {
   jobTitle: string | null;
   unit: string | null;
   active: boolean;
-  roles: { code: string }[];
+  permissions: string[];
 };
 
 /** Página da matriz devolvida por `fc_listar_acessos_paginados`. */
 export type AreaDeAcessos = {
   status: "OK";
-  roles: PerfilDeAcesso[];
-  people: PessoaComPerfis[];
+  technicalRole: "authenticated";
+  permissions: PermissaoDeAcesso[];
+  people: PessoaComPermissoes[];
   total: number;
   limit: number;
   offset: number;
@@ -324,8 +328,8 @@ export type AreaDeAcessos = {
 };
 
 /** Corpo aceito por `PUT /api/plataforma/acessos/[pessoaId]`. */
-export type DefinirPerfilEntrada = {
-  perfil: string;
+export type DefinirPermissoesEntrada = {
+  permissoes: string[];
 };
 
 /** Corpo aceito por `PUT /api/plataforma/marca`. */
@@ -338,7 +342,6 @@ export type AtualizarMarcaEntrada = {
 /** Configuração do recurso de presença online. */
 export type DefinirPresencaOnlineEntrada = {
   ativa: boolean;
-  perfis: string[];
 };
 
 /** Comunicado institucional exibido na página inicial. */

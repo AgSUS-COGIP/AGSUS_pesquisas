@@ -38,7 +38,7 @@ Foi criada a tabela `person_access_identities` para controlar separadamente os e
 
 ## Estrutura do ciclo cadastrada
 
-O Supabase contém:
+O PostgreSQL contém:
 
 - pesquisa `CDDI`;
 - versão `2026`;
@@ -62,6 +62,6 @@ O Supabase contém:
 
 ## Carga de participantes
 
-Os dados pessoais não serão armazenados no GitHub. A importação será executada diretamente no Supabase por processo controlado, com registro em `data_import_batches` e pendências em `data_import_issues`.
+Os dados pessoais não serão armazenados no GitHub. A importação será executada diretamente no PostgreSQL por processo controlado, com registro em `data_import_batches` e pendências em `data_import_issues`.
 
 A primeira tentativa operacional foi encerrada sem importar registros porque o ambiente de processamento não possuía acesso externo ao Edge Function. A função temporária foi desativada, a função SQL de importação foi removida e o lote foi registrado como `FAILED`, com `data_imported=false`.

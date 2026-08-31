@@ -32,15 +32,6 @@ export const ANONYMITY_LIMITS = [
 ] as const;
 
 /**
- * Resumo de uma linha, para onde não cabe a lista inteira.
- *
- * A ressalva vem na mesma frase de propósito: uma chamada que só promete e
- * remete a ressalva para outro lugar é lida como promessa integral.
- */
-export const ANONYMITY_SUMMARY =
-  "Ciclo anônimo: depois do envio, nada no banco liga você às suas respostas. Fica registrado apenas que você participou.";
-
-/**
  * O que muda para quem administra ao marcar a opção.
  *
  * A irreversibilidade é a informação mais importante da tela de criação: o

@@ -41,14 +41,14 @@ export async function GET() {
   const authenticated = Boolean(claims?.sub);
 
   if (authenticated) {
-    const sessionSupabase = await createServerRpcClient();
-    const { data, error } = await sessionSupabase.rpc("fc_obter_marca_plataforma");
+    const sessionbanco = await createServerRpcClient();
+    const { data, error } = await sessionbanco.rpc("fc_obter_marca_plataforma");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
     return NextResponse.json(normalizePlatformBranding(data));
   }
 
-  const publicSupabase = createPublicRpcClient();
-  const { data: publicData, error: publicError } = await publicSupabase.rpc("fc_obter_marca_publica");
+  const publicbanco = createPublicRpcClient();
+  const { data: publicData, error: publicError } = await publicbanco.rpc("fc_obter_marca_publica");
   if (!publicError) return NextResponse.json(marcaPublica(publicData));
 
   // PGRST202 = a migration que cria a RPC nova ainda nao chegou ao banco.
@@ -60,7 +60,7 @@ export async function GET() {
   // Compatibilidade de rollout apenas. O cliente continua anônimo e sem cookies:
   // se `anon` já tiver sido revogado da RPC completa, a resposta correta é erro,
   // não a reutilização silenciosa de um JWT inválido.
-  const { data, error } = await publicSupabase.rpc("fc_obter_marca_plataforma");
+  const { data, error } = await publicbanco.rpc("fc_obter_marca_plataforma");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
@@ -89,8 +89,8 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe o nome da organização, o nome do sistema e a cor principal.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_atualizar_marca_plataforma", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_atualizar_marca_plataforma", {
     no_organizacao_param: organizationName,
     no_produto_param: productName,
     tx_url_logotipo_param: null,

@@ -41,8 +41,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Descreva o motivo da operação com pelo menos 10 caracteres.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_remover_resposta_pessoa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_remover_resposta_pessoa", {
     p_submissao: submissaoId,
     p_modo: corpo.modo,
     p_motivo: motivo,

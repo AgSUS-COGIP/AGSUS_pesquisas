@@ -1,31 +1,30 @@
 "use client";
 
 import { Hourglass, ShieldCheck, TriangleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { safeAuthNext } from "@/lib/auth-callback";
 import { needsLightForeground } from "@/lib/color-contrast";
-import { abrirJanelaDeLogin, LOGIN_POPUP_LANDING, LOGIN_POPUP_MESSAGE, suportaJanelaDeLogin } from "@/lib/login-popup";
-import { accessErrorMessage, authDestinationWithEntering, loginPopupDecision } from "@/lib/login-transition";
+import { accessErrorMessage, authDestinationWithEntering, safeAuthNext } from "@/lib/login-transition";
 import { signIn as authJsSignIn } from "next-auth/react";
-import { createBrowserSupabaseClient, isBrowserSupabaseConfigured } from "@/lib/supabase/client";
-import { usaAuthJs } from "@/lib/auth/provedor";
 import { ExternalImage } from "@/components/external-image";
 import { PlatformLogo } from "@/components/platform-logo";
 import type { PlatformBranding } from "@/lib/platform-branding";
 import { LOGO_INSTITUCIONAL_DATA_URI } from "./logo-institucional";
+
 /*
- * Arte padrão da tela de acesso, servida localmente de `public/`.
+ * A arte de fundo é opcional e vem só da configuração.
  *
- * Continua sendo o ponto de partida — e o que aparece enquanto a marca carrega,
- * para a tela não abrir com um retângulo vazio. A administração pode substituí-la
- * em `/admin/configuracoes` para acompanhar campanha institucional; sem
- * substituição configurada, vale esta.
+ * Havia uma imagem padrão local servida quando nada estava configurado. Ela saiu
+ * por duas razões. É genérica, e aparecia como se fosse a identidade da
+ * instituição para quem nunca configurou nada. E, pior, ela participava de um
+ * defeito: com o backend fora, a marca caía no padrão, a arte aparecia, e a tela
+ * ficava idêntica a um dia normal — ajudando a esconder que o sistema estava
+ * indisponível.
+ *
+ * Sem arte configurada, o fundo é `--surface-page`, que já é institucional.
  *
  * O que **não** volta: o sorteio de fotos externas que existia antes
- * (`/api/background/*`). A arte é institucional e local, nunca de terceiro.
+ * (`/api/background/*`). A arte é institucional, nunca de terceiro.
  */
-const BACKGROUND_IMAGE = "/acesso-fundo.png";
 
 /**
  * A palavra gravada dentro dos arquivos de assinatura do SIGAV.
@@ -51,16 +50,11 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
    * tinha pegado — e esta é a primeira tela que qualquer pessoa vê.
    */
   const branding = initialBranding;
-  const router = useRouter();
-  // Com o Auth.js o login nao depende das variaveis publicas do Supabase; a
-  // tela nao deve se bloquear por ausencia delas.
-  const supabaseConfigured = usaAuthJs() || isBrowserSupabaseConfigured();
   const signInPendingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   // Muda o que a tela diz enquanto espera: com janela separada ninguém é levado
   // a lugar nenhum, e prometer isso confundiria quem está vendo a janela abrir.
-  const [usandoJanela, setUsandoJanela] = useState(false);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -71,101 +65,11 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
   function resetSignIn(mensagem = "") {
     signInPendingRef.current = false;
     setLoading(false);
-    setUsandoJanela(false);
     if (mensagem) setMessage(mensagem);
   }
 
-  /**
-   * Acompanha a janela de login até haver sessão, falhar ou ser fechada.
-   *
-   * **A tela não espera um recado — ela olha se já existe sessão.** A primeira
-   * versão dependia de a janela avisar por `postMessage`, e isso tem meia dúzia
-   * de formas de não acontecer: o vínculo entre as janelas pode ser cortado por
-   * política do navegador, o `window.close()` pode ser recusado, a janela pode
-   * ficar aberta na página final. Quando o recado não chegava, a tela de trás
-   * ficava presa em "Entrando…" com a sessão já criada — que foi exatamente o
-   * defeito observado.
-   *
-   * Perguntar "há sessão?" não tem esse problema: é o estado real, gravado em
-   * cookie do mesmo domínio, visível para as duas janelas. O recado continua
-   * sendo ouvido, mas só para encurtar a espera — nunca como única saída.
-   */
-  function acompanharJanela(janela: Window, destino: string) {
-    const supabase = createBrowserSupabaseClient();
-    let encerrado = false;
-    let verificando = false;
-
-    const encerrar = () => {
-      encerrado = true;
-      window.removeEventListener("message", aoReceber);
-      window.clearInterval(vigia);
-    };
-
-    const concluir = () => {
-      if (encerrado) return;
-      encerrar();
-      if (!janela.closed) janela.close();
-      // O callback SSR já gravou os cookies e `getSession()` os confirmou nesta
-      // origem. A navegação privada pode seguir pelo App Router sem recarregar a
-      // aplicação inteira; não há prefetch anterior nem necessidade de refresh.
-      router.replace(authDestinationWithEntering(destino));
-    };
-
-    const verificar = async () => {
-      if (encerrado || verificando) return;
-      verificando = true;
-
-      try {
-        // `getSession()` lê o cookie compartilhado com o callback, sem uma nova
-        // ida ao Auth server. A navegação só ocorre depois desta confirmação.
-        const { data } = await supabase.auth.getSession();
-        let popupHref: string | null = null;
-
-        if (!janela.closed) {
-          try {
-            popupHref = janela.location.href;
-          } catch {
-            // Enquanto está no Google, o endereço é de outra origem.
-          }
-        }
-
-        const decision = loginPopupDecision({
-          hasSession: Boolean(data.session),
-          popupClosed: janela.closed,
-          popupHref,
-          currentOrigin: window.location.origin,
-        });
-
-        if (decision.state === "complete") concluir();
-        else if (decision.state === "cancelled") { encerrar(); resetSignIn(); }
-        else if (decision.state === "error") { encerrar(); janela.close(); resetSignIn(decision.message); }
-      } catch {
-        // Uma falha inesperada ao ler o cookie não pode deixar uma rejeição
-        // solta nem o botão travado depois que a janela já foi fechada.
-        if (janela.closed && !encerrado) {
-          encerrar();
-          resetSignIn("Não foi possível confirmar a sessão. Tente novamente.");
-        }
-      } finally {
-        verificando = false;
-      }
-    };
-
-    // Atalho, não dependência: quando o recado chega, a espera acaba antes.
-    const aoReceber = (evento: MessageEvent) => {
-      if (evento.origin !== window.location.origin) return;
-      if ((evento.data as { type?: string } | null)?.type !== LOGIN_POPUP_MESSAGE) return;
-      void verificar();
-    };
-    window.addEventListener("message", aoReceber);
-
-    const vigia = window.setInterval(() => {
-      void verificar();
-    }, 600);
-  }
-
   async function signInWithGoogle() {
-    if (signInPendingRef.current || !supabaseConfigured) return;
+    if (signInPendingRef.current) return;
 
     signInPendingRef.current = true;
     setLoading(true);
@@ -173,73 +77,13 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
 
     const query = new URLSearchParams(window.location.search);
     const destino = safeAuthNext(query.get("next"));
-    /*
-      Caminho Auth.js: redirecionamento de pagina inteira.
-
-      A janela separada usada abaixo depende de `skipBrowserRedirect`, que pede
-      ao Supabase a URL do Google sem navegar. O Auth.js nao expoe equivalente —
-      `signIn()` navega. Em vez de remontar a URL de autorizacao a mao (fragil, e
-      duplicaria o que a biblioteca ja faz), este ramo usa o redirecionamento
-      inteiro, que e o mesmo fallback ja existente para navegador que bloqueia
-      popup. O callback e tratado por /api/auth/callback/google, e /auth/confirm
-      nao participa deste fluxo.
-    */
-    if (usaAuthJs()) {
-      try {
-        await authJsSignIn("google", { redirectTo: authDestinationWithEntering(destino) });
-      } catch (error) {
-        resetSignIn(error instanceof Error ? error.message : "Nao foi possivel iniciar o acesso com Google.");
-      }
-      return;
-    }
-
-    /*
-      A janela é aberta **antes** de qualquer `await`: depois de uma espera o
-      navegador já não associa a abertura ao clique e a bloqueia. Vazia agora,
-      apontada para o Google assim que a URL chegar.
-
-      Se voltar nula — bloqueador, política do navegador, tela pequena —, o
-      fluxo segue pelo redirecionamento de página inteira, que é como sempre
-      funcionou.
-    */
-    const janela = suportaJanelaDeLogin() ? abrirJanelaDeLogin() : null;
 
     try {
-      const callbackUrl = new URL("/auth/confirm", window.location.origin);
-      // Em janela separada o callback termina numa página que avisa e fecha;
-      // sem ela, termina direto no destino, como antes.
-      callbackUrl.searchParams.set("next", janela ? LOGIN_POPUP_LANDING : destino);
-
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: callbackUrl.toString(),
-          // Com janela, a navegação é nossa: o Supabase devolve a URL em vez de
-          // levar a página inteira para o Google.
-          skipBrowserRedirect: Boolean(janela),
-          queryParams: {
-            prompt: "select_account",
-            hd: "agenciasus.org.br",
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (janela) {
-        if (!data?.url) throw new Error("Não foi possível iniciar o acesso com Google.");
-        janela.location.href = data.url;
-        setUsandoJanela(true);
-        acompanharJanela(janela, destino);
-      }
+      await authJsSignIn("google", { redirectTo: authDestinationWithEntering(destino) });
     } catch (error) {
-      janela?.close();
       resetSignIn(error instanceof Error ? error.message : "Não foi possível iniciar o acesso com Google.");
     }
   }
-
-  const blocked = !supabaseConfigured;
 
   /*
    * O painel do formulário pode receber cor da administração. O contraste
@@ -304,11 +148,20 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
         A ordem de pintura basta: estes dois vêm antes no DOM e o cartão é
         posicionado (`relative`), então ele sobe sozinho.
       */}
-      <div
-        className="fixed inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${branding.accessBackgroundUrl ?? BACKGROUND_IMAGE})` }}
-        aria-hidden="true"
-      />
+      {/*
+        Sem arte configurada, sem arte. A imagem padrão que existia aqui era
+        genérica e aparecia como se fosse a identidade da instituição —
+        inclusive quando o backend estava fora e a marca caía no padrão, onde ela
+        ajudava a tela de erro a se parecer com um dia normal. O fundo da página
+        é `--surface-page`, que já é a cor institucional.
+      */}
+      {branding.accessBackgroundUrl && (
+        <div
+          className="fixed inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${branding.accessBackgroundUrl})` }}
+          aria-hidden="true"
+        />
+      )}
       {/*
         Escala do cartão por faixa de tela.
 
@@ -515,9 +368,9 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
           <button
             type="button"
             onClick={signInWithGoogle}
-            disabled={loading || blocked}
+            disabled={loading}
             aria-describedby="access-help"
-            title={blocked ? "A configuração deste ambiente ainda não foi concluída" : "Abrir a seleção de conta do Google"}
+            title="Abrir a seleção de conta do Google"
             className={`mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-5 text-sm lg:mt-8 lg:min-h-14 lg:text-base font-semibold shadow-lg transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-not-allowed disabled:opacity-60 ${lightOnPanel ? "bg-white text-[#003b70] hover:bg-slate-100" : "bg-[#003b70] text-white shadow-blue-950/20 hover:bg-[#075ea8]"}`}
           >
             {loading
@@ -528,21 +381,11 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
 
           {loading && (
             <p role="status" className={`mt-3 text-center text-xs leading-5 ${lightOnPanel ? "text-white/70" : "text-slate-500"}`}>
-              {usandoJanela
-                ? "Escolha sua conta na janela que abriu. Esta tela continua aqui."
-                : "Você será levado à tela de seleção de conta do Google."}
+              Você será levado à tela de seleção de conta do Google.
             </p>
           )}
 
-          {blocked ? (
-            <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-left text-sm leading-6 text-amber-900">
-              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <div>
-                <strong className="block font-semibold">Acesso temporariamente indisponível</strong>
-                <span>A configuração deste ambiente ainda precisa ser concluída pela equipe técnica. Tente novamente mais tarde.</span>
-              </div>
-            </div>
-          ) : message ? (
+          {message ? (
             <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-left text-sm leading-6 text-red-900">
               <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <span>{message}</span>

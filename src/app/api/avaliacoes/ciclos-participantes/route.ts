@@ -5,8 +5,8 @@ import type { AvaliacaoComParticipantes } from "@/lib/api/contratos-pessoas";
 
 /** Ciclos disponíveis para gestão de público, com as contagens de cada um. */
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("list_admin_participant_applications");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("list_admin_participant_applications");
 
   if (error) return respostaDeErro(error, "GET /api/avaliacoes/ciclos-participantes");
 

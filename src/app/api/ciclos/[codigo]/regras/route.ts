@@ -20,8 +20,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe o código do ciclo.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_obter_regras_do_ciclo", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_obter_regras_do_ciclo", {
     p_codigo_ciclo: codigoCiclo,
   });
 

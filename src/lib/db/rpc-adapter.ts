@@ -1,5 +1,5 @@
 import type { QueryResult } from "pg";
-import { SUPABASE_DB_SCHEMA } from "@/lib/supabase/schema";
+import { DATABASE_SCHEMA } from "./schema";
 import { getEmpresaDbPool } from "./pool";
 import { getCurrentAuthClaims } from "./current-claims";
 import { RPC_PERMISSIONS, isRpcAllowedForRole, type RpcRole } from "./rpc-permissions";
@@ -8,7 +8,7 @@ import { RPC_JSON_ARGS } from "./rpc-json-args";
 
 export type { RpcRole } from "./rpc-permissions";
 
-/** Mesmo formato que `resposta-http.ts` já sabe interpretar vindo do Supabase. */
+/** Mesmo formato que `resposta-http.ts` já sabe interpretar vindo do banco. */
 export type RpcError = {
   code?: string;
   message?: string;
@@ -61,15 +61,16 @@ function shapeResult(functionName: string, result: QueryResult): unknown {
 
 /**
  * Executa uma RPC de `sigav` na conexão direta com db_dataware, reproduzindo
- * o contrato que `supabase-js`/`PostgREST` davam: `{ data, error }`, com
+ * o contrato HTTP anterior: `{ data, error }`, com
  * `error` no formato que `resposta-http.ts` já sabe mapear para status HTTP.
  *
  * `role` decide o que `isRpcAllowedForRole` autoriza — é a única barreira que
  * separa uma sessão comum de uma função de cron/serviço, já que não existem
  * mais roles no Postgres para isso (ver rpc-permissions.ts). `claims` vira o
- * `request.jwt.claims` que os corpos das 155 funções e as policies legadas
- * continuam lendo via `auth.uid()`/`auth.role()`/`auth.jwt()` — nada nelas
- * precisou mudar.
+ * `request.jwt.claims` que os corpos das funções continuam lendo — hoje por
+ * `sigav.fc_uid_sessao()`/`fc_papel_sessao()`/`fc_claims_sessao()`, que
+ * sucederam `auth.uid()`/`auth.role()`/`auth.jwt()` quando o schema `auth` foi
+ * absorvido por `sigav`. O formato das claims não mudou.
  */
 export async function executeRpc(
   functionName: string,
@@ -113,7 +114,7 @@ export async function executeRpc(
       }
       return value;
     });
-    const sql = `select * from ${SUPABASE_DB_SCHEMA}.${quoteIdent(functionName)}(${callArgs})`;
+    const sql = `select * from ${DATABASE_SCHEMA}.${quoteIdent(functionName)}(${callArgs})`;
 
     const result = await client.query(sql, values);
     await client.query("commit");
@@ -138,9 +139,7 @@ export async function executeRpc(
 type RpcClient = { rpc: (functionName: string, args?: Record<string, unknown>) => Promise<RpcResult> };
 
 /**
- * Equivalente a `createServerSupabaseClient()`: identidade da sessão logada.
- * A origem da identidade (hoje Supabase Auth, amanhã Auth.js) fica isolada em
- * `getCurrentAuthClaims()` — nada aqui muda quando ela trocar.
+ * Cliente para chamadas feitas em nome da sessão logada.
  */
 export async function createServerRpcClient(): Promise<RpcClient> {
   const claims = await getCurrentAuthClaims();
@@ -149,14 +148,14 @@ export async function createServerRpcClient(): Promise<RpcClient> {
   };
 }
 
-/** Equivalente a `createAdminSupabaseClient()`: sem sessão, papel de serviço. */
+/** Cliente de serviço, sem sessão de usuário. */
 export function createAdminRpcClient(): RpcClient {
   return {
     rpc: (functionName, args) => executeRpc(functionName, args, "service_role", { role: "service_role" }),
   };
 }
 
-/** Equivalente a `createPublicSupabaseClient()`: sem sessão, fluxo anônimo. */
+/** Cliente público, sem sessão de usuário. */
 export function createPublicRpcClient(): RpcClient {
   return {
     rpc: (functionName, args) => executeRpc(functionName, args, "anon", { role: "anon" }),

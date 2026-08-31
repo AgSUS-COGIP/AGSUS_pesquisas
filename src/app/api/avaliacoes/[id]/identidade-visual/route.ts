@@ -18,10 +18,10 @@ import type {
 
 /** Resolve o ciclo vigente da avaliação, que é por onde as RPCs de capa operam. */
 async function resolverAplicacao(
-  supabase: Awaited<ReturnType<typeof createServerRpcClient>>,
+  banco: Awaited<ReturnType<typeof createServerRpcClient>>,
   surveyId: string,
 ) {
-  const { data, error } = await supabase.rpc("get_survey_builder", {
+  const { data, error } = await banco.rpc("get_survey_builder", {
     target_survey_id: surveyId,
   });
   if (error) return { erro: error, construtor: null };
@@ -38,8 +38,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { erro, construtor } = await resolverAplicacao(supabase, id);
+  const banco = await createServerRpcClient();
+  const { erro, construtor } = await resolverAplicacao(banco, id);
   if (erro) return respostaDeErro(erro, "GET /api/avaliacoes/[id]/identidade-visual");
 
   const applicationId = construtor?.application?.id;
@@ -50,13 +50,20 @@ export async function GET(
     );
   }
 
-  const { data, error } = await supabase.rpc("get_application_visual_settings", {
+  const { data, error } = await banco.rpc("get_application_visual_settings", {
     target_application_id: applicationId,
   });
 
   if (error) return respostaDeErro(error, "GET /api/avaliacoes/[id]/identidade-visual");
 
-  return NextResponse.json(data as IdentidadeVisualAplicacao);
+  // O nome da avaliação acompanha a resposta porque o cabeçalho da jornada
+  // identifica a avaliação, e não o ciclo. Ele já estava em mãos: `construtor`
+  // é lido acima para achar o `application_id` e era descartado inteiro.
+  // Nenhuma consulta a mais.
+  return NextResponse.json({
+    ...(data as IdentidadeVisualAplicacao),
+    surveyName: construtor?.survey.name ?? null,
+  } satisfies IdentidadeVisualAplicacao);
 }
 
 /** Campo de texto opcional: string vazia e ausência valem o mesmo para a RPC. */
@@ -91,8 +98,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Modo visual inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { erro, construtor } = await resolverAplicacao(supabase, id);
+  const banco = await createServerRpcClient();
+  const { erro, construtor } = await resolverAplicacao(banco, id);
   if (erro) return respostaDeErro(erro, "PUT /api/avaliacoes/[id]/identidade-visual");
 
   const applicationId = construtor?.application?.id;
@@ -103,7 +110,7 @@ export async function PUT(
     );
   }
 
-  const { data, error } = await supabase.rpc("update_application_visual_settings", {
+  const { data, error } = await banco.rpc("update_application_visual_settings", {
     target_application_id: applicationId,
     banner_url: textoOpcional(corpo.bannerUrl),
     banner_path: textoOpcional(corpo.bannerPath),

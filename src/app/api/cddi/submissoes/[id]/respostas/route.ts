@@ -37,8 +37,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Identificador de alternativa inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("save_my_cddi_answer", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("save_my_cddi_answer", {
     target_submission_id: id,
     target_question_id: corpo.questionId,
     target_option_id: optionId,

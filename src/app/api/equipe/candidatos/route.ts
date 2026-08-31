@@ -19,8 +19,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Informe a avaliação em que a pessoa será incluída.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_pesquisar_equipe", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_pesquisar_equipe", {
     target_application_id: avaliacao,
     search_term: busca,
   });

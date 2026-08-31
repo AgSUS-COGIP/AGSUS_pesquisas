@@ -17,7 +17,7 @@ Origem principal dos dados cadastrais e de elegibilidade.
 | Centro de custo | `people.cost_center` |
 | Diretoria / Unidade / Coordenação | `organizational_units` em hierarquia |
 | Status / Situação detalhada | `people.employment_status` e `people.metadata` |
-| Perfil de acesso | `person_role_assignments` |
+| Permissões de acesso | `person_module_permissions` |
 | Participa do ciclo | `application_participants.status` |
 | Chave participante | chave de origem em `people.source_key` ou metadado da importação |
 
@@ -117,7 +117,7 @@ As 12 competências, comportamentos, níveis e pesos serão dados configuráveis
 ## Decisões de modelagem
 
 1. `people` é cadastro institucional e não depende de uma pesquisa.
-2. `auth.users` representa conta de acesso; uma pessoa pode existir antes de possuir login.
+2. `tb_usuario_identidade` (o antigo `auth.users`) representa conta de acesso; uma pessoa pode existir antes de possuir login.
 3. `surveys` representa o produto permanente, como CDDI ou Pesquisa de Clima.
 4. `survey_versions` congela a estrutura de uma edição do questionário.
 5. `survey_applications` define período, público e regras de uma execução.
@@ -125,4 +125,4 @@ As 12 competências, comportamentos, níveis e pesos serão dados configuráveis
 7. `answers` é normalizada para viabilizar relatórios e integridade referencial.
 8. tabelas consolidadas serão preferencialmente views ou resultados derivados.
 9. todas as tabelas expostas terão RLS habilitado e políticas explícitas.
-10. migrations serão revisadas no GitHub antes de qualquer aplicação ao Supabase.
+10. migrations serão revisadas no GitHub antes de qualquer aplicação ao PostgreSQL.

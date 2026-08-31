@@ -1,5 +1,5 @@
 // Gerado automaticamente: replay cronológico de TODOS os GRANT/REVOKE das 192
-// migrations do projeto Supabase original, cruzado contra o catálogo real do
+// migrations do projeto banco original, cruzado contra o catálogo real do
 // banco (sigav/private). Não editar à mão — regenerar quando permissões mudarem.
 //
 // Substitui, em nível de aplicação, a distinção anon/authenticated/service_role
@@ -16,11 +16,23 @@
 //     por decisão de projeto só é chamada de dentro de outra security definer).
 //
 // Exceções acrescentadas fora do histórico de migrations (funções criadas
-// pelos scripts de bootstrap, não por migration do projeto Supabase):
+// pelos scripts de bootstrap, não por migration do projeto banco):
 //   - fc_srv_registrar_erro_aplicacao  (bootstrap-db-dataware-usuario-unico.sql)
 //   - fc_srv_resolver_identidade_oauth (auth-identidade-oauth.sql)
 // Ambas são chamadas antes de existir sessão, por isso service_role.
-
+//
+// As quatro `fc_arq_*` (20260827160000_arquivos_no_banco.sql) substituem o
+// Storage do banco. Só a leitura é aberta a `anon`, e isso reproduz o que os
+// buckets públicos faziam: a arte de fundo aparece antes do login e a capa de
+// pesquisa aparece em `/responder/[applicationCode]`, que é rota pública. As
+// três de escrita exigem sessão, e o corpo de cada uma ainda checa
+// `can_manage_surveys()`.
+//
+// ACRESCENTADAS NO MERGE DE 31/08/2026 (recurso de publico da avaliacao, vindo
+// da main): as quatro `*_publico_*` e `fc_definir_comunicado_inicio`. As rotas
+// que as chamam nasceram usando o cliente do Supabase e foram portadas para o
+// adaptador; sem entrada aqui, o adaptador recusaria as cinco com 42501 e o
+// recurso nao funcionaria em lugar nenhum.
 export type RpcRole = "anon" | "authenticated" | "service_role";
 
 export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
@@ -44,16 +56,23 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "delete_survey_question": ["authenticated"],
   "duplicate_survey_builder_item": ["authenticated"],
   "fc_agendar_envio_manual": ["authenticated"],
+  "fc_aplicar_publico_avaliacao": ["authenticated"],
+  "fc_arq_gravar": ["authenticated"],
+  "fc_arq_listar": ["authenticated"],
+  "fc_arq_obter": ["anon", "authenticated", "service_role"],
+  "fc_arq_remover": ["authenticated"],
   "fc_atualizar_marca_plataforma": ["authenticated"],
+  "fc_buscar_pessoas_publico": ["authenticated"],
   "fc_clonar_pesquisa": ["authenticated"],
   "fc_concluir_email_participante": ["service_role"],
   "fc_criar_nova_versao_pesquisa": ["authenticated"],
+  "fc_definir_comunicado_inicio": ["authenticated"],
   "fc_definir_cor_barra_lateral": ["authenticated"],
   "fc_definir_cor_painel_acesso": ["authenticated"],
   "fc_definir_fundo_acesso": ["authenticated"],
   "fc_definir_modelo_avaliacao": ["authenticated"],
   "fc_definir_notificacao_email": ["authenticated"],
-  "fc_definir_perfil_pessoa": ["authenticated"],
+  "fc_definir_permissoes_pessoa": ["authenticated"],
   "fc_definir_presenca_plataforma": ["authenticated"],
   "fc_definir_retencao_anonima": ["authenticated"],
   "fc_definir_textos_email": ["authenticated"],
@@ -67,6 +86,7 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "fc_listar_ciclos_lideranca": ["authenticated"],
   "fc_listar_ciclos_lideranca_adm": ["authenticated"],
   "fc_listar_ciclos_pesquisa": ["authenticated"],
+  "fc_listar_dimensoes_publico": ["authenticated"],
   "fc_listar_envios_email": ["authenticated"],
   "fc_listar_modelos_avaliacao": ["authenticated"],
   "fc_listar_pesquisas_arq": ["authenticated"],
@@ -85,6 +105,7 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "fc_origens_da_regra": ["authenticated"],
   "fc_pesquisar_equipe": ["authenticated"],
   "fc_pesquisar_pessoa_admin": ["authenticated"],
+  "fc_previsualizar_publico_avaliacao": ["authenticated"],
   "fc_registrar_presenca": ["authenticated"],
   "fc_regra_gera_ciclo": ["authenticated"],
   "fc_reivindicar_emails": ["service_role"],
@@ -117,7 +138,6 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "has_platform_module": ["authenticated"],
   "is_allowed_institutional_email": ["authenticated"],
   "is_platform_administrator": ["authenticated"],
-  "list_access_workspace": ["authenticated"],
   "list_admin_application_participants": ["authenticated"],
   "list_admin_participant_applications": ["authenticated"],
   "list_managed_surveys": ["authenticated"],
@@ -135,7 +155,6 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "set_admin_application_participant_status": ["authenticated"],
   "set_my_avatar_choice": ["authenticated"],
   "set_my_avatar_url": ["authenticated"],
-  "set_person_role": ["authenticated"],
   "set_platform_admin_leadership_link": ["authenticated"],
   "start_or_resume_my_cddi_submission": ["authenticated"],
   "start_or_resume_my_submission": ["authenticated"],
