@@ -31,9 +31,9 @@ export function PageHeader({ eyebrow, title, description, actions, className }: 
  * consequência.
  *
  * `tom` ausente vale `total`: o número é uma contagem-base — "Integrantes",
- * "Avaliações", "Perguntas cadastradas" — e segue no azul institucional, que já
- * era a cor de todos eles. Assim nenhum indicador muda de aparência por
- * acidente, só os que ganham significado de estado.
+ * "Avaliações", "Perguntas cadastradas" — e permanece visualmente neutro.
+ * Assim a cor fica reservada aos indicadores que carregam um estado real, sem
+ * transformar o denominador ou o universo da métrica em significado semântico.
  */
 export function StatCard({ label, value, description, tom = "total", className }: { label: string; value: ReactNode; description?: string; tom?: TomSemantico; className?: string }) {
   /*
