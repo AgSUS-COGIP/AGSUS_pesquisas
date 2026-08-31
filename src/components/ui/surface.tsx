@@ -1,6 +1,6 @@
 import { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { TEXTO_DO_TOM, type TomSemantico } from "@/lib/tom-semantico";
+import { BORDA_DO_TOM, TEXTO_DO_TOM, type TomSemantico } from "@/lib/tom-semantico";
 
 export function Surface({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return <section className={cn("rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]", className)} {...props} />;
@@ -36,14 +36,18 @@ export function PageHeader({ eyebrow, title, description, actions, className }: 
  * acidente, só os que ganham significado de estado.
  */
 export function StatCard({ label, value, description, tom = "total", className }: { label: string; value: ReactNode; description?: string; tom?: TomSemantico; className?: string }) {
+  /*
+    O traço superior de 3px é o mesmo recurso dos cartões de avaliação, e isso é
+    de propósito: um indicador e um cartão passam a marcar situação do mesmo
+    jeito, então a leitura aprendida numa tela vale na outra.
+
+    Traço, e não cartão tonalizado: fundo colorido em quatro blocos lado a lado
+    transformaria a faixa de indicadores em quatro avisos concorrentes, e o guia
+    é explícito contra fundo saturado por bloco.
+  */
   return (
-    <article className={cn("rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]", className)}>
+    <article className={cn("overflow-hidden rounded-2xl border border-[var(--border-subtle)] border-t-[3px] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]", BORDA_DO_TOM[tom], className)}>
       <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">{label}</p>
-      {/*
-        Só o número recebe cor. Tonalizar o cartão inteiro transformaria uma
-        faixa de quatro indicadores em quatro blocos concorrentes, e o guia é
-        explícito: nada de fundo saturado por bloco.
-      */}
       <strong className={cn("mt-2 block text-3xl font-semibold tracking-tight", TEXTO_DO_TOM[tom])}>{value}</strong>
       {description && <p className="mt-2 text-sm text-[var(--text-secondary)]">{description}</p>}
     </article>

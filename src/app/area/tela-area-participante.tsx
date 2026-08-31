@@ -20,6 +20,7 @@ import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { compareSurveyPriority, selectPrioritySurvey, summarizeSurveyCatalog, surveyApplicationHref as applicationHref, surveyItemState as itemState, type SurveyItemState } from "@/lib/survey-catalog";
 import { deadlineLabel, deadlineStatus } from "@/lib/deadline";
 import {
+  BORDA_DO_TOM,
   MARCADOR_DO_TOM,
   TEXTO_DO_TOM,
   VARIANTE_DE_BADGE,
@@ -339,8 +340,8 @@ export default function ParticipantAreaPage() {
               só ~700px, e "Prazo mais próximo" quebrava em duas linhas do mesmo
               jeito. O breakpoint estava medindo a coisa errada.
             */}
-            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4 @4xl:divide-x @4xl:divide-[var(--border-subtle)]">
-              {metricTiles.map((tile, index) => {
+            <nav aria-label="Atalhos por situação das avaliações" className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 @4xl:grid-cols-4">
+              {metricTiles.map((tile) => {
                 // Urgência muda a cor do número, mas o texto continua dizendo o
                 // motivo — cor nunca é o único indicador de estado.
                 const highlight = !catalogLoading && !catalogFailed && tile.alert;
@@ -353,7 +354,7 @@ export default function ParticipantAreaPage() {
                     key={tile.label}
                     href={tile.href}
                     aria-label={`Ver avaliações: ${tile.label}`}
-                    className={`group rounded-md px-2 py-1 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${index > 0 ? "@4xl:pl-6" : ""}`}
+                    className={`group rounded-md border-l-2 py-1 pl-3 pr-2 outline-none transition hover:bg-[var(--surface-hover)] focus-visible:ring-4 focus-visible:ring-[var(--focus-ring)]/20 ${unknown ? BORDA_DO_TOM.neutral : BORDA_DO_TOM[tile.tom]}`}
                   >
                     <span className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</span>
                     <span className="block">
