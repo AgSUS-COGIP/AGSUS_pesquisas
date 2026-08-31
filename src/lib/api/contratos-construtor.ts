@@ -123,6 +123,8 @@ export type IdentidadeVisualAplicacao = {
   applicationId: string;
   applicationCode: string;
   applicationName: string;
+  /** Nome da avaliação dona do ciclo, para o cabeçalho da jornada. */
+  surveyName: string | null;
   visualIdentity: IdentidadeVisual;
 };
 

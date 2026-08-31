@@ -44,7 +44,7 @@ export const RPCS_CRITICAS = [
     escrita para pegar.
 
     Regra que isto impõe ao manifesto: o nome conferido tem de ser o nome que
-    aparece num `supabase.rpc(...)` do código, não o da migration que o criou.
+    aparece num `banco.rpc(...)` do código, não o da migration que o criou.
   */
   "fc_obter_formulario_publico",
   "start_or_resume_my_survey_submission",

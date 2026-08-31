@@ -14,8 +14,8 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_obter_contexto_plataforma");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_obter_contexto_plataforma");
 
   if (error) return respostaDeErro(error, "GET /api/meu/contexto");
 

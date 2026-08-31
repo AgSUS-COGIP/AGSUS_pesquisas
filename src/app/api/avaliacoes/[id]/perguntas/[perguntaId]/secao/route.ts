@@ -28,8 +28,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe a seção de destino.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("move_survey_question_to_section", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("move_survey_question_to_section", {
     target_question_id: perguntaId,
     target_section_id: corpo.sectionId,
   });

@@ -16,6 +16,8 @@ O ciclo `CDDI-2026` permanece com acesso `RESTRICTED`.
 
 As RPCs `SECURITY DEFINER` não podem ser executadas pelo papel `anon`. O frontend deve chamar as funções somente após a criação da sessão autenticada.
 
+`anon` aqui é claim de sessão, avaliada por `src/lib/db/rpc-permissions.ts` antes de a chamada chegar ao banco — não é role do Postgres. Desde `20260828140000_remover_roles_legadas_do_cluster.sql` a única role do cluster é `usr_sip_app`.
+
 ## Primeiro acesso
 
 Quando `fc_obter_contexto_plataforma()` retorna `UNLINKED`, o frontend chama `resolve_authenticated_person(null)`. A função:

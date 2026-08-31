@@ -11,10 +11,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/form-controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, Surface } from "@/components/ui/surface";
+import { BotaoProximaEtapa, CabecalhoDaConfiguracao } from "@/components/configuracao-avaliacao";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { errorMessageFromUnknown } from "@/lib/observability";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { enviarArquivo } from "@/lib/api/cliente-arquivos";
 import { obterIdentidadeVisual, salvarIdentidadeVisual } from "@/lib/api/cliente-construtor";
 import type { IdentidadeVisual as VisualIdentity } from "@/lib/api/contratos-construtor";
 import { DEFAULT_CDDI_VISUAL_IDENTITY } from "@/lib/survey-visual-identity";
@@ -49,6 +50,8 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_SURVEYS);
   const granted = guard.state === "granted";
   const [application, setApplication] = useState<ApplicationSummary | null>(null);
+  // O cabeçalho da jornada nomeia a avaliação; o ciclo vai para a linha de apoio.
+  const [nomeDaAvaliacao, setNomeDaAvaliacao] = useState<string | null>(null);
   const [visual, setVisual] = useState<VisualIdentity>(EMPTY_VISUAL);
   const [dataLoading, setDataLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,6 +72,7 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           code: dados.applicationCode,
           name: dados.applicationName,
         });
+        setNomeDaAvaliacao(dados.surveyName);
         setVisual({ ...EMPTY_VISUAL, ...(dados.visualIdentity ?? {}) });
       } catch (loadError) {
         if (!active) return;
@@ -96,30 +100,21 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
 
     setUploading(true);
     try {
-      // O envio da imagem continua indo direto ao storage do Supabase, e não
-      // por uma rota: é upload binário autenticado por cookie, com as políticas
-      // do bucket como autoridade. Passá-lo por um Route Handler só faria o
-      // arquivo trafegar duas vezes. O que virou REST foi a **gravação da
-      // identidade**, que é onde estava a regra de negócio.
-      const supabase = createBrowserSupabaseClient();
+      // Sem bucket, o upload atravessa a aplicação: é o único caminho pelo qual
+      // o navegador alcança o Postgres. A autoridade que era das políticas do
+      // bucket passou para `can_manage_surveys()`, checada no corpo da RPC. O
+      // que já era REST — a **gravação da identidade**, onde está a regra de
+      // negócio — não mudou.
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      // O caminho precisa começar pelo id da aplicação: é o que a RPC e as
-      // políticas do bucket exigem para amarrar a imagem a este ciclo.
+      // O caminho continua começando pelo id da aplicação: é o que amarra a
+      // imagem a este ciclo, e é o valor que `bannerPath` já guarda.
       const path = `${application.id}/banner.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from("survey-assets")
-        .upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-          cacheControl: "3600",
-        });
-      if (uploadError) throw uploadError;
-      const { data: publicUrlData } = supabase.storage.from("survey-assets").getPublicUrl(path);
+      const arquivo = await enviarArquivo("survey-assets", path, file);
       setVisual((current) => ({
         ...current,
-        bannerPath: path,
-        // `?v=` derrota o cache de uma hora ao substituir a capa pelo mesmo caminho.
-        bannerUrl: `${publicUrlData.publicUrl}?v=${Date.now()}`,
+        bannerPath: arquivo.caminho,
+        // `?v=` derrota o cache ao substituir a capa pelo mesmo caminho.
+        bannerUrl: `${arquivo.url}?v=${Date.now()}`,
         themeVariant: "CUSTOM",
       }));
       toast.success("Imagem enviada. Salve as alterações para publicá-la no instrumento.");
@@ -173,17 +168,17 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
       title="Identidade visual"
     >
       <div className="mx-auto w-full max-w-[1400px] space-y-5">
-        {/* Fica fora do bloco de carregamento de propósito: a saída da tela precisa
-            existir antes dos dados e sobreviver a uma falha da RPC. */}
-        <nav aria-label="Ações da avaliação">
-          <Link
-            href={`/admin/pesquisas/${surveyId}/operacao`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar às propriedades
-          </Link>
-        </nav>
+        {/* Fica fora do bloco de carregamento de propósito: a navegação da
+            jornada precisa existir antes dos dados e sobreviver a uma falha da
+            RPC — sem ela, um erro aqui deixaria a pessoa sem saída visível. */}
+        <CabecalhoDaConfiguracao
+          surveyId={surveyId}
+          applicationId={application?.id}
+          nome={nomeDaAvaliacao ?? undefined}
+          etapa="identidade"
+          meta={[application?.code ? `Ciclo ${application.code}` : null, "Capa e textos de abertura"]}
+          acao={<BotaoProximaEtapa etapa="identidade" surveyId={surveyId} applicationId={application?.id} />}
+        />
 
         {dataLoading || !application ? (
           <div className="space-y-6" aria-live="polite" aria-busy="true">
@@ -196,11 +191,9 @@ export default function SurveyVisualIdentityPage({ params }: { params: Promise<{
           </div>
         ) : (
           <>
-            <PageHeader
-              eyebrow={application.code}
-              title="Identidade visual do instrumento"
-              description="Defina a imagem de capa e os textos exibidos no início da avaliação, edital ou ciclo."
-            />
+            {/* O nome da avaliação já é o título do cabeçalho da jornada; aqui
+                basta dizer o que esta etapa faz. */}
+            <h3 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">Identidade visual</h3>
 
             <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
               <Surface className="p-6">

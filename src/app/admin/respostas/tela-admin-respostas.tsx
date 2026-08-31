@@ -43,8 +43,8 @@ function dateLabel(value: string) {
 }
 
 export default function AdminRespostasPage() {
-  // Sem módulo próprio no mapa de perfis: `ADMIN_TEAMS` é exclusivo do
-  // Superadmin, e a RPC revalida com `is_platform_administrator()`. A guarda de
+  // Sem módulo próprio no catálogo: `ADMIN_TEAMS` libera esta operação e a RPC
+  // revalida a mesma permissão. A guarda de
   // tela é usabilidade; a autorização real está no banco.
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_TEAMS);
   const confirm = useConfirm();

@@ -61,9 +61,8 @@ export type PlatformBranding = {
    * produziria tela ilegível na primeira combinação infeliz.
    */
   accessPanelColor: string | null;
-  /** Liga o canal e define os perfis que podem participar e visualizar. */
+  /** Liga o registro de presença; a visualização depende de `ONLINE_PRESENCE`. */
   onlinePresenceEnabled: boolean;
-  onlinePresenceViewerRoles: string[];
   /** Comunicado institucional opcional exibido no topo da página inicial. */
   homeAnnouncementEnabled: boolean;
   homeAnnouncementTitle: string;
@@ -93,7 +92,6 @@ export const DEFAULT_PLATFORM_BRANDING: PlatformBranding = {
   accessBackgroundPath: null,
   accessPanelColor: null,
   onlinePresenceEnabled: true,
-  onlinePresenceViewerRoles: ["ADMINISTRATOR", "SURVEY_MANAGER"],
   homeAnnouncementEnabled: false,
   homeAnnouncementTitle: "",
   homeAnnouncementMessage: "",
@@ -140,10 +138,15 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     // sobrescrita pela configuração.
     logoUrl: DEFAULT_PLATFORM_BRANDING.logoUrl,
     logoPath: null,
-    // Só HTTPS: a tela de acesso é servida por HTTPS, e imagem em HTTP daria
-    // conteúdo misto além de permitir troca da arte em trânsito. Valor inválido
-    // degrada para nulo, e a arte institucional padrão volta a valer.
-    accessBackgroundUrl: typeof source.accessBackgroundUrl === "string" && source.accessBackgroundUrl.startsWith("https://")
+    // HTTPS absoluto ou caminho da própria aplicação. O HTTPS continua aceito
+    // porque as artes enviadas ao bucket foram gravadas com a URL pública do
+    // banco e seguem valendo enquanto não forem reenviadas; nada em HTTP
+    // entra, para não haver conteúdo misto nem troca da arte em trânsito.
+    // `/api/arquivos/...` é a origem nova, e sendo relativa herda o esquema da
+    // página. Valor inválido degrada para nulo e a arte padrão volta a valer.
+    accessBackgroundUrl: typeof source.accessBackgroundUrl === "string"
+      && (source.accessBackgroundUrl.startsWith("https://")
+        || source.accessBackgroundUrl.startsWith("/api/arquivos/"))
       ? source.accessBackgroundUrl
       : null,
     accessBackgroundPath: typeof source.accessBackgroundPath === "string" ? source.accessBackgroundPath : null,
@@ -155,9 +158,6 @@ export function normalizePlatformBranding(value: unknown): PlatformBranding {
     onlinePresenceEnabled: typeof source.onlinePresenceEnabled === "boolean"
       ? source.onlinePresenceEnabled
       : DEFAULT_PLATFORM_BRANDING.onlinePresenceEnabled,
-    onlinePresenceViewerRoles: Array.isArray(source.onlinePresenceViewerRoles)
-      ? source.onlinePresenceViewerRoles.filter((role): role is string => typeof role === "string")
-      : DEFAULT_PLATFORM_BRANDING.onlinePresenceViewerRoles,
     homeAnnouncementEnabled: source.homeAnnouncementEnabled === true,
     homeAnnouncementTitle: text(source.homeAnnouncementTitle, "").slice(0, 120),
     homeAnnouncementMessage: text(source.homeAnnouncementMessage, "").slice(0, 400),

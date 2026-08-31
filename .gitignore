@@ -3,6 +3,8 @@ node_modules/
 .next/
 out/
 dist/
+playwright-report/
+test-results/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -17,11 +19,13 @@ npm-debug.log*
 .env.*
 !.env.example
 
-# Estado local do Supabase
-supabase/.temp/
-supabase/.branches/
-supabase/config.toml
-
 # Ferramentas locais
 .claude/
 /.rtk/
+
+# Estado transitório de ferramentas de banco locais
+database/.temp/
+database/.branches/
+
+# Backups locais: podem conter dados pessoais e hashes de credenciais.
+backups/

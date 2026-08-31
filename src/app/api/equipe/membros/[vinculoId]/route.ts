@@ -20,8 +20,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de vínculo inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("remove_person_from_my_team", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("remove_person_from_my_team", {
     target_link_id: vinculoId,
   });
 

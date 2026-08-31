@@ -20,8 +20,8 @@ import type { NextAuthConfig } from "next-auth";
 export const configBase = {
   providers: [
     Google({
-      clientId: process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID,
-      clientSecret: process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET,
+      clientId: process.env.AUTH_GOOGLE_CLIENT_ID,
+      clientSecret: process.env.AUTH_GOOGLE_CLIENT_SECRET,
       // `select_account` evita que quem tem duas contas Google no navegador
       // entre silenciosamente com a pessoal em vez da institucional.
       //
@@ -49,9 +49,10 @@ export const configBase = {
 
   callbacks: {
     /**
-     * `token.sub` precisa ser o `auth.users.id`, não o identificador do Google.
+     * `token.sub` precisa ser o id da conta em `sigav.tb_usuario_identidade`
+     * (o antigo `auth.users`), não o identificador do Google.
      *
-     * É esse valor que vira `auth.uid()` no banco e casa com
+     * É esse valor que vira `sigav.fc_uid_sessao()` no banco e casa com
      * `sigav.people.auth_user_id`. Quem o resolve é o callback de `signIn` da
      * configuração completa, que grava `user.id` — aqui apenas transportamos.
      */

@@ -22,8 +22,8 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 50;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_pesquisar_pessoa_admin", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_pesquisar_pessoa_admin", {
     target_search: busca,
     target_limit: limite,
   });

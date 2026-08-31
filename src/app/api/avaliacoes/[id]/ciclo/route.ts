@@ -24,8 +24,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("get_survey_operations", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("get_survey_operations", {
     target_survey_id: id,
   });
 
@@ -65,8 +65,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe a operação do ciclo.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("manage_survey_cycle", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("manage_survey_cycle", {
     target_survey_id: id,
     target_action: action,
     target_opens_at: corpo.opensAt ?? null,

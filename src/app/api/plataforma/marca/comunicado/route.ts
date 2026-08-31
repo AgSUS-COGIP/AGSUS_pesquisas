@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { DefinirComunicadoInicioEntrada } from "@/lib/api/contratos-pessoas";
 import { respostaDeEntradaInvalida, respostaDeErro } from "@/lib/api/resposta-http";
 import { normalizePlatformBranding } from "@/lib/platform-branding";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 
 const INTERNAL_OR_HTTPS_LINK = /^(?:https:\/\/\S+|\/(?!\/)\S+)$/i;
 
@@ -35,8 +35,8 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("O link deve ser uma rota interna ou um endereço HTTPS.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_definir_comunicado_inicio", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_definir_comunicado_inicio", {
     p_ativo: body.ativo,
     p_titulo: titulo || null,
     p_mensagem: mensagem || null,

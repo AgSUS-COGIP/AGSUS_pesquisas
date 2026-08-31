@@ -41,8 +41,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Identificador de pessoa avaliada inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("start_or_resume_my_cddi_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("start_or_resume_my_cddi_submission", {
     target_application_code: applicationCode,
     target_submission_type: submissionType,
     target_subject_person_id: subjectPersonId,

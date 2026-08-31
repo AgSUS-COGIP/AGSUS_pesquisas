@@ -7,14 +7,14 @@ import type { AvaliacaoGerenciada, CriarAvaliacaoEntrada } from "@/lib/api/contr
 export async function GET(request: Request) {
   const arquivadas = new URL(request.url).searchParams.get("arquivadas") === "true";
 
-  const supabase = await createServerRpcClient();
+  const banco = await createServerRpcClient();
 
   // Cada visão tem função própria no banco, e não um parâmetro na mesma função:
   // o PostgREST resolve a função pelo conjunto de argumentos, então uma
   // sobrecarga com argumento opcional tornaria ambígua a chamada sem argumento.
   const { data, error } = arquivadas
-    ? await supabase.rpc("fc_listar_pesquisas_arq")
-    : await supabase.rpc("list_managed_surveys");
+    ? await banco.rpc("fc_listar_pesquisas_arq")
+    : await banco.rpc("list_managed_surveys");
 
   if (error) {
     return respostaDeErro(error, arquivadas ? "GET /api/avaliacoes?arquivadas" : "GET /api/avaliacoes");
@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Informe corretamente se rascunhos são permitidos.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("create_survey_draft", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("create_survey_draft", {
     p_code: code,
     p_name: name,
     p_description: description,

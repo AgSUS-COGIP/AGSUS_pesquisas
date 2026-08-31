@@ -13,8 +13,8 @@ import type { EquipeDaLideranca } from "@/lib/api/contratos-pessoas";
 export async function GET(request: Request) {
   const ciclo = new URL(request.url).searchParams.get("ciclo")?.trim() || null;
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_obter_minha_equipe", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_obter_minha_equipe", {
     target_application_code: ciclo,
   });
 

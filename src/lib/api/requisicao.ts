@@ -1,6 +1,4 @@
 import { getSession as authJsGetSession, signOut as authJsSignOut } from "next-auth/react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { usaAuthJs } from "@/lib/auth/provedor";
 import { ERRO_SESSAO_RENOVAVEL, type CodigoDeErroApi, type ErroApi } from "./contratos";
 
 export class ErroDeApi extends Error {
@@ -45,21 +43,10 @@ async function renovarSessaoUmaVez(): Promise<boolean> {
 
   renovacaoEmVoo ??= (async () => {
     try {
-      if (usaAuthJs()) {
-        /*
-          A sessao do Auth.js com estrategia `jwt` nao tem rotacao de refresh
-          token como a do Supabase: nao existe `refreshSession()` para chamar.
-          O que da para fazer — e e util — e reconsultar a sessao: se o cookie
-          ainda vale, o 401 foi transitorio (relogio, corrida entre abas) e
-          repetir a chamada resolve. Se nao vale, devolver false leva o fluxo
-          para a limpeza local e o login, que e o desfecho correto.
-        */
-        const sessao = await authJsGetSession();
-        return Boolean(sessao?.user);
-      }
-
-      const { data, error } = await createBrowserSupabaseClient().auth.refreshSession();
-      return Boolean(data.session) && !error;
+      // A sessão JWT não tem rotação de refresh no navegador. Reconsultá-la
+      // cobre uma corrida entre abas ou relógio antes de encerrar localmente.
+      const sessao = await authJsGetSession();
+      return Boolean(sessao?.user);
     } catch {
       return false;
     } finally {
@@ -75,8 +62,7 @@ async function reiniciarSessaoLocal() {
 
   reinicioEmVoo ??= (async () => {
     try {
-      if (usaAuthJs()) await authJsSignOut({ redirect: false });
-      else await createBrowserSupabaseClient().auth.signOut({ scope: "local" });
+      await authJsSignOut({ redirect: false });
     } catch {
       // Melhor esforço: uma falha ao limpar a sessão local não pode mascarar o
       // 401 original nem encerrar sessões em outros dispositivos.

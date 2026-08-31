@@ -15,8 +15,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("get_survey_builder", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("get_survey_builder", {
     target_survey_id: id,
   });
 

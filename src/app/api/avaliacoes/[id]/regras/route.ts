@@ -33,8 +33,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe a versão da avaliação.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_regras_condicionais", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_regras_condicionais", {
     p_versao: versao,
   });
 
@@ -77,8 +77,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Uma regra precisa de pelo menos uma condição.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_salvar_regra_condicional", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_salvar_regra_condicional", {
     p_alvo_tipo: corpo.targetType,
     p_alvo: corpo.targetId,
     p_acao: corpo.action === "HIDE" ? "HIDE" : "SHOW",
@@ -107,8 +107,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Informe o alvo da regra.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_excluir_regra_condicional", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_excluir_regra_condicional", {
     p_alvo: alvo,
   });
 

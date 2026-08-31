@@ -3,7 +3,7 @@
 //
 // Determina como o adaptador (src/lib/db/rpc-adapter.ts) precisa desembrulhar
 // o resultado de "select * from sigav.fn(...)" para reproduzir o formato que
-// o cliente supabase-js já entregava via PostgREST:
+// o cliente banco-js já entregava via PostgREST:
 //   - "set":    a função é SETOF/TABLE(...) — data = todas as linhas (array).
 //   - "scalar": a função devolve um valor único (jsonb/boolean/uuid/text/...)
 //               — data = o valor da única coluna da única linha, sem array.
@@ -32,16 +32,23 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "delete_survey_question": "scalar",
   "duplicate_survey_builder_item": "scalar",
   "fc_agendar_envio_manual": "scalar",
+  "fc_aplicar_publico_avaliacao": "scalar",
+  "fc_arq_gravar": "scalar",
+  "fc_arq_listar": "set",
+  "fc_arq_obter": "set",
+  "fc_arq_remover": "scalar",
   "fc_atualizar_marca_plataforma": "scalar",
+  "fc_buscar_pessoas_publico": "scalar",
   "fc_clonar_pesquisa": "scalar",
   "fc_concluir_email_participante": "void",
   "fc_criar_nova_versao_pesquisa": "scalar",
+  "fc_definir_comunicado_inicio": "scalar",
   "fc_definir_cor_barra_lateral": "scalar",
   "fc_definir_cor_painel_acesso": "scalar",
   "fc_definir_fundo_acesso": "scalar",
   "fc_definir_modelo_avaliacao": "scalar",
   "fc_definir_notificacao_email": "scalar",
-  "fc_definir_perfil_pessoa": "scalar",
+  "fc_definir_permissoes_pessoa": "scalar",
   "fc_definir_presenca_plataforma": "scalar",
   "fc_definir_retencao_anonima": "scalar",
   "fc_definir_textos_email": "scalar",
@@ -55,6 +62,7 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "fc_listar_ciclos_lideranca": "scalar",
   "fc_listar_ciclos_lideranca_adm": "scalar",
   "fc_listar_ciclos_pesquisa": "scalar",
+  "fc_listar_dimensoes_publico": "scalar",
   "fc_listar_envios_email": "scalar",
   "fc_listar_modelos_avaliacao": "scalar",
   "fc_listar_pesquisas_arq": "scalar",
@@ -73,6 +81,7 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "fc_origens_da_regra": "set",
   "fc_pesquisar_equipe": "scalar",
   "fc_pesquisar_pessoa_admin": "scalar",
+  "fc_previsualizar_publico_avaliacao": "scalar",
   "fc_registrar_presenca": "scalar",
   "fc_regra_gera_ciclo": "scalar",
   "fc_reivindicar_emails": "scalar",
@@ -105,7 +114,6 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "has_platform_module": "scalar",
   "is_allowed_institutional_email": "scalar",
   "is_platform_administrator": "scalar",
-  "list_access_workspace": "scalar",
   "list_admin_application_participants": "scalar",
   "list_admin_participant_applications": "scalar",
   "list_managed_surveys": "scalar",
@@ -123,7 +131,6 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "set_admin_application_participant_status": "scalar",
   "set_my_avatar_choice": "scalar",
   "set_my_avatar_url": "scalar",
-  "set_person_role": "scalar",
   "set_platform_admin_leadership_link": "scalar",
   "start_or_resume_my_cddi_submission": "scalar",
   "start_or_resume_my_submission": "scalar",

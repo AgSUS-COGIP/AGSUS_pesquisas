@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export type BreadcrumbItem = {
@@ -36,10 +35,3 @@ export function Breadcrumbs({ items, className, label = "Navegação estrutural"
   );
 }
 
-export function PageActions({ children, className, ...props }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
-  return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)} {...props}>
-      {children}
-    </div>
-  );
-}

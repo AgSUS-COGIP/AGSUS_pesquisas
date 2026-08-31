@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
     return respostaDeEntradaInvalida("Ciclo inválido.");
   }
 
-  const supabase = await createServerRpcClient();
-  const { data, error } = await supabase.rpc("fc_listar_envios_email", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("fc_listar_envios_email", {
     p_aplicacao: avaliacao || null,
     p_situacao: situacao,
     p_limite: Number.isFinite(limite) ? limite : 200,

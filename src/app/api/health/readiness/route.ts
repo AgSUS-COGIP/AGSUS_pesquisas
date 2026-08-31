@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  *
  * ```text
  * 1. as variáveis existem?          (barato, sem rede)
- * 2. o Supabase responde?           (uma ida ao banco)
+ * 2. o PostgreSQL responde?         (uma ida ao banco)
  * 3. o esquema tem as RPCs desta versão?
  * ```
  *
@@ -42,22 +42,17 @@ export async function GET() {
     return NextResponse.json({ status: "degraded" }, { status: 503, headers: cabecalhos });
   };
 
-  // Os dados vêm do db_dataware; o login ainda vem do Supabase Auth. Enquanto
-  // as duas dependências coexistirem, readiness precisa cobrir as duas — faltar
-  // qualquer uma delas deixa a aplicação incapaz de servir tráfego.
   const faltando = [
     ...getEmpresaDbConfigurationStatus().missingVariables,
     ...getEmailConfigurationStatus().missingVariables,
   ];
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   if (!process.env.CRON_SECRET?.trim()) faltando.push("CRON_SECRET");
 
   if (faltando.length) return degradado("configuração ausente", faltando.join(", "));
 
   try {
-    const supabase = createAdminRpcClient();
-    const { data, error } = await supabase.rpc("fc_srv_verificar_contrato_rpc", {
+    const banco = createAdminRpcClient();
+    const { data, error } = await banco.rpc("fc_srv_verificar_contrato_rpc", {
       p_nomes: [...RPCS_CRITICAS],
     });
 
