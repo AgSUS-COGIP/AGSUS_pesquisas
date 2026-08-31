@@ -315,7 +315,7 @@ export default function AdminSurveysPage() {
         <section aria-label="Resumo do catálogo" className="grid gap-4 sm:grid-cols-3">
           <StatCard label="Avaliações" value={dataLoading ? "—" : surveys.length} description="instrumentos sob sua gestão" />
           <StatCard label="Perguntas cadastradas" value={dataLoading ? "—" : totalQuestions} description="somando todas as versões" />
-          <StatCard label="Ciclos ativos" value={dataLoading ? "—" : activeCycles} description="abertos ou agendados" />
+          <StatCard label="Ciclos ativos" value={dataLoading ? "—" : activeCycles} description="abertos ou agendados" tom="success" />
         </section>
       )}
 

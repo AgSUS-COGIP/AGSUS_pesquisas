@@ -1,5 +1,6 @@
 import { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { TEXTO_DO_TOM, type TomSemantico } from "@/lib/tom-semantico";
 
 export function Surface({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return <section className={cn("rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-card)]", className)} {...props} />;
@@ -18,11 +19,32 @@ export function PageHeader({ eyebrow, title, description, actions, className }: 
   );
 }
 
-export function StatCard({ label, value, description, className }: { label: string; value: ReactNode; description?: string; className?: string }) {
+/**
+ * Indicador numérico das telas administrativas e de equipe.
+ *
+ * ## Por que o tom entra aqui, e não em cada tela
+ *
+ * Este componente serve onze indicadores em três telas. Escolher a cor em cada
+ * chamada faria a mesma pergunta ser respondida onze vezes, e elas divergiriam
+ * — que é exatamente o defeito que a gramática semântica veio corrigir no
+ * catálogo. Aqui a tela declara **o que o número significa**; a cor é
+ * consequência.
+ *
+ * `tom` ausente vale `total`: o número é uma contagem-base — "Integrantes",
+ * "Avaliações", "Perguntas cadastradas" — e segue no azul institucional, que já
+ * era a cor de todos eles. Assim nenhum indicador muda de aparência por
+ * acidente, só os que ganham significado de estado.
+ */
+export function StatCard({ label, value, description, tom = "total", className }: { label: string; value: ReactNode; description?: string; tom?: TomSemantico; className?: string }) {
   return (
     <article className={cn("rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-card)]", className)}>
       <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--text-secondary)]">{label}</p>
-      <strong className="mt-2 block text-3xl font-semibold tracking-tight text-[var(--brand-primary)]">{value}</strong>
+      {/*
+        Só o número recebe cor. Tonalizar o cartão inteiro transformaria uma
+        faixa de quatro indicadores em quatro blocos concorrentes, e o guia é
+        explícito: nada de fundo saturado por bloco.
+      */}
+      <strong className={cn("mt-2 block text-3xl font-semibold tracking-tight", TEXTO_DO_TOM[tom])}>{value}</strong>
       {description && <p className="mt-2 text-sm text-[var(--text-secondary)]">{description}</p>}
     </article>
   );
