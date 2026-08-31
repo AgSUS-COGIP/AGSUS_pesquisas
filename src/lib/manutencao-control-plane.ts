@@ -115,7 +115,10 @@ export async function gravarManutencao(estado: EstadoDeManutencao): Promise<Resu
     return { ok: false, motivo: "O control plane de escrita não está configurado neste ambiente." };
   }
 
-  const endereco = new URL(`https://api.vercel.com/v1/edge-config/${idDoStore}/items`);
+  // A Vercel renomeou Edge Config para Global Config. Os IDs `ecfg_*` e a
+  // variável legada `EDGE_CONFIG` seguem compatíveis, mas a API de escrita
+  // documentada atualmente vive sob `/v1/global-config`.
+  const endereco = new URL(`https://api.vercel.com/v1/global-config/${idDoStore}/items`);
   if (time) endereco.searchParams.set("teamId", time);
 
   try {
