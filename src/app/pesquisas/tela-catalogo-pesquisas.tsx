@@ -91,6 +91,18 @@ function tomDoCartao(estado: Exclude<FilterKey, "ALL">) {
   return tomDoEstadoDaAvaliacao("CLOSED");
 }
 
+/**
+ * Tom do contador de cada filtro.
+ *
+ * "Todas" é o universo, não uma situação — vai em `total`, como os demais
+ * números que contam o conjunto inteiro. As outras cinco reusam o tom do
+ * cartão, para que o número na aba e o traço do cartão correspondente sejam a
+ * mesma cor.
+ */
+function tomDoFiltro(chave: FilterKey) {
+  return chave === "ALL" ? ("total" as const) : tomDoCartao(chave);
+}
+
 function filterFromQuery(value: string | null): FilterKey {
   const normalized = value?.toUpperCase();
   return filters.some((item) => item.key === normalized) ? normalized as FilterKey : "ALL";
@@ -218,8 +230,15 @@ function SurveysPageContent() {
             cabeçalho. É o mesmo padrão da Visão geral, com régua fina separando
             os números.
           */}
-          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border-subtle)]">
-            {metricTiles.map((tile, index) => (
+          {/*
+            A régua que separava os indicadores era neutra e existia só para
+            separar. Ela virou o marcador lateral de cada um, no tom do que o
+            número conta: mesma linha, mesmo espaço, agora carregando
+            informação. Somar um traço colorido **à** régua daria dois
+            separadores empilhados.
+          */}
+          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-4">
+            {metricTiles.map((tile) => (
               /*
                 O número carrega o tom do que ele conta, em vez de todos serem
                 azul institucional. Antes, "Pendentes" e "Finalizadas" tinham a
@@ -231,7 +250,7 @@ function SurveysPageContent() {
                 informação. Rótulo e legenda seguem dizendo tudo, então quem não
                 distingue as cores não perde nada.
               */
-              <div key={tile.label} className={index > 0 ? "sm:pl-6" : undefined}>
+              <div key={tile.label} className={`border-l-2 pl-3 ${BORDA_DO_TOM[tile.tom]}`}>
                 <dt className="text-xs font-medium text-[var(--text-secondary)]">{tile.label}</dt>
                 <dd>
                   <strong className={`mt-1.5 block text-2xl font-semibold leading-none tabular-nums ${TEXTO_DO_TOM[tile.tom]}`}>
@@ -257,7 +276,17 @@ function SurveysPageContent() {
                 className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filter === item.key ? "border-[var(--brand-primary)] bg-[var(--control-active)] text-[var(--brand-primary)]" : "border-transparent bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
               >
                 {item.label}
-                <span className="rounded px-1.5 py-0.5 text-[11px] tabular-nums bg-[var(--surface-card)]">{counts[item.key]}</span>
+                {/*
+                  O contador carrega o tom da situação que o filtro representa,
+                  e não o da aba estar selecionada — são conceitos diferentes.
+                  Seleção continua sendo dita pela borda e pelo fundo do botão,
+                  em azul institucional; o número diz de que estado se trata.
+
+                  Só o número recebe cor. Pintar a aba inteira faria seis botões
+                  coloridos disputarem atenção com a seleção, que é a informação
+                  que o filtro precisa comunicar primeiro.
+                */}
+                <span className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums bg-[var(--surface-card)] ${TEXTO_DO_TOM[tomDoFiltro(item.key)]}`}>{counts[item.key]}</span>
               </button>
             ))}
           </div>
