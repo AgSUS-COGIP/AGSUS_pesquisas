@@ -1,5 +1,4 @@
 import { DEFAULT_PLATFORM_BRANDING, platformBrandingTitle } from "./platform-branding";
-import { PLATFORM_MODULE, type PlatformModule } from "./platform-modules";
 
 /** Canal institucional de suporte da plataforma. */
 export const PLATFORM_SUPPORT_EMAIL = "dados.recursoshumanos@agenciasus.org.br";
@@ -35,18 +34,6 @@ export function gmailComposeHref(subject: string = SUPPORT_SUBJECT) {
   });
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
-
-/**
- * Módulos exclusivos do Superadmin — administração global.
- *
- * Espelha a exclusão feita em `ADMIN_ROLE_MODULES` (`platform-modules.ts`): são
- * os três módulos que o Admin nunca recebe.
- */
-export const SUPER_ADMIN_ONLY_MODULES = Object.freeze([
-  PLATFORM_MODULE.ADMIN_TEAMS,
-  PLATFORM_MODULE.ADMIN_ACCESS,
-  PLATFORM_MODULE.ADMIN_IMPORT,
-]) as readonly PlatformModule[];
 
 /**
  * Rotas atendidas pelos módulos exclusivos do Superadmin.

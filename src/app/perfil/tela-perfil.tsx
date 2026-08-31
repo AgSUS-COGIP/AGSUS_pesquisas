@@ -80,20 +80,10 @@ export default function ProfilePage() {
 
           <aside className="surface-card p-6">
             <p className="section-eyebrow">Acesso</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-950">Perfil e permissões</h3>
-            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Perfil principal</p><p className="mt-1 font-semibold text-blue-950">{user.profileLabel}</p></div>
-            {/*
-              Aqui havia a lista de papéis vigentes, que repetia palavra por
-              palavra a caixa acima: desde `20260810120000` os perfis são
-              **exclusivos**, então `roles` traz sempre um só — o mesmo que
-              `profileLabel`. A tela dizia "Superadmin" duas vezes seguidas.
-
-              No lugar entra o que o título promete e a tela não entregava: as
-              permissões. Vêm da mesma fonte que monta o menu, então o que se lê
-              aqui é exatamente o que aparece na navegação.
-            */}
+            <h3 className="mt-1 text-lg font-semibold text-slate-950">Conta e permissões</h3>
+            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-xs font-medium text-blue-700">Role técnica</p><p className="mt-1 font-semibold text-blue-950">{user.profileLabel}</p></div>
             <div className="mt-4">
-              <p className="text-xs font-medium text-slate-500">Áreas liberadas para você</p>
+              <p className="text-xs font-medium text-slate-500">Áreas liberadas pelas suas permissões</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {navigationGroupsForModules(modules).flatMap((group) => group.items).map((item) => (
                   <span key={item.href} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{item.label}</span>

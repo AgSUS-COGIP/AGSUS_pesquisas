@@ -19,7 +19,7 @@ import {
   navigationGroupsForModules,
   type PlatformNavGroup,
 } from "@/lib/platform-navigation";
-import { PARTICIPANT_ROLE_MODULES, resolvePlatformRole } from "@/lib/platform-modules";
+import { BASE_PLATFORM_MODULES, PLATFORM_MODULE } from "@/lib/platform-modules";
 import { isSuperAdminOnlyRoute } from "@/lib/platform-support";
 import { finishLocalSignOut } from "@/lib/local-sign-out";
 import {
@@ -39,7 +39,6 @@ type PlatformUser = {
   employeeNumber?: string | null;
   profileLabel: string;
   avatarUrl?: string | null;
-  roles?: string[];
   modules?: string[];
 };
 
@@ -267,8 +266,8 @@ function SidebarContent({ user, branding, brandingLoading, compact, modules, mob
         {/*
           Só na gaveta. No desktop isto repetia o que o cabeçalho já mostra —
           o avatar leva ao perfil a partir de `sm`, e a partir de `xl` ele exibe
-          nome e perfil por extenso, então o rodapé da barra dizia "Meu perfil ·
-          Superadmin" ao lado de um cabeçalho dizendo a mesma coisa.
+          nome e tipo de conta por extenso, então o rodapé repetia a mesma
+          informação exibida no cabeçalho.
 
           Abaixo de `sm` o cabeçalho esconde o link de perfil, e aí a gaveta é o
           único caminho até `/perfil`. Por isso não dá para remover dos dois
@@ -381,10 +380,10 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const confirm = useConfirm();
-  // Sem módulos informados, a casca assume o piso do modelo (Participante) —
-  // nunca um conjunto mais amplo do que o perfil da pessoa permite.
-  const modules = user.modules ?? [...PARTICIPANT_ROLE_MODULES];
-  const canViewPresence = branding.onlinePresenceViewerRoles.includes(resolvePlatformRole(user.roles ?? []));
+  // Sem módulos informados, a casca assume somente o piso de toda pessoa
+  // autenticada. A lista recebida do banco continua sendo a fonte de verdade.
+  const modules = user.modules ?? [...BASE_PLATFORM_MODULES];
+  const canViewPresence = modules.includes(PLATFORM_MODULE.ONLINE_PRESENCE);
   // O rodapé de suporte fica fora das rotas exclusivas do Superadmin (quem já é
   // o canal de suporte) e do modo foco, onde a barra de ações da avaliação ocupa
   // o rodapé da tela.
@@ -504,7 +503,7 @@ export function PlatformShell({ user, title, eyebrow, children, actions, focus =
           open={mobileOpen}
           onOpenChange={setMobileOpen}
           title="Navegação principal"
-          description="Acesse os módulos disponíveis para o seu perfil."
+          description="Acesse os módulos permitidos para sua conta."
           side="left"
           className="max-w-[20rem]"
           // A classe que o CSS da barra lateral já esperava para estilizar a

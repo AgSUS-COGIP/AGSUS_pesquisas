@@ -5,10 +5,10 @@ import type { AreaDeAcessos } from "@/lib/api/contratos-pessoas";
 import { parseAccessPagination } from "@/lib/access-pagination";
 
 /**
- * Matriz de perfis e pessoas.
+ * Matriz de permissões e pessoas.
  *
- * Devolve o agregado inteiro (`roles` + `people`): as colunas da tabela são os
- * perfis, e separá-los obrigaria a tela a esperar duas respostas por linha.
+ * Devolve o agregado inteiro (`permissions` + `people`): as colunas da tabela
+ * são o catálogo que acompanha cada página de pessoas.
  */
 export async function GET(request: Request) {
   const { search, limit, offset } = parseAccessPagination(new URL(request.url).searchParams);
