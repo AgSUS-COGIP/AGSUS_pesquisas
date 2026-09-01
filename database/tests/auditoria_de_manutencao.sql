@@ -1,4 +1,14 @@
--- Auditoria da manutenção operacional com autorização por ADMIN_ACCESS.
+-- Auditoria da manutenção operacional, com autorização por ADMIN_ACCESS.
+--
+-- A função é curta, e é justamente por isso que precisa ser executada: um
+-- ensaio de migration valida a sintaxe do corpo, não o comportamento dele. Uma
+-- função que compila e recusa a administração legítima — ou que aceita
+-- qualquer sessão — passaria pelo ensaio sem um ruído.
+--
+-- O que importa aqui é a autorização acontecer **dentro do banco**. A rota HTTP
+-- confere o módulo para dar erro cedo e com mensagem decente, mas quem garante é
+-- esta função: se amanhã outra rota chamar sem conferir, a garantia continua de
+-- pé.
 
 begin;
 

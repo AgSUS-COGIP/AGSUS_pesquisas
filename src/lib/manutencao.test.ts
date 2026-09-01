@@ -10,7 +10,7 @@ import {
   validarModulosDeManutencao,
   type EstadoDeManutencao,
 } from "./manutencao";
-import { PLATFORM_MODULE } from "./platform-modules";
+import { PLATFORM_MODULE, type PlatformModule } from "./platform-modules";
 import type { Prontidao } from "./readiness-state";
 
 /*
@@ -33,15 +33,26 @@ function situacao(
   prontidao: Prontidao,
   manutencao: EstadoDeManutencao | null,
   pathname: string,
-  administrador: boolean,
+  modulosDaPessoa: readonly PlatformModule[],
 ) {
-  return resolverEstadoOperacional({
-    prontidao,
-    manutencao,
-    pathname,
-    modulosDaPessoa: administrador ? [PLATFORM_MODULE.ADMIN_ACCESS] : [],
-  }).situacao;
+  return resolverEstadoOperacional({ prontidao, manutencao, pathname, modulosDaPessoa }).situacao;
 }
+
+/** Quem administra a plataforma, e quem não administra nada. */
+const ADMIN: readonly PlatformModule[] = [PLATFORM_MODULE.ADMIN_ACCESS];
+const SEM_MODULO: readonly PlatformModule[] = [];
+
+/*
+  Módulos que existem e não são `ADMIN_ACCESS`. O desvio precisa ser negado a
+  cada um deles: se bastasse ter *algum* módulo, quem administra pesquisas
+  atravessaria uma manutenção que não é da alçada dele.
+*/
+const OUTROS_MODULOS = [
+  PLATFORM_MODULE.SURVEYS,
+  PLATFORM_MODULE.DASHBOARDS,
+  PLATFORM_MODULE.ADMIN_SURVEYS,
+  PLATFORM_MODULE.ADMIN_PARTICIPANTS,
+] as const;
 
 describe("validação de módulos", () => {
   it("aceita apenas códigos do catálogo institucional", () => {
@@ -151,36 +162,33 @@ describe("rotas que a manutenção nunca derruba", () => {
 
   // Sem isto a manutenção global fecharia a porta por onde se sai dela.
   it("mantém a tela institucional de pé mesmo com o backend fora", () => {
-    expect(situacao(BACKEND_FORA, GLOBAL, "/acesso", false)).toBe("liberado");
+    expect(situacao(BACKEND_FORA, GLOBAL, "/acesso", SEM_MODULO)).toBe("liberado");
   });
 });
 
 describe("manutenção global", () => {
   it("bloqueia usuário comum", () => {
-    expect(situacao(PRONTA, GLOBAL, "/paineis", false)).toBe("manutencao-global");
+    expect(situacao(PRONTA, GLOBAL, "/paineis", SEM_MODULO)).toBe("manutencao-global");
   });
 
-  it.each([false, false, false, false])(
-    "não dá desvio para %s",
-    (papel) => {
-      expect(situacao(PRONTA, GLOBAL, "/paineis", papel)).toBe("manutencao-global");
-    },
-  );
+  it.each(OUTROS_MODULOS.map((m) => [m]))("não dá desvio a quem só tem %s", (modulo) => {
+    expect(situacao(PRONTA, GLOBAL, "/paineis", [modulo])).toBe("manutencao-global");
+  });
 
-  it("deixa o Superadmin entrar, em modo administrativo", () => {
-    expect(situacao(PRONTA, GLOBAL, "/paineis", true)).toBe("administrativo");
+  it("deixa ADMIN_ACCESS entrar, em modo administrativo", () => {
+    expect(situacao(PRONTA, GLOBAL, "/paineis", ADMIN)).toBe("administrativo");
   });
 });
 
 describe("manutenção por módulo", () => {
   it("bloqueia o módulo marcado", () => {
-    expect(situacao(PRONTA, SO_PAINEIS, "/paineis", false)).toBe("manutencao-de-modulo");
+    expect(situacao(PRONTA, SO_PAINEIS, "/paineis", SEM_MODULO)).toBe("manutencao-de-modulo");
   });
 
   it.each(["/area", "/pesquisas", "/equipe", "/admin/pesquisas"])(
     "%s continua funcionando com DASHBOARDS em manutenção",
     (pathname) => {
-      expect(situacao(PRONTA, SO_PAINEIS, pathname, false)).toBe("liberado");
+      expect(situacao(PRONTA, SO_PAINEIS, pathname, SEM_MODULO)).toBe("liberado");
     },
   );
 
@@ -194,29 +202,26 @@ describe("manutenção por módulo", () => {
     expect(estado).toEqual({ situacao: "manutencao-de-modulo", modulo: PLATFORM_MODULE.DASHBOARDS });
   });
 
-  it("dá desvio ao Superadmin para ele conferir a correção antes de liberar", () => {
-    expect(situacao(PRONTA, SO_PAINEIS, "/paineis", true)).toBe("administrativo");
+  it("dá desvio a ADMIN_ACCESS para conferir a correção antes de liberar", () => {
+    expect(situacao(PRONTA, SO_PAINEIS, "/paineis", ADMIN)).toBe("administrativo");
   });
 
-  it.each([false, false, false, false])(
-    "%s não tem desvio",
-    (papel) => {
-      expect(situacao(PRONTA, SO_PAINEIS, "/paineis", papel)).toBe("manutencao-de-modulo");
-    },
-  );
+  it.each(OUTROS_MODULOS.map((m) => [m]))("quem só tem %s não tem desvio", (modulo) => {
+    expect(situacao(PRONTA, SO_PAINEIS, "/paineis", [modulo])).toBe("manutencao-de-modulo");
+  });
 
   /*
     Marcar `ADMIN_ACCESS` em manutenção trancaria a própria tela onde a
     manutenção é desligada. Duas defesas independentes cobrem isso: a rota está
-    entre as sempre liberadas, e o Superadmin tem desvio.
+    entre as sempre liberadas, e ADMIN_ACCESS tem desvio.
   */
-  it("não tranca o Superadmin fora de Configurações", () => {
+  it("não tranca a administração fora de Configurações", () => {
     const travaAcesso: EstadoDeManutencao = {
       ...MANUTENCAO_INATIVA,
       modules: [PLATFORM_MODULE.ADMIN_ACCESS],
     };
-    expect(situacao(PRONTA, travaAcesso, "/admin/configuracoes", true)).toBe("liberado");
-    expect(situacao(PRONTA, travaAcesso, "/api/plataforma/manutencao", true)).toBe(
+    expect(situacao(PRONTA, travaAcesso, "/admin/configuracoes", ADMIN)).toBe("liberado");
+    expect(situacao(PRONTA, travaAcesso, "/api/plataforma/manutencao", ADMIN)).toBe(
       "liberado",
     );
   });
@@ -224,12 +229,12 @@ describe("manutenção por módulo", () => {
 
 describe("precedência", () => {
   it("queda de backend vence manutenção planejada — incidente não se disfarça de decisão", () => {
-    expect(situacao(BACKEND_FORA, GLOBAL, "/paineis", false)).toBe("indisponivel");
-    expect(situacao(ESQUEMA_ATRASADO, SO_PAINEIS, "/paineis", false)).toBe("indisponivel");
+    expect(situacao(BACKEND_FORA, GLOBAL, "/paineis", SEM_MODULO)).toBe("indisponivel");
+    expect(situacao(ESQUEMA_ATRASADO, SO_PAINEIS, "/paineis", SEM_MODULO)).toBe("indisponivel");
   });
 
-  it("queda de backend também alcança o Superadmin", () => {
-    expect(situacao(BACKEND_FORA, MANUTENCAO_INATIVA, "/paineis", true)).toBe(
+  it("queda de backend também alcança quem administra", () => {
+    expect(situacao(BACKEND_FORA, MANUTENCAO_INATIVA, "/paineis", ADMIN)).toBe(
       "indisponivel",
     );
   });
@@ -237,22 +242,22 @@ describe("precedência", () => {
   // Faltar SMTP degrada o ambiente sem impedir ninguém de entrar. Fechar o
   // login por isso trocaria uma falha de envio por uma queda total.
   it("configuração ausente não é queda", () => {
-    expect(situacao(SEM_CONFIG, MANUTENCAO_INATIVA, "/paineis", false)).toBe("liberado");
+    expect(situacao(SEM_CONFIG, MANUTENCAO_INATIVA, "/paineis", SEM_MODULO)).toBe("liberado");
   });
 
   it("manutenção global vence a de módulo — parar tudo já inclui a parte", () => {
     const ambas: EstadoDeManutencao = { ...GLOBAL, modules: [PLATFORM_MODULE.DASHBOARDS] };
-    expect(situacao(PRONTA, ambas, "/paineis", false)).toBe("manutencao-global");
+    expect(situacao(PRONTA, ambas, "/paineis", SEM_MODULO)).toBe("manutencao-global");
   });
 });
 
 describe("control plane indisponível", () => {
   it("não derruba a plataforma quando a prontidão está saudável", () => {
-    expect(situacao(PRONTA, null, "/paineis", false)).toBe("liberado");
-    expect(situacao(PRONTA, null, "/admin/pesquisas", false)).toBe("liberado");
+    expect(situacao(PRONTA, null, "/paineis", SEM_MODULO)).toBe("liberado");
+    expect(situacao(PRONTA, null, "/admin/pesquisas", SEM_MODULO)).toBe("liberado");
   });
 
   it("não impede que a queda de backend continue fechando", () => {
-    expect(situacao(BACKEND_FORA, null, "/paineis", false)).toBe("indisponivel");
+    expect(situacao(BACKEND_FORA, null, "/paineis", SEM_MODULO)).toBe("indisponivel");
   });
 });

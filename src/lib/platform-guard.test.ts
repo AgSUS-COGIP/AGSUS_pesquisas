@@ -58,6 +58,19 @@ describe("guarda com módulo em manutenção", () => {
     expect(decisao.avisoDeManutencao).toContain("modo administrativo");
   });
 
+  /*
+    O aviso é consequência da manutenção, não do perfil. Sem esta asserção, um
+    `avisoDeManutencao` preso em texto fixo passaria despercebido: quem
+    administra veria "modo administrativo" o tempo todo, e a frase deixaria de
+    significar qualquer coisa justamente quando importasse.
+  */
+  it("sem manutenção, ADMIN_ACCESS entra sem aviso nenhum", () => {
+    const decisao = decidir(MODULOS_ADMIN, []);
+    expect(decisao.state).toBe("granted");
+    if (decisao.state !== "granted") throw new Error("estado inesperado");
+    expect(decisao.avisoDeManutencao).toBeNull();
+  });
+
   it("não altera os módulos da pessoa", () => {
     const decisao = decidir(MODULOS_ADMIN, [PLATFORM_MODULE.DASHBOARDS]);
     if (decisao.state !== "granted") throw new Error("estado inesperado");

@@ -35,7 +35,17 @@ const obterMarca = unstable_cache(
 );
 
 export default async function AccessPage() {
-  // Impede a pré-renderização no build: disponibilidade é estado da requisição.
+  /*
+    Sem isto a página volta a ser pré-renderizada.
+
+    Tirar `revalidate = 60` não basta: nada mais nesta página lê cookie,
+    cabeçalho ou busca, então o Next a considera estática e resolve a prontidão
+    **no build** — o resultado ficaria gravado no HTML e a tela nunca mudaria em
+    produção. Seria o mesmo defeito de antes, só que permanente.
+
+    `connection()` declara que este render depende da requisição, e precisa vir
+    antes da verificação para que ela aconteça a cada visita.
+  */
   await connection();
 
   const [prontidao, branding] = await Promise.all([verificarProntidao(), obterMarca()]);

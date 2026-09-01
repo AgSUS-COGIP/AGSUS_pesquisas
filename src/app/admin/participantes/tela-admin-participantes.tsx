@@ -769,9 +769,9 @@ export default function AdminParticipantsPage() {
               {/* O total em destaque é o efetivo, não o alcance do critério: é
                   ele que descreve como o público fica depois de aplicar. */}
               <StatCard label="Público depois de aplicar" value={previa.effectiveCount} description={`o critério alcança ${previa.matchedCount}`} />
-              <StatCard label="Vínculos novos" value={previa.newLinkCount} description="pessoas que ainda não estavam" />
-              <StatCard label="Mantidas" value={previa.keptCount} description="já estavam e continuam" />
-              <StatCard label="Saem do público" value={previa.removedCount} description="deixaram de casar com o critério" />
+              <StatCard label="Vínculos novos" value={previa.newLinkCount} description="pessoas que ainda não estavam" tom="success" />
+              <StatCard label="Mantidas" value={previa.keptCount} description="já estavam e continuam" tom="info" />
+              <StatCard label="Saem do público" value={previa.removedCount} description="deixaram de casar com o critério" tom={previa.removedCount > 0 ? "warning" : "neutral"} />
             </div>
 
             {/* Os avisos só aparecem quando têm o que dizer. Cartão de zero é
