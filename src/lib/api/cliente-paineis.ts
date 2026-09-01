@@ -20,3 +20,21 @@ export function obterPainelCddi(codigoCiclo: string) {
 export function listarModelosDeAvaliacao() {
   return chamar<unknown[]>("/api/modelos-avaliacao");
 }
+
+/**
+ * Lista operacional de participantes de um ciclo, paginada e filtrada.
+ *
+ * Chamada separada do painel de resultados de propósito: trocar de página ou de
+ * recorte não deve recalcular o instrumento inteiro. A RPC por trás lê apenas
+ * participação — nunca respostas —, o que mantém a leitura segura mesmo em
+ * ciclo anônimo.
+ */
+export function listarParticipantesDoPainel(
+  codigoAplicacao: string,
+  parametros: URLSearchParams,
+) {
+  const busca = parametros.toString();
+  return chamar<unknown>(
+    `/api/paineis/${encodeURIComponent(codigoAplicacao)}/participantes${busca ? `?${busca}` : ""}`,
+  );
+}

@@ -14,6 +14,7 @@ import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { obterPainelDoCiclo } from "@/lib/api/cliente-paineis";
 import { estatisticasDaPergunta, formatarNumero } from "@/lib/estatisticas";
+import { ListaDeParticipantes } from "./lista-de-participantes";
 
 type DashboardOption = { id: string; label: string; value: string; count: number };
 type TextResponse = { text: string; submittedAt: string | null };
@@ -212,6 +213,8 @@ export default function SurveyDashboardPage() {
           </div>
         </div>
       </section>
+
+      <ListaDeParticipantes applicationCode={application.code} />
 
       <div className="mt-6 space-y-5">
         {questions.map((question, index) => (
