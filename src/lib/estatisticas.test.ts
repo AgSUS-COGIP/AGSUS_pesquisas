@@ -233,7 +233,9 @@ describe("distribuicao", () => {
   it("ignora respondentes inválido e volta às marcações", () => {
     const alternativas = [{ label: "Sim", value: "1", count: 4 }];
 
-    for (const invalido of [0, -5, Number.NaN]) {
+    // `Infinity > 0` é verdadeiro: sem a checagem de finitude ele passaria como
+    // denominador válido e devolveria 0%, afirmando que ninguém marcou.
+    for (const invalido of [0, -5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
       expect(distribuicao(alternativas, invalido)[0].frequenciaRelativa).toBe(100);
     }
   });

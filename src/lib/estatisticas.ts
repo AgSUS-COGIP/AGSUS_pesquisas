@@ -204,7 +204,17 @@ export function distribuicao(
   respondentes?: number,
 ): ClasseDaDistribuicao[] {
   const marcacoes = alternativas.reduce((soma, item) => soma + Math.max(0, item.count), 0);
-  const denominador = typeof respondentes === "number" && respondentes > 0 ? respondentes : marcacoes;
+  /*
+    `Number.isFinite` junto do `> 0`, e não só a comparação.
+
+    `Infinity > 0` é verdadeiro, então um denominador infinito passaria e todas
+    as linhas viriam com 0% — pior que cair de volta nas marcações, porque
+    afirma "ninguém marcou" em vez de admitir que o número não serve. O resto
+    do módulo já descarta não-finito em `paraNumeroFinito`; aqui a checagem
+    estava mais frouxa que a vizinha.
+  */
+  const respondentesValido = typeof respondentes === "number" && Number.isFinite(respondentes) && respondentes > 0;
+  const denominador = respondentesValido ? respondentes : marcacoes;
 
   return alternativas.map((item) => ({
     rotulo: item.label,
