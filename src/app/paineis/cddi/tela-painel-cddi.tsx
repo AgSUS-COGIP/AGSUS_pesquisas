@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Clock3,
   Download,
-  Filter,
   Eye,
   EyeOff,
   RefreshCw,
@@ -28,6 +27,18 @@ import { obterPainelCddi } from "@/lib/api/cliente-paineis";
 import { listarCiclosDaPesquisa } from "@/lib/api/cliente-pessoas";
 import { BarSeries, ProgressMeter, RadarChart } from "@/components/platform-charts";
 import { average as avg, groupEventsByDay } from "@/lib/chart-data";
+import {
+  FILTROS_CDDI_VAZIOS,
+  aoClicarNoKpi,
+  atendeFiltros,
+  atendeSituacao,
+  comDimensao,
+  estadoAoTrocarCiclo,
+  kpiClicavel,
+  reconciliarFiltros,
+  type DimensaoCddi,
+  type FiltrosCddi,
+} from "@/lib/filtros-cddi";
 
 type Participant = {
   personId: string;
@@ -98,12 +109,15 @@ function SearchableMultiSelect({
   values,
   onChange,
   emptyLabel,
+  span = "lg:col-span-4",
 }: {
   label: string;
   options: FilterOption[];
   values: string[];
   onChange: (values: string[]) => void;
   emptyLabel: string;
+  /** Largura na grade de 12 colunas. Quem monta o formulário decide o ritmo das linhas. */
+  span?: string;
 }) {
   const [search, setSearch] = useState("");
   const normalizedSearch = normalizeFilterText(search.trim());
@@ -113,14 +127,26 @@ function SearchableMultiSelect({
   const selected = new Set(values);
 
   return (
-    <div className="block lg:col-span-4">
+    <div className={`block ${span}`}>
       <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">{label}</span>
       <details name="cddi-filter-multiselect" className="group relative">
         <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] [&::-webkit-details-marker]:hidden">
           <span className="truncate">{values.length ? `${values.length} selecionado${values.length === 1 ? "" : "s"}` : emptyLabel}</span>
           <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
-        <div className="relative z-30 mt-2 w-full min-w-[320px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 shadow-xl">
+        {/*
+          `absolute`, e não `relative`.
+
+          Como `relative`, este painel ocupava espaço no fluxo: abrir um
+          multiselect esticava a linha da grid e, com `lg:items-end` no
+          formulário, empurrava Diretoria, Unidade e os demais campos para
+          baixo. A pessoa abria uma lista e a tela inteira se mexia.
+
+          A âncora é o próprio `<details className="relative">` acima, então
+          `top-full left-0` alinha o menu logo abaixo do gatilho. `z-40` fica
+          acima dos campos vizinhos e do cabeçalho da tabela.
+        */}
+        <div className="absolute left-0 top-full z-40 mt-2 w-full min-w-[320px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-card)] p-3 shadow-xl">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
             <input
@@ -212,21 +238,35 @@ export default function CddiMonitoringPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
   const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
-  const [participantIds, setParticipantIds] = useState<string[]>([]);
-  const [selectedDirectorates, setSelectedDirectorates] = useState<string[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  const [participantDraft, setParticipantDraft] = useState<string[]>([]);
-  const [directorateDraft, setDirectorateDraft] = useState<string[]>([]);
-  const [statusDraft, setStatusDraft] = useState<string[]>([]);
+  /*
+    `useDeferredValue` em vez de debounce.
+
+    O campo continua respondendo a cada tecla — quem digita vê o texto na hora —
+    enquanto a filtragem sobre mil participantes roda em prioridade menor e pode
+    ser interrompida pela tecla seguinte. Não cria estado nem temporizador, e
+    não engole a última letra digitada rápido, que é o modo clássico de o
+    debounce errar.
+  */
+  const termoDiferido = useDeferredValue(query);
+  /*
+    Uma fonte por dimensão, e não duas.
+
+    Antes havia seis pares `*Draft`/aplicado. As listas de opções liam os
+    rascunhos e os resultados liam os aplicados, então entre mexer num filtro e
+    clicar em "Filtrar" a tela mostrava as opções de um recorte com os números
+    de outro. O próprio `selectKpi` já contornava o modelo, escrevendo direto no
+    estado aplicado — clicar num KPI valia na hora, o dropdown não.
+
+    Com uma fonte só, o botão "Filtrar" deixa de ter função: mudar o filtro é
+    aplicar o filtro.
+  */
+  const [filtros, setFiltros] = useState<FiltrosCddi>(FILTROS_CDDI_VAZIOS);
+  const { participantIds, directorates: selectedDirectorates, units: selectedUnits,
+    coordinations: selectedCoordinations, managers: selectedManagers, statuses: selectedStatuses } = filtros;
   // Recortes que faltavam. A diretoria sozinha é grossa demais para quem
   // acompanha o ciclo no dia a dia: a pergunta real costuma ser "como está a
   // minha unidade" ou "quem ainda não foi avaliado pela chefia tal".
-  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
-  const [selectedCoordinations, setSelectedCoordinations] = useState<string[]>([]);
-  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
-  const [unitDraft, setUnitDraft] = useState<string[]>([]);
-  const [coordinationDraft, setCoordinationDraft] = useState<string[]>([]);
-  const [managerDraft, setManagerDraft] = useState<string[]>([]);
+  // (As seis dimensões vivem em `filtros`, declarado acima.)
   // Nenhum código de ciclo escrito aqui: vazio significa "ainda não escolhi", e
   // o painel assume o primeiro da lista — que a RPC já devolve do mais recente
   // para o mais antigo. Com `CDDI-2026` fixo, a segunda edição abriria sempre
@@ -297,54 +337,46 @@ export default function CddiMonitoringPage() {
   const selectedParticipants = all.filter((item) => participantIds.includes(item.personId));
 
   function matchesStatuses(item: Participant, statuses: string[]) {
-    return !statuses.length || statuses.some((status) => participantState(item) === status || (status === "NO_MANAGER" && !item.managerName));
+    return atendeSituacao(item, statuses);
+  }
+
+  /*
+    O único caminho por onde um filtro muda.
+
+    Recebe a dimensão que a pessoa mexeu e os valores novos, fixa essa escolha
+    como intenção e reconcilia as demais — descartando o que deixou de existir
+    no recorte resultante. Antes, `retainCompatibleParticipantDraft` saneava
+    **apenas** participantes: trocar a diretoria deixava a unidade antiga no
+    estado, invisível na lista e ainda restringindo o resultado.
+
+    Trocar de recorte também volta para a primeira página: manter a página 7 num
+    recorte que agora tem duas linhas mostraria uma tabela vazia sem explicação.
+  */
+  function alterarFiltro(dimensao: DimensaoCddi, valores: string[]) {
+    setFiltros((atual) => reconciliarFiltros(all, comDimensao(atual, dimensao, valores), dimensao));
+    setPage(1);
   }
 
   // Filtros facetados: cada lista considera todas as outras escolhas, menos a
   // própria dimensão. Assim só aparecem combinações que realmente existem.
-  function matchesDraftFacets(item: Participant, omit?: "participant" | "directorate" | "unit" | "coordination" | "manager" | "status") {
-    return (
-      (omit === "participant" || !participantDraft.length || participantDraft.includes(item.personId)) &&
-      (omit === "directorate" || !directorateDraft.length || directorateDraft.includes(item.directorate)) &&
-      (omit === "unit" || !unitDraft.length || unitDraft.includes(item.unit)) &&
-      (omit === "coordination" || !coordinationDraft.length || coordinationDraft.includes(item.coordination)) &&
-      (omit === "manager" || !managerDraft.length || (item.managerName ? managerDraft.includes(item.managerName) : false)) &&
-      (omit === "status" || matchesStatuses(item, statusDraft))
-    );
+  function matchesFacets(item: Participant, omit?: DimensaoCddi) {
+    return atendeFiltros(item, filtros, omit);
   }
 
   const participantOptions = all
-    .filter((item) => matchesDraftFacets(item, "participant"))
+    .filter((item) => matchesFacets(item, "participant"))
     .map((item) => ({ value: item.personId, label: `${item.fullName}${item.employeeNumber ? ` · ${item.employeeNumber}` : ""}` }))
     .sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
-  const directorateOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "directorate")).map((item) => item.directorate).filter(Boolean))).sort().map((value) => ({ value, label: value }));
-  const unitOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "unit")).map((item) => item.unit).filter(Boolean))).sort().map((value) => ({ value, label: value }));
-  const coordinationOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "coordination")).map((item) => item.coordination).filter(Boolean))).sort().map((value) => ({ value, label: value }));
-  const managerOptions = Array.from(new Set(all.filter((item) => matchesDraftFacets(item, "manager")).map((item) => item.managerName).filter((value): value is string => Boolean(value)))).sort().map((value) => ({ value, label: value }));
-  const statusPeople = all.filter((item) => matchesDraftFacets(item, "status"));
+  const directorateOptions = Array.from(new Set(all.filter((item) => matchesFacets(item, "directorate")).map((item) => item.directorate).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const unitOptions = Array.from(new Set(all.filter((item) => matchesFacets(item, "unit")).map((item) => item.unit).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const coordinationOptions = Array.from(new Set(all.filter((item) => matchesFacets(item, "coordination")).map((item) => item.coordination).filter(Boolean))).sort().map((value) => ({ value, label: value }));
+  const managerOptions = Array.from(new Set(all.filter((item) => matchesFacets(item, "manager")).map((item) => item.managerName).filter((value): value is string => Boolean(value)))).sort().map((value) => ({ value, label: value }));
+  const statusPeople = all.filter((item) => matchesFacets(item, "status"));
   const availableStatuses = new Set(statusPeople.flatMap((item) => [participantState(item), ...(!item.managerName ? ["NO_MANAGER"] : [])]));
   const statusOptions = STATUS_FILTER_OPTIONS.filter((option) => availableStatuses.has(option.value));
 
-  function retainCompatibleParticipantDraft(overrides: Partial<{ directorate: string[]; unit: string[]; coordination: string[]; manager: string[]; status: string[] }>) {
-    const nextDirectorate = overrides.directorate ?? directorateDraft;
-    const nextUnit = overrides.unit ?? unitDraft;
-    const nextCoordination = overrides.coordination ?? coordinationDraft;
-    const nextManager = overrides.manager ?? managerDraft;
-    const nextStatus = overrides.status ?? statusDraft;
-    setParticipantDraft((current) => current.filter((personId) => {
-      const person = all.find((item) => item.personId === personId);
-      return Boolean(
-        person &&
-        (!nextDirectorate.length || nextDirectorate.includes(person.directorate)) &&
-        (!nextUnit.length || nextUnit.includes(person.unit)) &&
-        (!nextCoordination.length || nextCoordination.includes(person.coordination)) &&
-        (!nextManager.length || (person.managerName ? nextManager.includes(person.managerName) : false)) &&
-        matchesStatuses(person, nextStatus),
-      );
-    }));
-  }
   const filtered = all.filter((item) => {
-    const term = query.trim().toLocaleLowerCase("pt-BR");
+    const term = termoDiferido.trim().toLocaleLowerCase("pt-BR");
     const matchesTerm =
       !term ||
       [item.fullName, item.employeeNumber, item.institutionalEmail, item.managerName, item.unit, item.coordination].some(
@@ -448,27 +480,42 @@ export default function CddiMonitoringPage() {
 
   function clearFilters() {
     setQuery("");
-    setParticipantIds([]); setSelectedDirectorates([]); setSelectedUnits([]); setSelectedCoordinations([]); setSelectedManagers([]); setSelectedStatuses([]);
-    setParticipantDraft([]); setDirectorateDraft([]); setUnitDraft([]); setCoordinationDraft([]); setManagerDraft([]); setStatusDraft([]);
+    setFiltros(FILTROS_CDDI_VAZIOS);
+    setPage(1);
   }
 
-  function applyFilters() {
-    setParticipantIds(participantDraft);
-    setSelectedDirectorates(directorateDraft);
-    setSelectedUnits(unitDraft);
-    setSelectedCoordinations(coordinationDraft);
-    setSelectedManagers(managerDraft);
-    setSelectedStatuses(statusDraft);
-  }
 
   const hasActiveFilter = Boolean(query || participantIds.length || selectedDirectorates.length || selectedUnits.length || selectedCoordinations.length || selectedManagers.length || selectedStatuses.length);
 
-  // Clicar num KPI aplica (ou remove, se já ativo) o recorte por situação —
-  // como no AgSUS Monitora. O rascunho do filtro acompanha para o painel refletir.
-  function selectKpi(key: string) {
-    const next = !key ? [] : selectedStatuses.includes(key) ? selectedStatuses.filter((status) => status !== key) : [...selectedStatuses, key];
-    setSelectedStatuses(next);
-    setStatusDraft(next);
+  /*
+    Clicar num KPI é alterar a dimensão de situação — nada mais.
+
+    Antes esta função escrevia direto no estado aplicado **e** no rascunho,
+    contornando o modelo de "aplicar": o KPI valia na hora e o dropdown esperava
+    o botão. Era o próprio código admitindo que o botão sobrava. Agora as duas
+    entradas passam pelo mesmo caminho e reconciliam igual.
+  */
+  function selectKpi(key: string, value: number) {
+    setFiltros((atual) => aoClicarNoKpi(all, atual, key, value));
+    setPage(1);
+  }
+
+  /*
+    Trocar o ciclo não é recortar — é trocar a base. O público muda, então a
+    unidade, a coordenação ou a chefia escolhidas podem simplesmente não existir
+    no ciclo novo, e ficariam restringindo sem aparecer na lista: exatamente o
+    defeito que esta correção fecha, reintroduzido pela porta do seletor.
+
+    Por isso o recorte inteiro cai junto, incluindo a busca textual. Reaproveitar
+    só o que coincidisse deixaria um recorte pela metade que a pessoa não montou
+    e não tem como conferir.
+  */
+  function trocarCiclo(codigo: string) {
+    const inicial = estadoAoTrocarCiclo(codigo);
+    setCycleCode(inicial.cycleCode);
+    setFiltros(inicial.filtros);
+    setQuery(inicial.query);
+    setPage(inicial.page);
   }
 
   const kpis: Array<{ key: string; label: string; value: number | string; tone: "brand" | "success" | "warning" | "danger" | "review"; interactive: boolean }> = [
@@ -550,7 +597,7 @@ export default function CddiMonitoringPage() {
             <h2 id="dashboard-filter-title" className="mt-1 text-base font-black text-[var(--text-primary)]">Refinar visualização</h2>
           </div>
           <div className="flex items-center gap-3">
-            {(hasActiveFilter || participantDraft.length || directorateDraft.length || unitDraft.length || coordinationDraft.length || managerDraft.length || statusDraft.length) ? (
+            {hasActiveFilter ? (
               <button type="button" onClick={clearFilters} className="text-xs font-black text-[var(--brand-primary)] hover:underline">Limpar filtros</button>
             ) : null}
             <button type="button" onClick={() => setShowFilters((visible) => !visible)} className="secondary-button inline-flex h-9 items-center gap-2 px-3 text-xs" aria-expanded={showFilters} aria-controls="dashboard-filters">
@@ -559,7 +606,7 @@ export default function CddiMonitoringPage() {
             </button>
           </div>
         </div>
-        {showFilters ? <form id="dashboard-filters" className="mt-5 grid gap-4 border-t border-[var(--border-subtle)] pt-5 lg:grid-cols-12 lg:items-end" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+        {showFilters ? <form id="dashboard-filters" className="mt-5 grid gap-4 border-t border-[var(--border-subtle)] pt-5 lg:grid-cols-12 lg:items-end" onSubmit={(event) => event.preventDefault()}>
           {/*
             Saíram dois `select` desabilitados: um "Nível" com a única opção
             "Diretoria" e o "Ciclo avaliativo" travado no código fixo. Controle
@@ -567,29 +614,24 @@ export default function CddiMonitoringPage() {
             por que não funciona. No lugar entraram os recortes que a operação
             usa de fato, e o seletor de ciclo virou real.
           */}
-          <SearchableMultiSelect
-            label="Participantes"
-            options={participantOptions}
-            values={participantDraft}
-            onChange={setParticipantDraft}
-            emptyLabel="Todas as pessoas"
-          />
-          <SearchableMultiSelect label="Diretorias" options={directorateOptions} values={directorateDraft} onChange={(values) => { setDirectorateDraft(values); retainCompatibleParticipantDraft({ directorate: values }); }} emptyLabel="Todas as diretorias" />
-          <SearchableMultiSelect label="Unidades" options={unitOptions} values={unitDraft} onChange={(values) => { setUnitDraft(values); retainCompatibleParticipantDraft({ unit: values }); }} emptyLabel="Todas as unidades" />
-          <SearchableMultiSelect label="Coordenações" options={coordinationOptions} values={coordinationDraft} onChange={(values) => { setCoordinationDraft(values); retainCompatibleParticipantDraft({ coordination: values }); }} emptyLabel="Todas as coordenações" />
-          <SearchableMultiSelect label="Chefias" options={managerOptions} values={managerDraft} onChange={(values) => { setManagerDraft(values); retainCompatibleParticipantDraft({ manager: values }); }} emptyLabel="Todas as chefias" />
-          <SearchableMultiSelect label="Status" options={statusOptions} values={statusDraft} onChange={(values) => { setStatusDraft(values); retainCompatibleParticipantDraft({ status: values }); }} emptyLabel="Todas as situações" />
           {/*
-            O ciclo troca a consulta, não o recorte em memória, então aplica na
-            hora — esperar o "Filtrar" faria a tela mostrar dados de um ciclo com
-            o seletor exibindo outro. Com um único ciclo cadastrado o controle
-            continua visível, mas fica desabilitado e diz por quê.
+            Sete controles numa grade de 12 colunas, em linhas de 4+8, 6+6 e
+            4+4+4. Todos tinham `col-span-4`, o que dava 3, 3 e **1** — o ciclo
+            sozinho na última linha, com dois terços vazios ao lado.
+
+            A ordem também mudou: o ciclo abre o bloco, porque é o único controle
+            que troca a consulta em vez de recortar o que já veio. Escolher o
+            ciclo depois de montar o recorte é a ordem errada — e agora ele
+            limpa os filtros, o que ficaria pior no fim da lista.
+
+            Participantes vem logo depois e ocupa o dobro: é o campo com os
+            rótulos mais longos, nomes completos que o `truncate` cortaria.
           */}
           <label className="lg:col-span-4">
             <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
             <select
               value={resolvedCycle}
-              onChange={(event) => setCycleCode(event.target.value)}
+              onChange={(event) => trocarCiclo(event.target.value)}
               disabled={cycleOptions.length < 2}
               title={cycleOptions.length < 2 ? "Só existe um ciclo do CDDI cadastrado" : "Trocar o ciclo recarrega o painel"}
               className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -603,19 +645,45 @@ export default function CddiMonitoringPage() {
                 : <option value={data.application.code}>{data.application.name}</option>}
             </select>
           </label>
-          <button type="submit" className="primary-button h-11 justify-center lg:col-span-4 lg:col-start-9" aria-label="Aplicar filtros ao relatório"><Filter className="h-4 w-4" />Filtrar</button>
+          <SearchableMultiSelect
+            label="Participantes"
+            options={participantOptions}
+            values={participantIds}
+            onChange={(values) => alterarFiltro("participant", values)}
+            emptyLabel="Todas as pessoas"
+            span="lg:col-span-8"
+          />
+          <SearchableMultiSelect label="Diretorias" options={directorateOptions} values={selectedDirectorates} onChange={(values) => alterarFiltro("directorate", values)} emptyLabel="Todas as diretorias" span="lg:col-span-6" />
+          <SearchableMultiSelect label="Unidades" options={unitOptions} values={selectedUnits} onChange={(values) => alterarFiltro("unit", values)} emptyLabel="Todas as unidades" span="lg:col-span-6" />
+          <SearchableMultiSelect label="Coordenações" options={coordinationOptions} values={selectedCoordinations} onChange={(values) => alterarFiltro("coordination", values)} emptyLabel="Todas as coordenações" />
+          <SearchableMultiSelect label="Chefias" options={managerOptions} values={selectedManagers} onChange={(values) => alterarFiltro("manager", values)} emptyLabel="Todas as chefias" />
+          <SearchableMultiSelect label="Status" options={statusOptions} values={selectedStatuses} onChange={(values) => alterarFiltro("status", values)} emptyLabel="Todas as situações" />
+          {/*
+            O botão "Filtrar" saiu. Com uma fonte de estado só, mudar o filtro
+            já é aplicá-lo — o botão não teria o que fazer, e mantê-lo sugeriria
+            que o recorte na tela ainda não vale.
+          */}
         </form> : null}
       </section>
 
       <section className="mt-4 space-y-3" aria-label="Indicadores do recorte">
         <div className="monitor-kpi-grid">
           {kpis.map((kpi) => kpi.interactive ? (
+            /*
+              O KPI zerado deixa de ser botão vivo. Como a contagem é feita sobre
+              o recorte, zero quer dizer "ninguém nessa situação **aqui dentro**"
+              — clicar apagaria Diretoria, Unidade e as demais para ir buscar
+              gente que a pessoa não pediu. `disabled` também tira do foco por
+              teclado, então o estado é o mesmo para quem navega sem mouse.
+            */
             <button
               key={kpi.label}
               type="button"
               data-tone={kpi.tone}
+              disabled={!kpiClicavel(kpi.key, typeof kpi.value === "number" ? kpi.value : 0, selectedStatuses)}
+              title={kpiClicavel(kpi.key, typeof kpi.value === "number" ? kpi.value : 0, selectedStatuses) ? undefined : "Nenhum participante nesta situação dentro do recorte atual"}
               aria-pressed={kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length}
-              onClick={() => selectKpi(kpi.key)}
+              onClick={() => selectKpi(kpi.key, typeof kpi.value === "number" ? kpi.value : 0)}
               className={`monitor-kpi ${(kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length) ? "is-active" : ""}`}
             >
               <span className="monitor-kpi-label">{kpi.label}</span>
@@ -658,7 +726,8 @@ export default function CddiMonitoringPage() {
                   <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
                   <div><strong className="block text-sm">{pendingLeader} avaliações da chefia pendentes</strong><span className="text-xs opacity-80">Inclui participantes que ainda não concluíram a autoavaliação.</span></div>
                 </div>
-                <button type="button" onClick={() => selectKpi("NO_MANAGER")} aria-pressed={selectedStatuses.includes("NO_MANAGER")} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] ${selectedStatuses.includes("NO_MANAGER") ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
+                {/* Mesmo atalho do KPI "Sem chefia informada", e por isso a mesma regra do zero. */}
+                <button type="button" onClick={() => selectKpi("NO_MANAGER", withoutManager)} disabled={!kpiClicavel("NO_MANAGER", withoutManager, selectedStatuses)} aria-pressed={selectedStatuses.includes("NO_MANAGER")} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[var(--border-subtle)] ${selectedStatuses.includes("NO_MANAGER") ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
                   <UserRoundX className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-secondary)]" />
                   <span><strong className="block text-sm text-[var(--text-primary)]">{withoutManager} sem vínculo de chefia</strong><span className="text-xs text-[var(--text-muted)]">A chefia é automática; revise a associação cadastrada em Equipes.</span></span>
                 </button>
