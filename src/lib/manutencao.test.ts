@@ -139,6 +139,16 @@ describe("rotas que a manutenção nunca derruba", () => {
     expect(ehRotaSempreLiberada(pathname)).toBe(false);
   });
 
+  /*
+    O proxy pergunta a esta rota se a sessão pode atravessar a manutenção
+    global. Se ela deixasse de ser liberada, o proxy bloquearia a própria
+    pergunta que faz, a consulta falharia, e o desvio administrativo passaria a
+    responder "não" para sempre — sem nenhum erro aparecer em lugar nenhum.
+  */
+  it("libera a consulta de desvio de que o próprio proxy depende", () => {
+    expect(ehRotaSempreLiberada("/api/plataforma/manutencao/desvio")).toBe(true);
+  });
+
   // Sem isto a manutenção global fecharia a porta por onde se sai dela.
   it("mantém a tela institucional de pé mesmo com o backend fora", () => {
     expect(situacao(BACKEND_FORA, GLOBAL, "/acesso", false)).toBe("liberado");
