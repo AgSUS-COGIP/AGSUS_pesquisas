@@ -2,7 +2,7 @@
 --
 -- O critério que mais importa aqui é o da igualdade entre prévia e aplicação: o
 -- número mostrado antes de gravar tem de ser o número gravado. Ele é garantido
--- estruturalmente — as duas chamam `fc_resolver_publico_avaliacao` —, e as
+-- estruturalmente — as duas chamam `FC_RESOLVER_PUBLICO_AVALIACAO` —, e as
 -- asserções abaixo verificam que a estrutura entrega o que promete.
 --
 -- Cobre também o que a regra faz de não óbvio: OR dentro da dimensão, AND entre
@@ -14,17 +14,17 @@ begin;
 
 select plan(22);
 
-insert into sigav.tb_usuario_identidade (id, aud, role, email, created_at, updated_at)
+insert into sigav."TB_USUARIO_IDENTIDADE" ("SQ_USUARIO", "TP_AUDIENCIA", "TP_PAPEL", "DS_EMAIL", "DT_INCLUSAO", "DT_ALTERACAO")
 values ('00000000-0000-4000-8000-0000000000c1', 'authenticated', 'authenticated', 'publico-admin@agenciasus.org.br', now(), now());
 
-insert into sigav.people (id, auth_user_id, employee_number, full_name, institutional_email, active)
+insert into sigav."TB_PESSOA" ("SQ_PESSOA", "SQ_USUARIO_IDENTIDADE", "CO_MATRICULA", "NO_PESSOA", "DS_EMAIL_INSTITUCIONAL", "ST_ATIVO")
 values ('00000000-0000-4000-8000-0000000000c2', '00000000-0000-4000-8000-0000000000c1', 'TESTE-PUB-ADM', 'Administração de Teste', 'publico-admin@agenciasus.org.br', true);
 
 -- Preset Admin - era a role SURVEY_MANAGER, e as tabelas de perfil sairam do
 -- banco em 20260828150000_remover_perfis_legados_do_banco.sql. A autorizacao
 -- hoje e permissao por pessoa; as funcoes sob teste exigem ADMIN_SURVEYS, via
 -- can_manage_surveys().
-insert into sigav.person_module_permissions (person_id, module_code, allowed)
+insert into sigav."RL_PESSOA_MODULO" ("SQ_PESSOA", "CO_MODULO", "ST_PERMITIDO")
 select '00000000-0000-4000-8000-0000000000c2', modulo, true
   from unnest(array[
     'HOME', 'SURVEYS', 'DASHBOARDS', 'ONLINE_PRESENCE',
@@ -33,7 +33,7 @@ select '00000000-0000-4000-8000-0000000000c2', modulo, true
 
 -- Quatro pessoas cobrindo as combinações que a regra precisa distinguir. As
 -- duas coordenações são a mesma, escritas diferente de propósito.
-insert into sigav.people (id, employee_number, full_name, institutional_email, active, job_title, cost_center, metadata)
+insert into sigav."TB_PESSOA" ("SQ_PESSOA", "CO_MATRICULA", "NO_PESSOA", "DS_EMAIL_INSTITUCIONAL", "ST_ATIVO", "NO_CARGO", "CO_CENTRO_CUSTO", "DS_METADADO")
 values
   ('00000000-0000-4000-8000-0000000000d1', 'TESTE-PUB-1', 'Ana Assessora',   'pub1@agenciasus.org.br', true,  'Assessor', 'CC-100',
    '{"directorate":"DGP","unit":"Escritorio A","coordination":"Coord  de  Gestão"}'::jsonb),
@@ -44,13 +44,13 @@ values
   ('00000000-0000-4000-8000-0000000000d4', 'TESTE-PUB-4', 'Davi Inativo',    'pub4@agenciasus.org.br', false, 'Assessor', 'CC-100',
    '{"directorate":"DGP","unit":"Escritorio A"}'::jsonb);
 
-insert into sigav.surveys (id, code, name)
+insert into sigav."TB_PESQUISA" ("SQ_PESQUISA", "CO_PESQUISA", "NO_PESQUISA")
 values ('00000000-0000-4000-8000-0000000000e1', 'TESTE-PUBLICO', 'Pesquisa de público');
 
-insert into sigav.survey_versions (id, survey_id, version_number, title, status)
+insert into sigav."TH_VERSAO_PESQUISA" ("SQ_VERSAO_PESQUISA", "SQ_PESQUISA", "NU_VERSAO", "NO_VERSAO", "ST_SITUACAO")
 values ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000000e1', 1, 'Versão 1', 'PUBLISHED');
 
-insert into sigav.survey_applications (id, survey_version_id, code, name, status)
+insert into sigav."TB_APLICACAO_PESQUISA" ("SQ_APLICACAO", "SQ_VERSAO_PESQUISA", "CO_APLICACAO", "NO_APLICACAO", "ST_SITUACAO")
 values ('00000000-0000-4000-8000-0000000000e3', '00000000-0000-4000-8000-0000000000e2', 'TESTE-PUBLICO-1', 'Ciclo de público', 'DRAFT');
 
 select set_config(
@@ -64,20 +64,20 @@ select set_config(
 -- ---------------------------------------------------------------------------
 
 select is(
-  sigav.fc_normalizar_rotulo('Coord  de  Gestão'),
-  sigav.fc_normalizar_rotulo('COORD DE GESTAO'),
+  sigav."FC_NORMALIZAR_ROTULO"('Coord  de  Gestão'),
+  sigav."FC_NORMALIZAR_ROTULO"('COORD DE GESTAO'),
   'caixa, acento e espaço repetido não fragmentam o mesmo valor'
 );
 
 -- Se a normalização falhasse, apareceriam duas coordenações distintas na tela.
 select is(
-  (select jsonb_array_length(sigav.fc_listar_dimensoes_publico() -> 'dimensions' -> 'coordination')),
+  (select jsonb_array_length(sigav."FC_LISTAR_DIMENSOES_PUBLICO"() -> 'dimensions' -> 'coordination')),
   1,
   'grafias equivalentes viram uma única opção de Coordenação'
 );
 
 select is(
-  (select sigav.fc_listar_dimensoes_publico() -> 'dimensions' -> 'coordination' -> 0 ->> 'count'),
+  (select sigav."FC_LISTAR_DIMENSOES_PUBLICO"() -> 'dimensions' -> 'coordination' -> 0 ->> 'count'),
   '2',
   'a opção agrupada conta as duas pessoas'
 );
@@ -87,9 +87,9 @@ select is(
 -- ---------------------------------------------------------------------------
 
 -- Davi tem Diretoria e Cargo compatíveis, mas está inativo: elegibilidade é
--- `people.active`, e ela vale antes de qualquer filtro.
+-- `tb_pessoa.active`, e ela vale antes de qualquer filtro.
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3',
     '{"filters":{"directorate":["DGP"],"jobTitle":["Assessor"]}}'::jsonb) ->> 'matchedCount')::integer,
   2,
@@ -97,7 +97,7 @@ select is(
 );
 
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3',
     '{"filters":{"unit":["Escritorio A","Escritório B"]}}'::jsonb) ->> 'matchedCount')::integer,
   3,
@@ -106,7 +106,7 @@ select is(
 
 -- Carla é Analista e não casaria com o filtro; entra por inclusão individual.
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3',
     '{"filters":{"jobTitle":["Assessor"]},"includePersonIds":["00000000-0000-4000-8000-0000000000d3"]}'::jsonb) ->> 'matchedCount')::integer,
   3,
@@ -115,7 +115,7 @@ select is(
 
 -- Inclusão não é passe livre: a elegibilidade é a mesma para todo mundo.
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3',
     '{"includePersonIds":["00000000-0000-4000-8000-0000000000d4"]}'::jsonb) ->> 'ineligibleIncludedCount')::integer,
   1,
@@ -123,7 +123,7 @@ select is(
 );
 
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3',
     '{"filters":{"jobTitle":["Assessor"]},"excludePersonIds":["00000000-0000-4000-8000-0000000000d2"]}'::jsonb) ->> 'matchedCount')::integer,
   1,
@@ -132,7 +132,7 @@ select is(
 
 -- Formulário em branco não pode significar a instituição inteira.
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3', '{}'::jsonb) ->> 'matchedCount')::integer,
   0,
   'regra sem filtro e sem inclusão não seleciona ninguém'
@@ -147,19 +147,19 @@ select is(
 -- `allEligible` faz isso. O erro é explícito de propósito: devolver conjunto
 -- vazio esconderia a integração quebrada em vez de acusá-la.
 select throws_ok(
-  $$select * from sigav.fc_resolver_publico_avaliacao('{"filters":{"foo":["bar"]}}'::jsonb)$$,
+  $$select * from sigav."FC_RESOLVER_PUBLICO_AVALIACAO"('{"filters":{"foo":["bar"]}}'::jsonb)$$,
   'Regra de público inválida: dimensão desconhecida "foo". Dimensões aceitas: directorate, unit, coordination, costCenter, jobTitle.',
   'dimensão desconhecida é recusada, e nunca seleciona a instituição inteira'
 );
 
 select throws_ok(
-  $$select * from sigav.fc_resolver_publico_avaliacao('{"filters":{"jobTitle":"Assessor"}}'::jsonb)$$,
+  $$select * from sigav."FC_RESOLVER_PUBLICO_AVALIACAO"('{"filters":{"jobTitle":"Assessor"}}'::jsonb)$$,
   'Regra de público inválida: a dimensão "jobTitle" precisa ser uma lista de valores.',
   'valor de dimensão que não é lista é recusado'
 );
 
 select throws_ok(
-  $$select * from sigav.fc_resolver_publico_avaliacao('{"includePersonIds":["nao-e-uuid"]}'::jsonb)$$,
+  $$select * from sigav."FC_RESOLVER_PUBLICO_AVALIACAO"('{"includePersonIds":["nao-e-uuid"]}'::jsonb)$$,
   'Regra de público inválida: "includePersonIds" contém identificador que não é um UUID.',
   'identificador malformado é recusado com mensagem própria'
 );
@@ -167,13 +167,13 @@ select throws_ok(
 -- A recusa alcança a prévia e a aplicação, não só o resolvedor: as três descem
 -- pelo mesmo ponto de validação.
 select throws_ok(
-  $$select sigav.fc_previsualizar_publico_avaliacao('00000000-0000-4000-8000-0000000000e3', '{"filters":{"foo":["bar"]}}'::jsonb)$$,
+  $$select sigav."FC_PREVISUALIZAR_PUBLICO"('00000000-0000-4000-8000-0000000000e3', '{"filters":{"foo":["bar"]}}'::jsonb)$$,
   'Regra de público inválida: dimensão desconhecida "foo". Dimensões aceitas: directorate, unit, coordination, costCenter, jobTitle.',
   'a prévia recusa a mesma regra inválida'
 );
 
 select is(
-  (sigav.fc_previsualizar_publico_avaliacao(
+  (sigav."FC_PREVISUALIZAR_PUBLICO"(
     '00000000-0000-4000-8000-0000000000e3', '{"allEligible":true}'::jsonb) ->> 'matchedCount')::integer,
   4,
   'allEligible seleciona todas as pessoas ativas, e só as ativas'
@@ -184,8 +184,8 @@ select is(
 -- ---------------------------------------------------------------------------
 
 select is(
-  (select count(*)::integer from sigav.application_participants
-   where application_id = '00000000-0000-4000-8000-0000000000e3'),
+  (select count(*)::integer from sigav."RL_APLICACAO_PESSOA"
+   where "SQ_APLICACAO" = '00000000-0000-4000-8000-0000000000e3'),
   0,
   'nenhuma das prévias acima criou vínculo'
 );
@@ -194,34 +194,34 @@ select is(
 -- Aplicação
 -- ---------------------------------------------------------------------------
 
-select sigav.fc_aplicar_publico_avaliacao(
+select sigav."FC_APLICAR_PUBLICO_AVALIACAO"(
   '00000000-0000-4000-8000-0000000000e3',
   '{"filters":{"jobTitle":["Assessor"]},"excludePersonIds":["00000000-0000-4000-8000-0000000000d2"]}'::jsonb
 );
 
 -- O critério de aceite central: a prévia dissera 1, e o snapshot tem 1 elegível.
 select results_eq(
-  $$select p.full_name, ap.status
-    from sigav.application_participants ap
-    join sigav.people p on p.id = ap.person_id
-    where ap.application_id = '00000000-0000-4000-8000-0000000000e3'
-    order by p.full_name$$,
+  $$select p."NO_PESSOA", ap."ST_SITUACAO"
+    from sigav."RL_APLICACAO_PESSOA" ap
+    join sigav."TB_PESSOA" p on p."SQ_PESSOA" = ap."SQ_PESSOA"
+    where ap."SQ_APLICACAO" = '00000000-0000-4000-8000-0000000000e3'
+    order by p."NO_PESSOA"$$,
   $$values ('Ana Assessora'::text, 'ELIGIBLE'::text),
            ('Bruno Assessor'::text, 'EXCLUDED'::text)$$,
   'o snapshot materializa o público e marca EXCLUDED quem foi retirado de propósito'
 );
 
 select is(
-  (select settings -> 'audience' ->> 'resultCount'
-   from sigav.survey_applications where id = '00000000-0000-4000-8000-0000000000e3'),
+  (select "DS_CONFIGURACAO" -> 'audience' ->> 'resultCount'
+   from sigav."TB_APLICACAO_PESQUISA" where "SQ_APLICACAO" = '00000000-0000-4000-8000-0000000000e3'),
   '1',
   'a regra fica recuperável em settings.audience'
 );
 
 select is(
-  (select count(*)::integer from sigav.audit_events
-   where application_id = '00000000-0000-4000-8000-0000000000e3'
-     and event_type = 'APPLICATION_AUDIENCE_APPLIED'),
+  (select count(*)::integer from sigav."TL_EVENTO_AUDITORIA"
+   where "SQ_APLICACAO" = '00000000-0000-4000-8000-0000000000e3'
+     and "TP_EVENTO" = 'APPLICATION_AUDIENCE_APPLIED'),
   1,
   'a aplicação é auditada pelo mecanismo existente'
 );
@@ -235,19 +235,19 @@ select is(
 -- alguém elegível pelo filtro ficaria invisível na busca — e não haveria como
 -- explicar a diferença a quem opera.
 select is(
-  (select sigav.fc_buscar_pessoas_publico('ana assessora') -> 'people' -> 0 ->> 'fullName'),
+  (select sigav."FC_BUSCAR_PESSOAS_PUBLICO"('ana assessora') -> 'people' -> 0 ->> 'fullName'),
   'Ana Assessora',
   'a busca encontra apesar da diferença de acento e caixa no termo'
 );
 
 select is(
-  (select jsonb_array_length(sigav.fc_buscar_pessoas_publico('Davi') -> 'people')),
+  (select jsonb_array_length(sigav."FC_BUSCAR_PESSOAS_PUBLICO"('Davi') -> 'people')),
   0,
   'pessoa inativa não aparece na busca, coerente com a elegibilidade da fase'
 );
 
 select is(
-  (select sigav.fc_buscar_pessoas_publico('TESTE-PUB-2') -> 'people' -> 0 ->> 'fullName'),
+  (select sigav."FC_BUSCAR_PESSOAS_PUBLICO"('TESTE-PUB-2') -> 'people' -> 0 ->> 'fullName'),
   'Bruno Assessor',
   'a busca aceita matrícula, não só nome'
 );
@@ -256,7 +256,7 @@ select is(
 -- grupo inteiro de uma vez. Ana e Bruno são Assessor e estão ativos; Davi
 -- também é Assessor mas está inativo e não entra.
 select is(
-  (select jsonb_array_length(sigav.fc_buscar_pessoas_publico('assessor') -> 'people')),
+  (select jsonb_array_length(sigav."FC_BUSCAR_PESSOAS_PUBLICO"('assessor') -> 'people')),
   2,
   'a busca por cargo traz o grupo, respeitando a elegibilidade'
 );

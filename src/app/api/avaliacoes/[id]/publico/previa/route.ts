@@ -46,7 +46,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_previsualizar_publico_avaliacao", {
+  const { data, error } = await banco.rpc("FC_PREVISUALIZAR_PUBLICO", {
     p_aplicacao: id,
     p_regra: regra,
   });

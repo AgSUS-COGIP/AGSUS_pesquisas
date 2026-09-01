@@ -1,4 +1,4 @@
-// Traz para `sigav.tb_arquivo` as imagens que ainda são servidas pelo Storage
+// Traz para `sigav."TB_ARQUIVO"` as imagens que ainda são servidas pelo Storage
 // do PostgreSQL, e reescreve as URLs gravadas para `/api/arquivos/...`.
 //
 // Uso:
@@ -73,9 +73,9 @@ async function levantarReferencias(cliente) {
   const referencias = new Map();
 
   const { rows: config } = await cliente.query(`
-    select tx_url_logotipo, tx_url_fundo_acesso
-    from sigav.tb_config_plataforma
-    where co_configuracao = 1
+    select "DS_URL_LOGOTIPO", "DS_URL_FUNDO_ACESSO"
+    from sigav."TB_CONFIG_PLATAFORMA"
+    where "CO_CONFIGURACAO" = 1
   `);
   for (const linha of config) {
     for (const valor of Object.values(linha)) {
@@ -87,15 +87,17 @@ async function levantarReferencias(cliente) {
   }
 
   const { rows: aplicacoes } = await cliente.query(`
-    select id, code, settings::text as settings
-    from sigav.survey_applications
-    where settings::text like '%/storage/v1/object/public/%'
+    select "SQ_APLICACAO" as id,
+           "CO_APLICACAO" as code,
+           "DS_CONFIGURACAO"::text as settings
+    from sigav."TB_APLICACAO_PESQUISA"
+    where "DS_CONFIGURACAO"::text like '%/storage/v1/object/public/%'
   `);
   for (const linha of aplicacoes) {
     for (const ref of acharReferencias(linha.settings)) {
       referencias.set(`${ref.balde}/${ref.caminho}`, {
         ...ref,
-        origem: `survey_applications (${linha.code})`,
+        origem: `tb_aplicacao_pesquisa (${linha.code})`,
       });
     }
   }
@@ -129,7 +131,7 @@ async function main() {
     const referencias = await levantarReferencias(cliente);
 
     if (!referencias.length) {
-      const { rows } = await cliente.query("select count(*)::int as total from sigav.tb_arquivo");
+      const { rows } = await cliente.query(`select count(*)::int as total from sigav."TB_ARQUIVO"`);
       console.log(
         `Nenhuma URL de Storage encontrada. A tabela tem ${rows[0].total} arquivo(s); ` +
         "as imagens já são servidas pela própria aplicação.",
@@ -159,13 +161,13 @@ async function main() {
       const { conteudo, tipo } = await baixar(ref.url);
 
       await cliente.query(
-        `insert into sigav.tb_arquivo (co_balde, ds_caminho, tp_conteudo, nu_tamanho, im_conteudo)
+        `insert into sigav."TB_ARQUIVO" ("CO_BALDE", "DS_CAMINHO", "TP_CONTEUDO", "NU_TAMANHO", "IM_CONTEUDO")
          values ($1, $2, $3, $4, $5)
-         on conflict on constraint uk_tb_arquivo_caminho do update
-           set tp_conteudo = excluded.tp_conteudo,
-               nu_tamanho = excluded.nu_tamanho,
-               im_conteudo = excluded.im_conteudo,
-               dt_atualizacao = now()`,
+         on conflict on constraint "UK_ARQUIVO_CAMINHO" do update
+           set "TP_CONTEUDO" = excluded."TP_CONTEUDO",
+               "NU_TAMANHO" = excluded."NU_TAMANHO",
+               "IM_CONTEUDO" = excluded."IM_CONTEUDO",
+               "DT_ALTERACAO" = now()`,
         [ref.balde, ref.caminho, tipo, conteudo.length, conteudo],
       );
 
@@ -178,19 +180,19 @@ async function main() {
       // dentro do documento, inclusive com o `?v=` que a tela acrescenta — o
       // padrão de captura já inclui a query.
       await cliente.query(
-        `update sigav.survey_applications
-            set settings = replace(settings::text, $1, $2)::jsonb,
-                updated_at = timezone('utc', now())
-          where settings::text like '%' || $1 || '%'`,
+        `update sigav."TB_APLICACAO_PESQUISA"
+            set "DS_CONFIGURACAO" = replace("DS_CONFIGURACAO"::text, $1, $2)::jsonb,
+                "DT_ALTERACAO" = timezone('utc', now())
+          where "DS_CONFIGURACAO"::text like '%' || $1 || '%'`,
         [ref.url, nova],
       );
 
       await cliente.query(
-        `update sigav.tb_config_plataforma
-            set tx_url_logotipo = case when tx_url_logotipo = $1 then $2 else tx_url_logotipo end,
-                tx_url_fundo_acesso = case when tx_url_fundo_acesso = $1 then $2 else tx_url_fundo_acesso end
-          where co_configuracao = 1
-            and $1 in (tx_url_logotipo, tx_url_fundo_acesso)`,
+        `update sigav."TB_CONFIG_PLATAFORMA"
+            set "DS_URL_LOGOTIPO" = case when "DS_URL_LOGOTIPO" = $1 then $2 else "DS_URL_LOGOTIPO" end,
+                "DS_URL_FUNDO_ACESSO" = case when "DS_URL_FUNDO_ACESSO" = $1 then $2 else "DS_URL_FUNDO_ACESSO" end
+          where "CO_CONFIGURACAO" = 1
+            and $1 in ("DS_URL_LOGOTIPO", "DS_URL_FUNDO_ACESSO")`,
         [ref.url, nova],
       );
 
@@ -199,13 +201,13 @@ async function main() {
 
     const { rows: sobraram } = await cliente.query(`
       select count(*)::int as total from (
-        select 1 from sigav.tb_config_plataforma
-         where co_configuracao = 1
-           and (coalesce(tx_url_logotipo,'') like '%/storage/v1/object/public/%'
-             or coalesce(tx_url_fundo_acesso,'') like '%/storage/v1/object/public/%')
+        select 1 from sigav."TB_CONFIG_PLATAFORMA"
+         where "CO_CONFIGURACAO" = 1
+           and (coalesce("DS_URL_LOGOTIPO",'') like '%/storage/v1/object/public/%'
+             or coalesce("DS_URL_FUNDO_ACESSO",'') like '%/storage/v1/object/public/%')
         union all
-        select 1 from sigav.survey_applications
-         where settings::text like '%/storage/v1/object/public/%'
+        select 1 from sigav."TB_APLICACAO_PESQUISA"
+         where "DS_CONFIGURACAO"::text like '%/storage/v1/object/public/%'
       ) t
     `);
 

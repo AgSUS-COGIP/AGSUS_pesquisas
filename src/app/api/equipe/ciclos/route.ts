@@ -11,7 +11,7 @@ import type { CicloDeLideranca } from "@/lib/api/contratos-pessoas";
  */
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_ciclos_lideranca");
+  const { data, error } = await banco.rpc("FC_LISTAR_CICLOS_LIDERANCA");
 
   if (error) return respostaDeErro(error, "GET /api/equipe/ciclos");
 

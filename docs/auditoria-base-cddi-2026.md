@@ -28,10 +28,10 @@ Não foram encontradas duplicidades de matrícula ou de chave de participante.
 
 O e-mail informado na base cadastral não pode ser tratado como chave única de pessoa, porque existem endereços repetidos entre matrículas distintas. A matrícula permanece como identificador institucional da pessoa.
 
-Foi criada a tabela `person_access_identities` para controlar separadamente os e-mails efetivamente validados para acesso. Assim:
+Foi criada a tabela `TB_IDENTIDADE_ACESSO` para controlar separadamente os e-mails efetivamente validados para acesso. Assim:
 
-- `people.institutional_email` preserva o dado recebido da fonte;
-- `person_access_identities.email` representa uma identidade de acesso validada;
+- `TB_PESSOA.institutional_email` preserva o dado recebido da fonte;
+- `TB_IDENTIDADE_ACESSO.email` representa uma identidade de acesso validada;
 - e-mails duplicados não são ativados automaticamente;
 - participantes sem e-mail permanecem cadastráveis, mas sem identidade de login até saneamento;
 - a vinculação automática apenas por matrícula continua desabilitada.
@@ -62,6 +62,6 @@ O PostgreSQL contém:
 
 ## Carga de participantes
 
-Os dados pessoais não serão armazenados no GitHub. A importação será executada diretamente no PostgreSQL por processo controlado, com registro em `data_import_batches` e pendências em `data_import_issues`.
+Os dados pessoais não serão armazenados no GitHub. A importação será executada diretamente no PostgreSQL por processo controlado, com registro em `TB_LOTE_IMPORTACAO` e pendências em `TB_OCORRENCIA_IMPORTACAO`.
 
 A primeira tentativa operacional foi encerrada sem importar registros porque o ambiente de processamento não possuía acesso externo ao Edge Function. A função temporária foi desativada, a função SQL de importação foi removida e o lote foi registrado como `FAILED`, com `data_imported=false`.

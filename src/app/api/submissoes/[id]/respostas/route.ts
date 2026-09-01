@@ -37,7 +37,7 @@ export async function PUT(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("save_my_survey_answer", {
+  const { data, error } = await banco.rpc("FC_SALVAR_RESPOSTA_PESQUISA", {
     target_submission_id: id,
     target_question_id: corpo.questionId,
     target_option_ids: corpo.optionIds ?? null,

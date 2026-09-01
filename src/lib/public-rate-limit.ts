@@ -54,7 +54,7 @@ export async function publicRateLimitResponse(
   options: PublicRateLimitOptions,
 ): Promise<NextResponse | null> {
   const banco = createAdminRpcClient();
-  const { data, error } = await banco.rpc("fc_srv_consumir_limite_publico", {
+  const { data, error } = await banco.rpc("FC_SRV_CONSUMIR_LIMITE_PUBLICO", {
     target_scope: options.scope,
     target_key_hash: publicRequestKey(request, options.discriminator),
     target_limit: options.limit,

@@ -47,9 +47,9 @@ test("todas as migrations versionadas constam no histórico do banco local", asy
     .sort();
 
   const { rows } = await obterPool().query(
-    "select co_versao from sigav.tb_migracao order by co_versao",
+    `select "CO_VERSAO" from sigav."TB_MIGRACAO" order by "CO_VERSAO"`,
   );
-  const versoesDoBanco = rows.map((linha) => linha.co_versao);
+  const versoesDoBanco = rows.map((linha) => linha.CO_VERSAO);
 
   assert.deepEqual(
     versoesDoBanco,
@@ -79,16 +79,16 @@ test("as funções de claims da sessão existem com o nome novo", async () => {
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'sigav'
-      and proname in ('fc_uid_sessao', 'fc_papel_sessao', 'fc_claims_sessao')
+      and proname in ('FC_UID_SESSAO', 'FC_PAPEL_SESSAO', 'FC_CLAIMS_SESSAO')
     order by proname
   `);
   assert.deepEqual(
     rows.map((r) => r.proname),
-    ["fc_claims_sessao", "fc_papel_sessao", "fc_uid_sessao"],
+    ["FC_CLAIMS_SESSAO", "FC_PAPEL_SESSAO", "FC_UID_SESSAO"],
   );
 });
 
-test("as tabelas de identidade estão em sigav e people continua ligada a elas", async () => {
+test("as tabelas de identidade estão em sigav e tb_pessoa continua ligada a elas", async () => {
   const { rows } = await obterPool().query(`
     select con.conname
     from pg_constraint con
@@ -97,8 +97,8 @@ test("as tabelas de identidade estão em sigav e people continua ligada a elas",
     join pg_namespace n on n.oid = tgt.relnamespace
     where con.contype = 'f'
       and n.nspname = 'sigav'
-      and tgt.relname = 'tb_usuario_identidade'
-      and src.relname = 'people'
+      and tgt.relname = 'TB_USUARIO_IDENTIDADE'
+      and src.relname = 'TB_PESSOA'
   `);
-  assert.equal(rows.length, 1, "people perdeu a FK para tb_usuario_identidade");
+  assert.equal(rows.length, 1, "tb_pessoa perdeu a FK para tb_usuario_identidade");
 });

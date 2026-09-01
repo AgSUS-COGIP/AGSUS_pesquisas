@@ -30,7 +30,7 @@ import {
  * deliberada para não depender de conta externa nova.
  *
  * Uma falha individual não interrompe o restante: o desfecho de cada envio é
- * registrado por `fc_srv_concluir_email`, e o que falhou volta à fila na
+ * registrado por `FC_SRV_CONCLUIR_EMAIL`, e o que falhou volta à fila na
  * próxima execução, enquanto a janela do tipo continuar válida.
  */
 
@@ -181,7 +181,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
     // janela. Depois da migration, todo payload traz claimToken e usa a
     // confirmação protegida contra execuções concorrentes.
     if (email.claimToken) {
-      return banco.rpc("fc_srv_concluir_email", {
+      return banco.rpc("FC_SRV_CONCLUIR_EMAIL", {
         target_email_id: email.id,
         target_claim_token: email.claimToken,
         target_success: success,
@@ -189,7 +189,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       });
     }
 
-    return banco.rpc("fc_srv_concluir_email", {
+    return banco.rpc("FC_SRV_CONCLUIR_EMAIL", {
       target_email_id: email.id,
       target_success: success,
       target_error: errorMessage,
@@ -205,7 +205,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
       batches < MAX_BATCHES_PER_DISPATCH &&
       Date.now() - startedAt < DISPATCH_TIME_BUDGET_MS
     ) {
-      const { data, error } = await banco.rpc("fc_srv_reivindicar_emails");
+      const { data, error } = await banco.rpc("FC_SRV_REIVINDICAR_EMAILS");
       if (error) {
         throw new Error(`Não foi possível reivindicar os e-mails pendentes: ${error.message}`);
       }
@@ -239,7 +239,7 @@ export async function dispatchParticipantEmails(): Promise<ParticipantEmailDispa
         */
         if (email.claimToken) {
           const { data: transporte, error: erroTransporte } = await banco.rpc(
-            "fc_srv_registrar_transporte",
+            "FC_SRV_REGISTRAR_TRANSPORTE",
             {
               target_email_id: email.id,
               target_claim_token: email.claimToken,

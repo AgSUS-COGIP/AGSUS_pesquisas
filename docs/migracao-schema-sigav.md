@@ -45,7 +45,7 @@ as funções do pgcrypto dentro de `sigav`, não descartá-las.
 
 A mudança do banco e a publicação da aplicação devem ocorrer na mesma janela de
 manutenção. `PostgreSQL db push` **não** se aplica mais: o histórico vive em
-`sigav.tb_migracao` e quem aplica é `scripts/aplicar-migrations.mjs` (a razão
+`sigav."TB_MIGRACAO"` e quem aplica é `scripts/aplicar-migrations.mjs` (a razão
 está no cabeçalho daquele arquivo).
 
 1. Ative a página de manutenção ou interrompa temporariamente o tráfego.

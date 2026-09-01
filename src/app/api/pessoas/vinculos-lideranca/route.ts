@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     : 100;
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("list_platform_admin_leadership_links", {
+  const { data, error } = await banco.rpc("FC_LISTAR_VINCULOS_LIDERANCA", {
     target_application_id: avaliacao,
     target_search: busca,
     target_limit: limite,
@@ -51,7 +51,7 @@ export async function PUT(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("set_platform_admin_leadership_link", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_VINCULO_LIDERANCA", {
     target_application_id: corpo.applicationId,
     target_subordinate_person_id: corpo.subordinatePersonId,
     target_leader_person_id: corpo.leaderPersonId,

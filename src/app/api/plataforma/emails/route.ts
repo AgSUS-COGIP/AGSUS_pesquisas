@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * Histórico de e-mails aos participantes, com resumo por situação.
  *
  * `tl_email_participante` não tem grant para `authenticated` e não vai ganhar:
- * a leitura passa por `fc_listar_envios_email`, que exige papel administrativo.
+ * a leitura passa por `FC_LISTAR_ENVIOS_EMAIL`, que exige papel administrativo.
  * Até esta rota existir, ninguém na plataforma conseguia ver o que havia sido
  * enviado — nem que nada havia.
  */
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_envios_email", {
+  const { data, error } = await banco.rpc("FC_LISTAR_ENVIOS_EMAIL", {
     p_aplicacao: avaliacao || null,
     p_situacao: situacao,
     p_limite: Number.isFinite(limite) ? limite : 200,

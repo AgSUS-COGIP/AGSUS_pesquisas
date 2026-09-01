@@ -7,9 +7,9 @@ import type { SecaoEntrada } from "@/lib/api/contratos-construtor";
 /**
  * Cria uma seção no rascunho da avaliação.
  *
- * A posição não vem no corpo: `add_survey_section` calcula o próximo lugar, e
+ * A posição não vem no corpo: `FC_INCLUIR_SECAO` calcula o próximo lugar, e
  * deixar a tela propor a posição criaria corrida entre dois operadores no mesmo
- * formulário. Só rascunho é editável — o trigger `enforce_draft_survey_structure`
+ * formulário. Só rascunho é editável — o trigger `FC_EXIGIR_RASCUNHO_ESTRUT`
  * recusa versão publicada, e a recusa chega à tela como 409.
  */
 export async function POST(
@@ -35,7 +35,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("add_survey_section", {
+  const { data, error } = await banco.rpc("FC_INCLUIR_SECAO", {
     target_survey_id: id,
     section_title: title,
     section_description: typeof corpo.description === "string" ? corpo.description.trim() || null : null,

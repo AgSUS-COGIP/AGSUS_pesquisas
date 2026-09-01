@@ -140,14 +140,14 @@ begin
   raise notice 'ok 4 — todas as tabelas têm RLS habilitada';
 
   -- 5. Contrato de identidade ------------------------------------------------
-  if to_regprocedure('sigav.fc_uid_sessao()') is null
-     or to_regprocedure('sigav.fc_papel_sessao()') is null
-     or to_regprocedure('sigav.fc_claims_sessao()') is null then
+  if to_regprocedure('sigav."FC_UID_SESSAO"()') is null
+     or to_regprocedure('sigav."FC_PAPEL_SESSAO"()') is null
+     or to_regprocedure('sigav."FC_CLAIMS_SESSAO"()') is null then
     raise exception 'INVARIANTE 5: falta alguma função de claims da sessão.';
   end if;
 
-  if to_regclass('sigav.tb_usuario_identidade') is null
-     or to_regclass('sigav.tb_identidade_oauth') is null then
+  if to_regclass('sigav."TB_USUARIO_IDENTIDADE"') is null
+     or to_regclass('sigav."TB_IDENTIDADE_OAUTH"') is null then
     raise exception 'INVARIANTE 5: falta alguma tabela de identidade.';
   end if;
 
@@ -157,21 +157,23 @@ begin
     join pg_class src on src.oid = con.conrelid
     join pg_class tgt on tgt.oid = con.confrelid
    where con.contype = 'f'
-     and tgt.relname = 'tb_usuario_identidade'
-     and src.relname = 'people';
+     and tgt.relname = 'TB_USUARIO_IDENTIDADE'
+     and src.relname = 'TB_PESSOA';
 
   if v_quantidade <> 1 then
-    raise exception 'INVARIANTE 5: people não está mais ligada a tb_usuario_identidade.';
+    raise exception 'INVARIANTE 5: tb_pessoa não está mais ligada a tb_usuario_identidade.';
   end if;
   raise notice 'ok 5 — contrato de identidade íntegro';
 
   -- 6. Vínculo pessoa↔conta sem órfão ---------------------------------------
   select count(*)
     into v_quantidade
-    from sigav.people p
-   where p.auth_user_id is not null
+    from sigav."TB_PESSOA" p
+   where p."SQ_USUARIO_IDENTIDADE" is not null
      and not exists (
-       select 1 from sigav.tb_usuario_identidade u where u.id = p.auth_user_id
+       select 1
+         from sigav."TB_USUARIO_IDENTIDADE" u
+        where u."SQ_USUARIO" = p."SQ_USUARIO_IDENTIDADE"
      );
 
   if v_quantidade <> 0 then
@@ -213,7 +215,7 @@ begin
 
   -- 8. Só as roles da arquitetura decidem acesso ----------------------------
   -- Desde 20260828140000 a autorização é inteiramente da aplicação
-  -- (rpc-permissions.ts e sigav.person_module_permissions). Uma role do
+  -- (rpc-permissions.ts e sigav."RL_PESSOA_MODULO"). Uma role do
   -- Postgres fora da arquitetura com privilégio em objeto de sigav
   -- significaria que voltou a existir um segundo caminho de acesso — e o
   -- segundo caminho é o que ninguém lembra de revisar.
@@ -324,7 +326,7 @@ begin
 
   -- 9. Perfil de acesso tem uma morada só ----------------------------------
   -- Desde 20260828150000 as tabelas de perfil saíram do banco: autorização é
-  -- `person_module_permissions` sobre `platform_modules`, e preset é interface
+  -- `rl_pessoa_modulo` sobre `tb_modulo_plataforma`, e preset é interface
   -- (`src/lib/platform-access-presets.ts`). Duas moradas para a mesma decisão
   -- foi o que fez `system_roles` sobreviver quatro migrations depois de deixar
   -- de decidir nada — a que ninguém usa é a que ninguém revisa.
@@ -349,11 +351,126 @@ begin
     raise exception 'INVARIANTE 9: objeto de perfil legado de volta em sigav: %', v_detalhe;
   end if;
 
-  if to_regclass('sigav.person_module_permissions') is null
-     or to_regclass('sigav.platform_modules') is null then
+  if to_regclass('sigav."RL_PESSOA_MODULO"') is null
+     or to_regclass('sigav."TB_MODULO_PLATAFORMA"') is null then
     raise exception 'INVARIANTE 9: falta a tabela que hoje decide o acesso.';
   end if;
-  raise notice 'ok 9 — perfil de acesso só em person_module_permissions';
+  raise notice 'ok 9 — perfil de acesso só em RL_PESSOA_MODULO';
+
+  -- 10. Gatilho não cita campo que a tabela não tem -------------------------
+  -- A padronização de colunas (20260831180000 em diante) renomeia coluna por
+  -- coluna, e gatilho é FUNÇÃO COMPARTILHADA: `FC_DEFINIR_DT_ALTERACAO` serve
+  -- 17 tabelas. Renomear `updated_at` numa delas não toca no corpo da função, e
+  -- corpo de PL/pgSQL só resolve campo de registro na EXECUÇÃO — a migration
+  -- aplica limpa, a suíte passa, e o primeiro UPDATE em produção morre com
+  -- `record "new" has no field "updated_at"`. Foi o que 20260831180000 causou em
+  -- três tabelas e 20260831200000 reparou.
+  --
+  -- Duas formas de gatilho ficam de fora, porque para elas a citação direta não
+  -- prova nada:
+  --   • quem ramifica por `tg_table_name` (FC_EXIGIR_RASCUNHO_ESTRUT) cita
+  --     campos de várias tabelas de propósito, e o ramo alheio nunca executa;
+  --   • quem testa `to_jsonb(new) ? '...'` atende os dois estados da
+  --     nomenclatura ao mesmo tempo. Desses exige-se o que de fato importa:
+  --     que a tabela case com ALGUM ramo.
+  select count(*), coalesce(string_agg(nome, '; ' order by nome), '')
+    into v_quantidade, v_detalhe
+    from (
+      with citacoes as (
+        select c.relname                                       as tabela,
+               c.oid                                           as relid,
+               tg.tgname::text                                  as gatilho,
+               p.proname::text                                  as funcao,
+               case when m[2] = '' then lower(m[3]) else m[3] end as campo,
+               pg_get_functiondef(p.oid) ~ 'to_jsonb\(new\)[[:space:]]*\?' as dois_estados,
+               pg_get_functiondef(p.oid) ~ 'tg_table_name'                    as por_tabela
+          from pg_trigger tg
+          join pg_class c on c.oid = tg.tgrelid
+          join pg_proc  p on p.oid = tg.tgfoid
+          cross join lateral regexp_matches(
+            regexp_replace(pg_get_functiondef(p.oid), '--[^' || chr(10) || ']*', '', 'g'),
+            '\m(new|old)\.("?)([a-zA-Z_][a-zA-Z_0-9]*)\2', 'gi') as m
+         where c.relnamespace = 'sigav'::regnamespace
+           and not tg.tgisinternal
+      ), resolvidas as (
+        select ct.*,
+               exists (select 1 from pg_attribute a
+                        where a.attrelid = ct.relid and a.attname = ct.campo
+                          and a.attnum > 0 and not a.attisdropped) as existe
+          from citacoes ct
+      )
+      select tabela || ' :: ' || gatilho || ' -> ' || funcao
+             || ' (' || string_agg(distinct campo, ', ' order by campo) || ')' as nome
+        from resolvidas
+       where not por_tabela and not dois_estados and not existe
+       group by tabela, gatilho, funcao
+      union all
+      select tabela || ' :: ' || gatilho || ' -> ' || funcao || ' (nenhum ramo vivo)'
+        from resolvidas
+       where dois_estados
+       group by tabela, gatilho, funcao, relid
+      having bool_or(existe) is not true
+    ) quebradas;
+
+  if v_quantidade <> 0 then
+    raise exception 'INVARIANTE 10: gatilho cita campo que a tabela não tem: %', v_detalhe;
+  end if;
+  raise notice 'ok 10 — nenhum gatilho cita campo inexistente na tabela';
+
+  -- 11. Corpo de função não cita constraint que não existe ------------------
+  -- `on conflict on constraint X` guarda um IDENTIFICADOR, e identificador sem
+  -- aspas dobra para minúscula. 20260831150000 pôs todas as constraints em
+  -- MAIÚSCULAS e, no mesmo arquivo, recriou `FC_ARQ_GRAVAR` com o corpo antigo
+  -- apontando para `uk_tb_arquivo_caminho` — que deixou de existir. Nada
+  -- reclamou: o corpo é texto resolvido em execução. Quebrava a gravação da
+  -- marca e das capas de pesquisa, e ficou assim até 20260831220000.
+  --
+  -- Mesma família do invariante 10, outra superfície: lá o campo do registro,
+  -- aqui o nome da constraint.
+  select count(*), coalesce(string_agg(nome, ', ' order by nome), '')
+    into v_quantidade, v_detalhe
+    from (
+      select distinct p.proname || ' -> ' || m[2] as nome
+        from pg_proc p
+        cross join lateral regexp_matches(
+          regexp_replace(pg_get_functiondef(p.oid), '--[^' || chr(10) || ']*', '', 'g'),
+          'on[[:space:]]+constraint[[:space:]]+("?)([a-zA-Z_][a-zA-Z_0-9]*)\1', 'gi') as m
+       where p.pronamespace = 'sigav'::regnamespace
+         and p.prokind = 'f'
+         and not exists (
+           select 1 from pg_constraint con
+             join pg_class rel on rel.oid = con.conrelid
+            where rel.relnamespace = 'sigav'::regnamespace
+              and con.conname = case when m[1] = '' then lower(m[2]) else m[2] end)
+    ) citacoes;
+
+  if v_quantidade <> 0 then
+    raise exception 'INVARIANTE 11: função cita constraint que não existe: %', v_detalhe;
+  end if;
+  raise notice 'ok 11 — nenhuma função cita constraint inexistente';
+
+  -- 12. Toda coluna física segue o vocabulário institucional ---------------
+  select count(*), coalesce(string_agg(nome, ', ' order by nome), '')
+    into v_quantidade, v_detalhe
+    from (
+      select c.relname || '.' || a.attname as nome
+        from pg_attribute a
+        join pg_class c on c.oid = a.attrelid
+       where c.relnamespace = 'sigav'::regnamespace
+         and c.relkind in ('r', 'p')
+         and a.attnum > 0
+         and not a.attisdropped
+         and (
+           a.attname <> upper(a.attname)
+           or length(a.attname) > 30
+           or a.attname !~ '^(CO|SQ|DT|HR|DS|NO|NU|QT|VL|TX|SG|ST|TP|IM|CG|AU)_[A-Z0-9_]+$'
+         )
+    ) divergentes;
+
+  if v_quantidade <> 0 then
+    raise exception 'INVARIANTE 12: coluna fora do padrão institucional: %', v_detalhe;
+  end if;
+  raise notice 'ok 12 — todas as 415 colunas seguem o padrão institucional';
 
   raise notice '--- todos os invariantes passaram ---';
 end;

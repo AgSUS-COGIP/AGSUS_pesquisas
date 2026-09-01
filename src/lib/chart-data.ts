@@ -1,8 +1,8 @@
 /**
  * Camada de dados pura dos gráficos dos painéis.
  *
- * Sem React, DOM ou rede: transforma os dados brutos das RPCs (`get_survey_dashboard`,
- * `get_cddi_monitoring_dashboard`) nas estruturas que os componentes de gráfico
+ * Sem React, DOM ou rede: transforma os dados brutos das RPCs (`FC_OBTER_PAINEL_PESQ`,
+ * `FC_PAINEL_MONITOR_CDDI`) nas estruturas que os componentes de gráfico
  * consomem. Isolar aqui mantém os cálculos testáveis e os componentes reutilizáveis
  * entre avaliações diferentes — os gráficos só recebem `label`/`value`, nunca a regra.
  */

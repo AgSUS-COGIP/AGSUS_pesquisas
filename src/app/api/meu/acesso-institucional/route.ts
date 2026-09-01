@@ -15,7 +15,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  */
 export async function POST() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("resolve_authenticated_person", {
+  const { data, error } = await banco.rpc("FC_RESOLVER_PESSOA_AUTENTIC", {
     target_employee_number: null,
   });
 

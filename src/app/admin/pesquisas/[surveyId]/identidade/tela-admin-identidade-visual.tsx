@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
  * A aplicação (ciclo) a que a capa pertence.
  *
  * A tela não carrega mais o construtor inteiro para chegar até aqui: ela pedia
- * `get_survey_builder` — seções, perguntas e alternativas — só para extrair
+ * `FC_OBTER_CONSTRUTOR` — seções, perguntas e alternativas — só para extrair
  * `application.id`, que era o argumento das duas RPCs de capa. Essa tradução
  * passou para a rota, que devolve o identificador junto do que a tela de fato
  * exibe: o código e o nome do ciclo.

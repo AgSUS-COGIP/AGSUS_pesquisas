@@ -2,13 +2,13 @@
 
 A plataforma separa duas decisões de segurança:
 
-1. **Autenticação institucional**: contas pertencentes aos domínios ativos em `institutional_domains` podem entrar na plataforma e recebem um cadastro institucional no primeiro acesso.
-2. **Autorização por aplicação**: o acesso a cada ciclo depende de `survey_applications.access_mode`.
+1. **Autenticação institucional**: contas pertencentes aos domínios ativos em `TB_DOMINIO_INSTITUCIONAL` podem entrar na plataforma e recebem um cadastro institucional no primeiro acesso.
+2. **Autorização por aplicação**: o acesso a cada ciclo depende de `TB_APLICACAO_PESQUISA.access_mode`.
 
 ## Modos de acesso
 
 - `INSTITUTIONAL`: qualquer usuário institucional autenticado e ativo pode visualizar e responder durante o período aberto.
-- `RESTRICTED`: somente participantes elegíveis em `application_participants` e administradores podem acessar.
+- `RESTRICTED`: somente participantes elegíveis em `RL_APLICACAO_PESSOA` e administradores podem acessar.
 
 O ciclo `CDDI-2026` permanece com acesso `RESTRICTED`.
 

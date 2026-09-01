@@ -39,7 +39,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("add_survey_question", {
+  const { data, error } = await banco.rpc("FC_INCLUIR_PERGUNTA", {
     target_survey_id: id,
     target_section_id: corpo.sectionId,
     question_title: title,

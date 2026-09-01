@@ -42,7 +42,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   if (!ehEntradaDeResposta(body)) return respostaDeEntradaInvalida(erroNaEntradaDeResposta(body) ?? "Resposta inválida.");
   const banco = createAdminRpcClient();
-  const { data, error } = await banco.rpc("fc_srv_gravar_resp_anon", {
+  const { data, error } = await banco.rpc("FC_SRV_GRAVAR_RESP_ANON", {
     target_submission_id: id, target_session_token: token, target_question_id: body.questionId,
     target_option_ids: body.optionIds ?? null, target_text: body.text ?? null, target_number: body.number ?? null,
     target_boolean: body.boolean ?? null, target_date: body.date ?? null, target_datetime: body.datetime ?? null, target_json: body.json ?? null,

@@ -21,7 +21,7 @@ export async function GET(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_ciclos_pesquisa", {
+  const { data, error } = await banco.rpc("FC_LISTAR_CICLOS_PESQUISA", {
     p_codigo_pesquisa: id,
   });
 

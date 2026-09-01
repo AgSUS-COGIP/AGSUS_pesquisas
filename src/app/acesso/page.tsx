@@ -70,7 +70,7 @@ async function fetchBranding(): Promise<ResultadoDaMarca> {
 
   try {
     const banco = createPublicRpcClient();
-    const { data, error } = await banco.rpc("fc_obter_marca_publica");
+    const { data, error } = await banco.rpc("FC_OBTER_MARCA_PUBLICA");
 
     if (error) {
       return { branding: DEFAULT_PLATFORM_BRANDING, indisponivel: !error.code };

@@ -7,7 +7,7 @@
 // renomeada por migration continua listada, e o defeito só aparece quando
 // alguém abre a tela e recebe "Could not find the function".
 //
-// A verificação de existência reusa `sigav.fc_srv_verificar_contrato_rpc`, que
+// A verificação de existência reusa `sigav."FC_SRV_VERIFICAR_CONTRATO_RPC"`, que
 // o próprio projeto criou para isso, em vez de reimplementar a consulta.
 
 import { test, after } from "node:test";
@@ -30,7 +30,7 @@ test("toda RPC do allowlist existe no banco", async () => {
   for (const lote of lotes) {
     const resultado = await comoServico(async (cliente) => {
       const { rows } = await cliente.query(
-        "select sigav.fc_srv_verificar_contrato_rpc($1::text[]) as r",
+        `select sigav."FC_SRV_VERIFICAR_CONTRATO_RPC"($1::text[]) as r`,
         [lote],
       );
       return rows[0].r;
@@ -65,13 +65,15 @@ test("as funções de serviço recusam uma sessão comum", async () => {
   );
   assert.ok(deServico.length > 0, "esperava encontrar RPCs exclusivas de serviço");
 
-  const alvo = "fc_srv_verificar_contrato_rpc";
+  const alvo = "FC_SRV_VERIFICAR_CONTRATO_RPC";
   assert.ok(deServico.includes(alvo), `${alvo} deveria ser exclusiva de serviço`);
 
   await assert.rejects(
     () =>
       comSessao("authenticated", { sub: "00000000-0000-0000-0000-000000000000" }, (cliente) =>
-        cliente.query(`select sigav.${alvo}($1::text[])`, [["people"]]),
+        // O nome vai citado: sem aspas o PostgreSQL dobraria para minúscula e o
+        // teste falharia por "função não existe" em vez de por acesso restrito.
+        cliente.query(`select sigav."${alvo}"($1::text[])`, [["people"]]),
       ),
     /Acesso restrito/,
     "função de serviço aceitou uma sessão autenticada comum",
@@ -99,7 +101,7 @@ test("nenhuma função de sigav mudou de dono para superusuário", async () => {
 
 // Exceção única e deliberada, com prazo de validade. As duas assinaturas de
 // conclusão de e-mail NÃO são equivalentes: a de 3 argumentos atualiza a fila
-// sem checar nada, e a de 4 exige `st_envio = 'PROCESSANDO'` com token vigente
+// sem checar nada, e a de 4 exige `"ST_ENVIO" = 'PROCESSANDO'` com token vigente
 // e levanta erro se a reivindicação expirou. O despachador
 // (src/app/api/tarefas/emails/despachador.ts) ainda cai na primeira quando
 // `email.claimToken` vem vazio — o que contorna a proteção contra execução
@@ -109,7 +111,7 @@ test("nenhuma função de sigav mudou de dono para superusuário", async () => {
 // 20260820180000_claim_de_email_expira.sql. Quando o despachador passar a
 // sempre reivindicar antes de concluir, apague estas duas linhas e as duas
 // funções de 3 argumentos: o teste volta a cobrir o conjunto inteiro.
-const SOBRECARGA_TOLERADA = ["fc_srv_concluir_email", "fc_concluir_email_participante"];
+const SOBRECARGA_TOLERADA = ["FC_SRV_CONCLUIR_EMAIL", "FC_CONCLUIR_EMAIL_PARTICIPANTE"];
 
 test("nenhuma RPC do allowlist tem sobrecarga no banco", async () => {
   // O adaptador monta `select * from sigav.fn(arg => $1, ...)`, e o Postgres

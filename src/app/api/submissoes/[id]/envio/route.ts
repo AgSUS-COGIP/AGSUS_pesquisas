@@ -25,7 +25,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("submit_my_survey_submission", {
+  const { data, error } = await banco.rpc("FC_ENVIAR_SUBMISSAO_PESQUISA", {
     target_submission_id: id,
   });
 

@@ -19,7 +19,7 @@ export async function GET(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("list_admin_application_participants", {
+  const { data, error } = await banco.rpc("FC_LISTAR_PARTIC_CICLO", {
     target_application_id: id,
   });
 
@@ -69,7 +69,7 @@ export async function POST(
       return respostaDeEntradaInvalida("Informe matrícula, nome completo e e-mail institucional.");
     }
 
-    const { data, error } = await banco.rpc("create_and_assign_admin_participant", {
+    const { data, error } = await banco.rpc("FC_CRIAR_E_ATRIB_PARTIC", {
       target_application_id: id,
       target_employee_number: employeeNumber,
       target_full_name: fullName,
@@ -85,7 +85,7 @@ export async function POST(
   }
 
   if (corpo.todosDisponiveis) {
-    const { data, error } = await banco.rpc("assign_admin_all_available_participants", {
+    const { data, error } = await banco.rpc("FC_ATRIB_TODOS_DISPONIVEIS", {
       target_application_id: id,
       target_access_profile: "PARTICIPANTE",
     });
@@ -102,7 +102,7 @@ export async function POST(
   // Sempre a RPC de lote, mesmo para uma pessoa só: alternar de função conforme
   // o tamanho da lista faria o formato da resposta mudar sem o chamador ter
   // pedido nada diferente.
-  const { data, error } = await banco.rpc("assign_admin_application_participants_bulk", {
+  const { data, error } = await banco.rpc("FC_ATRIB_PARTICIPANTE_LOTE", {
     target_application_id: id,
     target_person_ids: pessoas,
     target_access_profile: "PARTICIPANTE",

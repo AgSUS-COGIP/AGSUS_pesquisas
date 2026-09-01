@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("start_or_resume_my_survey_submission", {
+  const { data, error } = await banco.rpc("FC_INICIAR_OU_RETOMAR_PESQ", {
     target_application_code: applicationCode,
   });
 

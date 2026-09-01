@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_arq_listar", {
+  const { data, error } = await banco.rpc("FC_ARQ_LISTAR", {
     p_balde: balde,
     p_prefixo: prefixo,
   });

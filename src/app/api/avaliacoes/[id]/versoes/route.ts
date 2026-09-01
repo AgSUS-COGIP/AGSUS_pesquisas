@@ -18,7 +18,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_criar_nova_versao_pesquisa", {
+  const { data, error } = await banco.rpc("FC_CRIAR_NOVA_VERSAO_PESQUISA", {
     p_pesquisa: id,
   });
 

@@ -18,7 +18,7 @@ export function listarAvaliacoes(opcoes?: { arquivadas?: boolean }) {
 /** Cria uma avaliação em rascunho e devolve o que o banco gravou. */
 export function criarAvaliacao(entrada: CriarAvaliacaoEntrada) {
   // O código vem em `code`, não em `applicationCode`: é o nome que
-  // `create_survey_draft` devolve.
+  // `FC_CRIAR_RASCUNHO_PESQUISA` devolve.
   return chamar<{
     status: string;
     surveyId: string;

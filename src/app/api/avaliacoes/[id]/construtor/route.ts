@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("get_survey_builder", {
+  const { data, error } = await banco.rpc("FC_OBTER_CONSTRUTOR", {
     target_survey_id: id,
   });
 

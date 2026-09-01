@@ -337,7 +337,7 @@ export default function AccessPage({ initialBranding }: { initialBranding: Platf
             do produto sai de `/admin/configuracoes`, mas a expansão vem de
             `DEFAULT_PLATFORM_BRANDING`: quem trocar a sigla no banco verá a
             sigla nova com a expansão antiga. Levar a expansão para o banco
-            exige acrescentar parâmetro a `fc_atualizar_marca_plataforma`, o que
+            exige acrescentar parâmetro a `FC_ATUALIZAR_MARCA_PLATAFORMA`, o que
             cria uma sobrecarga nova e esbarra na regra de publicar o frontend
             antes de mexer na RPC. Fica para a rodada de
             personalização, junto com os demais campos.

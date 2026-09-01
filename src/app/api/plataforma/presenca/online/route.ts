@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_presenca_online");
+  const { data, error } = await banco.rpc("FC_LISTAR_PRESENCA_ONLINE");
 
   if (error) return respostaDeErro(error, "GET /api/plataforma/presenca/online");
 

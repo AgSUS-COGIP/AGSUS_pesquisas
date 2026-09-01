@@ -33,7 +33,7 @@ export async function PATCH(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("update_survey_section", {
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_SECAO", {
     target_section_id: secaoId,
     section_title: title,
     section_description: typeof corpo.description === "string" ? corpo.description.trim() || null : null,

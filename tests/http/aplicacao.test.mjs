@@ -68,19 +68,20 @@ describe(
 
     test("as imagens são servidas pela própria aplicação", async () => {
       const { rows } = await obterPool().query(
-        "select co_balde, ds_caminho, tp_conteudo, nu_tamanho from sigav.tb_arquivo order by ds_caminho",
+        `select "CO_BALDE", "DS_CAMINHO", "TP_CONTEUDO", "NU_TAMANHO"
+           from sigav."TB_ARQUIVO" order by "DS_CAMINHO"`,
       );
       assert.ok(rows.length > 0, "nenhuma imagem no banco para testar");
 
       for (const arquivo of rows) {
-        const url = `${BASE}/api/arquivos/${arquivo.co_balde}/${arquivo.ds_caminho}`;
+        const url = `${BASE}/api/arquivos/${arquivo.CO_BALDE}/${arquivo.DS_CAMINHO}`;
         const resposta = await fetch(url);
 
         assert.equal(resposta.status, 200, `${url} devolveu ${resposta.status}`);
-        assert.equal(resposta.headers.get("content-type"), arquivo.tp_conteudo);
+        assert.equal(resposta.headers.get("content-type"), arquivo.TP_CONTEUDO);
         assert.equal(
           Number(resposta.headers.get("content-length")),
-          arquivo.nu_tamanho,
+          arquivo.NU_TAMANHO,
           `${url} devolveu tamanho diferente do gravado`,
         );
         // Servida da mesma origem da aplicação, o cabeçalho é o que impede o

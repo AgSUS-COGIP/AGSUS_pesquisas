@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
   const caminho = typeof corpo.caminho === "string" && corpo.caminho.trim() ? corpo.caminho.trim() : null;
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_definir_fundo_acesso", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_FUNDO_ACESSO", {
     p_url: url,
     p_caminho: caminho,
   });

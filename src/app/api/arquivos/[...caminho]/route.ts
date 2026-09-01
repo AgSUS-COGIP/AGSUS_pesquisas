@@ -34,7 +34,7 @@ export async function GET(request: Request, { params }: Contexto) {
   // cliente de sessão faria a rota pública custar uma resolução de identidade a
   // cada imagem carregada na tela de acesso.
   const banco = createPublicRpcClient();
-  const { data, error } = await banco.rpc("fc_arq_obter", {
+  const { data, error } = await banco.rpc("FC_ARQ_OBTER", {
     p_balde: endereco.balde,
     p_caminho: endereco.caminho,
   });
@@ -49,7 +49,7 @@ export async function GET(request: Request, { params }: Contexto) {
   // invalidaria o cache sem que o arquivo tivesse mudado.
   const etag = `"${Buffer.from(new Date(linha.atualizado_em).toISOString()).toString("base64url")}"`;
 
-  // Substituir a capa pelo mesmo caminho muda `dt_atualizacao`, logo muda o
+  // Substituir a capa pelo mesmo caminho muda `"DT_ALTERACAO"`, logo muda o
   // ETag: a imagem nova aparece na revalidação seguinte sem depender do `?v=`
   // que as telas acrescentam.
   if (request.headers.get("if-none-match") === etag) {
@@ -94,7 +94,7 @@ export async function PUT(request: Request, { params }: Contexto) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_arq_gravar", {
+  const { data, error } = await banco.rpc("FC_ARQ_GRAVAR", {
     p_balde: endereco.balde,
     p_caminho: endereco.caminho,
     p_tipo: tipo,
@@ -115,7 +115,7 @@ export async function DELETE(_request: Request, { params }: Contexto) {
   if (!endereco) return respostaDeEntradaInvalida("Informe o balde e o caminho do arquivo.");
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_arq_remover", {
+  const { data, error } = await banco.rpc("FC_ARQ_REMOVER", {
     p_balde: endereco.balde,
     p_caminho: endereco.caminho,
   });

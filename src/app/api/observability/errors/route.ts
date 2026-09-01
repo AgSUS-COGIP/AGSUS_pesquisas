@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         : "DESENVOLVIMENTO";
 
     const banco = createAdminRpcClient();
-    const { error } = await banco.rpc("fc_srv_registrar_erro_aplicacao", {
+    const { error } = await banco.rpc("FC_SRV_REGISTRAR_ERRO", {
       p_co_referencia: reference,
       p_no_rota: route,
       p_tp_erro: type,

@@ -27,8 +27,8 @@ export const configBase = {
       //
       // `hd` é apenas dica de interface — filtra a lista que o Google mostra,
       // mantendo a paridade com o fluxo antigo. Quem de fato decide o domínio é
-      // `sigav.institutional_domains`, consultado por
-      // `fc_srv_resolver_identidade_oauth`: um `hd` burlado não abre acesso.
+      // `sigav."TB_DOMINIO_INSTITUCIONAL"`, consultado por
+      // `FC_SRV_RESOLVER_IDENT_OAUTH`: um `hd` burlado não abre acesso.
       authorization: {
         params: {
           prompt: "select_account",
@@ -49,11 +49,11 @@ export const configBase = {
 
   callbacks: {
     /**
-     * `token.sub` precisa ser o id da conta em `sigav.tb_usuario_identidade`
+     * `token.sub` precisa ser o id da conta em `sigav."TB_USUARIO_IDENTIDADE"`
      * (o antigo `auth.users`), não o identificador do Google.
      *
-     * É esse valor que vira `sigav.fc_uid_sessao()` no banco e casa com
-     * `sigav.people.auth_user_id`. Quem o resolve é o callback de `signIn` da
+     * É esse valor que vira `sigav."FC_UID_SESSAO"()` no banco e casa com
+     * `sigav."TB_PESSOA"."SQ_USUARIO_IDENTIDADE"`. Quem o resolve é o callback de `signIn` da
      * configuração completa, que grava `user.id` — aqui apenas transportamos.
      */
     jwt({ token, user }) {

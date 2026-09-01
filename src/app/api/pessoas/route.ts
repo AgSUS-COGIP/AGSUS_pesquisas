@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     : 50;
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_pesquisar_pessoa_admin", {
+  const { data, error } = await banco.rpc("FC_PESQUISAR_PESSOA_ADMIN", {
     target_search: busca,
     target_limit: limite,
   });

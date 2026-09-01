@@ -52,7 +52,7 @@ export async function GET() {
 
   try {
     const banco = createAdminRpcClient();
-    const { data, error } = await banco.rpc("fc_srv_verificar_contrato_rpc", {
+    const { data, error } = await banco.rpc("FC_SRV_VERIFICAR_CONTRATO_RPC", {
       p_nomes: [...RPCS_CRITICAS],
     });
 

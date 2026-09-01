@@ -10,7 +10,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  */
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_modelos_avaliacao");
+  const { data, error } = await banco.rpc("FC_LISTAR_MODELOS_AVALIACAO");
 
   if (error) return respostaDeErro(error, "GET /api/modelos-avaliacao");
 

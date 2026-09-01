@@ -134,7 +134,7 @@ export default function AdminRespostasPage() {
         placeholder: anular
           ? "Ex.: respondeu no lugar de outra pessoa, a pedido da chefia da unidade."
           : "Ex.: o conteúdo trazia dado pessoal de terceiro e não pode permanecer gravado.",
-        // O mesmo mínimo que `fc_remover_resposta_pessoa` exige. Validar aqui
+        // O mesmo mínimo que `FC_REMOVER_RESPOSTA_PESSOA` exige. Validar aqui
         // evita confirmar o irreversível e só então descobrir que faltou motivo.
         minLength: 10,
       },

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const limite = Number(request.nextUrl.searchParams.get("limite") ?? 500);
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_audiencia_email", {
+  const { data, error } = await banco.rpc("FC_LISTAR_AUDIENCIA_EMAIL", {
     p_aplicacao: avaliacao,
     p_situacao: situacao,
     p_busca: busca || null,

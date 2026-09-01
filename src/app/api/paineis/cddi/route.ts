@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("get_cddi_monitoring_dashboard", {
+  const { data, error } = await banco.rpc("FC_PAINEL_MONITOR_CDDI", {
     target_application_code: ciclo,
   });
 

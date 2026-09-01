@@ -24,7 +24,7 @@ usa a arquitetura de três roles, cada uma com um trabalho:
 | `postgres` | manutenção do servidor | superusuário |
 
 Usuários finais **não viram role**: são claims de sessão, com perfis geridos
-pela aplicação em `person_module_permissions`. As 14 roles `pg_*` que aparecem
+pela aplicação em `RL_PESSOA_MODULO`. As 14 roles `pg_*` que aparecem
 em qualquer cliente SQL são predefinidas do PostgreSQL (nascem no `initdb`,
 nenhuma conecta, o servidor recusa removê-las) — não fazem parte da
 autorização.
@@ -47,7 +47,7 @@ vale a pena guardar, porque a mesma palavra significa duas coisas:
 |---|---|---|
 | `grant ... to authenticated` | role do Postgres | não — removida do cluster |
 | `RpcRole` em `rpc-permissions.ts` | rótulo de aplicação | sim |
-| `sigav.fc_papel_sessao() = 'authenticated'` | claim em `request.jwt.claims` | sim |
+| `sigav."FC_PAPEL_SESSAO"() = 'authenticated'` | claim em `request.jwt.claims` | sim |
 
 Consequência prática para quem escreve migration: **nenhum `grant` ou `revoke`
 precisa nomear role**. Objetos novos criados pela `migration_user` já nascem
@@ -69,11 +69,11 @@ nem tenha CREATE, e avisa enquanto restar role legada no catálogo.
 
 ## Fonte de verdade
 
-- `sigav.platform_modules` cataloga as permissões disponíveis;
-- `sigav.person_module_permissions` registra concessões por pessoa;
-- `sigav.effective_platform_modules(person_id)` calcula as permissões efetivas;
-- `sigav.has_platform_module(module_code)` protege RPCs e regras de domínio;
-- `sigav.fc_obter_contexto_plataforma()` entrega `technicalRole = authenticated`
+- `sigav."TB_MODULO_PLATAFORMA"` cataloga as permissões disponíveis;
+- `sigav."RL_PESSOA_MODULO"` registra concessões por pessoa;
+- `sigav."FC_MODULOS_EFETIVOS"(person_id)` calcula as permissões efetivas;
+- `sigav."FC_TEM_MODULO"(module_code)` protege RPCs e regras de domínio;
+- `sigav."FC_OBTER_CONTEXTO_PLATAFORMA"()` entrega `technicalRole = authenticated`
   e a lista efetiva em `modules`;
 - `src/lib/platform-access-presets.ts` contém os presets funcionais da interface.
 
@@ -85,7 +85,7 @@ as duas funções órfãs que ainda as liam (`fc_definir_perfil_pessoa` e
 `list_access_workspace`, nenhuma alcançável pelo adaptador).
 
 O histórico não se perdeu. As 144 atribuições e as descrições dos cinco perfis
-foram arquivadas em `sigav.audit_events`, no formato que os eventos
+foram arquivadas em `sigav."TL_EVENTO_AUDITORIA"`, no formato que os eventos
 `ROLE_GRANTED` já usavam:
 
 | Evento | O que guarda |
@@ -93,7 +93,7 @@ foram arquivadas em `sigav.audit_events`, no formato que os eventos
 | `ROLE_LEGACY_ARCHIVED` | uma linha por atribuição, com pessoa, perfil e período — desnormalizado, para continuar legível sem as tabelas de origem |
 | `ROLE_MODEL_TABLES_REMOVED` | o catálogo dos cinco perfis e as contagens do que saiu |
 
-Foi para `audit_events` e não para um CSV porque as linhas têm nome, e-mail e
+Foi para `TL_EVENTO_AUDITORIA` e não para um CSV porque as linhas têm nome, e-mail e
 matrícula de pessoas reais: na tabela de auditoria ficam sob o mesmo dono e o
 mesmo regime de acesso do resto, e viajam em qualquer cópia do banco. O
 rollback comentado no fim daquela migration reconstrói as tabelas a partir
@@ -139,7 +139,7 @@ interface mostra “Personalizado”. Nenhuma RPC consulta o preset selecionado.
 
 ## Proteções administrativas
 
-`sigav.fc_definir_permissoes_pessoa` substitui o conjunto inteiro em uma única
+`sigav."FC_DEFINIR_PERMISSOES_PESSOA"` substitui o conjunto inteiro em uma única
 transação e:
 
 1. exige sessão `authenticated` com `ADMIN_ACCESS`;
@@ -147,7 +147,7 @@ transação e:
 3. sempre inclui `HOME` e `SURVEYS`;
 4. impede a pessoa de retirar o próprio `ADMIN_ACCESS`;
 5. impede a remoção do último administrador de acessos;
-6. registra antes e depois em `sigav.audit_events`.
+6. registra antes e depois em `sigav."TL_EVENTO_AUDITORIA"`.
 
 ## Compatibilidade com RPCs antigas
 
@@ -160,7 +160,7 @@ role.
 Para código novo, use diretamente a permissão correspondente:
 
 ```sql
-if not sigav.has_platform_module('ADMIN_TEAMS') then
+if not sigav."FC_TEM_MODULO"('ADMIN_TEAMS') then
   raise exception 'Acesso não autorizado.' using errcode = '42501';
 end if;
 ```
@@ -186,7 +186,7 @@ docker exec -i agsus-local psql -U postgres -d db_dataware -v aplicar=1   -v ON_
 
 Depois de aplicar a migration em uma réplica, valide:
 
-1. os acessos anteriores foram preservados em `person_module_permissions`;
+1. os acessos anteriores foram preservados em `RL_PESSOA_MODULO`;
 2. não existe atribuição funcional vigente em `person_role_assignments`;
 3. o contexto devolve somente `AUTHENTICATED` em `roles` e permissões em `modules`;
 4. presets apenas alteram permissões;
@@ -197,6 +197,6 @@ Depois de aplicar a migration em uma réplica, valide:
    permissão.
 
 O rollback precisa restaurar pacotes e atribuições a partir do backup ou da
-auditoria. As linhas de `person_module_permissions` preservam a fotografia do
+auditoria. As linhas de `RL_PESSOA_MODULO` preservam a fotografia do
 acesso anterior e podem ser usadas para reconstruir presets, mas não recriam
 sozinhas os períodos históricos das atribuições.

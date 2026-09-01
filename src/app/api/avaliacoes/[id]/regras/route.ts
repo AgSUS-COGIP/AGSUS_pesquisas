@@ -34,7 +34,7 @@ export async function GET(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_regras_condicionais", {
+  const { data, error } = await banco.rpc("FC_LISTAR_REGRAS_CONDICIONAIS", {
     p_versao: versao,
   });
 
@@ -78,7 +78,7 @@ export async function PUT(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_salvar_regra_condicional", {
+  const { data, error } = await banco.rpc("FC_SALVAR_REGRA_CONDICIONAL", {
     p_alvo_tipo: corpo.targetType,
     p_alvo: corpo.targetId,
     p_acao: corpo.action === "HIDE" ? "HIDE" : "SHOW",
@@ -108,7 +108,7 @@ export async function DELETE(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_excluir_regra_condicional", {
+  const { data, error } = await banco.rpc("FC_EXCLUIR_REGRA_CONDICIONAL", {
     p_alvo: alvo,
   });
 

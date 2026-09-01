@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     : 100;
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_respostas_ciclo", {
+  const { data, error } = await banco.rpc("FC_LISTAR_RESPOSTAS_CICLO", {
     p_codigo_ciclo: ciclo,
     p_busca: busca,
     p_limite: limite,

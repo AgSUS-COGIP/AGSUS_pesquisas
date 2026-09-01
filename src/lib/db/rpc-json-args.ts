@@ -9,16 +9,16 @@
 // argumento, quais valores precisam de JSON.stringify antes do bind.
 
 export const RPC_JSON_ARGS: Readonly<Record<string, readonly string[]>> = {
-  "add_survey_question": ["question_options"],
-  "fc_aplicar_publico_avaliacao": ["p_regra"],
-  "fc_buscar_pessoas_publico": ["p_regra"],
-  "fc_listar_dimensoes_publico": ["p_regra"],
-  "fc_previsualizar_publico_avaliacao": ["p_regra"],
-  "fc_salvar_regra_condicional": ["p_condicoes"],
-  "fc_srv_gravar_resp_anon": ["target_json"],
-  "fc_srv_registrar_erro_aplicacao": ["p_ds_contexto"],
-  "save_my_survey_answer": ["target_json"],
-  "sync_cddi_manager_rows": ["p_rows"],
-  "sync_people_base_rows": ["p_rows"],
-  "update_survey_question": ["question_options"],
+  "FC_INCLUIR_PERGUNTA": ["question_options"],
+  "FC_APLICAR_PUBLICO_AVALIACAO": ["p_regra"],
+  "FC_BUSCAR_PESSOAS_PUBLICO": ["p_regra"],
+  "FC_LISTAR_DIMENSOES_PUBLICO": ["p_regra"],
+  "FC_PREVISUALIZAR_PUBLICO": ["p_regra"],
+  "FC_SALVAR_REGRA_CONDICIONAL": ["p_condicoes"],
+  "FC_SRV_GRAVAR_RESP_ANON": ["target_json"],
+  "FC_SRV_REGISTRAR_ERRO": ["p_ds_contexto"],
+  "FC_SALVAR_RESPOSTA_PESQUISA": ["target_json"],
+  "FC_SINCR_LINHAS_GESTOR_CDDI": ["p_rows"],
+  "FC_SINCR_LINHAS_BASE_PESSOA": ["p_rows"],
+  "FC_ATUALIZAR_PERGUNTA": ["question_options"],
 };

@@ -36,7 +36,7 @@ export async function PUT(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_definir_comunicado_inicio", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_COMUNICADO_INICIO", {
     p_ativo: body.ativo,
     p_titulo: titulo || null,
     p_mensagem: mensagem || null,

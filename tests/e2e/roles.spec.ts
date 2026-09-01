@@ -62,20 +62,22 @@ test.beforeAll(async () => {
   await client.connect();
   try {
     const { rows } = await client.query<PessoaDeTeste>(`
-      select u.id::text as id,
-             u.email,
-             p.full_name as "fullName",
-             p.employee_number as "employeeNumber"
-        from sigav.tb_usuario_identidade u
-        join sigav.people p on p.auth_user_id = u.id and p.active
+      select u."SQ_USUARIO"::text as id,
+             u."DS_EMAIL" as email,
+             p."NO_PESSOA" as "fullName",
+             p."CO_MATRICULA" as "employeeNumber"
+        from sigav."TB_USUARIO_IDENTIDADE" u
+        join sigav."TB_PESSOA" p
+          on p."SQ_USUARIO_IDENTIDADE" = u."SQ_USUARIO"
+         and p."ST_ATIVO"
        order by case when exists (
          select 1
-           from sigav.person_module_permissions pmp
-          where pmp.person_id = p.id
-            and pmp.module_code = 'ADMIN_ACCESS'
-            and pmp.allowed
+           from sigav."RL_PESSOA_MODULO" pmp
+          where pmp."SQ_PESSOA" = p."SQ_PESSOA"
+            and pmp."CO_MODULO" = 'ADMIN_ACCESS'
+            and pmp."ST_PERMITIDO"
        ) then 0 else 1 end,
-       u.created_at nulls last
+       u."DT_INCLUSAO" nulls last
        limit 1
     `);
     if (!rows[0]) throw new Error("nenhuma identidade institucional ativa para o E2E");

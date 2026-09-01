@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.mjs\"",
     "test:banco": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/banco/*.test.mjs\"",
+    "test:sql": "node --env-file=.env.local scripts/validar-testes-sql.mjs",
     "test:http": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/http/*.test.mjs\"",
     "test:e2e": "node --env-file=.env.local ./node_modules/@playwright/test/cli.js test",
     "test:regression": "npm test && npm run test:e2e",

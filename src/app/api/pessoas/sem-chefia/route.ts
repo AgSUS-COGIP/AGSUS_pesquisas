@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     : 100;
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_pessoas_sem_chefia", {
+  const { data, error } = await banco.rpc("FC_LISTAR_PESSOAS_SEM_CHEFIA", {
     target_application_id: avaliacao,
     target_search: busca,
     target_limit: limite,

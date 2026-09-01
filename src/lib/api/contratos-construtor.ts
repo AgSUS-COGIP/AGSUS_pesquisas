@@ -1,8 +1,8 @@
 /**
  * Contratos do construtor de formulários e da operação de ciclos.
  *
- * Declaram o retorno real de `get_survey_builder`,
- * `get_application_visual_settings` e `get_survey_operations`. O formato de
+ * Declaram o retorno real de `FC_OBTER_CONSTRUTOR`,
+ * `FC_OBTER_VISUAL_CICLO` e `FC_OBTER_OPERACOES_PESQUISA`. O formato de
  * erro (`ErroApi`) é único e mora em `contratos.ts`.
  */
 
@@ -22,7 +22,7 @@ export type OpcaoPergunta = {
   position?: number;
 };
 
-/** Pergunta de uma seção, no formato de `get_survey_builder`. */
+/** Pergunta de uma seção, no formato de `FC_OBTER_CONSTRUTOR`. */
 export type PerguntaConstrutor = {
   id: string;
   code: string;
@@ -175,7 +175,7 @@ export type OperacaoCiclo = {
  * Corpo de `POST /api/avaliacoes/[id]/ciclo`.
  *
  * A ação vai no corpo, não no caminho, porque todas operam o mesmo recurso: o
- * ciclo. `manage_survey_cycle` é uma máquina de estados — entre `PUBLISH`,
+ * ciclo. `FC_GERIR_CICLO_PESQUISA` é uma máquina de estados — entre `PUBLISH`,
  * `OPEN` e `CANCEL` muda a transição pedida, não o objeto afetado.
  */
 export type AcaoCicloEntrada = {
@@ -203,7 +203,7 @@ export type NovaVersaoPesquisa = {
 };
 
 /**
- * Regra condicional de exibição, no formato de `fc_listar_regras_condicionais`.
+ * Regra condicional de exibição, no formato de `FC_LISTAR_REGRAS_CONDICIONAIS`.
  *
  * Os tipos de operador, condição e alvo vêm de `@/lib/survey-conditional-logic`
  * de propósito: é o mesmo vocabulário que o runtime avalia. Duas definições do
@@ -231,7 +231,7 @@ export type RegraCondicional = {
 /**
  * Corpo de `PUT /api/avaliacoes/[id]/regras`.
  *
- * `PUT` e não `POST`: `fc_salvar_regra_condicional` substitui em bloco a regra
+ * `PUT` e não `POST`: `FC_SALVAR_REGRA_CONDICIONAL` substitui em bloco a regra
  * vigente do alvo — o alvo tem no máximo uma regra, garantida pelo índice
  * `in_regra_condicional_alvo`. O recurso é a regra **daquele alvo**, e gravar
  * duas vezes seguidas o mesmo corpo dá o mesmo resultado.

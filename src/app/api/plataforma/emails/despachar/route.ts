@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   const banco = await createServerRpcClient();
-  const { data: contexto, error: contextoError } = await banco.rpc("fc_obter_contexto_plataforma");
+  const { data: contexto, error: contextoError } = await banco.rpc("FC_OBTER_CONTEXTO_PLATAFORMA");
 
   if (contextoError) {
     console.error("POST /api/plataforma/emails/despachar:", contextoError.message);

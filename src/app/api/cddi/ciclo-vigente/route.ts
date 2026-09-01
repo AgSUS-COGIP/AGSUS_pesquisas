@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_obter_ciclo_cddi_vigente");
+  const { data, error } = await banco.rpc("FC_OBTER_CICLO_CDDI_VIGENTE");
 
   if (error) return respostaDeErro(error, "GET /api/cddi/ciclo-vigente");
 
