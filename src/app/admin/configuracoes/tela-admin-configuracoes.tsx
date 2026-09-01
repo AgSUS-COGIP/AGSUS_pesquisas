@@ -76,6 +76,7 @@ import {
   previousAccessOffset,
 } from "@/lib/access-pagination";
 import { enviarArquivo, listarArquivos, removerArquivo } from "@/lib/api/cliente-arquivos";
+import { PainelDeManutencao } from "./painel-de-manutencao";
 import {
   atualizarMarcaDaPlataforma,
   definirComunicadoDaPaginaInicial,
@@ -1497,6 +1498,15 @@ export default function PlatformSettingsPage() {
                     </span>
                   </Link>
                 ))}
+              </div>
+
+              {/*
+                A manutenção fica na Operação, junto do que se acompanha antes,
+                durante e depois de um ciclo — e não numa aba própria: parar a
+                plataforma é ato operacional, não configuração de produto.
+              */}
+              <div className="mt-5 border-t border-[var(--border-subtle)] pt-5">
+                <PainelDeManutencao />
               </div>
 
               <div className="mt-5 grid gap-3 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-3">

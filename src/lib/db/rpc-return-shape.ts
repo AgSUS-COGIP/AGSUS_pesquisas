@@ -83,6 +83,7 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "FC_PESQUISAR_PESSOA_ADMIN": "scalar",
   "FC_PREVISUALIZAR_PUBLICO": "scalar",
   "FC_REGISTRAR_PRESENCA": "scalar",
+  "FC_REGISTRAR_MANUT_AUDITORIA": "scalar",
   "FC_REGRA_GERA_CICLO": "scalar",
   "FC_REIVINDICAR_EMAILS": "scalar",
   "FC_REMOVER_RESPOSTA_PESSOA": "scalar",
