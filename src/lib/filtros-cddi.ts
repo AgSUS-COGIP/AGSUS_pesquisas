@@ -235,3 +235,65 @@ export function reconciliarFiltros(
 export function temRecorteAtivo(filtros: FiltrosCddi): boolean {
   return TODAS_AS_DIMENSOES.some((dimensao) => selecaoDa(filtros, dimensao).length > 0);
 }
+
+/**
+ * O KPI de uma situação sem ninguém no recorte não é clicável.
+ *
+ * Os indicadores são contados sobre o recorte atual, então zero significa "não
+ * existe ninguém nessa situação **entre estes participantes**". Deixar o clique
+ * passar faria a reconciliação apagar Diretoria, Unidade e as demais — nenhum
+ * valor delas sobrevive a um recorte vazio —, e a pessoa veria o próprio recorte
+ * ser desmontado para ir buscar registros que ela não pediu. Trocaria a pergunta
+ * dela por outra.
+ *
+ * Duas exceções, ambas por serem operações que só ampliam o recorte:
+ *
+ * - a chave vazia é o "Participantes", que limpa a situação em vez de escolher
+ *   uma;
+ * - a situação já selecionada continua clicável, senão o filtro que zerou a
+ *   própria contagem não teria como ser desmarcado — a tela travaria em zero.
+ */
+export function kpiClicavel(chave: string, valor: number, selecionados: readonly string[]): boolean {
+  if (!chave) return true;
+  if (selecionados.includes(chave)) return true;
+  return valor > 0;
+}
+
+/** Alterna a situação do KPI, ou devolve os filtros intactos se ele não for clicável. */
+export function aoClicarNoKpi(
+  pessoas: readonly PessoaFiltravel[],
+  filtros: FiltrosCddi,
+  chave: string,
+  valor: number,
+): FiltrosCddi {
+  if (!kpiClicavel(chave, valor, filtros.statuses)) return filtros;
+
+  const proximos = !chave
+    ? []
+    : filtros.statuses.includes(chave)
+      ? filtros.statuses.filter((status) => status !== chave)
+      : [...filtros.statuses, chave];
+
+  return reconciliarFiltros(pessoas, comDimensao(filtros, "status", proximos), "status");
+}
+
+/**
+ * Trocar de ciclo zera o recorte.
+ *
+ * Os ciclos têm públicos diferentes: uma unidade, coordenação ou chefia do ciclo
+ * anterior pode não existir no novo. Preservar a seleção recriaria exatamente o
+ * defeito que esta correção fecha — filtro que sumiu da lista mas continua
+ * restringindo. Reaproveitar só o que coincide seria pior ainda: um recorte
+ * meio-preservado que a pessoa não montou nem consegue conferir.
+ *
+ * A função existe para que a regra seja verificável fora da tela; a página só a
+ * aplica aos seus estados.
+ */
+export function estadoAoTrocarCiclo(codigo: string): {
+  cycleCode: string;
+  filtros: FiltrosCddi;
+  query: string;
+  page: number;
+} {
+  return { cycleCode: codigo, filtros: FILTROS_CDDI_VAZIOS, query: "", page: 1 };
+}

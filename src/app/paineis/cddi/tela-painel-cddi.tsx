@@ -29,9 +29,12 @@ import { BarSeries, ProgressMeter, RadarChart } from "@/components/platform-char
 import { average as avg, groupEventsByDay } from "@/lib/chart-data";
 import {
   FILTROS_CDDI_VAZIOS,
+  aoClicarNoKpi,
   atendeFiltros,
   atendeSituacao,
   comDimensao,
+  estadoAoTrocarCiclo,
+  kpiClicavel,
   reconciliarFiltros,
   type DimensaoCddi,
   type FiltrosCddi,
@@ -106,12 +109,15 @@ function SearchableMultiSelect({
   values,
   onChange,
   emptyLabel,
+  span = "lg:col-span-4",
 }: {
   label: string;
   options: FilterOption[];
   values: string[];
   onChange: (values: string[]) => void;
   emptyLabel: string;
+  /** Largura na grade de 12 colunas. Quem monta o formulário decide o ritmo das linhas. */
+  span?: string;
 }) {
   const [search, setSearch] = useState("");
   const normalizedSearch = normalizeFilterText(search.trim());
@@ -121,7 +127,7 @@ function SearchableMultiSelect({
   const selected = new Set(values);
 
   return (
-    <div className="block lg:col-span-4">
+    <div className={`block ${span}`}>
       <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">{label}</span>
       <details name="cddi-filter-multiselect" className="group relative">
         <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] [&::-webkit-details-marker]:hidden">
@@ -489,9 +495,27 @@ export default function CddiMonitoringPage() {
     o botão. Era o próprio código admitindo que o botão sobrava. Agora as duas
     entradas passam pelo mesmo caminho e reconciliam igual.
   */
-  function selectKpi(key: string) {
-    const next = !key ? [] : selectedStatuses.includes(key) ? selectedStatuses.filter((status) => status !== key) : [...selectedStatuses, key];
-    alterarFiltro("status", next);
+  function selectKpi(key: string, value: number) {
+    setFiltros((atual) => aoClicarNoKpi(all, atual, key, value));
+    setPage(1);
+  }
+
+  /*
+    Trocar o ciclo não é recortar — é trocar a base. O público muda, então a
+    unidade, a coordenação ou a chefia escolhidas podem simplesmente não existir
+    no ciclo novo, e ficariam restringindo sem aparecer na lista: exatamente o
+    defeito que esta correção fecha, reintroduzido pela porta do seletor.
+
+    Por isso o recorte inteiro cai junto, incluindo a busca textual. Reaproveitar
+    só o que coincidisse deixaria um recorte pela metade que a pessoa não montou
+    e não tem como conferir.
+  */
+  function trocarCiclo(codigo: string) {
+    const inicial = estadoAoTrocarCiclo(codigo);
+    setCycleCode(inicial.cycleCode);
+    setFiltros(inicial.filtros);
+    setQuery(inicial.query);
+    setPage(inicial.page);
   }
 
   const kpis: Array<{ key: string; label: string; value: number | string; tone: "brand" | "success" | "warning" | "danger" | "review"; interactive: boolean }> = [
@@ -590,29 +614,24 @@ export default function CddiMonitoringPage() {
             por que não funciona. No lugar entraram os recortes que a operação
             usa de fato, e o seletor de ciclo virou real.
           */}
-          <SearchableMultiSelect
-            label="Participantes"
-            options={participantOptions}
-            values={participantIds}
-            onChange={(values) => alterarFiltro("participant", values)}
-            emptyLabel="Todas as pessoas"
-          />
-          <SearchableMultiSelect label="Diretorias" options={directorateOptions} values={selectedDirectorates} onChange={(values) => alterarFiltro("directorate", values)} emptyLabel="Todas as diretorias" />
-          <SearchableMultiSelect label="Unidades" options={unitOptions} values={selectedUnits} onChange={(values) => alterarFiltro("unit", values)} emptyLabel="Todas as unidades" />
-          <SearchableMultiSelect label="Coordenações" options={coordinationOptions} values={selectedCoordinations} onChange={(values) => alterarFiltro("coordination", values)} emptyLabel="Todas as coordenações" />
-          <SearchableMultiSelect label="Chefias" options={managerOptions} values={selectedManagers} onChange={(values) => alterarFiltro("manager", values)} emptyLabel="Todas as chefias" />
-          <SearchableMultiSelect label="Status" options={statusOptions} values={selectedStatuses} onChange={(values) => alterarFiltro("status", values)} emptyLabel="Todas as situações" />
           {/*
-            O ciclo troca a consulta, não o recorte em memória, então aplica na
-            hora — esperar o "Filtrar" faria a tela mostrar dados de um ciclo com
-            o seletor exibindo outro. Com um único ciclo cadastrado o controle
-            continua visível, mas fica desabilitado e diz por quê.
+            Sete controles numa grade de 12 colunas, em linhas de 4+8, 6+6 e
+            4+4+4. Todos tinham `col-span-4`, o que dava 3, 3 e **1** — o ciclo
+            sozinho na última linha, com dois terços vazios ao lado.
+
+            A ordem também mudou: o ciclo abre o bloco, porque é o único controle
+            que troca a consulta em vez de recortar o que já veio. Escolher o
+            ciclo depois de montar o recorte é a ordem errada — e agora ele
+            limpa os filtros, o que ficaria pior no fim da lista.
+
+            Participantes vem logo depois e ocupa o dobro: é o campo com os
+            rótulos mais longos, nomes completos que o `truncate` cortaria.
           */}
           <label className="lg:col-span-4">
             <span className="mb-1.5 block text-xs font-bold text-[var(--text-secondary)]">Ciclo avaliativo</span>
             <select
               value={resolvedCycle}
-              onChange={(event) => setCycleCode(event.target.value)}
+              onChange={(event) => trocarCiclo(event.target.value)}
               disabled={cycleOptions.length < 2}
               title={cycleOptions.length < 2 ? "Só existe um ciclo do CDDI cadastrado" : "Trocar o ciclo recarrega o painel"}
               className="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -626,6 +645,19 @@ export default function CddiMonitoringPage() {
                 : <option value={data.application.code}>{data.application.name}</option>}
             </select>
           </label>
+          <SearchableMultiSelect
+            label="Participantes"
+            options={participantOptions}
+            values={participantIds}
+            onChange={(values) => alterarFiltro("participant", values)}
+            emptyLabel="Todas as pessoas"
+            span="lg:col-span-8"
+          />
+          <SearchableMultiSelect label="Diretorias" options={directorateOptions} values={selectedDirectorates} onChange={(values) => alterarFiltro("directorate", values)} emptyLabel="Todas as diretorias" span="lg:col-span-6" />
+          <SearchableMultiSelect label="Unidades" options={unitOptions} values={selectedUnits} onChange={(values) => alterarFiltro("unit", values)} emptyLabel="Todas as unidades" span="lg:col-span-6" />
+          <SearchableMultiSelect label="Coordenações" options={coordinationOptions} values={selectedCoordinations} onChange={(values) => alterarFiltro("coordination", values)} emptyLabel="Todas as coordenações" />
+          <SearchableMultiSelect label="Chefias" options={managerOptions} values={selectedManagers} onChange={(values) => alterarFiltro("manager", values)} emptyLabel="Todas as chefias" />
+          <SearchableMultiSelect label="Status" options={statusOptions} values={selectedStatuses} onChange={(values) => alterarFiltro("status", values)} emptyLabel="Todas as situações" />
           {/*
             O botão "Filtrar" saiu. Com uma fonte de estado só, mudar o filtro
             já é aplicá-lo — o botão não teria o que fazer, e mantê-lo sugeriria
@@ -637,12 +669,21 @@ export default function CddiMonitoringPage() {
       <section className="mt-4 space-y-3" aria-label="Indicadores do recorte">
         <div className="monitor-kpi-grid">
           {kpis.map((kpi) => kpi.interactive ? (
+            /*
+              O KPI zerado deixa de ser botão vivo. Como a contagem é feita sobre
+              o recorte, zero quer dizer "ninguém nessa situação **aqui dentro**"
+              — clicar apagaria Diretoria, Unidade e as demais para ir buscar
+              gente que a pessoa não pediu. `disabled` também tira do foco por
+              teclado, então o estado é o mesmo para quem navega sem mouse.
+            */
             <button
               key={kpi.label}
               type="button"
               data-tone={kpi.tone}
+              disabled={!kpiClicavel(kpi.key, typeof kpi.value === "number" ? kpi.value : 0, selectedStatuses)}
+              title={kpiClicavel(kpi.key, typeof kpi.value === "number" ? kpi.value : 0, selectedStatuses) ? undefined : "Nenhum participante nesta situação dentro do recorte atual"}
               aria-pressed={kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length}
-              onClick={() => selectKpi(kpi.key)}
+              onClick={() => selectKpi(kpi.key, typeof kpi.value === "number" ? kpi.value : 0)}
               className={`monitor-kpi ${(kpi.key ? selectedStatuses.includes(kpi.key) : !selectedStatuses.length) ? "is-active" : ""}`}
             >
               <span className="monitor-kpi-label">{kpi.label}</span>
@@ -685,7 +726,8 @@ export default function CddiMonitoringPage() {
                   <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
                   <div><strong className="block text-sm">{pendingLeader} avaliações da chefia pendentes</strong><span className="text-xs opacity-80">Inclui participantes que ainda não concluíram a autoavaliação.</span></div>
                 </div>
-                <button type="button" onClick={() => selectKpi("NO_MANAGER")} aria-pressed={selectedStatuses.includes("NO_MANAGER")} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] ${selectedStatuses.includes("NO_MANAGER") ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
+                {/* Mesmo atalho do KPI "Sem chefia informada", e por isso a mesma regra do zero. */}
+                <button type="button" onClick={() => selectKpi("NO_MANAGER", withoutManager)} disabled={!kpiClicavel("NO_MANAGER", withoutManager, selectedStatuses)} aria-pressed={selectedStatuses.includes("NO_MANAGER")} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[var(--border-subtle)] ${selectedStatuses.includes("NO_MANAGER") ? "border-[var(--brand-primary)] bg-[var(--status-info-bg)]" : "border-[var(--border-subtle)] bg-[var(--surface-interactive)]"}`}>
                   <UserRoundX className="mt-0.5 h-5 w-5 shrink-0 text-[var(--text-secondary)]" />
                   <span><strong className="block text-sm text-[var(--text-primary)]">{withoutManager} sem vínculo de chefia</strong><span className="text-xs text-[var(--text-muted)]">A chefia é automática; revise a associação cadastrada em Equipes.</span></span>
                 </button>
