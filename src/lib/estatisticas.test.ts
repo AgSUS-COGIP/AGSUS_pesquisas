@@ -194,7 +194,8 @@ describe("distribuicao", () => {
     expect(linhas[0].frequenciaAbsoluta).toBe(4);
   });
 
-  it("passa de 100% em múltipla escolha, porque cada pessoa marca mais de uma", () => {
+  it("sem respondentes, soma 100% — é a participação de cada alternativa nas marcações", () => {
+    // Mesma semântica de `toDistributionBars`, que é o que a tela mostra hoje.
     const linhas = distribuicao([
       { label: "A", value: null, count: 8 },
       { label: "B", value: null, count: 7 },
@@ -202,6 +203,39 @@ describe("distribuicao", () => {
 
     const soma = linhas.reduce((total, linha) => total + linha.frequenciaRelativa, 0);
     expect(Math.round(soma)).toBe(100);
+  });
+
+  it("com respondentes, passa de 100% em múltipla escolha", () => {
+    // 10 pessoas responderam; 8 marcaram A e 7 marcaram B, porque cada uma pode
+    // marcar mais de uma. 80% + 70% = 150%, e é isso que se quer dizer.
+    const linhas = distribuicao(
+      [
+        { label: "A", value: null, count: 8 },
+        { label: "B", value: null, count: 7 },
+      ],
+      10,
+    );
+
+    expect(linhas[0].frequenciaRelativa).toBe(80);
+    expect(linhas[1].frequenciaRelativa).toBe(70);
+    expect(linhas[0].frequenciaRelativa + linhas[1].frequenciaRelativa).toBe(150);
+  });
+
+  it("os dois denominadores coincidem quando cada pessoa marca uma só", () => {
+    const alternativas = [
+      { label: "Sim", value: "1", count: 30 },
+      { label: "Não", value: "0", count: 10 },
+    ];
+
+    expect(distribuicao(alternativas)).toEqual(distribuicao(alternativas, 40));
+  });
+
+  it("ignora respondentes inválido e volta às marcações", () => {
+    const alternativas = [{ label: "Sim", value: "1", count: 4 }];
+
+    for (const invalido of [0, -5, Number.NaN]) {
+      expect(distribuicao(alternativas, invalido)[0].frequenciaRelativa).toBe(100);
+    }
   });
 });
 
@@ -260,9 +294,60 @@ describe("estatisticasDaPergunta — a regra por tipo", () => {
   });
 
   it("trata tipo desconhecido sem quebrar", () => {
+    // Não é hipótese: o CDDI tem uma pergunta `PERSON`, que não consta no
+    // catálogo de tipos do construtor.
     const resultado = estatisticasDaPergunta("TIPO_QUE_AINDA_NAO_EXISTE", escala);
 
     expect(resultado.resumo).toBeNull();
     expect(resultado.distribuicao).toEqual([]);
+  });
+});
+
+describe("INTEGER e DECIMAL — o comportamento real de hoje", () => {
+  /*
+   * Estes tipos constam como numéricos na regra, mas gravam em
+   * `answers.answer_number` e não têm alternativa nenhuma. Como a tabela de
+   * frequências é derivada de `options`, eles ficam sem resumo até que alguém
+   * forneça os valores.
+   *
+   * Os dois testes abaixo fixam esse par de comportamentos para que ativar o
+   * resumo desses tipos seja uma mudança deliberada, e não um efeito colateral.
+   */
+
+  it("não produz resumo sem alternativas — é a situação da PR 01", () => {
+    for (const tipo of ["INTEGER", "DECIMAL"]) {
+      const resultado = estatisticasDaPergunta(tipo, []);
+
+      expect(resultado.resumo, `${tipo} não tem de onde tirar os valores`).toBeNull();
+      // Não são tipos de alternativa: distribuição vazia, e não uma lista de zeros.
+      expect(resultado.distribuicao).toEqual([]);
+    }
+  });
+
+  it("produz resumo assim que os valores chegam por `frequenciasNumericas`", () => {
+    // É o caminho que a PR 02 vai alimentar ao trazer `answer_number` da RPC.
+    const resultado = estatisticasDaPergunta("INTEGER", [], {
+      frequenciasNumericas: classes([10, 1], [20, 1], [30, 2]),
+    });
+
+    expect(resultado.resumo).not.toBeNull();
+    expect(resultado.resumo!.respostasValidas).toBe(4);
+    expect(resultado.resumo!.media).toBe(22.5);
+    expect(resultado.resumo!.mediana).toBe(25);
+    expect(resultado.resumo!.minimo).toBe(10);
+    expect(resultado.resumo!.maximo).toBe(30);
+  });
+
+  it("valores fornecidos têm precedência sobre as alternativas", () => {
+    // Se as duas origens existirem, vale a explícita — quem a passou sabe de
+    // onde o número veio.
+    const resultado = estatisticasDaPergunta(
+      "SCALE",
+      [{ label: "Nunca", value: "1", count: 100 }],
+      { frequenciasNumericas: classes([5, 1]) },
+    );
+
+    expect(resultado.resumo!.media).toBe(5);
+    expect(resultado.resumo!.respostasValidas).toBe(1);
   });
 });
