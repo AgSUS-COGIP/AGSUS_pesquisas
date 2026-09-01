@@ -106,7 +106,7 @@ const PREVIA_TIPOS: { kind: ParticipantEmailKind; label: string }[] = [
 /**
  * Teto de pessoas carregadas por vez.
  *
- * 2000 é o máximo que `fc_listar_audiencia_email` aceita, e cobre com folga o
+ * 2000 é o máximo que `FC_LISTAR_AUDIENCIA_EMAIL` aceita, e cobre com folga o
  * maior ciclo em operação (CDDI-2026, 1023 participantes). O padrão da RPC é
  * 500, e pedi-lo explicitamente aqui evita o pior caso: uma lista cortada em
  * 500 que **parece** ser a audiência inteira. Quando o corte acontecer mesmo

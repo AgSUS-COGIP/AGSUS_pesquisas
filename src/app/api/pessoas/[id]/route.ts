@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { AtualizarPessoaEntrada } from "@/lib/api/contratos-pessoas";
@@ -9,7 +9,7 @@ import type { AtualizarPessoaEntrada } from "@/lib/api/contratos-pessoas";
  *
  * A matrícula não entra: ela identifica a pessoa neste projeto e é imutável,
  * como a justificativa obrigatória e o registro em auditoria, tudo dentro de
- * `update_platform_admin_person`.
+ * `FC_ATUALIZAR_PESSOA_ADMIN`.
  */
 export async function PATCH(
   request: Request,
@@ -33,8 +33,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o nome completo da pessoa.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("update_platform_admin_person", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_PESSOA_ADMIN", {
     target_person_id: id,
     target_full_name: fullName,
     target_institutional_email: corpo.institutionalEmail ?? null,

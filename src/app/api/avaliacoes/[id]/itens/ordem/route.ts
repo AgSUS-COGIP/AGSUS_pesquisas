@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type {
@@ -46,8 +46,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe se o item sobe ou desce.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("reorder_survey_builder_item", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_REORDENAR_ITEM_CONSTRUTOR", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,
     target_direction: corpo.direction,

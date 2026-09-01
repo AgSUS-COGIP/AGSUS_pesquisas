@@ -28,7 +28,7 @@ const HEARTBEAT_MS = 45_000;
  *
  * ## Por que não usa Realtime
  *
- * O desenho pretendido é "todos anunciam, só perfis configurados enxergam", e
+ * O desenho pretendido é "todos anunciam, só contas autorizadas enxergam", e
  * canal Realtime privado não faz isso: o protocolo exige permissão de leitura
  * para **entrar** no canal, e sem entrar não se consegue anunciar. Até
  * 21/08/2026 a consequência era dupla — a lista mostrava apenas quem podia

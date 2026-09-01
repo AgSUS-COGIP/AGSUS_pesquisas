@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { PerguntaAtualizacaoEntrada } from "@/lib/api/contratos-construtor";
@@ -8,7 +8,7 @@ import type { PerguntaAtualizacaoEntrada } from "@/lib/api/contratos-construtor"
  * Edita uma pergunta do rascunho — mover entre seções é `…/[perguntaId]/secao`.
  *
  * As alternativas vão inteiras a cada gravação, e não como diferença: é assim
- * que `update_survey_question` preserva `id` e `value` por posição, evitando
+ * que `FC_ATUALIZAR_PERGUNTA` preserva `id` e `value` por posição, evitando
  * invalidar respostas já registradas quando só o rótulo mudou.
  */
 export async function PATCH(
@@ -34,8 +34,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o enunciado e o tipo da pergunta.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("update_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_PERGUNTA", {
     target_question_id: perguntaId,
     question_title: title,
     question_description: typeof corpo.description === "string" ? corpo.description : "",
@@ -65,8 +65,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de avaliação ou de pergunta inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("delete_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_EXCLUIR_PERGUNTA", {
     target_question_id: perguntaId,
   });
 

@@ -137,7 +137,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   );
 });
 
-export type ChoiceProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+type ChoiceProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
   label: string;
   description?: string;
   error?: string;
@@ -145,7 +145,7 @@ export type ChoiceProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & 
   containerClassName?: string;
 };
 
-export const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
+const Choice = forwardRef<HTMLInputElement, ChoiceProps>(function Choice(
   { id: providedId, label, description, error, type = "checkbox", className, containerClassName, ...props },
   ref,
 ) {
@@ -190,6 +190,3 @@ export const Checkbox = forwardRef<HTMLInputElement, Omit<ChoiceProps, "type">>(
   return <Choice {...props} ref={ref} type="checkbox" />;
 });
 
-export const Radio = forwardRef<HTMLInputElement, Omit<ChoiceProps, "type">>(function Radio(props, ref) {
-  return <Choice {...props} ref={ref} type="radio" />;
-});

@@ -1,6 +1,6 @@
 # Experiência do formulário CDDI
 
-A primeira interface funcional do CDDI 2026 utiliza a definição de formulário armazenada no Supabase.
+A primeira interface funcional do CDDI 2026 utiliza a definição de formulário armazenada no PostgreSQL.
 
 ## Referências de experiência
 
@@ -20,8 +20,8 @@ A primeira interface funcional do CDDI 2026 utiliza a definição de formulário
 
 ## Segurança
 
-A RPC `get_public_survey_form` retorna somente a estrutura pública do formulário. Nenhum participante, vínculo, resposta ou dado pessoal é exposto.
+A RPC `FC_OBTER_FORM_PUBLICO` retorna somente a estrutura pública do formulário. Nenhum participante, vínculo, resposta ou dado pessoal é exposto.
 
 ## Estado desta entrega
 
-O formulário permite visualizar e preencher todas as perguntas cadastradas. O envio definitivo ainda permanece bloqueado até a implantação da autenticação institucional e da vinculação entre a sessão do usuário e a tabela `people`.
+O formulário permite visualizar e preencher todas as perguntas cadastradas. O envio definitivo ainda permanece bloqueado até a implantação da autenticação institucional e da vinculação entre a sessão do usuário e a tabela `TB_PESSOA`.

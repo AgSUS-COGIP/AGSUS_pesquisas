@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { EnviarEmailsEntrada } from "@/lib/api/contratos-pessoas";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * mostrando o progresso.
  *
  * A rota valida só a forma; quem decide elegibilidade e recusa o ciclo fechado
- * é `fc_agendar_envio_manual`.
+ * é `FC_AGENDAR_ENVIO_MANUAL`.
  */
 export async function POST(request: Request) {
   let corpo: EnviarEmailsEntrada;
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("A seleção contém identificador inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_agendar_envio_manual", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_AGENDAR_ENVIO_MANUAL", {
     p_aplicacao: corpo.avaliacao,
     p_pessoas: corpo.pessoas,
   });

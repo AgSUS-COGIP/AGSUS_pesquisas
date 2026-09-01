@@ -327,22 +327,22 @@ export function registrarPresenca() {
 /**
  * Quem está online agora.
  *
- * Restrita pelo banco aos perfis configurados. Quem não pode ver recebe 403 —
+ * Restrita pelo banco à permissão `ONLINE_PRESENCE`. Quem não pode ver recebe 403 —
  * distinto de lista vazia, que significa "ninguém online".
  */
 export function listarPresencaOnline() {
   return chamar<unknown>("/api/plataforma/presenca/online");
 }
 
-/** Liga/desliga a presença e restringe os perfis que a visualizam. */
-export function definirPresencaOnline(ativa: boolean, perfis: string[]) {
+/** Liga/desliga a presença; a visualização depende de `ONLINE_PRESENCE`. */
+export function definirPresencaOnline(ativa: boolean) {
   return chamar<unknown>("/api/plataforma/presenca", {
     method: "PUT",
-    body: JSON.stringify({ ativa, perfis }),
+    body: JSON.stringify({ ativa }),
   });
 }
 
-/** Página da matriz de perfis e pessoas. */
+/** Página da matriz de permissões e pessoas. */
 export function obterAreaDeAcessos(opcoes?: { busca?: string; limite?: number; offset?: number }) {
   return chamar<AreaDeAcessos>(
     `/api/plataforma/acessos${consulta({
@@ -353,10 +353,10 @@ export function obterAreaDeAcessos(opcoes?: { busca?: string; limite?: number; o
   );
 }
 
-/** Define **o** perfil da pessoa; o anterior é encerrado na mesma transação. */
-export function definirPerfilDaPessoa(pessoaId: string, perfil: string) {
+/** Substitui atomicamente as permissões funcionais da pessoa. */
+export function definirPermissoesDaPessoa(pessoaId: string, permissoes: string[]) {
   return chamar<unknown>(`/api/plataforma/acessos/${pessoaId}`, {
     method: "PUT",
-    body: JSON.stringify({ perfil }),
+    body: JSON.stringify({ permissoes }),
   });
 }

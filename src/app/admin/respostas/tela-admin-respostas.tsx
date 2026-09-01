@@ -43,8 +43,8 @@ function dateLabel(value: string) {
 }
 
 export default function AdminRespostasPage() {
-  // Sem módulo próprio no mapa de perfis: `ADMIN_TEAMS` é exclusivo do
-  // Superadmin, e a RPC revalida com `is_platform_administrator()`. A guarda de
+  // Sem módulo próprio no catálogo: `ADMIN_TEAMS` libera esta operação e a RPC
+  // revalida a mesma permissão. A guarda de
   // tela é usabilidade; a autorização real está no banco.
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_TEAMS);
   const confirm = useConfirm();
@@ -134,7 +134,7 @@ export default function AdminRespostasPage() {
         placeholder: anular
           ? "Ex.: respondeu no lugar de outra pessoa, a pedido da chefia da unidade."
           : "Ex.: o conteúdo trazia dado pessoal de terceiro e não pode permanecer gravado.",
-        // O mesmo mínimo que `fc_remover_resposta_pessoa` exige. Validar aqui
+        // O mesmo mínimo que `FC_REMOVER_RESPOSTA_PESSOA` exige. Validar aqui
         // evita confirmar o irreversível e só então descobrir que faltou motivo.
         minLength: 10,
       },

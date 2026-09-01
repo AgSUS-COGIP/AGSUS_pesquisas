@@ -109,7 +109,7 @@ export default function LeaderEvaluationPage() {
          * levaria quem abrisse o link direto, na segunda edição, a avaliar
          * alguém no ciclo errado.
          *
-         * O resolvedor aqui é `fc_listar_ciclos_lideranca`, e não o da
+         * O resolvedor aqui é `FC_LISTAR_CICLOS_LIDERANCA`, e não o da
          * autoavaliação: quem avalia é a chefia, e o ciclo que importa é aquele
          * em que ela **lidera equipe** — não aquele em que ela é avaliada. A
          * lista já vem do mais recente para o mais antigo.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
@@ -20,10 +20,10 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const banco = await createServerRpcClient();
   const arquivada = new URL(request.url).searchParams.get("arquivada") === "true";
-  const rpc = arquivada ? "fc_excluir_pesquisa_arquivada" : "fc_excluir_pesquisa_rascunho";
-  const { data, error } = await supabase.rpc(rpc, {
+  const rpc = arquivada ? "FC_EXCLUIR_PESQUISA_ARQUIVADA" : "FC_EXCLUIR_PESQUISA_RASCUNHO";
+  const { data, error } = await banco.rpc(rpc, {
     p_pesquisa: id,
   });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import { scheduleParticipantEmailDispatch } from "@/app/api/tarefas/emails/agendamento";
@@ -10,7 +10,7 @@ export const maxDuration = 300;
 /**
  * Estado do ciclo: métricas, checklist de integridade e sinais de prontidão.
  *
- * `get_survey_operations` **grava** antes de responder — materializa a abertura
+ * `FC_OBTER_OPERACOES_PESQUISA` **grava** antes de responder — materializa a abertura
  * de ciclo agendado cuja data já passou —, daí o `no-store`: cachear esta
  * leitura mostraria fechado um ciclo que no banco já abriu.
  */
@@ -24,8 +24,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_survey_operations", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_OBTER_OPERACOES_PESQUISA", {
     target_survey_id: id,
   });
 
@@ -40,7 +40,7 @@ export async function GET(
  * Executa uma transição do ciclo (`PUBLISH`, `OPEN`, `CLOSE`, `ARCHIVE`, …).
  *
  * A rota não conhece a lista de ações nem a matriz de transições válidas: uma
- * segunda tabela de estados aqui divergiria de `manage_survey_cycle` na
+ * segunda tabela de estados aqui divergiria de `FC_GERIR_CICLO_PESQUISA` na
  * primeira transição nova.
  */
 export async function POST(
@@ -65,8 +65,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe a operação do ciclo.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("manage_survey_cycle", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_GERIR_CICLO_PESQUISA", {
     target_survey_id: id,
     target_action: action,
     target_opens_at: corpo.opensAt ?? null,

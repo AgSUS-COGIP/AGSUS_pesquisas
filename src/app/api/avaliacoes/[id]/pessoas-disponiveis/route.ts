@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { PessoaCandidataAoCiclo } from "@/lib/api/contratos-pessoas";
@@ -23,8 +23,8 @@ export async function GET(
 
   const busca = new URL(request.url).searchParams.get("busca")?.trim() ?? "";
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("search_admin_people_for_application", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_BUSCAR_PESSOAS_CICLO", {
     target_application_id: id,
     target_search: busca,
   });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createPublicRpcClient, createServerRpcClient } from "@/lib/db/rpc-adapter";
+import { getCurrentAuthClaims } from "@/lib/db/current-claims";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { AtualizarMarcaEntrada } from "@/lib/api/contratos-pessoas";
 import { normalizePlatformBranding } from "@/lib/platform-branding";
@@ -31,24 +31,24 @@ function marcaPublica(value: unknown) {
  * configuracoes operacionais de e-mail e presenca. Uma sessao autenticada
  * preserva o contrato completo usado pelas telas administrativas.
  *
- * Quando não há uma sessão válida, a consulta pública usa um cliente Supabase
- * separado e sem cookies. Reutilizar o cliente de sessão nesse ramo fazia um
- * cookie antigo ou inválido ser enviado ao PostgREST; a chamada então recebia
- * 401 antes mesmo de a ACL `anon` de `fc_obter_marca_publica` ser considerada.
+ * Quando não há uma sessão válida, a consulta pública usa o cliente anônimo.
+ * O papel lógico da chamada é o que decide a permissão: `FC_OBTER_MARCA_PUBLICA`
+ * é liberada a `anon`, enquanto a RPC completa exige `authenticated` — ver
+ * `src/lib/db/rpc-permissions.ts`.
  */
 export async function GET() {
-  const sessionSupabase = await createServerSupabaseClient();
-  const { data: claimsData, error: claimsError } = await sessionSupabase.auth.getClaims();
-  const authenticated = Boolean(claimsData?.claims?.sub) && !claimsError;
+  const claims = await getCurrentAuthClaims();
+  const authenticated = Boolean(claims?.sub);
 
   if (authenticated) {
-    const { data, error } = await sessionSupabase.rpc("fc_obter_marca_plataforma");
+    const sessionbanco = await createServerRpcClient();
+    const { data, error } = await sessionbanco.rpc("FC_OBTER_MARCA_PLATAFORMA");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
     return NextResponse.json(normalizePlatformBranding(data));
   }
 
-  const publicSupabase = createPublicSupabaseClient();
-  const { data: publicData, error: publicError } = await publicSupabase.rpc("fc_obter_marca_publica");
+  const publicbanco = createPublicRpcClient();
+  const { data: publicData, error: publicError } = await publicbanco.rpc("FC_OBTER_MARCA_PUBLICA");
   if (!publicError) return NextResponse.json(marcaPublica(publicData));
 
   // PGRST202 = a migration que cria a RPC nova ainda nao chegou ao banco.
@@ -60,7 +60,7 @@ export async function GET() {
   // Compatibilidade de rollout apenas. O cliente continua anônimo e sem cookies:
   // se `anon` já tiver sido revogado da RPC completa, a resposta correta é erro,
   // não a reutilização silenciosa de um JWT inválido.
-  const { data, error } = await publicSupabase.rpc("fc_obter_marca_plataforma");
+  const { data, error } = await publicbanco.rpc("FC_OBTER_MARCA_PLATAFORMA");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
@@ -69,7 +69,7 @@ export async function GET() {
 /**
  * Grava nomes institucionais e cor principal.
  *
- * `fc_atualizar_marca_plataforma` substitui a linha única inteira, e omitir um
+ * `FC_ATUALIZAR_MARCA_PLATAFORMA` substitui a linha única inteira, e omitir um
  * campo o zeraria. O logotipo vai sempre nulo porque a marca é fixa — decisão
  * de produto mantida aqui para que nenhum chamador consiga sobrescrevê-la.
  */
@@ -89,8 +89,8 @@ export async function PUT(request: Request) {
     return respostaDeEntradaInvalida("Informe o nome da organização, o nome do sistema e a cor principal.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_atualizar_marca_plataforma", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_MARCA_PLATAFORMA", {
     no_organizacao_param: organizationName,
     no_produto_param: productName,
     tx_url_logotipo_param: null,

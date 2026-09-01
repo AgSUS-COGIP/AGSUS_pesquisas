@@ -1,63 +1,38 @@
 import { getEmailConfigurationStatus } from "@/config/email";
-import {
-  AdminSupabaseConfigurationError,
-  createAdminSupabaseClient,
-  getAdminSupabaseConfigurationStatus,
-} from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
+import { getEmpresaDbConfigurationStatus } from "@/lib/db/pool";
 import { RPCS_CRITICAS } from "@/lib/rpc-criticas";
+import type { Prontidao } from "@/lib/readiness-state";
+export { ehQuedaDeBackend, type Prontidao } from "@/lib/readiness-state";
 
 /**
  * Prontidão do ambiente — a **única** definição de "a plataforma está de pé".
  *
- * ## Por que isto saiu de dentro da rota
+ * ## Por que isto não mora dentro da rota
  *
- * Existiam duas regras concorrentes para a mesma pergunta. `/api/health/readiness`
- * conferia variáveis, banco e contrato de RPC. A tela de acesso, por sua vez,
- * inferia saúde a partir da leitura da marca: erro **com** código do PostgREST
- * queria dizer "respondeu, logo está de pé"; exceção ou erro sem código queria
- * dizer "fora".
+ * Já existiram duas regras concorrentes para a mesma pergunta.
+ * `/api/health/readiness` conferia variáveis, banco e contrato de RPC; a tela
+ * de acesso inferia saúde a partir da leitura da marca, e tratava erro **com**
+ * código como "respondeu, logo está de pé". Só que falha real chega com código
+ * — `57P03` (banco iniciando), `53300` (conexões esgotadas) —, então o login
+ * abria como num dia normal enquanto o banco estava fora.
  *
- * Esse segundo critério não se sustenta. Uma falha real entre PostgREST e
- * PostgreSQL chega com código — `57P03` (banco iniciando), `53300` (conexões
- * esgotadas), `PGRST002` (o esquema não pôde ser carregado). Todos são o banco
- * fora, e todos abriam a tela de login como se fosse um dia normal.
+ * A marca voltou a ser o que ela é: organização, cores, arte e textos. Ela não
+ * responde mais por saúde da plataforma. Uma definição, dois usos: a rota
+ * reduz o resultado a `ready`/`degraded`, a tela de acesso decide pelo motivo.
  *
- * A marca volta a ser o que ela é: organização, cores, arte e textos. Ela não
- * responde mais por saúde da plataforma.
+ * ## As três perguntas, nesta ordem
  *
- * ## Por que o resultado não é um booleano
- *
- * "Degradado" reúne situações que pedem respostas opostas na porta de entrada.
- *
- * Faltar `SMTP_APP_PASSWORD` degrada o ambiente — e-mail não sai —, mas não
- * impede ninguém de entrar. Fechar o login por isso seria trocar uma falha de
- * envio por uma queda total. Já o banco inacessível ou um esquema atrás das
- * migrations impedem qualquer jornada autenticada, e aí a tela precisa dizer.
- *
- * Por isso o retorno é discriminado: a rota reduz tudo a `ready`/`degraded`,
- * enquanto a tela de acesso decide pelo motivo. Uma definição, dois usos.
+ * As variáveis existem (barato, sem rede) → o banco responde → o esquema tem as
+ * RPCs desta versão. A terceira é a que importa: publicar a aplicação antes das
+ * migrations produz falha de contrato na frente de quem usa, e um health que só
+ * confere configuração responde `ok` nesse estado.
  */
-export type Prontidao =
-  | { estado: "pronta" }
-  | { estado: "configuracao-ausente"; detalhe: string }
-  | { estado: "backend-inacessivel"; detalhe: string }
-  | { estado: "esquema-incompativel"; detalhe: string };
-
-/**
- * Impede que a porta de entrada fique pendurada num backend que aceita a
- * conexão e não responde. Sem isto não há nem o que ler enquanto se espera —
- * pior que a tela errada.
- */
-const TEMPO_LIMITE_MS = 5_000;
-
-/** O ambiente responde e o esquema é compatível com esta versão da aplicação? */
 export async function verificarProntidao(): Promise<Prontidao> {
   const faltando = [
-    ...getAdminSupabaseConfigurationStatus().missingVariables,
+    ...getEmpresaDbConfigurationStatus().missingVariables,
     ...getEmailConfigurationStatus().missingVariables,
   ];
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()) faltando.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   if (!process.env.CRON_SECRET?.trim()) faltando.push("CRON_SECRET");
 
   if (faltando.length) {
@@ -65,30 +40,31 @@ export async function verificarProntidao(): Promise<Prontidao> {
   }
 
   try {
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase
-      .rpc("fc_srv_verificar_contrato_rpc", { p_nomes: [...RPCS_CRITICAS] })
-      .abortSignal(AbortSignal.timeout(TEMPO_LIMITE_MS));
+    const banco = createAdminRpcClient();
+    const { data, error } = await banco.rpc("FC_SRV_VERIFICAR_CONTRATO_RPC", {
+      p_nomes: [...RPCS_CRITICAS],
+    });
 
     /*
-      Os dois desfechos abaixo fecham a plataforma. O código do erro só escolhe
-      **o rótulo do log**, nunca se a plataforma está de pé.
+      Os dois desfechos abaixo fecham a plataforma. O código do erro escolhe
+      **o rótulo**, nunca se a plataforma está de pé.
 
-      Vale insistir nisso, porque a distinção parece a heurística antiga e é o
+      Vale insistir, porque a distinção se parece com a heurística antiga e é o
       oposto dela. Antes, erro com código significava "respondeu, logo está
-      saudável", e o login abria. Aqui, com código ou sem, o resultado é
-      indisponibilidade; a diferença serve a quem vai diagnosticar: sem código o
-      cliente nem chegou ao servidor (DNS, rede, projeto pausado — o
-      `TypeError: fetch failed` do supabase-js chega assim), com código o
-      servidor respondeu recusando, e aí a mensagem do PostgREST é a pista.
-
-      A própria função de verificação pode faltar — ambiente atrás da migration
-      que a criou. Isso é incompatibilidade de esquema, não falha a engolir.
+      saudável". Aqui, com código ou sem, o resultado é indisponibilidade; a
+      diferença serve a quem vai diagnosticar. Com código, o servidor respondeu
+      recusando e o SQLSTATE é a pista — inclusive `42883`, que o adaptador
+      traduz para `PGRST202` quando a própria função de verificação ainda não
+      existe, ou seja, ambiente atrás da migration que a criou. Sem código, a
+      sessão sequer chegou a executar: rede, credencial ou instância fora.
     */
     if (error) {
+      // O adaptador declara `message` opcional, e um erro sem texto continua
+      // sendo um erro: o rótulo garante que o log nunca fique vazio.
+      const detalhe = error.message ?? "sem mensagem do banco";
       return error.code
-        ? { estado: "esquema-incompativel", detalhe: `${error.code} ${error.message}` }
-        : { estado: "backend-inacessivel", detalhe: error.message };
+        ? { estado: "esquema-incompativel", detalhe: `${error.code} ${detalhe}` }
+        : { estado: "backend-inacessivel", detalhe };
     }
 
     const resultado = data as { compatible?: boolean; missing?: string[] } | null;
@@ -101,20 +77,9 @@ export async function verificarProntidao(): Promise<Prontidao> {
 
     return { estado: "pronta" };
   } catch (erro) {
-    if (erro instanceof AdminSupabaseConfigurationError) {
-      return { estado: "configuracao-ausente", detalhe: erro.message };
-    }
-    return { estado: "backend-inacessivel", detalhe: String(erro) };
+    return {
+      estado: "backend-inacessivel",
+      detalhe: erro instanceof Error ? erro.message : String(erro),
+    };
   }
-}
-
-/**
- * A plataforma consegue atender uma jornada autenticada?
- *
- * Configuração ausente fica **de fora** de propósito: é build ou
- * pré-visualização sem backend, e mostrar indisponibilidade ali seria mentir
- * sobre produção. O mesmo julgamento que a tela de acesso já fazia.
- */
-export function ehQuedaDeBackend(prontidao: Prontidao) {
-  return prontidao.estado === "backend-inacessivel" || prontidao.estado === "esquema-incompativel";
 }

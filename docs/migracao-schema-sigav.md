@@ -5,70 +5,99 @@ da aplicação para o schema `sigav`. Os dados não são copiados nem recriados:
 PostgreSQL altera o schema dos objetos e preserva OIDs, relacionamentos,
 constraints, índices, triggers, políticas RLS, grants e dependências.
 
-O Auth (`auth`), o Storage (`storage`), as rotinas internas (`private`), o
-catálogo de governança (`db_governanca`) e as views analíticas
-(`"DB_PESQUISAS"`) permanecem em seus schemas próprios.
+Esta migration foi o primeiro passo de uma unificação que terminou em 28/08/2026
+com **`sigav` como único schema da aplicação**. As etapas seguintes:
+
+| Migration | Efeito |
+|---|---|
+| `20260827170000_unificar_schemas_em_sigav.sql` | Absorve `private`, `db_governanca` e `"DB_PESQUISAS"` |
+| `20260827180000_remover_schema_public.sql` | Remove o `public`, já vazio |
+| `20260828090000_corrigir_referencias_a_private.sql` | Conserta 4 funções que a primeira quebrou |
+| `20260828100000_unificar_auth_e_extensions_em_sigav.sql` | Absorve `auth`; troca pgcrypto pelo `sha256()` nativo |
+| `20260828110000_preservar_pgcrypto_em_sigav.sql` | Preserva as 36 funções do pgcrypto dentro de `sigav` e encerra `extensions` |
+
+O quadro completo do estado final, incluindo os nomes novos das funções de
+claims e das tabelas de identidade, está em
+[../database/README.md](../database/README.md).
+
+Duas operações são **condicionais**, porque o `db_dataware` é instância
+compartilhada com `sip` e `sigepsi` e a aplicação não é dona de tudo. Em ambos
+os casos a migration registra um aviso e segue, em vez de falhar:
+
+- **`public`** é território comum, cujo dono é o administrador do banco.
+- **pgcrypto** só pode ser transferida por quem é dono da extensão. Se lá ela
+  pertencer ao administrador, `20260828110000` avisa e a deixa onde está — e
+  então `extensions` também permanece.
+
+O que pedir ao administrador da instância, se for o caso (o aviso da migration
+diz exatamente qual se aplica):
+
+```sql
+alter extension pgcrypto set schema sigav;  -- preserva as funções em sigav
+drop schema extensions;                     -- só depois, e se ficar vazio
+drop schema public;                         -- se nenhuma outra aplicação o usa
+```
+
+Note que é `alter ... set schema`, não `drop extension`: a decisão é **preservar**
+as funções do pgcrypto dentro de `sigav`, não descartá-las.
 
 ## Implantação
 
 A mudança do banco e a publicação da aplicação devem ocorrer na mesma janela de
-manutenção. O bundle anterior consulta `public`; o bundle novo consulta `sigav`.
+manutenção. `PostgreSQL db push` **não** se aplica mais: o histórico vive em
+`sigav."TB_MIGRACAO"` e quem aplica é `scripts/aplicar-migrations.mjs` (a razão
+está no cabeçalho daquele arquivo).
 
 1. Ative a página de manutenção ou interrompa temporariamente o tráfego.
-2. Confirme o backup e confronte o catálogo real de produção com o histórico de
-   migrations, seguindo `scripts/diagnostico-supabase.sql`.
-3. Revise o plano sem aplicar:
+2. **Confirme o backup.** A absorção de `auth` remove definitivamente as tabelas
+   de sessão do GoTrue, inclusive `audit_log_entries`; não há migration de volta.
+3. Ensaie numa cópia do banco, que é o único teste que enxerga objetos criados
+   fora do histórico de migrations:
 
    ```bash
-   supabase db push --dry-run
+   docker exec agsus-local psql -U postgres -c \
+     "create database db_conferencia template db_dataware"
    ```
 
-4. Aplique a migration pelo fluxo versionado:
+   Aplique as migrations na cópia, rode `database/tests/invariantes_schema.sql`
+   e chame as RPCs afetadas com claims de sessão de verdade.
+4. Liste o que está pendente, sem aplicar:
 
    ```bash
-   supabase db push
+   node --env-file=.env.local scripts/aplicar-migrations.mjs
    ```
 
-5. No Dashboard do Supabase, abra **Integrations > Data API** e inclua `sigav`
-   em **Exposed schemas**. `public` pode continuar exposto; ele fica vazio.
-6. Publique a versão da aplicação que define `db.schema = "sigav"` em todos os
-   clientes Supabase.
-7. Valide readiness, marca pública, login, catálogo, criação/edição de pesquisa,
+5. Aplique:
+
+   ```bash
+   node --env-file=.env.local scripts/aplicar-migrations.mjs --aplicar
+   ```
+
+   Leia os avisos. As remoções condicionais (`public`, `pgcrypto`/`extensions`)
+   informam quando decidem não remover, e por quê.
+6. Valide readiness, marca pública, login, catálogo, criação/edição de pesquisa,
    submissão, painéis, fila de e-mails e registro de erro antes de liberar o
    tráfego.
 
 ## Verificação no banco
 
-```sql
-select count(*) as objetos_restantes
-from pg_class c
-join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'public'
-  and c.relkind in ('r', 'p', 'f', 'S', 'v', 'm');
-
-select count(*) as tabelas_sem_rls
-from pg_class c
-join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'sigav'
-  and c.relkind in ('r', 'p')
-  and not c.relrowsecurity;
+```bash
+docker cp database/tests/invariantes_schema.sql agsus-local:/tmp/inv.sql
+docker exec agsus-local psql -U postgres -d db_dataware -v ON_ERROR_STOP=1 -f /tmp/inv.sql
 ```
 
-Ambas as consultas devem retornar zero. A migration também executa essas
-validações e reverte a transação inteira se encontrar inconsistência.
+São sete invariantes, entre eles que `sigav` é o único schema da aplicação, que
+nenhum objeto cita schema removido, que toda tabela tem RLS e que o UTF-8 das
+funções está íntegro. Cada migration também executa as próprias validações e
+reverte a transação inteira se encontrar inconsistência.
 
 ## Ambiente local
 
-O arquivo local ignorado `supabase/config.toml` deve conter:
-
-```toml
-[api]
-schemas = ["sigav", "graphql_public"]
-extra_search_path = ["sigav", "extensions"]
-```
-
-Reinicie a stack local após mudar a configuração para que o PostgREST passe a
-expor o schema novo.
+A stack local do PostgreSQL não é mais ambiente deste projeto — ela não consegue
+aplicar `20260828100000` (as tabelas de `auth` pertencem a `PostgreSQL_auth_admin`
+lá) e nunca representou produção. O ambiente de desenvolvimento é a réplica em
+Docker criada por `scripts/replicar-banco-local.mjs`, apontada no `.env.local`
+por `EMPRESA_DATABASE_URL`.
 
 ## Retorno
 

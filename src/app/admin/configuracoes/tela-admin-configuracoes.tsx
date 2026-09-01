@@ -66,8 +66,8 @@ import {
 } from "@/lib/color-contrast";
 import { errorMessageFromUnknown } from "@/lib/observability";
 import { invalidatePlatformContext, usePlatformGuard } from "@/lib/platform-context";
-import { PLATFORM_MODULE, resolvePlatformRole } from "@/lib/platform-modules";
-import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "@/lib/platform-roles";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
+import { PLATFORM_ACCESS_PRESETS, matchingAccessPreset } from "@/lib/platform-access-presets";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding } from "@/lib/platform-branding";
 import {
   ACCESS_PAGE_SIZE,
@@ -75,7 +75,7 @@ import {
   nextAccessOffset,
   previousAccessOffset,
 } from "@/lib/access-pagination";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { enviarArquivo, listarArquivos, removerArquivo } from "@/lib/api/cliente-arquivos";
 import { PainelDeManutencao } from "./painel-de-manutencao";
 import {
   atualizarMarcaDaPlataforma,
@@ -85,7 +85,7 @@ import {
   definirTextosDaMarca,
   definirFundoDeAcesso,
   definirPresencaOnline,
-  definirPerfilDaPessoa,
+  definirPermissoesDaPessoa,
   obterAreaDeAcessos,
 } from "@/lib/api/cliente-pessoas";
 
@@ -97,9 +97,15 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-// Perfis e pessoas (consolidados de /admin/acessos) ------------------------------
-type Role = { code: string; name: string; description: string | null };
-type PersonRole = { code: string };
+// Permissões e pessoas (consolidados de /admin/acessos) -------------------------
+type Permission = {
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  position: number;
+  required: boolean;
+};
 type Person = {
   personId: string;
   fullName: string;
@@ -108,19 +114,18 @@ type Person = {
   jobTitle: string | null;
   unit: string | null;
   active: boolean;
-  roles: PersonRole[];
+  permissions: string[];
 };
 type Workspace = {
   status: "OK";
-  roles: Role[];
+  technicalRole: "authenticated";
+  permissions: Permission[];
   people: Person[];
   total: number;
   limit: number;
   offset: number;
   hasMore: boolean;
 };
-
-const roleOrder: string[] = [PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.MANAGER, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT];
 
 // Abas do workspace. Cada card declara sua seção e só aparece na aba
 // correspondente (ou em "Tudo") e quando casa com a busca.
@@ -198,10 +203,6 @@ function normalize(value: string | null | undefined) {
     .trim();
 }
 
-function effectiveRoleCode(person: Person) {
-  return resolvePlatformRole(person.roles.map((role) => role.code));
-}
-
 export default function PlatformSettingsPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.ADMIN_ACCESS);
   const { branding, loading: brandingLoading } = usePlatformBranding();
@@ -221,7 +222,6 @@ export default function PlatformSettingsPage() {
   const [fetching, setFetching] = useState(false);
   const [changing, setChanging] = useState("");
   const [presenceEnabled, setPresenceEnabled] = useState(branding.onlinePresenceEnabled);
-  const [presenceRoles, setPresenceRoles] = useState<string[]>(branding.onlinePresenceViewerRoles);
   const [savingPresence, setSavingPresence] = useState(false);
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [announcement, setAnnouncement] = useState({
@@ -287,8 +287,7 @@ export default function PlatformSettingsPage() {
 
   useEffect(() => {
     setPresenceEnabled(branding.onlinePresenceEnabled);
-    setPresenceRoles(branding.onlinePresenceViewerRoles);
-  }, [branding.onlinePresenceEnabled, branding.onlinePresenceViewerRoles]);
+  }, [branding.onlinePresenceEnabled]);
 
   useEffect(() => {
     setAnnouncement({
@@ -406,23 +405,13 @@ export default function PlatformSettingsPage() {
 
   const loadGallery = useCallback(async () => {
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.storage.from("platform-assets").list("branding", {
-        limit: 100,
-        sortBy: { column: "created_at", order: "desc" },
-      });
-      if (error) throw error;
+      const arquivos = await listarArquivos("platform-assets", "branding/");
       setGallery(
-        (data ?? [])
-          .filter((item) => item.name && !item.name.startsWith("."))
-          .map((item) => {
-            const path = `branding/${item.name}`;
-            return {
-              path,
-              url: supabase.storage.from("platform-assets").getPublicUrl(path).data.publicUrl,
-              sizeKb: Math.round(((item.metadata?.size as number) ?? 0) / 1024),
-            };
-          }),
+        arquivos.map((item) => ({
+          path: item.caminho,
+          url: item.url,
+          sizeKb: Math.round(item.tamanho / 1024),
+        })),
       );
     } catch (listError) {
       // A galeria é acessório: falhar aqui não pode impedir configurar o resto.
@@ -450,24 +439,13 @@ export default function PlatformSettingsPage() {
     }
   }, [branding, queryClient]);
 
-  const togglePresenceRole = useCallback((role: string) => {
-    setPresenceRoles((current) => current.includes(role)
-      ? current.filter((item) => item !== role)
-      : [...current, role]);
-  }, []);
-
   const savePresence = useCallback(async () => {
-    if (presenceRoles.length === 0) {
-      toast.error("Selecione ao menos um perfil para usar a presença online.");
-      return;
-    }
     setSavingPresence(true);
     try {
-      await definirPresencaOnline(presenceEnabled, presenceRoles);
+      await definirPresencaOnline(presenceEnabled);
       queryClient.setQueryData(platformBrandingQueryKey, {
         ...branding,
         onlinePresenceEnabled: presenceEnabled,
-        onlinePresenceViewerRoles: presenceRoles,
       });
       toast.success(presenceEnabled ? "Presença online atualizada." : "Presença online desativada.");
     } catch (saveError) {
@@ -475,7 +453,7 @@ export default function PlatformSettingsPage() {
     } finally {
       setSavingPresence(false);
     }
-  }, [branding, presenceEnabled, presenceRoles, queryClient]);
+  }, [branding, presenceEnabled, queryClient]);
 
   const saveAnnouncement = useCallback(async () => {
     const title = announcement.title.trim();
@@ -538,9 +516,7 @@ export default function PlatformSettingsPage() {
 
     setUploadingBackground(true);
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { error } = await supabase.storage.from("platform-assets").remove([item.path]);
-      if (error) throw error;
+      await removerArquivo("platform-assets", item.path);
       await loadGallery();
       toast.success("Arte removida do armazenamento.");
     } catch (deleteError) {
@@ -585,7 +561,7 @@ export default function PlatformSettingsPage() {
   /**
    * Grava os três textos institucionais de uma vez.
    *
-   * Os três vão juntos porque `fc_definir_textos_marca` grava os três: enviar
+   * Os três vão juntos porque `FC_DEFINIR_TEXTOS_MARCA` grava os três: enviar
    * um só zeraria os outros dois. Campo vazio significa restaurar o padrão do
    * código, não apagar — a tela de entrada não pode ficar sem título.
    */
@@ -622,34 +598,28 @@ export default function PlatformSettingsPage() {
       return;
     }
     setUploadingBackground(true);
-    const supabase = createBrowserSupabaseClient();
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    // O caminho precisa começar com `branding/`: é o que a política de inserção
-    // do bucket exige (`name like 'branding/%'`). Usar outra pasta devolve
-    // "new row violates row-level security policy" — a política é a regra, e o
-    // caminho é que se ajusta a ela.
+    // O caminho continua sob `branding/`: a política do bucket que o exigia não
+    // existe mais, mas é o prefixo que a galeria lista e o que separa as artes
+    // de acesso do resto do balde.
     const path = `branding/acesso-${crypto.randomUUID()}.${extension}`;
     try {
-      const { error: uploadError } = await supabase.storage.from("platform-assets").upload(path, file, { upsert: true, contentType: file.type });
-      if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("platform-assets").getPublicUrl(path);
+      const arquivo = await enviarArquivo("platform-assets", path, file);
 
-      // O envio ao storage continua sendo direto do navegador — Storage não é
-      // RPC, e a política do bucket é quem autoriza. Só a gravação da
-      // configuração passou para a rota REST, e o rollback segue valendo: se
-      // ela falhar, o arquivo recém-enviado sai do armazenamento, senão o
-      // storage acumularia imagens que nenhuma configuração aponta.
+      // O rollback segue valendo: se a gravação da configuração falhar, o
+      // arquivo recém-enviado sai do armazenamento, senão o acervo acumularia
+      // imagens que nenhuma configuração aponta.
       try {
-        await definirFundoDeAcesso(publicUrl.publicUrl, path);
+        await definirFundoDeAcesso(arquivo.url, arquivo.caminho);
       } catch (saveError) {
-        await supabase.storage.from("platform-assets").remove([path]);
+        await removerArquivo("platform-assets", arquivo.caminho);
         throw saveError;
       }
 
       queryClient.setQueryData(platformBrandingQueryKey, {
         ...branding,
-        accessBackgroundUrl: publicUrl.publicUrl,
-        accessBackgroundPath: path,
+        accessBackgroundUrl: arquivo.url,
+        accessBackgroundPath: arquivo.caminho,
       });
       // A arte recém-enviada precisa aparecer na galeria na hora: sem isso,
       // ela só surgiria no próximo carregamento da tela.
@@ -698,9 +668,7 @@ export default function PlatformSettingsPage() {
 
     try {
       if (caminhoAnterior) {
-        const { error: removeError } = await createBrowserSupabaseClient()
-          .storage.from("platform-assets").remove([caminhoAnterior]);
-        if (removeError) throw removeError;
+        await removerArquivo("platform-assets", caminhoAnterior);
         await loadGallery();
       }
     } catch (cleanupError) {
@@ -765,35 +733,49 @@ export default function PlatformSettingsPage() {
 
   const isCurrentPerson = (person: Person) => Boolean(currentPersonId) && person.personId === currentPersonId;
 
-  async function setProfile(person: Person, role: Role) {
-    if (person.roles.length === 1 && person.roles[0]?.code === role.code) return;
-    if (isCurrentPerson(person) && role.code !== PLATFORM_ROLE.SUPER_ADMIN) {
-      toast.error("Você não pode retirar seu próprio perfil de Superadmin.");
+  async function setPermissions(person: Person, permissions: readonly string[], successMessage: string) {
+    const normalized = [...new Set(permissions)];
+    if (isCurrentPerson(person) && !normalized.includes(PLATFORM_MODULE.ADMIN_ACCESS)) {
+      toast.error("Você não pode retirar sua própria permissão de administrar acessos.");
       return;
     }
 
-    setChanging(`${person.personId}:${role.code}`);
+    setChanging(person.personId);
     try {
-      await definirPerfilDaPessoa(person.personId, role.code);
+      await definirPermissoesDaPessoa(person.personId, normalized);
 
-      toast.success(`${person.fullName} agora tem o perfil ${role.name}.`);
+      toast.success(successMessage);
       invalidatePlatformContext();
       await loadPeople(peopleSearch, workspace?.offset ?? 0);
     } catch (changeError) {
-      toast.error(errorMessageFromUnknown(changeError) || "Não foi possível alterar o perfil.");
+      toast.error(errorMessageFromUnknown(changeError) || "Não foi possível alterar as permissões.");
       await loadPeople(peopleSearch, workspace?.offset ?? 0);
     } finally {
       setChanging("");
     }
   }
 
-  const roles = useMemo(
-    () =>
-      [...(workspace?.roles ?? [])].sort((a, b) => {
-        const ai = roleOrder.indexOf(a.code);
-        const bi = roleOrder.indexOf(b.code);
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-      }),
+  async function togglePermission(person: Person, permission: Permission) {
+    if (permission.required) return;
+    const enabled = person.permissions.includes(permission.code);
+    const next = enabled
+      ? person.permissions.filter((code) => code !== permission.code)
+      : [...person.permissions, permission.code];
+    await setPermissions(
+      person,
+      next,
+      `${permission.name} ${enabled ? "retirada de" : "concedida a"} ${person.fullName}.`,
+    );
+  }
+
+  async function applyPreset(person: Person, presetCode: string) {
+    const preset = PLATFORM_ACCESS_PRESETS.find((item) => item.code === presetCode);
+    if (!preset) return;
+    await setPermissions(person, preset.permissions, `Preset ${preset.name} aplicado a ${person.fullName}.`);
+  }
+
+  const permissions = useMemo(
+    () => [...(workspace?.permissions ?? [])].sort((a, b) => a.position - b.position || a.code.localeCompare(b.code)),
     [workspace],
   );
 
@@ -812,8 +794,7 @@ export default function PlatformSettingsPage() {
   const operationVisible = cardVisible("operation", "operação avaliações ciclos participantes lideranças equipes comunicação emails lembretes importações respostas histórico falhas auditoria");
   const accessVisible = cardVisible("access", "acessos permissões perfis pessoas segurança participante avaliador admin superadmin");
   const visibleCount = [brandVisible, homeVisible, loginVisible, appearanceVisible, featuresVisible, operationVisible, accessVisible].filter(Boolean).length;
-  const presenceDirty = presenceEnabled !== branding.onlinePresenceEnabled
-    || [...presenceRoles].sort().join("|") !== [...branding.onlinePresenceViewerRoles].sort().join("|");
+  const presenceDirty = presenceEnabled !== branding.onlinePresenceEnabled;
   const announcementDirty = announcement.enabled !== branding.homeAnnouncementEnabled
     || announcement.title.trim() !== branding.homeAnnouncementTitle
     || announcement.message.trim() !== branding.homeAnnouncementMessage
@@ -826,7 +807,7 @@ export default function PlatformSettingsPage() {
       title="configurações"
       unidentifiedTitle="Não foi possível abrir as configurações"
       restrictedTitle="Configurações restritas"
-      restrictedDescription="Somente o Superadmin pode alterar a identidade da plataforma e os perfis de acesso."
+      restrictedDescription="Você não possui a permissão necessária para alterar configurações e acessos."
     />;
   }
 
@@ -1042,7 +1023,7 @@ export default function PlatformSettingsPage() {
 
                   {/*
                     Botão próprio, e não o "Salvar alterações" do rodapé: aquele
-                    chama `fc_atualizar_marca_plataforma`, que não conhece estes
+                    chama `FC_ATUALIZAR_MARCA_PLATAFORMA`, que não conhece estes
                     campos. Ligá-lo aqui faria a tela mostrar sucesso sem que o
                     texto mudasse.
                   */}
@@ -1453,7 +1434,7 @@ export default function PlatformSettingsPage() {
                       <h3 className="text-base font-black text-[var(--text-primary)]">Pessoas online</h3>
                       <Badge variant={presenceEnabled ? "success" : "neutral"}>{presenceEnabled ? "Ativo" : "Desativado"}</Badge>
                     </div>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Conta todas as pessoas com a plataforma aberta. A quantidade e a lista ficam visíveis apenas para os perfis autorizados abaixo.</p>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">Conta todas as pessoas com a plataforma aberta. A quantidade e a lista ficam visíveis apenas para quem recebeu a permissão correspondente.</p>
                   </div>
                 </div>
                 <button
@@ -1469,30 +1450,16 @@ export default function PlatformSettingsPage() {
               </div>
 
               <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_20rem]">
-                <fieldset>
-                  <legend className="text-sm font-bold text-[var(--text-primary)]">Quem pode visualizar</legend>
-                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Todos os perfis ativos são contabilizados. Somente os perfis selecionados podem ver a quantidade, os nomes e as fotos.</p>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {roleOrder.map((role) => {
-                      const selected = presenceRoles.includes(role);
-                      return (
-                        <label key={role} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${selected ? "border-emerald-300 bg-emerald-50/70" : "border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--border-strong)]"}`}>
-                          <input type="checkbox" checked={selected} onChange={() => togglePresenceRole(role)} className="h-4 w-4 accent-emerald-600" />
-                          <span>
-                            <strong className="block text-sm text-[var(--text-primary)]">{PLATFORM_ROLE_LABELS[role as keyof typeof PLATFORM_ROLE_LABELS]}</strong>
-                            <span className="block text-xs text-[var(--text-secondary)]">{selected ? "Pode visualizar" : "Apenas é contabilizado"}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+                  <strong className="block text-sm text-[var(--text-primary)]">Visualização controlada por permissão</strong>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Toda pessoa autenticada registra a própria presença quando o recurso está ligado. Nomes e fotos só aparecem para quem recebeu “Visualizar presença online” na seção Pessoas e permissões.</p>
+                </div>
 
                 <aside className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
                   <p className="section-eyebrow">Impacto controlado</p>
                   <strong className="mt-2 block text-sm text-[var(--text-primary)]">Sem consulta contínua ao banco</strong>
                   <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Cada pessoa mantém uma conexão enquanto usa o sistema. Não há gravação por minuto nem atualização por movimento do usuário.</p>
-                  <Button type="button" onClick={() => void savePresence()} disabled={!presenceDirty || savingPresence || presenceRoles.length === 0} className="mt-4 w-full">
+                  <Button type="button" onClick={() => void savePresence()} disabled={!presenceDirty || savingPresence} className="mt-4 w-full">
                     {savingPresence ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                     {savingPresence ? "Salvando..." : "Salvar recurso"}
                   </Button>
@@ -1570,7 +1537,7 @@ export default function PlatformSettingsPage() {
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"><UserCog className="h-5 w-5" aria-hidden="true" /></span>
                   <div>
                     <h3 className="text-base font-black text-[var(--text-primary)]">Pessoas e permissões</h3>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">{roles.length ? `Cada pessoa tem exatamente um dos ${roles.length} perfis. Selecionar um substitui o anterior — a mudança é imediata e auditada.` : "Pesquise uma pessoa e defina seu perfil. A mudança é imediata e auditada."}</p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">Todos usam a role técnica <code>authenticated</code>. Marque permissões individualmente ou aplique um preset funcional; toda mudança é imediata e auditada.</p>
                   </div>
                 </div>
                 <form
@@ -1591,7 +1558,7 @@ export default function PlatformSettingsPage() {
                 </form>
               </div>
 
-              <DataTableContainer className="mt-5 min-w-0 border-0 shadow-none" aria-label="Pessoas e perfis da plataforma">
+              <DataTableContainer className="mt-5 min-w-0 border-0 shadow-none" aria-label="Pessoas e permissões da plataforma">
                 {fetching && !workspace ? (
                   <DataTableState aria-live="polite">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden="true" />
@@ -1613,9 +1580,9 @@ export default function PlatformSettingsPage() {
                           <DataTableHeaderCell className="sticky left-0 z-30 min-w-[19rem] bg-[var(--surface-muted)] shadow-[10px_0_18px_-18px_rgba(15,23,42,.8)] sm:min-w-[22rem]">
                             Pessoa
                           </DataTableHeaderCell>
-                          {roles.map((role) => (
-                            <DataTableHeaderCell key={role.code} className="w-32 min-w-32 text-center">
-                              <span title={role.description ?? role.name}>{role.name}</span>
+                          {permissions.map((permission) => (
+                            <DataTableHeaderCell key={permission.code} className="w-36 min-w-36 text-center">
+                              <span title={permission.description ?? permission.name}>{permission.name}</span>
                             </DataTableHeaderCell>
                           ))}
                         </DataTableRow>
@@ -1638,23 +1605,42 @@ export default function PlatformSettingsPage() {
                                     {person.jobTitle ?? "Cargo não informado"}
                                     {person.unit ? ` · ${person.unit}` : ""}
                                   </span>
+                                  <label className="mt-2 block text-[11px] font-semibold text-[var(--text-secondary)]">
+                                    Preset funcional
+                                    <select
+                                      value={matchingAccessPreset(person.permissions)?.code ?? "CUSTOM"}
+                                      onChange={(event) => void applyPreset(person, event.target.value)}
+                                      disabled={changing === person.personId}
+                                      className="mt-1 block min-h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-card)] px-2 text-xs text-[var(--text-primary)] disabled:cursor-wait disabled:opacity-50"
+                                    >
+                                      <option value="CUSTOM" disabled>Personalizado</option>
+                                      {PLATFORM_ACCESS_PRESETS.map((preset) => (
+                                        <option key={preset.code} value={preset.code}>{preset.name}</option>
+                                      ))}
+                                    </select>
+                                  </label>
                                 </div>
                               </div>
                             </DataTableCell>
-                            {roles.map((role) => {
-                              const active = effectiveRoleCode(person) === role.code;
-                              const busy = changing.startsWith(`${person.personId}:`);
-                              const isSelfDowngrade = isCurrentPerson(person) && role.code !== PLATFORM_ROLE.SUPER_ADMIN;
-                              const blocked = busy || isSelfDowngrade;
+                            {permissions.map((permission) => {
+                              const active = person.permissions.includes(permission.code);
+                              const busy = changing === person.personId;
+                              const isSelfAdminPermission = isCurrentPerson(person)
+                                && permission.code === PLATFORM_MODULE.ADMIN_ACCESS;
+                              const blocked = busy || permission.required || isSelfAdminPermission;
 
                               return (
-                                <DataTableCell key={role.code} className="w-32 min-w-32 text-center">
+                                <DataTableCell key={permission.code} className="w-36 min-w-36 text-center">
                                   <button
                                     type="button"
                                     aria-pressed={active}
-                                    aria-label={`Definir o perfil ${role.name} para ${person.fullName}`}
-                                    title={isSelfDowngrade ? "Você não pode retirar seu próprio perfil de Superadmin." : undefined}
-                                    onClick={() => void setProfile(person, role)}
+                                    aria-label={`${active ? "Retirar" : "Conceder"} ${permission.name} ${active ? "de" : "a"} ${person.fullName}`}
+                                    title={permission.required
+                                      ? "Permissão básica obrigatória para toda pessoa autenticada."
+                                      : isSelfAdminPermission
+                                        ? "Você não pode retirar sua própria administração de acessos."
+                                        : permission.description ?? undefined}
+                                    onClick={() => void togglePermission(person, permission)}
                                     disabled={blocked}
                                     className={`grid h-7 w-7 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:opacity-40 ${
                                       busy ? "disabled:cursor-wait" : "disabled:cursor-not-allowed"
@@ -1662,7 +1648,7 @@ export default function PlatformSettingsPage() {
                                       active ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white enabled:hover:border-emerald-400"
                                     }`}
                                   >
-                                    {busy && changing === `${person.personId}:${role.code}` ? (
+                                    {busy ? (
                                       <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" aria-hidden="true" />
                                     ) : active ? (
                                       <Check className="h-3.5 w-3.5 text-white" aria-hidden="true" />
@@ -1674,7 +1660,7 @@ export default function PlatformSettingsPage() {
                           </DataTableRow>
                         ))}
                         {!fetching && !(workspace?.people?.length) && (
-                          <DataTableEmpty colSpan={Math.max(roles.length + 1, 1)}>
+                          <DataTableEmpty colSpan={Math.max(permissions.length + 1, 1)}>
                             Nenhuma pessoa encontrada para os critérios informados.
                           </DataTableEmpty>
                         )}

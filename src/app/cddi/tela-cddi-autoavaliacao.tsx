@@ -90,7 +90,7 @@ export default function CddiFormPage() {
     lida só para saber se esta pessoa tem equipe. O atalho "Avaliar minha
     equipe" era renderizado sem condição, então quem só participa via o cartão,
     clicava e caía na tela de acesso restrito — a rota `/equipe` exige o módulo
-    `TEAM`, que o perfil Participante não tem.
+    `TEAM`, concedida separadamente da role técnica.
 
     `/area` já decidia o mesmo atalho por `modules.includes(TEAM)`. A regra
     passa a ser a mesma nas duas telas.

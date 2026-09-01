@@ -78,9 +78,9 @@ function dateLabel(value: string | null) {
  */
 
 export default function ParticipantAreaPage() {
-  // Sem módulo exigido no hook: o Participante não tem Visão Geral, mas /area é
-  // o destino padrão pós-login — a resposta correta é redirecionar para
-  // Pesquisas, não apresentar "acesso restrito".
+  // Sem módulo exigido no hook para manter compatibilidade com contextos
+  // anteriores à obrigatoriedade de HOME; a exceção segue para Pesquisas sem
+  // piscar uma tela restrita.
   const guard = usePlatformGuard();
   const { branding } = usePlatformBranding();
   const granted = guard.state === "granted";

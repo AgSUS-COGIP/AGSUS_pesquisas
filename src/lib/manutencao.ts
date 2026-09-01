@@ -1,7 +1,6 @@
 import { isPlatformNavItemActive, platformNavigationGroups } from "./platform-navigation";
 import { PLATFORM_MODULES, isPlatformModule, type PlatformModule } from "./platform-modules";
-import { PLATFORM_ROLE, type PlatformRoleCode } from "./platform-roles";
-import { ehQuedaDeBackend, type Prontidao } from "./readiness";
+import { ehQuedaDeBackend, type Prontidao } from "./readiness-state";
 
 /**
  * Manutenção operacional — o núcleo, sem nenhuma entrada e saída.
@@ -176,7 +175,7 @@ export type EntradaOperacional = {
    */
   manutencao: EstadoDeManutencao | null;
   pathname: string;
-  papel: PlatformRoleCode | null;
+  modulosDaPessoa: readonly PlatformModule[];
 };
 
 /**
@@ -201,7 +200,7 @@ export function resolverEstadoOperacional({
   prontidao,
   manutencao,
   pathname,
-  papel,
+  modulosDaPessoa,
 }: EntradaOperacional): EstadoOperacional {
   if (ehRotaSempreLiberada(pathname)) return { situacao: "liberado" };
 
@@ -210,15 +209,17 @@ export function resolverEstadoOperacional({
   // Control plane ilegível com plataforma saudável não bloqueia ninguém.
   if (!manutencao) return { situacao: "liberado" };
 
-  const ehSuperadmin = papel === PLATFORM_ROLE.SUPER_ADMIN;
+  const podeAdministrarAcesso = modulosDaPessoa.includes("ADMIN_ACCESS");
 
   if (manutencao.global) {
-    return ehSuperadmin ? { situacao: "administrativo", modulo: null } : { situacao: "manutencao-global" };
+    return podeAdministrarAcesso
+      ? { situacao: "administrativo", modulo: null }
+      : { situacao: "manutencao-global" };
   }
 
   const modulo = moduleForPathname(pathname);
   if (modulo && manutencao.modules.includes(modulo)) {
-    return ehSuperadmin
+    return podeAdministrarAcesso
       ? { situacao: "administrativo", modulo }
       : { situacao: "manutencao-de-modulo", modulo };
   }
@@ -226,6 +227,6 @@ export function resolverEstadoOperacional({
   return { situacao: "liberado" };
 }
 
-/** Aviso mostrado ao Superadmin que entrou por desvio. */
+/** Aviso mostrado a quem possui ADMIN_ACCESS e entrou por desvio. */
 export const AVISO_MODO_ADMINISTRATIVO =
   "Este módulo está em manutenção. Você está acessando em modo administrativo.";

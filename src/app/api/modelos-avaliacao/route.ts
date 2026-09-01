@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 
 /**
@@ -9,8 +9,8 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  * `POST /api/avaliacoes/[id]/copia`, não por uma rota própria.
  */
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_modelos_avaliacao");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_MODELOS_AVALIACAO");
 
   if (error) return respostaDeErro(error, "GET /api/modelos-avaliacao");
 

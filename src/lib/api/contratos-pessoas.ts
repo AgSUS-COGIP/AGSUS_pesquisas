@@ -8,7 +8,7 @@
 
 // ── Pessoas: ficha funcional e auditoria ──────────────────────────────────────
 
-/** Pessoa da base institucional, no formato de `search_platform_admin_people`. */
+/** Pessoa da base institucional, no formato de `FC_BUSCAR_PESSOAS_ADMIN`. */
 export type PessoaAdministrativa = {
   personId: string;
   employeeNumber: string;
@@ -28,7 +28,7 @@ export type PessoaAdministrativa = {
 /**
  * Corpo aceito por `PATCH /api/pessoas/[id]`.
  *
- * A matrícula não aparece de propósito: `update_platform_admin_person` não a
+ * A matrícula não aparece de propósito: `FC_ATUALIZAR_PESSOA_ADMIN` não a
  * altera, e aceitá-la prometeria uma edição que o banco recusa.
  */
 export type AtualizarPessoaEntrada = {
@@ -57,7 +57,7 @@ export type EventoAuditoriaPessoa = {
   createdAt: string;
 };
 
-/** Retrato da base mestra devolvido por `get_admin_people_base_summary`. */
+/** Retrato da base mestra devolvido por `FC_RESUMO_BASE_PESSOAS`. */
 export type ResumoBasePessoas = {
   totalPeople: number;
   activePeople: number;
@@ -232,7 +232,7 @@ export type CandidatoDaEquipe = {
   avatarUrl: string | null;
 };
 
-/** Agregado da equipe no ciclo, devolvido por `fc_obter_minha_equipe`. */
+/** Agregado da equipe no ciclo, devolvido por `FC_OBTER_MINHA_EQUIPE`. */
 export type EquipeDaLideranca = {
   status: string;
   application: {
@@ -293,15 +293,18 @@ export type RemoverRespostaEntrada = {
 
 // ── Plataforma: marca e acessos ───────────────────────────────────────────────
 
-/** Perfil disponível na matriz de acessos. */
-export type PerfilDeAcesso = {
+/** Permissão disponível na matriz de acessos. */
+export type PermissaoDeAcesso = {
   code: string;
   name: string;
   description: string | null;
+  category: string;
+  position: number;
+  required: boolean;
 };
 
-/** Pessoa na matriz de acessos, com os papéis vigentes dela. */
-export type PessoaComPerfis = {
+/** Pessoa na matriz de acessos, com suas permissões efetivas. */
+export type PessoaComPermissoes = {
   personId: string;
   fullName: string;
   employeeNumber: string | null;
@@ -309,14 +312,15 @@ export type PessoaComPerfis = {
   jobTitle: string | null;
   unit: string | null;
   active: boolean;
-  roles: { code: string }[];
+  permissions: string[];
 };
 
-/** Página da matriz devolvida por `fc_listar_acessos_paginados`. */
+/** Página da matriz devolvida por `FC_LISTAR_ACESSOS_PAGINADOS`. */
 export type AreaDeAcessos = {
   status: "OK";
-  roles: PerfilDeAcesso[];
-  people: PessoaComPerfis[];
+  technicalRole: "authenticated";
+  permissions: PermissaoDeAcesso[];
+  people: PessoaComPermissoes[];
   total: number;
   limit: number;
   offset: number;
@@ -324,8 +328,8 @@ export type AreaDeAcessos = {
 };
 
 /** Corpo aceito por `PUT /api/plataforma/acessos/[pessoaId]`. */
-export type DefinirPerfilEntrada = {
-  perfil: string;
+export type DefinirPermissoesEntrada = {
+  permissoes: string[];
 };
 
 /** Corpo aceito por `PUT /api/plataforma/marca`. */
@@ -338,7 +342,6 @@ export type AtualizarMarcaEntrada = {
 /** Configuração do recurso de presença online. */
 export type DefinirPresencaOnlineEntrada = {
   ativa: boolean;
-  perfis: string[];
 };
 
 /** Comunicado institucional exibido na página inicial. */
@@ -369,7 +372,7 @@ export type DefinirCorPainelEntrada = {
 /**
  * Corpo de `PUT /api/plataforma/marca/textos`.
  *
- * Os três campos vão juntos porque `fc_definir_textos_marca` grava os três de
+ * Os três campos vão juntos porque `FC_DEFINIR_TEXTOS_MARCA` grava os três de
  * uma vez: enviar só um zeraria os outros dois. A tela sempre manda o conjunto
  * completo, mesmo que a pessoa tenha alterado um só.
  */

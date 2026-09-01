@@ -1,5 +1,4 @@
-import { normalizePlatformModules, resolvePlatformRole, type PlatformModule } from "./platform-modules";
-import { PLATFORM_ROLE, PLATFORM_ROLE_LABELS } from "./platform-roles";
+import { normalizePlatformModules, PLATFORM_MODULE, type PlatformModule } from "./platform-modules";
 import { AVISO_MODO_ADMINISTRATIVO } from "./manutencao";
 import type { PlatformContext } from "./platform-context";
 
@@ -16,7 +15,6 @@ export type PlatformShellUser = {
   employeeNumber: string;
   profileLabel: string;
   avatarUrl?: string | null;
-  roles?: string[];
   modules: PlatformModule[];
 };
 
@@ -38,7 +36,7 @@ export type PlatformGuardDecision =
       person: NonNullable<PlatformContext["person"]>;
       modules: PlatformModule[];
       user: PlatformShellUser;
-      /** Preenchido quando o Superadmin entrou num módulo em manutenção. */
+      /** Preenchido quando ADMIN_ACCESS entrou num módulo em manutenção. */
       avisoDeManutencao: string | null;
     };
 
@@ -97,10 +95,10 @@ export function resolvePlatformGuard({
     respondeu. Retirar a manutenção devolve o acesso na mesma hora, sem nada
     para recalcular.
   */
-  const papel = resolvePlatformRole(context.roles);
   const emManutencao = Boolean(requiredModule && modulosEmManutencao?.includes(requiredModule));
+  const podeAdministrarAcesso = modules.includes(PLATFORM_MODULE.ADMIN_ACCESS);
 
-  if (emManutencao && requiredModule && papel !== PLATFORM_ROLE.SUPER_ADMIN) {
+  if (emManutencao && requiredModule && !podeAdministrarAcesso) {
     return { state: "manutencao", modulo: requiredModule };
   }
 
@@ -115,9 +113,8 @@ export function resolvePlatformGuard({
       fullName: person.fullName,
       institutionalEmail: person.institutionalEmail,
       employeeNumber: person.employeeNumber,
-      profileLabel: PLATFORM_ROLE_LABELS[resolvePlatformRole(context.roles)],
+      profileLabel: "Usuário autenticado",
       avatarUrl: person.avatarUrl,
-      roles: context.roles,
       modules,
     },
   };

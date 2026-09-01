@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { PerguntaEntrada } from "@/lib/api/contratos-construtor";
@@ -38,8 +38,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Informe o enunciado e o tipo da pergunta.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("add_survey_question", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_INCLUIR_PERGUNTA", {
     target_survey_id: id,
     target_section_id: corpo.sectionId,
     question_title: title,

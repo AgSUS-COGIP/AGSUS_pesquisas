@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehObjeto, ehUuid } from "@/lib/api/validacao";
 import type { TipoSubmissaoCddi } from "@/lib/api/contratos-runtime";
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Identificador de pessoa avaliada inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("start_or_resume_my_cddi_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_INICIAR_OU_RETOMAR_CDDI", {
     target_application_code: applicationCode,
     target_submission_type: submissionType,
     target_subject_person_id: subjectPersonId,

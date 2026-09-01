@@ -5,7 +5,7 @@ import {
   lerJsonLimitado,
 } from "@/lib/api/corpo-json-limitado";
 import { normalizeErrorReference } from "@/lib/observability-reference";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminRpcClient } from "@/lib/db/rpc-adapter";
 import { publicRateLimitResponse } from "@/lib/public-rate-limit";
 
 const ALLOWED_TYPES = new Set(["CLIENTE", "SERVIDOR", "REDE", "BANCO", "DESCONHECIDO"]);
@@ -77,16 +77,16 @@ export async function POST(request: Request) {
         ? "HOMOLOGACAO"
         : "DESENVOLVIMENTO";
 
-    const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.from("tl_erro_aplicacao").upsert({
-      co_referencia: reference,
-      no_rota: route,
-      tp_erro: type,
-      ds_mensagem: message,
-      ds_contexto: cleanContext(payload.context),
-      st_ambiente: environment,
-      nu_http_status: httpStatus,
-    }, { onConflict: "co_referencia", ignoreDuplicates: true });
+    const banco = createAdminRpcClient();
+    const { error } = await banco.rpc("FC_SRV_REGISTRAR_ERRO", {
+      p_co_referencia: reference,
+      p_no_rota: route,
+      p_tp_erro: type,
+      p_ds_mensagem: message,
+      p_ds_contexto: cleanContext(payload.context),
+      p_st_ambiente: environment,
+      p_nu_http_status: httpStatus,
+    });
 
     if (error) {
       console.error("Falha ao registrar observabilidade", error.message);

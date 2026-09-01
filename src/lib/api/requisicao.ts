@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { getSession as authJsGetSession, signOut as authJsSignOut } from "next-auth/react";
 import { ERRO_SESSAO_RENOVAVEL, type CodigoDeErroApi, type ErroApi } from "./contratos";
 
 export class ErroDeApi extends Error {
@@ -43,8 +43,10 @@ async function renovarSessaoUmaVez(): Promise<boolean> {
 
   renovacaoEmVoo ??= (async () => {
     try {
-      const { data, error } = await createBrowserSupabaseClient().auth.refreshSession();
-      return Boolean(data.session) && !error;
+      // A sessão JWT não tem rotação de refresh no navegador. Reconsultá-la
+      // cobre uma corrida entre abas ou relógio antes de encerrar localmente.
+      const sessao = await authJsGetSession();
+      return Boolean(sessao?.user);
     } catch {
       return false;
     } finally {
@@ -60,7 +62,7 @@ async function reiniciarSessaoLocal() {
 
   reinicioEmVoo ??= (async () => {
     try {
-      await createBrowserSupabaseClient().auth.signOut({ scope: "local" });
+      await authJsSignOut({ redirect: false });
     } catch {
       // Melhor esforço: uma falha ao limpar a sessão local não pode mascarar o
       // 401 original nem encerrar sessões em outros dispositivos.

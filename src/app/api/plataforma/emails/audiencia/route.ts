@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
   const busca = request.nextUrl.searchParams.get("busca");
   const limite = Number(request.nextUrl.searchParams.get("limite") ?? 500);
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_audiencia_email", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_AUDIENCIA_EMAIL", {
     p_aplicacao: avaliacao,
     p_situacao: situacao,
     p_busca: busca || null,

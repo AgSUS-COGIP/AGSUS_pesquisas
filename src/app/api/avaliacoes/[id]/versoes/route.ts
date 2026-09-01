@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
@@ -17,8 +17,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_criar_nova_versao_pesquisa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_CRIAR_NOVA_VERSAO_PESQUISA", {
     p_pesquisa: id,
   });
 

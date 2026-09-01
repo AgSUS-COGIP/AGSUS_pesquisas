@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
@@ -24,8 +24,8 @@ export async function POST(
     return respostaDeEntradaInvalida("Identificador de submissão inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("submit_my_survey_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_ENVIAR_SUBMISSAO_PESQUISA", {
     target_submission_id: id,
   });
 

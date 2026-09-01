@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type {
@@ -18,10 +18,10 @@ import type {
 
 /** Resolve o ciclo vigente da avaliação, que é por onde as RPCs de capa operam. */
 async function resolverAplicacao(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  banco: Awaited<ReturnType<typeof createServerRpcClient>>,
   surveyId: string,
 ) {
-  const { data, error } = await supabase.rpc("get_survey_builder", {
+  const { data, error } = await banco.rpc("FC_OBTER_CONSTRUTOR", {
     target_survey_id: surveyId,
   });
   if (error) return { erro: error, construtor: null };
@@ -38,8 +38,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { erro, construtor } = await resolverAplicacao(supabase, id);
+  const banco = await createServerRpcClient();
+  const { erro, construtor } = await resolverAplicacao(banco, id);
   if (erro) return respostaDeErro(erro, "GET /api/avaliacoes/[id]/identidade-visual");
 
   const applicationId = construtor?.application?.id;
@@ -50,7 +50,7 @@ export async function GET(
     );
   }
 
-  const { data, error } = await supabase.rpc("get_application_visual_settings", {
+  const { data, error } = await banco.rpc("FC_OBTER_VISUAL_CICLO", {
     target_application_id: applicationId,
   });
 
@@ -98,8 +98,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Modo visual inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { erro, construtor } = await resolverAplicacao(supabase, id);
+  const banco = await createServerRpcClient();
+  const { erro, construtor } = await resolverAplicacao(banco, id);
   if (erro) return respostaDeErro(erro, "PUT /api/avaliacoes/[id]/identidade-visual");
 
   const applicationId = construtor?.application?.id;
@@ -110,7 +110,7 @@ export async function PUT(
     );
   }
 
-  const { data, error } = await supabase.rpc("update_application_visual_settings", {
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_VISUAL_CICLO", {
     target_application_id: applicationId,
     banner_url: textoOpcional(corpo.bannerUrl),
     banner_path: textoOpcional(corpo.bannerPath),

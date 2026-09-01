@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { RespostaDoCiclo } from "@/lib/api/contratos-pessoas";
 
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 100;
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_respostas_ciclo", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_RESPOSTAS_CICLO", {
     p_codigo_ciclo: ciclo,
     p_busca: busca,
     p_limite: limite,
