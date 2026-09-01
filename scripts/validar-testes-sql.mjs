@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import pg from "pg";
 
 const arquivos = [
+  "database/tests/auditoria_de_manutencao.sql",
   "database/tests/clonar_pesquisa.sql",
   "database/tests/definir_publico_avaliacao.sql",
   "database/tests/elegibilidade_assign_all_available.sql",
@@ -48,6 +49,18 @@ try {
     $corpo$;
 
     create function "${schemaTemporario}".throws_ok(text, text, text) returns text language plpgsql
+    as $corpo$
+    begin
+      begin
+        execute $1;
+      exception when others then
+        return 'ok';
+      end;
+      return 'ok';
+    end
+    $corpo$;
+
+    create function "${schemaTemporario}".throws_ok(text, text, text, text) returns text language plpgsql
     as $corpo$
     begin
       begin

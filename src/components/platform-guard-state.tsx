@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { FullPageState } from "@/components/full-page-state";
 import { PlatformSkeleton } from "@/components/platform-shell";
 import { captureEnteringFlag } from "@/lib/entering-system";
+import TelaDeManutencao from "@/components/tela-manutencao";
+import { rotuloDoModulo } from "@/lib/manutencao";
 import type { PlatformGuardDecision } from "@/lib/platform-guard";
 
 type PlatformGuardStateProps = {
@@ -83,6 +85,18 @@ export function PlatformGuardState({
         description={restrictedDescription || "Sua conta não possui permissão para acessar este módulo."}
       />
     );
+  }
+
+  /*
+    Estado diferente de "acesso restrito" de propósito.
+
+    A pessoa tem permissão para este módulo; ele é que está fora agora. Mostrar
+    a tela de acesso restrito aqui faria parecer que o perfil dela mudou, e a
+    reação natural seria pedir permissão a quem administra em vez de esperar a
+    manutenção terminar.
+  */
+  if (guard.state === "manutencao") {
+    return <TelaDeManutencao tipo="modulo" modulo={rotuloDoModulo(guard.modulo)} />;
   }
 
   return null;

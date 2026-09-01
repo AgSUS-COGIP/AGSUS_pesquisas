@@ -7,6 +7,9 @@
 const PUBLIC_PATHS = new Set([
   "/",
   "/acesso",
+  // Destino do rewrite da manutenção global. Precisa renderizar para quem não
+  // tem sessão — inclusive porque a manutenção pode ter começado antes do login.
+  "/manutencao",
   "/auth/confirm",
   "/api/health",
   "/api/health/readiness",

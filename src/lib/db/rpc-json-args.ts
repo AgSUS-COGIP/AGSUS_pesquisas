@@ -14,6 +14,7 @@ export const RPC_JSON_ARGS: Readonly<Record<string, readonly string[]>> = {
   "FC_BUSCAR_PESSOAS_PUBLICO": ["p_regra"],
   "FC_LISTAR_DIMENSOES_PUBLICO": ["p_regra"],
   "FC_PREVISUALIZAR_PUBLICO": ["p_regra"],
+  "FC_REGISTRAR_MANUT_AUDITORIA": ["p_estado_anterior", "p_estado_posterior"],
   "FC_SALVAR_REGRA_CONDICIONAL": ["p_condicoes"],
   "FC_SRV_GRAVAR_RESP_ANON": ["target_json"],
   "FC_SRV_REGISTRAR_ERRO": ["p_ds_contexto"],

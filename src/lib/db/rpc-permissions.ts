@@ -109,6 +109,7 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "FC_PESQUISAR_PESSOA_ADMIN": ["authenticated"],
   "FC_PREVISUALIZAR_PUBLICO": ["authenticated"],
   "FC_REGISTRAR_PRESENCA": ["authenticated"],
+  "FC_REGISTRAR_MANUT_AUDITORIA": ["authenticated"],
   "FC_REGRA_GERA_CICLO": ["authenticated"],
   "FC_REIVINDICAR_EMAILS": ["service_role"],
   "FC_REMOVER_RESPOSTA_PESSOA": ["authenticated"],
