@@ -13,6 +13,7 @@ import { PageHeader, Surface } from "@/components/ui/surface";
 import { usePlatformGuard } from "@/lib/platform-context";
 import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { obterPainelDoCiclo } from "@/lib/api/cliente-paineis";
+import { estatisticasDaPergunta, formatarNumero } from "@/lib/estatisticas";
 
 type DashboardOption = { id: string; label: string; value: string; count: number };
 type TextResponse = { text: string; submittedAt: string | null };
@@ -52,6 +53,52 @@ type DashboardData = {
   };
   questions: DashboardQuestion[];
 };
+
+/**
+ * As descritivas de uma pergunta, quando elas significam alguma coisa.
+ *
+ * Não renderiza nada para texto livre, para escolha sem ordem numérica, nem
+ * para pergunta sem resposta — quem decide é `estatisticasDaPergunta`, e esta
+ * tela apenas obedece. Uma faixa vazia com seis traços diria "não há dado" com
+ * muito mais peso visual do que não dizer nada.
+ *
+ * Os números saem das alternativas que a RPC **já devolvia**: `value` e `count`
+ * formam a tabela de frequências. Nenhuma consulta nova, nenhuma RPC alterada.
+ */
+function ResumoEstatistico({ questionType, options }: { questionType: string; options?: DashboardOption[] }) {
+  const { resumo } = estatisticasDaPergunta(questionType, options ?? []);
+  if (!resumo) return null;
+
+  const medidas = [
+    { rotulo: "Média", valor: formatarNumero(resumo.media) },
+    { rotulo: "Mediana", valor: formatarNumero(resumo.mediana) },
+    { rotulo: "Desvio padrão", valor: formatarNumero(resumo.desvioPadrao) },
+    { rotulo: "Variância", valor: formatarNumero(resumo.variancia) },
+    { rotulo: "Mínimo", valor: formatarNumero(resumo.minimo, 0) },
+    { rotulo: "Máximo", valor: formatarNumero(resumo.maximo, 0) },
+  ];
+
+  return (
+    <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-subtle)] pt-4 sm:grid-cols-3 lg:grid-cols-6">
+      {medidas.map((medida) => (
+        <div key={medida.rotulo}>
+          <dt className="text-xs font-medium text-[var(--text-secondary)]">{medida.rotulo}</dt>
+          <dd className="mt-1 text-lg font-semibold leading-none tabular-nums text-[var(--text-primary)]">{medida.valor}</dd>
+        </div>
+      ))}
+      {/*
+        O denominador fica visível junto das medidas. "Média 3,4" sobre 8
+        respostas e sobre 800 são afirmações de força muito diferente, e quem lê
+        o painel precisa dessa diferença antes de agir.
+      */}
+      <div className="col-span-2 sm:col-span-3 lg:col-span-6">
+        <p className="text-xs text-[var(--text-secondary)]">
+          Calculado sobre {resumo.respostasValidas} {resumo.respostasValidas === 1 ? "resposta válida" : "respostas válidas"}.
+        </p>
+      </div>
+    </dl>
+  );
+}
 
 async function fetchDashboard(applicationCode: string) {
   return await obterPainelDoCiclo(applicationCode) as DashboardData;
@@ -177,6 +224,8 @@ export default function SurveyDashboardPage() {
               </div>
               <Badge variant="neutral">{question.responseCount} resposta(s)</Badge>
             </div>
+
+            <ResumoEstatistico questionType={question.type} options={question.options} />
 
             {question.options?.length ? <DistributionBars items={question.options} /> : null}
 
