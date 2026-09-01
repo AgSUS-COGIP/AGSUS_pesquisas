@@ -80,8 +80,8 @@ export default function ProfilePage() {
 
           <aside className="surface-card p-6">
             <p className="section-eyebrow">Acesso</p>
-            <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Conta e permissões</h3>
-            <div className="mt-5 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4"><p className="text-xs font-medium text-[var(--status-info-text)]">Role técnica</p><p className="mt-1 font-semibold text-[var(--status-info-text)]">{user.profileLabel}</p></div>
+            <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Perfil e permissões</h3>
+            <div className="mt-5 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4"><p className="text-xs font-medium text-[var(--status-info-text)]">Perfil principal</p><p className="mt-1 font-semibold text-[var(--status-info-text)]">{user.profileLabel}</p></div>
             {/*
               Aqui havia a lista de papéis vigentes, que repetia palavra por
               palavra a caixa acima. O motivo de remover só ficou mais forte:
@@ -96,7 +96,7 @@ export default function ProfilePage() {
               aqui é exatamente o que aparece na navegação.
             */}
             <div className="mt-4">
-              <p className="text-xs font-medium text-[var(--text-secondary)]">Áreas liberadas pelas suas permissões</p>
+              <p className="text-xs font-medium text-[var(--text-secondary)]">Áreas liberadas para você</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {navigationGroupsForModules(modules).flatMap((group) => group.items).map((item) => (
                   <span key={item.href} className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface-card)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]">{item.label}</span>
