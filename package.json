@@ -10,17 +10,19 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.mjs\"",
+    "test": "vitest run",
+    "test:integracao": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.mjs\"",
     "test:banco": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/banco/*.test.mjs\"",
     "test:sql": "node --env-file=.env.local scripts/validar-testes-sql.mjs",
     "test:http": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/http/*.test.mjs\"",
     "test:e2e": "node --env-file=.env.local ./node_modules/@playwright/test/cli.js test",
-    "test:regression": "npm test && npm run test:e2e",
+    "test:regression": "npm test && npm run test:integracao && npm run test:e2e",
     "db:migrations": "node scripts/validar-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
     "@tanstack/react-query": "^5.101.4",
+    "@vercel/edge-config": "^1.5.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.27.0",
@@ -45,7 +47,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "next-auth": {
