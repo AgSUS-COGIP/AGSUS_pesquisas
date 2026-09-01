@@ -6,7 +6,7 @@
 -- POR QUE EXISTE: em 12/08/2026 o painel de monitoramento levava 961 ms em
 -- média. A causa não era a consulta — era `VACUUM` que nunca havia rodado
 -- nessas tabelas. Com o mapa de visibilidade desatualizado, o banco relia o
--- disco à toa: a leitura de `people` (1.029 linhas) levava 47,7 ms. Depois do
+-- disco à toa: a leitura de `tb_pessoa` (1.029 linhas) levava 47,7 ms. Depois do
 -- VACUUM caiu para 0,76 ms, e a consulta inteira foi de 96 ms para 14 ms.
 --
 -- O volume cresce durante o ciclo: `answers` sai de algumas centenas para
@@ -25,12 +25,12 @@
 -- `vacuum` não roda dentro de transação: execute estas linhas isoladamente,
 -- sem envolver em begin/commit.
 -- ---------------------------------------------------------------------------
-vacuum (analyze) sigav.people;
-vacuum (analyze) sigav.application_participants;
-vacuum (analyze) sigav.cddi_leadership_links;
-vacuum (analyze) sigav.submissions;
-vacuum (analyze) sigav.answers;
-vacuum (analyze) sigav.answer_options;
+vacuum (analyze) sigav."TB_PESSOA";
+vacuum (analyze) sigav."RL_APLICACAO_PESSOA";
+vacuum (analyze) sigav."RT_LIDERANCA_CDDI";
+vacuum (analyze) sigav."TB_SUBMISSAO";
+vacuum (analyze) sigav."TB_RESPOSTA";
+vacuum (analyze) sigav."RL_RESPOSTA_OPCAO";
 
 -- ---------------------------------------------------------------------------
 -- 2. Confirmação da manutenção
@@ -45,8 +45,8 @@ select relname                                            as tabela,
        greatest(last_analyze, last_autoanalyze)           as ultimo_analyze,
        pg_size_pretty(pg_total_relation_size(relid))      as tamanho
 from pg_stat_user_tables
-where relname in ('people', 'application_participants', 'cddi_leadership_links',
-                  'submissions', 'answers', 'answer_options')
+where relname in ('TB_PESSOA', 'RL_APLICACAO_PESSOA', 'RT_LIDERANCA_CDDI',
+                  'TB_SUBMISSAO', 'TB_RESPOSTA', 'RL_RESPOSTA_OPCAO')
 order by n_dead_tup desc;
 
 -- ---------------------------------------------------------------------------
@@ -91,20 +91,20 @@ from pg_stat_activity;
 -- fica bloqueada na etapa de identificação — a fila de correção está em
 -- Administração › Equipes.
 -- ---------------------------------------------------------------------------
-select a.code                                                                  as ciclo,
-       a.status,
-       a.closes_at                                                             as encerra_em,
-       (select count(*) from sigav.application_participants ap
-         where ap.application_id = a.id)                                       as participantes,
-       (select count(distinct l.subordinate_person_id) from sigav.cddi_leadership_links l
-         where l.application_id = a.id and l.status = 'ACTIVE' and l.valid_to is null) as com_chefia,
-       (select count(*) from sigav.submissions s
-         where s.application_id = a.id and s.status = 'DRAFT')                  as em_andamento,
-       (select count(*) from sigav.submissions s
-         where s.application_id = a.id and s.status in ('SUBMITTED', 'VALIDATED')) as enviadas
-from sigav.survey_applications a
-where a.status in ('OPEN', 'SCHEDULED')
-order by a.closes_at;
+select a."CO_APLICACAO"                                                                  as ciclo,
+       a."ST_SITUACAO",
+       a."DT_ENCERRAMENTO"                                                             as encerra_em,
+       (select count(*) from sigav."RL_APLICACAO_PESSOA" ap
+         where ap."SQ_APLICACAO" = a."SQ_APLICACAO")                                       as participantes,
+       (select count(distinct l."SQ_PESSOA_SUBORDINADA") from sigav."RT_LIDERANCA_CDDI" l
+         where l."SQ_APLICACAO" = a."SQ_APLICACAO" and l."ST_SITUACAO" = 'ACTIVE' and l."DT_FIM_VIGENCIA" is null) as com_chefia,
+       (select count(*) from sigav."TB_SUBMISSAO" s
+         where s."SQ_APLICACAO" = a."SQ_APLICACAO" and s."ST_SITUACAO" = 'DRAFT')                  as em_andamento,
+       (select count(*) from sigav."TB_SUBMISSAO" s
+         where s."SQ_APLICACAO" = a."SQ_APLICACAO" and s."ST_SITUACAO" in ('SUBMITTED', 'VALIDATED')) as enviadas
+from sigav."TB_APLICACAO_PESQUISA" a
+where a."ST_SITUACAO" in ('OPEN', 'SCHEDULED')
+order by a."DT_ENCERRAMENTO";
 
 -- ---------------------------------------------------------------------------
 -- 6. Ritmo de resposta nas últimas 24 h
@@ -112,10 +112,10 @@ order by a.closes_at;
 -- Mostra se a carga está diluída ou concentrada. Concentração forte perto do
 -- prazo é o cenário que justifica subir o compute antes.
 -- ---------------------------------------------------------------------------
-select date_trunc('hour', s.updated_at)              as hora,
+select date_trunc('hour', s."DT_ALTERACAO")              as hora,
        count(*)                                      as submissoes_tocadas,
-       count(*) filter (where s.submitted_at is not null) as enviadas
-from sigav.submissions s
-where s.updated_at > timezone('utc', now()) - interval '24 hours'
+       count(*) filter (where s."DT_ENVIO" is not null) as enviadas
+from sigav."TB_SUBMISSAO" s
+where s."DT_ALTERACAO" > timezone('utc', now()) - interval '24 hours'
 group by 1
 order by 1 desc;

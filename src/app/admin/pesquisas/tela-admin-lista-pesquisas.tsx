@@ -22,7 +22,7 @@ import { executarAcaoDoCiclo } from "@/lib/api/cliente-construtor";
 import { listarModelosDeAvaliacao } from "@/lib/api/cliente-paineis";
 import type { AvaliacaoGerenciada } from "@/lib/api/contratos";
 
-/** Modelo da galeria, devolvido por `fc_listar_modelos_avaliacao`. */
+/** Modelo da galeria, devolvido por `FC_LISTAR_MODELOS_AVALIACAO`. */
 type SurveyTemplate = {
   surveyId: string; code: string; name: string; description: string | null;
   category: string; sections: number; questions: number;
@@ -462,7 +462,7 @@ function SurveyCard({ survey, onClone, cloning, onToggleArchive, archiving, onDe
 }) {
   const cycleStatus = survey.applicationStatus ?? survey.status;
   // Mesma regra do construtor (`version.status === "DRAFT"`), lida do campo que
-  // `list_managed_surveys` já devolve. Sem duplicar critério nem inventar outro.
+  // `FC_LISTAR_PESQUISAS_GERIDAS` já devolve. Sem duplicar critério nem inventar outro.
   const versionIsDraft = survey.versionStatus === "DRAFT";
   const archived = Boolean(survey.archivedAt);
   const busy = cloning || archiving || deleting;

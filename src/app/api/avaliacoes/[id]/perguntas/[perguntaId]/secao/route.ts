@@ -29,7 +29,7 @@ export async function PUT(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("move_survey_question_to_section", {
+  const { data, error } = await banco.rpc("FC_MOVER_PERGUNTA_SECAO", {
     target_question_id: perguntaId,
     target_section_id: corpo.sectionId,
   });

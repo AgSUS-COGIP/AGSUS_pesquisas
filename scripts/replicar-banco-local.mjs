@@ -163,11 +163,11 @@ async function main() {
       from information_schema.tables where table_schema = 'sigav'
     union all select 'funcoes em sigav', count(*)::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'sigav'
-    union all select 'linhas em sigav.people', count(*)::text from sigav.people
-    union all select 'contas em tb_usuario_identidade', count(*)::text from sigav.tb_usuario_identidade
+    union all select 'linhas em sigav."TB_PESSOA"', count(*)::text from sigav."TB_PESSOA"
+    union all select 'contas em tb_usuario_identidade', count(*)::text from sigav."TB_USUARIO_IDENTIDADE"
     union all select 'funcoes de claims da sessao', count(*)::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'sigav' and p.proname in ('fc_uid_sessao','fc_papel_sessao','fc_claims_sessao')
+      where n.nspname = 'sigav' and p.proname in ('FC_UID_SESSAO','FC_PAPEL_SESSAO','FC_CLAIMS_SESSAO')
     union all select 'schemas alem de sigav (deve ser 0)', count(*)::text
       from pg_namespace where nspname not like 'pg_%'
         and nspname not in ('information_schema', 'sigav')

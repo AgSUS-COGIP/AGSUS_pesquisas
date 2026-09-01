@@ -7,7 +7,7 @@ import { ehUuid } from "@/lib/api/validacao";
  * Retira um integrante da equipe neste ciclo.
  *
  * O que termina é o vínculo com a liderança; a pessoa continua no ciclo.
- * `remove_person_from_my_team` encerra a vigência e registra o evento — nada é
+ * `FC_REMOVER_PESSOA_EQUIPE` encerra a vigência e registra o evento — nada é
  * apagado, e por isso a resposta traz o que o banco devolveu, não um 204 vazio.
  */
 export async function DELETE(
@@ -21,7 +21,7 @@ export async function DELETE(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("remove_person_from_my_team", {
+  const { data, error } = await banco.rpc("FC_REMOVER_PESSOA_EQUIPE", {
     target_link_id: vinculoId,
   });
 

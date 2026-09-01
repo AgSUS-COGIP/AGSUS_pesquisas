@@ -4,11 +4,11 @@
  *
  * Este é o único ponto do código que sabe de onde vem o login. O adaptador de
  * RPC injeta o que sai daqui em `request.jwt.claims`, e as funções do banco o
- * leem por `sigav.fc_uid_sessao()` / `fc_papel_sessao()` / `fc_claims_sessao()`
+ * leem por `sigav."FC_UID_SESSAO"()` / `fc_papel_sessao()` / `fc_claims_sessao()`
  * — preservando o contrato de sessão esperado pelas funções do banco.
  *
  * O contrato de claims foi extraído das migrations e é pequeno:
- *   - `sub`   → vira `fc_uid_sessao()`, casa com `sigav.people.auth_user_id`;
+ *   - `sub`   → vira `FC_UID_SESSAO()`, casa com `sigav."TB_PESSOA"."SQ_USUARIO_IDENTIDADE"`;
  *   - `email` → lido por `fc_claims_sessao() ->> 'email'` na vinculação institucional;
  *   - `role`  → lido por `fc_papel_sessao()`, distingue serviço de sessão comum;
  *   - `user_metadata.full_name` / `.name` → nome de exibição no primeiro acesso.

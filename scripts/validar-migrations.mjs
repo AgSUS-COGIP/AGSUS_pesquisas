@@ -40,7 +40,7 @@ const SCHEMAS_REMOVIDOS = [
 
 // A partir desta migration o cluster tem uma role só, `usr_sip_app`, e a
 // autorização é inteiramente da aplicação (src/lib/db/rpc-permissions.ts e
-// sigav.person_module_permissions). As anteriores concedem privilégio a
+// sigav."RL_PESSOA_MODULO"). As anteriores concedem privilégio a
 // anon/authenticated/service_role legitimamente — é o histórico do contrato
 // PostgREST — e não devem ser reescritas.
 const CORTE_ROLES_LEGADAS = "20260828140000";
@@ -118,7 +118,8 @@ async function main() {
         if (ocorrencias) {
           problemas.push(
             `${arquivo}: cita \`${nome}\` (${ocorrencias.length}x), mas esse schema não existe mais. ` +
-            "Use `sigav.`; para claims da sessão, `sigav.fc_uid_sessao()`, `fc_papel_sessao()` ou `fc_claims_sessao()`.",
+            "Use `sigav.`; para claims da sessão, `sigav.\"FC_UID_SESSAO\"()`, " +
+            "`sigav.\"FC_PAPEL_SESSAO\"()` ou `sigav.\"FC_CLAIMS_SESSAO\"()`.",
           );
         }
       }
@@ -134,7 +135,7 @@ async function main() {
             "removida do cluster. As roles da arquitetura são `migration_user` (dona, DDL) e `app_user` " +
             "(runtime) — `usr_sip_app` na instância da empresa —, e quem pode chamar cada RPC é decidido " +
             "em `src/lib/db/rpc-permissions.ts`. Se a intenção era a claim da sessão, ela vai entre " +
-            "apóstrofos: `sigav.fc_papel_sessao() = 'authenticated'`.",
+            "apóstrofos: `sigav.\"FC_PAPEL_SESSAO\"() = 'authenticated'`.",
           );
         }
       }

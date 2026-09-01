@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("start_or_resume_my_cddi_submission", {
+  const { data, error } = await banco.rpc("FC_INICIAR_OU_RETOMAR_CDDI", {
     target_application_code: applicationCode,
     target_submission_type: submissionType,
     target_subject_person_id: subjectPersonId,

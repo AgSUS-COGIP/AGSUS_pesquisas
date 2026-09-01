@@ -32,7 +32,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- vira RPC como todo o resto do sistema — mantém a autorização (hoje:
 -- restrita a service_role via rpc-permissions.ts) num único lugar.
 
-create or replace function sigav.fc_srv_registrar_erro_aplicacao(
+create or replace function sigav."FC_SRV_REGISTRAR_ERRO"(
   p_co_referencia text,
   p_no_rota text,
   p_tp_erro text,
@@ -47,17 +47,17 @@ security definer
 set search_path = pg_catalog, sigav
 as $$
 begin
-  insert into sigav.tl_erro_aplicacao (
-    co_referencia, no_rota, tp_erro, ds_mensagem, ds_contexto, st_ambiente, nu_http_status
+  insert into sigav."TL_ERRO_APLICACAO" (
+    "CO_REFERENCIA", "NO_ROTA", "TP_ERRO", "DS_MENSAGEM", "DS_CONTEXTO", "ST_AMBIENTE", "NU_HTTP_STATUS"
   ) values (
     p_co_referencia, p_no_rota, p_tp_erro, p_ds_mensagem,
     coalesce(p_ds_contexto, '{}'::jsonb), p_st_ambiente, p_nu_http_status
   )
-  on conflict (co_referencia) do nothing;
+  on conflict ("CO_REFERENCIA") do nothing;
 end;
 $$;
 
-comment on function sigav.fc_srv_registrar_erro_aplicacao(text, text, text, text, jsonb, text, integer) is
-  'Único ponto de escrita em sigav.tl_erro_aplicacao. Substitui o upsert direto que POST /api/observability/errors fazia antes da migração para db_dataware.';
+comment on function sigav."FC_SRV_REGISTRAR_ERRO"(text, text, text, text, jsonb, text, integer) is
+  'Único ponto de escrita em sigav."TL_ERRO_APLICACAO". Substitui o upsert direto que POST /api/observability/errors fazia antes da migração para db_dataware.';
 
 commit;

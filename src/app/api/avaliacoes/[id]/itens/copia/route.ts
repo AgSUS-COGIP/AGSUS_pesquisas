@@ -8,7 +8,7 @@ import type { DuplicarItemEntrada, TipoItemConstrutor } from "@/lib/api/contrato
  * Duplica uma seção ou uma pergunta do rascunho.
  *
  * Fica sob `/itens`, e não em `/secoes/…/copia` e `/perguntas/…/copia`, porque
- * no banco a operação é **uma só**: `duplicate_survey_builder_item` recebe o
+ * no banco a operação é **uma só**: `FC_DUPLICAR_ITEM_CONSTRUTOR` recebe o
  * tipo e resolve o resto. Dois caminhos REST divergiriam na primeira correção.
  */
 
@@ -39,7 +39,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("duplicate_survey_builder_item", {
+  const { data, error } = await banco.rpc("FC_DUPLICAR_ITEM_CONSTRUTOR", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,
   });

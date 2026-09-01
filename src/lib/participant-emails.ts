@@ -3,7 +3,7 @@ import { surveyApplicationHref } from "./survey-catalog";
 /**
  * Conteúdo dos e-mails automáticos aos participantes de um ciclo.
  *
- * Funções puras: recebem o payload que `fc_reivindicar_emails`
+ * Funções puras: recebem o payload que `FC_REIVINDICAR_EMAILS`
  * devolve e produzem assunto, HTML e texto. Quem envia é o despachador da
  * rota de tarefa — este módulo não conhece rede nem banco, e por isso é
  * testável como o resto de `src/lib`.

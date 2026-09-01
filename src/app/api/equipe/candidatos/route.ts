@@ -7,7 +7,7 @@ import type { CandidatoDaEquipe } from "@/lib/api/contratos-pessoas";
 /**
  * Pessoas elegíveis a entrar na equipe.
  *
- * `fc_pesquisar_equipe` exclui quem já tem chefia vigente, e é isso que impede
+ * `FC_PESQUISAR_EQUIPE` exclui quem já tem chefia vigente, e é isso que impede
  * uma liderança de puxar para a sua equipe alguém que responde a outra.
  */
 export async function GET(request: Request) {
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_pesquisar_equipe", {
+  const { data, error } = await banco.rpc("FC_PESQUISAR_EQUIPE", {
     target_application_id: avaliacao,
     search_term: busca,
   });

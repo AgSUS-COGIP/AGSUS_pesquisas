@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_obter_contexto_plataforma");
+  const { data, error } = await banco.rpc("FC_OBTER_CONTEXTO_PLATAFORMA");
 
   if (error) return respostaDeErro(error, "GET /api/meu/contexto");
 

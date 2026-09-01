@@ -22,7 +22,7 @@ export async function DELETE(
 
   const banco = await createServerRpcClient();
   const arquivada = new URL(request.url).searchParams.get("arquivada") === "true";
-  const rpc = arquivada ? "fc_excluir_pesquisa_arquivada" : "fc_excluir_pesquisa_rascunho";
+  const rpc = arquivada ? "FC_EXCLUIR_PESQUISA_ARQUIVADA" : "FC_EXCLUIR_PESQUISA_RASCUNHO";
   const { data, error } = await banco.rpc(rpc, {
     p_pesquisa: id,
   });

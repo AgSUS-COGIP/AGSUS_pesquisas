@@ -42,7 +42,7 @@ type Definition = {
   // `settings` carrega a identidade visual configurada para o ciclo — sem ele,
   // capa, título e subtítulo personalizados nunca chegam ao instrumento.
   //
-  // `closesAt` já vinha de `fc_obter_formulario_publico` desde sempre; era o
+  // `closesAt` já vinha de `FC_OBTER_FORMULARIO_PUBLICO` desde sempre; era o
   // tipo daqui que não o declarava, então a tela não tinha como dizer *quando*
   // o prazo terminou. Opcional porque ciclo sem data de encerramento existe.
   application: { name: string; status: string; closesAt?: string | null; settings?: unknown };
@@ -51,7 +51,7 @@ type Definition = {
 };
 type SubmissionContext = {
   canEdit: boolean;
-  // O ciclo anônimo já vinha no retorno de `start_or_resume_my_survey_submission`
+  // O ciclo anônimo já vinha no retorno de `FC_INICIAR_OU_RETOMAR_PESQ`
   // desde `20260813220000`; era a tela que não lia o campo, e por isso quem
   // respondia não sabia que estava num ciclo anônimo.
   anonymous?: boolean;
@@ -191,7 +191,7 @@ export default function GenericSurveyPage() {
    * condicional. Recalcula a cada resposta: marcar uma alternativa pode revelar
    * ou retirar perguntas e até etapas inteiras.
    *
-   * O mesmo filtro roda no banco, dentro de `submit_my_survey_submission` — o
+   * O mesmo filtro roda no banco, dentro de `FC_ENVIAR_SUBMISSAO_PESQUISA` — o
    * que a tela esconde é exatamente o que deixa de ser exigido no envio.
    */
   const sections = useMemo(

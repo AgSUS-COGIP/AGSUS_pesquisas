@@ -11,7 +11,7 @@ import { respostaDeErro } from "@/lib/api/resposta-http";
  */
 export async function POST() {
   const banco = await createServerRpcClient();
-  const { error } = await banco.rpc("sync_my_google_avatar");
+  const { error } = await banco.rpc("FC_SINCR_AVATAR_GOOGLE");
 
   if (error) return respostaDeErro(error, "POST /api/meu/avatar-google");
 

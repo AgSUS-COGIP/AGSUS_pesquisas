@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * mostrando o progresso.
  *
  * A rota valida só a forma; quem decide elegibilidade e recusa o ciclo fechado
- * é `fc_agendar_envio_manual`.
+ * é `FC_AGENDAR_ENVIO_MANUAL`.
  */
 export async function POST(request: Request) {
   let corpo: EnviarEmailsEntrada;
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_agendar_envio_manual", {
+  const { data, error } = await banco.rpc("FC_AGENDAR_ENVIO_MANUAL", {
     p_aplicacao: corpo.avaliacao,
     p_pessoas: corpo.pessoas,
   });

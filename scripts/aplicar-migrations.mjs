@@ -8,12 +8,12 @@
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes=20260826193000,20260827123000
 //
-// O histórico é mantido junto da aplicação, em `sigav.tb_migracao`. O banco
+// O histórico é mantido junto da aplicação, em `sigav."TB_MIGRACAO"`. O banco
 // tem um schema de aplicação, `sigav`, e mais nada (`public`, `private`,
 // `db_governanca`, `"DB_PESQUISAS"`, `auth` e `extensions` existiram por um
 // tempo, até serem unificados entre 26 e 28/08/2026). Sem histórico, o push
 // tentaria reaplicar as 192 migrations sobre objetos que já existem. O
-// histórico passa a morar em `sigav.tb_migracao`, dentro do próprio schema da
+// histórico passa a morar em `sigav."TB_MIGRACAO"`, dentro do próprio schema da
 // aplicação, e portanto viaja junto em toda cópia do banco.
 //
 // TRAVA DE CONCORRÊNCIA: o db_dataware é uma instância compartilhada com outras
@@ -47,20 +47,37 @@ const SCHEMA = "sigav";
  * tabela não estar exposta em nenhuma RPC — nada no app a lê ou escreve.
  */
 const DDL_HISTORICO = `
-create table if not exists ${SCHEMA}.tb_migracao (
-  co_versao     text        not null,
-  no_migracao   text        not null,
-  ds_hash       text        not null,
-  no_origem     text        not null default 'arquivo',
-  dt_aplicacao  timestamptz not null default now(),
-  constraint pk_tb_migracao primary key (co_versao),
-  constraint ck_tb_migracao_origem check (no_origem in ('arquivo', 'registro-historico'))
+-- O padrão institucional de nomenclatura pôs os objetos em MAIÚSCULAS, e em
+-- PostgreSQL isso obriga a citar o identificador em toda referência.
+--
+-- Este bloco é a ponte: num banco que ainda não recebeu
+-- 20260831150000_padronizar_nomenclatura_maiuscula, o histórico mora em
+-- \`tb_migracao\`. Sem renomear aqui, o \`create table if not exists\` abaixo
+-- criaria uma "TB_MIGRACAO" VAZIA — e o runner concluiria que nenhuma
+-- migration foi aplicada, tentando reaplicar todas sobre objetos existentes.
+do $ponte$
+begin
+  if to_regclass('${SCHEMA}.tb_migracao') is not null
+     and to_regclass('${SCHEMA}."TB_MIGRACAO"') is null then
+    alter table ${SCHEMA}.tb_migracao rename to "TB_MIGRACAO";
+  end if;
+end
+$ponte$;
+
+create table if not exists ${SCHEMA}."TB_MIGRACAO" (
+  "CO_VERSAO"    text        not null,
+  "NO_MIGRACAO"  text        not null,
+  "DS_HASH"      text        not null,
+  "NO_ORIGEM"    text        not null default 'arquivo',
+  "DT_APLICACAO" timestamptz not null default now(),
+  constraint "PK_TB_MIGRACAO" primary key ("CO_VERSAO"),
+  constraint "CK_MIGRACAO_ORIGEM" check ("NO_ORIGEM" in ('arquivo', 'registro-historico'))
 );
 
-alter table ${SCHEMA}.tb_migracao enable row level security;
-revoke all on ${SCHEMA}.tb_migracao from public;
+alter table ${SCHEMA}."TB_MIGRACAO" enable row level security;
+revoke all on ${SCHEMA}."TB_MIGRACAO" from public;
 
-comment on table ${SCHEMA}.tb_migracao is
+comment on table ${SCHEMA}."TB_MIGRACAO" is
   'Histórico de migrations aplicadas, mantido por scripts/aplicar-migrations.mjs.';
 `;
 
@@ -145,7 +162,7 @@ function literal(valor) {
  */
 function montarSqlDeAplicacao({ sql, versao, nome, hash }) {
   const registro = `
-insert into ${SCHEMA}.tb_migracao (co_versao, no_migracao, ds_hash, no_origem)
+insert into ${SCHEMA}."TB_MIGRACAO" ("CO_VERSAO", "NO_MIGRACAO", "DS_HASH", "NO_ORIGEM")
 values (${literal(versao)}, ${literal(nome)}, ${literal(hash)}, 'arquivo');
 `;
   return `${sql}\n${registro}`;
@@ -190,16 +207,16 @@ async function main() {
 
     const doDisco = await lerMigrationsDoDisco();
     const { rows: aplicadas } = await cliente.query(
-      `select co_versao, no_migracao, ds_hash from ${SCHEMA}.tb_migracao`,
+      `select "CO_VERSAO", "NO_MIGRACAO", "DS_HASH" from ${SCHEMA}."TB_MIGRACAO"`,
     );
-    const porVersao = new Map(aplicadas.map((linha) => [linha.co_versao, linha]));
+    const porVersao = new Map(aplicadas.map((linha) => [linha.CO_VERSAO, linha]));
 
     // Divergência de hash é sinal de que um arquivo já aplicado foi editado.
     // Corrigir migration aplicada editando o arquivo é justamente o que o
     // README do diretório proíbe — a correção pertence a uma migration nova.
     const alteradas = doDisco.filter((m) => {
       const registro = porVersao.get(m.versao);
-      return registro && registro.ds_hash !== m.hash;
+      return registro && registro.DS_HASH !== m.hash;
     });
 
     if (alteradas.length && !ignorarHash) {
@@ -239,7 +256,7 @@ async function main() {
       console.log(`Registrando ${alvo.length} migration(s) como aplicadas, SEM executar o SQL.\n`);
       for (const m of alvo) {
         await cliente.query(
-          `insert into ${SCHEMA}.tb_migracao (co_versao, no_migracao, ds_hash, no_origem)
+          `insert into ${SCHEMA}."TB_MIGRACAO" ("CO_VERSAO", "NO_MIGRACAO", "DS_HASH", "NO_ORIGEM")
            values ($1, $2, $3, 'registro-historico')`,
           [m.versao, m.nome, m.hash],
         );

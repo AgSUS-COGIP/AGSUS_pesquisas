@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("get_my_cddi_identity", {
+  const { data, error } = await banco.rpc("FC_OBTER_IDENTIDADE_CDDI", {
     target_application_code: codigo,
   });
 

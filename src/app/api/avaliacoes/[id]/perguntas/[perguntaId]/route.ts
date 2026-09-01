@@ -8,7 +8,7 @@ import type { PerguntaAtualizacaoEntrada } from "@/lib/api/contratos-construtor"
  * Edita uma pergunta do rascunho — mover entre seções é `…/[perguntaId]/secao`.
  *
  * As alternativas vão inteiras a cada gravação, e não como diferença: é assim
- * que `update_survey_question` preserva `id` e `value` por posição, evitando
+ * que `FC_ATUALIZAR_PERGUNTA` preserva `id` e `value` por posição, evitando
  * invalidar respostas já registradas quando só o rótulo mudou.
  */
 export async function PATCH(
@@ -35,7 +35,7 @@ export async function PATCH(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("update_survey_question", {
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_PERGUNTA", {
     target_question_id: perguntaId,
     question_title: title,
     question_description: typeof corpo.description === "string" ? corpo.description : "",
@@ -66,7 +66,7 @@ export async function DELETE(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("delete_survey_question", {
+  const { data, error } = await banco.rpc("FC_EXCLUIR_PERGUNTA", {
     target_question_id: perguntaId,
   });
 

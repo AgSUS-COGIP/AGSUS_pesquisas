@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("list_my_survey_catalog");
+  const { data, error } = await banco.rpc("FC_LISTAR_CATALOGO_PESQUISA");
 
   if (error) return respostaDeErro(error, "GET /api/meu/catalogo");
 

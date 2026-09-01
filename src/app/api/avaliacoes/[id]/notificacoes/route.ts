@@ -36,7 +36,7 @@ export async function PUT(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_definir_notificacao_email", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_NOTIFICACAO_EMAIL", {
     target_survey_id: id,
     target_enabled: corpo.enabled,
   });

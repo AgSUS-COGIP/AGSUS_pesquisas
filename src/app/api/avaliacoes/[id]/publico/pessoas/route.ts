@@ -49,7 +49,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_buscar_pessoas_publico", {
+  const { data, error } = await banco.rpc("FC_BUSCAR_PESSOAS_PUBLICO", {
     p_busca: corpo.busca?.trim() || null,
     p_limite: 20,
     p_regra: corpo.regra ?? {},

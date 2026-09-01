@@ -21,7 +21,7 @@ async function resolverAplicacao(
   banco: Awaited<ReturnType<typeof createServerRpcClient>>,
   surveyId: string,
 ) {
-  const { data, error } = await banco.rpc("get_survey_builder", {
+  const { data, error } = await banco.rpc("FC_OBTER_CONSTRUTOR", {
     target_survey_id: surveyId,
   });
   if (error) return { erro: error, construtor: null };
@@ -50,7 +50,7 @@ export async function GET(
     );
   }
 
-  const { data, error } = await banco.rpc("get_application_visual_settings", {
+  const { data, error } = await banco.rpc("FC_OBTER_VISUAL_CICLO", {
     target_application_id: applicationId,
   });
 
@@ -110,7 +110,7 @@ export async function PUT(
     );
   }
 
-  const { data, error } = await banco.rpc("update_application_visual_settings", {
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_VISUAL_CICLO", {
     target_application_id: applicationId,
     banner_url: textoOpcional(corpo.bannerUrl),
     banner_path: textoOpcional(corpo.bannerPath),

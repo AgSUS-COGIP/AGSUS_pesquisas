@@ -25,7 +25,7 @@ import { nowLocalInputValue, opensInFuture, periodIssues, publishBlockedMessage 
 import { cycleStatusLabel, versionStatusLabel } from "@/lib/survey-status-labels";
 
 // O formato do agregado passou a vir do contrato da API, e não de uma cópia
-// local — é o mesmo retorno de `get_survey_operations` que a rota repassa.
+// local — é o mesmo retorno de `FC_OBTER_OPERACOES_PESQUISA` que a rota repassa.
 type Issue = PendenciaCiclo;
 type Operations = OperacaoCiclo;
 
@@ -140,7 +140,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
   /*
     Estado da capa, buscado só na etapa de revisão.
 
-    `get_survey_operations` não devolve a identidade visual, e não vou ampliá-la
+    `FC_OBTER_OPERACOES_PESQUISA` não devolve a identidade visual, e não vou ampliá-la
     por causa de uma linha de resumo: a rota de identidade já responde essa
     pergunta, e é uma chamada a mais apenas nesta etapa. Nulo enquanto carrega
     ou se falhar — a revisão não trava por causa da capa.
@@ -440,7 +440,7 @@ export default function SurveyOperationsPage({ params }: { params: Promise<{ sur
     resumo, porque ali publicar é o assunto, não a consequência.
 
     Definido, não duplicado: são os mesmos `cycleActions`, os mesmos handlers e
-    a mesma `manage_survey_cycle`. Copiar a JSX criaria dois botões de publicar
+    a mesma `FC_GERIR_CICLO_PESQUISA`. Copiar a JSX criaria dois botões de publicar
     que divergiriam na primeira correção feita em um só deles.
   */
   const blocoDeAcoes = operations ? (

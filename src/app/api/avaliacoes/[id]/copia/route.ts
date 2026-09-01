@@ -31,7 +31,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_clonar_pesquisa", {
+  const { data, error } = await banco.rpc("FC_CLONAR_PESQUISA", {
     p_pesquisa: id,
     p_nome: typeof corpo.name === "string" && corpo.name.trim() ? corpo.name.trim() : null,
     p_codigo: typeof corpo.code === "string" && corpo.code.trim() ? corpo.code.trim() : null,

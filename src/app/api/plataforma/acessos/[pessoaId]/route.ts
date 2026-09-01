@@ -36,7 +36,7 @@ export async function PUT(
     .filter(Boolean))];
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_definir_permissoes_pessoa", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_PERMISSOES_PESSOA", {
     p_pessoa: pessoaId,
     p_permissoes: permissoes,
   });

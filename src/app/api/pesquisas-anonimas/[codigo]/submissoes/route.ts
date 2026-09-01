@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
   if (limitResponse) return limitResponse;
 
   const banco = createAdminRpcClient();
-  const { data, error } = await banco.rpc("fc_srv_iniciar_resp_anon", { target_application_code: codigo });
+  const { data, error } = await banco.rpc("FC_SRV_INICIAR_RESP_ANON", { target_application_code: codigo });
   if (error) return respostaDeErro(error, "POST /api/pesquisas-anonimas/[codigo]/submissoes");
   return NextResponse.json(data);
 }

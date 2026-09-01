@@ -26,5 +26,5 @@
 - Gestão da própria equipe exige `TEAM`; gestão global exige a permissão
   administrativa correspondente.
 - Todas as funções são executadas com validação de identidade autenticada.
-- Inclusões e retiradas de equipe geram eventos em `audit_events`.
+- Inclusões e retiradas de equipe geram eventos em `TL_EVENTO_AUDITORIA`.
 - Nenhuma alteração apaga o histórico de vínculos encerrados.

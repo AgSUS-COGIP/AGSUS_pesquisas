@@ -32,7 +32,7 @@ function marcaPublica(value: unknown) {
  * preserva o contrato completo usado pelas telas administrativas.
  *
  * Quando não há uma sessão válida, a consulta pública usa o cliente anônimo.
- * O papel lógico da chamada é o que decide a permissão: `fc_obter_marca_publica`
+ * O papel lógico da chamada é o que decide a permissão: `FC_OBTER_MARCA_PUBLICA`
  * é liberada a `anon`, enquanto a RPC completa exige `authenticated` — ver
  * `src/lib/db/rpc-permissions.ts`.
  */
@@ -42,13 +42,13 @@ export async function GET() {
 
   if (authenticated) {
     const sessionbanco = await createServerRpcClient();
-    const { data, error } = await sessionbanco.rpc("fc_obter_marca_plataforma");
+    const { data, error } = await sessionbanco.rpc("FC_OBTER_MARCA_PLATAFORMA");
     if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
     return NextResponse.json(normalizePlatformBranding(data));
   }
 
   const publicbanco = createPublicRpcClient();
-  const { data: publicData, error: publicError } = await publicbanco.rpc("fc_obter_marca_publica");
+  const { data: publicData, error: publicError } = await publicbanco.rpc("FC_OBTER_MARCA_PUBLICA");
   if (!publicError) return NextResponse.json(marcaPublica(publicData));
 
   // PGRST202 = a migration que cria a RPC nova ainda nao chegou ao banco.
@@ -60,7 +60,7 @@ export async function GET() {
   // Compatibilidade de rollout apenas. O cliente continua anônimo e sem cookies:
   // se `anon` já tiver sido revogado da RPC completa, a resposta correta é erro,
   // não a reutilização silenciosa de um JWT inválido.
-  const { data, error } = await publicbanco.rpc("fc_obter_marca_plataforma");
+  const { data, error } = await publicbanco.rpc("FC_OBTER_MARCA_PLATAFORMA");
   if (error) return respostaDeErro(error, "GET /api/plataforma/marca");
 
   return NextResponse.json(marcaPublica(data));
@@ -69,7 +69,7 @@ export async function GET() {
 /**
  * Grava nomes institucionais e cor principal.
  *
- * `fc_atualizar_marca_plataforma` substitui a linha única inteira, e omitir um
+ * `FC_ATUALIZAR_MARCA_PLATAFORMA` substitui a linha única inteira, e omitir um
  * campo o zeraria. O logotipo vai sempre nulo porque a marca é fixa — decisão
  * de produto mantida aqui para que nenhum chamador consiga sobrescrevê-la.
  */
@@ -90,7 +90,7 @@ export async function PUT(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_atualizar_marca_plataforma", {
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_MARCA_PLATAFORMA", {
     no_organizacao_param: organizationName,
     no_produto_param: productName,
     tx_url_logotipo_param: null,

@@ -24,7 +24,7 @@ export async function GET(
   const busca = new URL(request.url).searchParams.get("busca")?.trim() ?? "";
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("search_admin_people_for_application", {
+  const { data, error } = await banco.rpc("FC_BUSCAR_PESSOAS_CICLO", {
     target_application_id: id,
     target_search: busca,
   });

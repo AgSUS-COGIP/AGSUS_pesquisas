@@ -560,7 +560,7 @@ export default function PlatformSettingsPage() {
   /**
    * Grava os três textos institucionais de uma vez.
    *
-   * Os três vão juntos porque `fc_definir_textos_marca` grava os três: enviar
+   * Os três vão juntos porque `FC_DEFINIR_TEXTOS_MARCA` grava os três: enviar
    * um só zeraria os outros dois. Campo vazio significa restaurar o padrão do
    * código, não apagar — a tela de entrada não pode ficar sem título.
    */
@@ -1022,7 +1022,7 @@ export default function PlatformSettingsPage() {
 
                   {/*
                     Botão próprio, e não o "Salvar alterações" do rodapé: aquele
-                    chama `fc_atualizar_marca_plataforma`, que não conhece estes
+                    chama `FC_ATUALIZAR_MARCA_PLATAFORMA`, que não conhece estes
                     campos. Ligá-lo aqui faria a tela mostrar sucesso sem que o
                     texto mudasse.
                   */}

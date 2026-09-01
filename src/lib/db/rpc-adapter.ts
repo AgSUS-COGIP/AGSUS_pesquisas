@@ -68,7 +68,7 @@ function shapeResult(functionName: string, result: QueryResult): unknown {
  * separa uma sessão comum de uma função de cron/serviço, já que não existem
  * mais roles no Postgres para isso (ver rpc-permissions.ts). `claims` vira o
  * `request.jwt.claims` que os corpos das funções continuam lendo — hoje por
- * `sigav.fc_uid_sessao()`/`fc_papel_sessao()`/`fc_claims_sessao()`, que
+ * `sigav."FC_UID_SESSAO"()`/`fc_papel_sessao()`/`fc_claims_sessao()`, que
  * sucederam `auth.uid()`/`auth.role()`/`auth.jwt()` quando o schema `auth` foi
  * absorvido por `sigav`. O formato das claims não mudou.
  */

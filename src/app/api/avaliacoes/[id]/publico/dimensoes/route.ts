@@ -46,7 +46,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_dimensoes_publico", { p_regra: regra });
+  const { data, error } = await banco.rpc("FC_LISTAR_DIMENSOES_PUBLICO", { p_regra: regra });
 
   if (error) return respostaDeErro(error, "POST /api/avaliacoes/[id]/publico/dimensoes");
 

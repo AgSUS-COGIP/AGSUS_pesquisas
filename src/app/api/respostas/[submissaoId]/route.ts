@@ -42,7 +42,7 @@ export async function DELETE(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_remover_resposta_pessoa", {
+  const { data, error } = await banco.rpc("FC_REMOVER_RESPOSTA_PESSOA", {
     p_submissao: submissaoId,
     p_modo: corpo.modo,
     p_motivo: motivo,

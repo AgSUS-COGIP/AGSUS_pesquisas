@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const { search, limit, offset } = parseAccessPagination(new URL(request.url).searchParams);
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_listar_acessos_paginados", {
+  const { data, error } = await banco.rpc("FC_LISTAR_ACESSOS_PAGINADOS", {
     p_busca: search,
     p_limite: limit,
     p_offset: offset,

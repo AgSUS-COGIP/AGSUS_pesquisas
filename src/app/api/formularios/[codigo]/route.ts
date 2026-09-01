@@ -22,7 +22,7 @@ export async function GET(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_obter_formulario_publico", {
+  const { data, error } = await banco.rpc("FC_OBTER_FORMULARIO_PUBLICO", {
     target_application_code: codigoAplicacao,
   });
 

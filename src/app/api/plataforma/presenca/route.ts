@@ -16,7 +16,7 @@ export async function PUT(request: Request) {
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_definir_presenca_plataforma", {
+  const { data, error } = await banco.rpc("FC_DEFINIR_PRESENCA_PLATAFORMA", {
     fl_ativa_param: body.ativa,
   });
   if (error) return respostaDeErro(error, "PUT /api/plataforma/presenca");

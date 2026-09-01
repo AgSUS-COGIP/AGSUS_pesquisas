@@ -38,7 +38,7 @@ export async function PUT(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("save_my_cddi_answer", {
+  const { data, error } = await banco.rpc("FC_SALVAR_RESPOSTA_CDDI", {
     target_submission_id: id,
     target_question_id: corpo.questionId,
     target_option_id: optionId,

@@ -23,17 +23,17 @@
  */
 export const RPCS_CRITICAS = [
   // Autorização e identidade — sem isto, nenhuma tela autenticada abre.
-  "fc_obter_contexto_plataforma",
-  "resolve_authenticated_person",
+  "FC_OBTER_CONTEXTO_PLATAFORMA",
+  "FC_RESOLVER_PESSOA_AUTENTIC",
 
   // Marca: a primeira é lida pela tela de acesso anônima, antes de qualquer login.
-  "fc_obter_marca_publica",
-  "fc_obter_marca_plataforma",
+  "FC_OBTER_MARCA_PUBLICA",
+  "FC_OBTER_MARCA_PLATAFORMA",
 
   // Catálogo e runtime genérico de resposta.
-  "list_my_survey_catalog",
+  "FC_LISTAR_CATALOGO_PESQUISA",
   /*
-    O nome é `fc_obter_formulario_publico`, e não `get_public_survey_form`.
+    O nome é `FC_OBTER_FORMULARIO_PUBLICO`, e não `FC_OBTER_FORM_PUBLICO`.
 
     `20260822150000_security_audit_followup.sql` criou a primeira e **revogou**
     a segunda de `authenticated`; as rotas (`/api/formularios/[codigo]` e o
@@ -46,26 +46,26 @@ export const RPCS_CRITICAS = [
     Regra que isto impõe ao manifesto: o nome conferido tem de ser o nome que
     aparece num `banco.rpc(...)` do código, não o da migration que o criou.
   */
-  "fc_obter_formulario_publico",
-  "start_or_resume_my_survey_submission",
-  "save_my_survey_answer",
-  "submit_my_survey_submission",
+  "FC_OBTER_FORMULARIO_PUBLICO",
+  "FC_INICIAR_OU_RETOMAR_PESQ",
+  "FC_SALVAR_RESPOSTA_PESQUISA",
+  "FC_ENVIAR_SUBMISSAO_PESQUISA",
 
   // Runtime do CDDI, que tem jornada própria.
-  "start_or_resume_my_cddi_submission",
-  "save_my_cddi_answer",
-  "submit_my_cddi_submission",
-  "get_cddi_monitoring_dashboard",
+  "FC_INICIAR_OU_RETOMAR_CDDI",
+  "FC_SALVAR_RESPOSTA_CDDI",
+  "FC_ENVIAR_SUBMISSAO_CDDI",
+  "FC_PAINEL_MONITOR_CDDI",
 
-  // Administração de ciclo — `fc_definir_notificacao_email` é a que faltou em
+  // Administração de ciclo — `FC_DEFINIR_NOTIFICACAO_EMAIL` é a que faltou em
   // 20/08/2026 e produziu seis erros em produção.
-  "list_managed_surveys",
-  "manage_survey_cycle",
-  "fc_definir_notificacao_email",
+  "FC_LISTAR_PESQUISAS_GERIDAS",
+  "FC_GERIR_CICLO_PESQUISA",
+  "FC_DEFINIR_NOTIFICACAO_EMAIL",
 
   // Fila de e-mail: sem elas o cron falha em silêncio.
-  "fc_srv_reivindicar_emails",
-  "fc_srv_concluir_email",
+  "FC_SRV_REIVINDICAR_EMAILS",
+  "FC_SRV_CONCLUIR_EMAIL",
 ] as const;
 
 export type RpcCritica = (typeof RPCS_CRITICAS)[number];

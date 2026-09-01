@@ -17,7 +17,7 @@
 --
 -- Usuários finais NÃO viram role: continuam sendo claims de sessão
 -- (`request.jwt.claims`), com perfis geridos pela aplicação em
--- `sigav.person_module_permissions`.
+-- `sigav."RL_PESSOA_MODULO"`.
 --
 -- ----------------------------------------------------------------------------
 -- QUEM PODE RODAR: uma conexão com CREATEROLE — na prática `postgres`.

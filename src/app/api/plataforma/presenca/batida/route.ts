@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("fc_registrar_presenca");
+  const { data, error } = await banco.rpc("FC_REGISTRAR_PRESENCA");
 
   if (error) return respostaDeErro(error, "POST /api/plataforma/presenca/batida");
 

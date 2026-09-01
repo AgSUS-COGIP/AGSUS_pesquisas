@@ -47,7 +47,7 @@ export async function POST(
   }
 
   const banco = await createServerRpcClient();
-  const { data, error } = await banco.rpc("reorder_survey_builder_item", {
+  const { data, error } = await banco.rpc("FC_REORDENAR_ITEM_CONSTRUTOR", {
     target_item_type: corpo.itemType,
     target_item_id: corpo.itemId,
     target_direction: corpo.direction,

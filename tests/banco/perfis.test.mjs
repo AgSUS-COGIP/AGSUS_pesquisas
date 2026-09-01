@@ -42,23 +42,24 @@ function comoPessoa(corpo) {
 
 async function definirPermissoesNaTransacao(cliente, permissoes) {
   await cliente.query(
-    "delete from sigav.person_module_permissions where person_id = $1",
+    `delete from sigav."RL_PESSOA_MODULO" where "SQ_PESSOA" = $1`,
     [pessoa.person_id],
   );
   await cliente.query(
-    `insert into sigav.person_module_permissions (person_id, module_code, allowed)
-     select $1, pm.code, pm.code = any($2::text[])
-       from sigav.platform_modules pm
-      where pm.active`,
+    `insert into sigav."RL_PESSOA_MODULO" ("SQ_PESSOA", "CO_MODULO", "ST_PERMITIDO")
+     select $1, pm."CO_MODULO", pm."CO_MODULO" = any($2::text[])
+       from sigav."TB_MODULO_PLATAFORMA" pm
+      where pm."ST_ATIVO"`,
     [pessoa.person_id, permissoes],
   );
 }
 
 test("o catálogo contém as permissões funcionais, sem perfis técnicos adicionais", async () => {
   const { rows } = await obterPool().query(
-    "select code from sigav.platform_modules where active order by position, code",
+    `select "CO_MODULO" from sigav."TB_MODULO_PLATAFORMA"
+      where "ST_ATIVO" order by "NU_ORDEM", "CO_MODULO"`,
   );
-  assert.deepEqual(rows.map((linha) => linha.code), PERMISSOES);
+  assert.deepEqual(rows.map((linha) => linha.CO_MODULO), PERMISSOES);
 });
 
 // Sucede "nenhuma atribuição funcional permanece vigente": desde
@@ -87,10 +88,10 @@ test("o banco não guarda mais tabela nem função de perfil", async () => {
 test("o histórico das atribuições sobreviveu em audit_events", async () => {
   const { rows } = await obterPool().query(`
     select count(*)::integer as arquivadas,
-           count(*) filter (where before_data ? 'roleCode'
-                              and before_data ? 'personId')::integer as completas
-      from sigav.audit_events
-     where event_type = 'ROLE_LEGACY_ARCHIVED'
+           count(*) filter (where "DS_DADO_ANTERIOR" ? 'roleCode'
+                              and "DS_DADO_ANTERIOR" ? 'personId')::integer as completas
+      from sigav."TL_EVENTO_AUDITORIA"
+     where "TP_EVENTO" = 'ROLE_LEGACY_ARCHIVED'
   `);
   assert.ok(rows[0].arquivadas > 0, "nenhuma atribuição arquivada");
   assert.equal(
@@ -104,12 +105,12 @@ test("pessoa autenticada sem configuração recebe somente o piso obrigatório",
   await comoPessoa(async (cliente) => {
     await definirPermissoesNaTransacao(cliente, []);
     await cliente.query(
-      "delete from sigav.person_module_permissions where person_id = $1",
+      `delete from sigav."RL_PESSOA_MODULO" where "SQ_PESSOA" = $1`,
       [pessoa.person_id],
     );
 
     const { rows } = await cliente.query(
-      "select sigav.fc_obter_contexto_plataforma() as contexto",
+      `select sigav."FC_OBTER_CONTEXTO_PLATAFORMA"() as contexto`,
     );
     assert.equal(rows[0].contexto.technicalRole, "authenticated");
     assert.deepEqual(rows[0].contexto.roles, ["AUTHENTICATED"]);
@@ -123,18 +124,18 @@ test("contexto e helper usam diretamente as permissões da pessoa", async () => 
     await definirPermissoesNaTransacao(cliente, esperadas);
 
     const { rows: contextoRows } = await cliente.query(
-      "select sigav.fc_obter_contexto_plataforma() as contexto",
+      `select sigav."FC_OBTER_CONTEXTO_PLATAFORMA"() as contexto`,
     );
     assert.deepEqual(contextoRows[0].contexto.modules, esperadas);
 
     const { rows: portoes } = await cliente.query(`
-      select pm.code, sigav.has_platform_module(pm.code) as permitido
-        from sigav.platform_modules pm
-       where pm.active
-       order by pm.position, pm.code
+      select pm."CO_MODULO", sigav."FC_TEM_MODULO"(pm."CO_MODULO") as permitido
+        from sigav."TB_MODULO_PLATAFORMA" pm
+       where pm."ST_ATIVO"
+       order by pm."NU_ORDEM", pm."CO_MODULO"
     `);
     assert.deepEqual(
-      portoes.filter((linha) => linha.permitido).map((linha) => linha.code),
+      portoes.filter((linha) => linha.permitido).map((linha) => linha.CO_MODULO),
       esperadas,
     );
   });
@@ -144,9 +145,9 @@ test("helpers legados traduzem nomes de perfil para capacidades", async () => {
   await comoPessoa(async (cliente) => {
     await definirPermissoesNaTransacao(cliente, ["HOME", "SURVEYS", "TEAM", "DASHBOARDS"]);
     const { rows } = await cliente.query(`
-      select sigav.has_active_role('MANAGER') as gestor,
-             sigav.has_active_role('LEADER') as avaliador,
-             sigav.has_active_role('ADMINISTRATOR') as administrador
+      select sigav."FC_TEM_PAPEL_ATIVO"('MANAGER') as gestor,
+             sigav."FC_TEM_PAPEL_ATIVO"('LEADER') as avaliador,
+             sigav."FC_TEM_PAPEL_ATIVO"('ADMINISTRATOR') as administrador
     `);
     assert.deepEqual(rows[0], { gestor: true, avaliador: true, administrador: false });
   });
@@ -156,9 +157,9 @@ test("ADMIN_TEAMS autoriza jornadas funcionais sem conceder ADMIN_ACCESS", async
   await comoPessoa(async (cliente) => {
     await definirPermissoesNaTransacao(cliente, ["HOME", "SURVEYS", "ADMIN_TEAMS"]);
     const { rows } = await cliente.query(`
-      select sigav.has_platform_module('ADMIN_TEAMS') as equipes,
-             sigav.is_platform_administrator() as acessos,
-             sigav.fc_listar_ciclos_lideranca_adm() as ciclos
+      select sigav."FC_TEM_MODULO"('ADMIN_TEAMS') as equipes,
+             sigav."FC_E_ADMINISTRADOR"() as acessos,
+             sigav."FC_LISTAR_CICLOS_LIDERANCA_ADM"() as ciclos
     `);
     assert.equal(rows[0].equipes, true);
     assert.equal(rows[0].acessos, false);
@@ -170,7 +171,7 @@ test("a área administrativa devolve role técnica, catálogo e permissões por 
   await comoPessoa(async (cliente) => {
     await definirPermissoesNaTransacao(cliente, ["HOME", "SURVEYS", "ADMIN_ACCESS"]);
     const { rows } = await cliente.query(
-      "select sigav.fc_listar_acessos_paginados('', 10, 0) as acessos",
+      `select sigav."FC_LISTAR_ACESSOS_PAGINADOS"('', 10, 0) as acessos`,
     );
     const acessos = rows[0].acessos;
     assert.equal(acessos.technicalRole, "authenticated");
@@ -183,7 +184,7 @@ test("a RPC substitui permissões e mantém HOME e SURVEYS", async () => {
   await comoPessoa(async (cliente) => {
     await definirPermissoesNaTransacao(cliente, ["HOME", "SURVEYS", "ADMIN_ACCESS"]);
     const { rows } = await cliente.query(
-      "select sigav.fc_definir_permissoes_pessoa($1, $2::text[]) as resultado",
+      `select sigav."FC_DEFINIR_PERMISSOES_PESSOA"($1, $2::text[]) as resultado`,
       [pessoa.person_id, ["admin_access", "team"]],
     );
     assert.deepEqual(
@@ -198,7 +199,7 @@ test("a RPC preserva o piso e impede retirar a própria administração", async 
     () => comoPessoa(async (cliente) => {
       await definirPermissoesNaTransacao(cliente, ["HOME", "SURVEYS", "ADMIN_ACCESS"]);
       await cliente.query(
-        "select sigav.fc_definir_permissoes_pessoa($1, $2::text[])",
+        `select sigav."FC_DEFINIR_PERMISSOES_PESSOA"($1, $2::text[])`,
         [pessoa.person_id, ["TEAM"]],
       );
     }),
@@ -209,13 +210,13 @@ test("a RPC preserva o piso e impede retirar a própria administração", async 
 test("uma credencial física sustenta a role das pessoas e os canais internos", async () => {
   const identidades = await Promise.all([
     comoAnonimo(async (cliente) => (await cliente.query(
-      "select current_user as usuario, sigav.fc_papel_sessao() as papel",
+      `select current_user as usuario, sigav."FC_PAPEL_SESSAO"() as papel`,
     )).rows[0]),
     comoPessoa(async (cliente) => (await cliente.query(
-      "select current_user as usuario, sigav.fc_papel_sessao() as papel",
+      `select current_user as usuario, sigav."FC_PAPEL_SESSAO"() as papel`,
     )).rows[0]),
     comoServico(async (cliente) => (await cliente.query(
-      "select current_user as usuario, sigav.fc_papel_sessao() as papel",
+      `select current_user as usuario, sigav."FC_PAPEL_SESSAO"() as papel`,
     )).rows[0]),
   ]);
 

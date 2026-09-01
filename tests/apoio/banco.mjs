@@ -50,7 +50,7 @@ export async function encerrarPool() {
 /**
  * Executa `corpo` com as claims de uma sessão, e desfaz tudo ao final.
  *
- * `papel` é o que `sigav.fc_papel_sessao()` devolve e o que separa uma chamada
+ * `papel` é o que `sigav."FC_PAPEL_SESSAO"()` devolve e o que separa uma chamada
  * anônima de uma de serviço. `claims` extras (ex.: `sub`, `email`) entram no
  * mesmo objeto, como o adaptador monta.
  */
@@ -92,16 +92,20 @@ export function comoServico(corpo) {
  *
  * Os testes de jornada precisam de uma identidade que exista de verdade: um
  * `sub` inventado passaria por `fc_uid_sessao()` mas não casaria com
- * `people.auth_user_id`, e as funções devolveriam "sem cadastro" em vez de
+ * `TB_PESSOA.SQ_USUARIO_IDENTIDADE`, e as funções devolveriam "sem cadastro" em vez de
  * exercitarem o caminho que interessa.
  */
 export async function pessoaComAcesso() {
   const { rows } = await obterPool().query(`
-    select u.id as auth_user_id, u.email, p.id as person_id, p.full_name
-    from sigav.tb_usuario_identidade u
-    join sigav.people p on p.auth_user_id = u.id
-    where p.active
-    order by u.created_at nulls last
+    select u."SQ_USUARIO" as auth_user_id,
+           u."DS_EMAIL" as email,
+           p."SQ_PESSOA" as person_id,
+           p."NO_PESSOA" as full_name
+    from sigav."TB_USUARIO_IDENTIDADE" u
+    join sigav."TB_PESSOA" p
+      on p."SQ_USUARIO_IDENTIDADE" = u."SQ_USUARIO"
+    where p."ST_ATIVO"
+    order by u."DT_INCLUSAO" nulls last
     limit 1
   `);
   if (!rows.length) {

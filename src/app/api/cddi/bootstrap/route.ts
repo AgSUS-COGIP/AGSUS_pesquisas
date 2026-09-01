@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   let applicationCode = requestedCode;
 
   if (!applicationCode) {
-    const { data: cycleData, error: cycleError } = await banco.rpc("fc_obter_ciclo_cddi_vigente");
+    const { data: cycleData, error: cycleError } = await banco.rpc("FC_OBTER_CICLO_CDDI_VIGENTE");
     if (cycleError) return respostaDeErro(cycleError, "POST /api/cddi/bootstrap [ciclo]");
 
     const cycle = cycleData as { code?: string } | null;
@@ -40,15 +40,15 @@ export async function POST(request: Request) {
   }
 
   const [formResult, submissionResult, identityResult] = await Promise.all([
-    banco.rpc("fc_obter_formulario_publico", {
+    banco.rpc("FC_OBTER_FORMULARIO_PUBLICO", {
       target_application_code: applicationCode,
     }),
-    banco.rpc("start_or_resume_my_cddi_submission", {
+    banco.rpc("FC_INICIAR_OU_RETOMAR_CDDI", {
       target_application_code: applicationCode,
       target_submission_type: "AUTO",
       target_subject_person_id: null,
     }),
-    banco.rpc("get_my_cddi_identity", {
+    banco.rpc("FC_OBTER_IDENTIDADE_CDDI", {
       target_application_code: applicationCode,
     }),
   ]);
