@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Loader2, Search, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import {
   ROTULO_DA_SITUACAO,
   SITUACOES_DE_PARTICIPANTE,
   escreverFiltrosNaUrl,
+  lerFiltrosDaUrl,
   temFiltroAtivo,
   type DimensaoDeFiltro,
   type FiltrosDeParticipantes,
@@ -42,7 +44,6 @@ type Participante = {
   id: string;
   fullName: string;
   employeeNumber: string;
-  institutionalEmail: string | null;
   jobTitle: string | null;
   unit: string | null;
   directorate: string | null;
@@ -89,9 +90,34 @@ function formatarData(valor: string | null) {
 }
 
 export function ListaDeParticipantes({ applicationCode }: { applicationCode: string }) {
-  const [filtros, setFiltros] = useState<FiltrosDeParticipantes>(FILTROS_VAZIOS);
-  const [pagina, setPagina] = useState(1);
-  const [buscaDigitada, setBuscaDigitada] = useState("");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  /*
+    A URL é a fonte, e não uma cópia do estado.
+
+    O componente não guarda o recorte em `useState`: ele o **deriva** da query
+    string a cada render. Assim recarregar, voltar pelo navegador e colar o
+    endereço para outra pessoa mostram exatamente a mesma lista — e, quando a
+    exportação chegar, ela parte do mesmo lugar que a tela.
+
+    Guardar em estado e só espelhar na URL cria duas verdades que divergem no
+    primeiro botão "voltar".
+  */
+  const filtros = useMemo(
+    () => lerFiltrosDaUrl(new URLSearchParams(searchParams.toString())),
+    [searchParams],
+  );
+  const pagina = Math.max(1, Number.parseInt(searchParams.get("pagina") ?? "1", 10) || 1);
+
+  /*
+    A busca é a única exceção, e por um motivo: é campo de digitação. Escrever
+    na URL a cada tecla encheria o histórico de entradas intermediárias e faria
+    o botão "voltar" percorrer letra por letra. O texto vive em estado local até
+    o envio; o recorte aplicado continua sendo o da URL.
+  */
+  const [buscaDigitada, setBuscaDigitada] = useState(filtros.busca);
 
   const parametros = useMemo(() => {
     const query = escreverFiltrosNaUrl(filtros);
@@ -99,6 +125,20 @@ export function ListaDeParticipantes({ applicationCode }: { applicationCode: str
     query.set("tamanho", String(TAMANHO_DA_PAGINA));
     return query;
   }, [filtros, pagina]);
+
+  /*
+    `replace`, não `push`: ajustar um filtro não é navegar. Com `push`, sair da
+    tela exigiria um "voltar" para cada clique dado num chip.
+
+    `scroll: false` porque o recorte muda uma tabela no meio da página — subir
+    ao topo faria a pessoa perder de vista o que acabou de mudar.
+  */
+  function navegar(novosFiltros: FiltrosDeParticipantes, novaPagina: number) {
+    const query = escreverFiltrosNaUrl(novosFiltros);
+    if (novaPagina > 1) query.set("pagina", String(novaPagina));
+    const busca = query.toString();
+    router.replace(busca ? `${pathname}?${busca}` : pathname, { scroll: false });
+  }
 
   const consulta = useQuery({
     // A chave inclui o recorte inteiro: trocar de filtro é outra consulta, não
@@ -113,8 +153,7 @@ export function ListaDeParticipantes({ applicationCode }: { applicationCode: str
 
   /** Qualquer mudança de recorte volta para a primeira página. */
   function aplicar(novos: FiltrosDeParticipantes) {
-    setFiltros(novos);
-    setPagina(1);
+    navegar(novos, 1);
   }
 
   function alternarValor(dimensao: DimensaoDeFiltro, valor: string) {
@@ -311,7 +350,7 @@ export function ListaDeParticipantes({ applicationCode }: { applicationCode: str
               <Button
                 variant="secondary"
                 disabled={dados.pagina <= 1}
-                onClick={() => setPagina((atual) => Math.max(1, atual - 1))}
+                onClick={() => navegar(filtros, Math.max(1, pagina - 1))}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 Anterior
@@ -319,7 +358,7 @@ export function ListaDeParticipantes({ applicationCode }: { applicationCode: str
               <Button
                 variant="secondary"
                 disabled={dados.pagina >= totalDePaginas}
-                onClick={() => setPagina((atual) => atual + 1)}
+                onClick={() => navegar(filtros, pagina + 1)}
               >
                 Próxima
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

@@ -104,6 +104,51 @@ describe("paraPayloadDaRpc", () => {
   });
 });
 
+describe("restauração do recorte a partir da URL", () => {
+  /*
+    A tela deriva os filtros da query string a cada render, em vez de guardá-los
+    em estado. Estes casos cobrem o que essa decisão precisa garantir: abrir um
+    endereço compartilhado mostra a mesma lista, e um endereço adulterado não
+    liga um filtro que ninguém pediu.
+  */
+
+  it("restaura um recorte completo vindo de um endereço colado", () => {
+    const url = "unit=Escritorio+A&unit=Escrit%C3%B3rio+B&jobTitle=Assessor&situacao=ELIGIBLE&busca=ana&pagina=3";
+    const restaurado = lerFiltrosDaUrl(new URLSearchParams(url));
+
+    expect(restaurado.unit).toEqual(["Escritorio A", "Escritório B"]);
+    expect(restaurado.jobTitle).toEqual(["Assessor"]);
+    expect(restaurado.situacao).toEqual(["ELIGIBLE"]);
+    expect(restaurado.busca).toBe("ana");
+  });
+
+  it("ignora `pagina` e `tamanho`, que não são recorte", () => {
+    // Eles viajam na mesma query string, mas paginar não é filtrar: se fossem
+    // lidos como dimensão, mudar de página apareceria como filtro ativo.
+    const restaurado = lerFiltrosDaUrl(new URLSearchParams("pagina=4&tamanho=200"));
+
+    expect(restaurado).toEqual(FILTROS_VAZIOS);
+    expect(temFiltroAtivo(restaurado)).toBe(false);
+  });
+
+  it("endereço adulterado não liga filtro que ninguém pediu", () => {
+    const restaurado = lerFiltrosDaUrl(new URLSearchParams("situacao=DELETE_ALL&unit[]=x&admin=true"));
+
+    expect(paraPayloadDaRpc(restaurado)).toEqual({});
+  });
+
+  it("o recorte sobrevive a duas voltas pela URL", () => {
+    // Uma volta prova a simetria; duas provam que ela não se degrada — que a
+    // escrita do que foi lido não acrescenta nem perde nada.
+    const original = filtros({ unit: ["Sede"], situacao: ["COMPLETED"], busca: "carla" });
+    const umaVolta = lerFiltrosDaUrl(escreverFiltrosNaUrl(original));
+    const duasVoltas = lerFiltrosDaUrl(escreverFiltrosNaUrl(umaVolta));
+
+    expect(umaVolta).toEqual(original);
+    expect(duasVoltas).toEqual(original);
+  });
+});
+
 describe("temFiltroAtivo", () => {
   it("distingue recorte de ausência de recorte", () => {
     expect(temFiltroAtivo(FILTROS_VAZIOS)).toBe(false);

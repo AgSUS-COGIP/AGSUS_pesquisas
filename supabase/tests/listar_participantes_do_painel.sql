@@ -13,7 +13,7 @@
 
 begin;
 
-select plan(19);
+select plan(24);
 
 -- Superadmin: tem DASHBOARDS, que é o guard da função.
 insert into auth.users (id, aud, role, email, created_at, updated_at)
@@ -236,9 +236,85 @@ select is(
   'grafias equivalentes de coordenação viram uma única opção'
 );
 
+/*
+  Duas grafias empatadas em frequência — uma ocorrência cada.
+
+  Com `mode() within group`, o vencedor dependia da ordem em que o planejador
+  leu as linhas: a opção podia alternar entre execuções, e um filtro salvo
+  apontaria para um rótulo que sumiu da lista.
+
+  A asserção compara com `least(...)` em vez de um literal, porque qual das duas
+  é "a menor" depende da collation do banco. O que o teste precisa provar é que
+  a escolha segue a regra declarada — frequência, depois ordem alfabética —, e
+  não qual string uma collation específica considera menor.
+*/
+select is(
+  sigav.fc_listar_participantes_do_painel('TESTE-PAINEL-1') -> 'dimensoes' -> 'coordination' ->> 0,
+  least('COORD DE GESTAO', 'Coord  de  Gestão'),
+  'no empate de frequência, vence a grafia alfabeticamente menor'
+);
+
 -- ---------------------------------------------------------------------------
--- Autorização e anonimato
+-- Payload, autorização e anonimato
 -- ---------------------------------------------------------------------------
+
+-- O payload não carrega e-mail: ele não é exibido em lugar nenhum da tela, e
+-- mandá-lo ao navegador exporia dado pessoal sem propósito. A busca **por**
+-- e-mail continua funcionando, porque acontece no SQL.
+select ok(
+  not (
+    sigav.fc_listar_participantes_do_painel('TESTE-PAINEL-1') -> 'participantes' -> 0
+    ? 'institutionalEmail'
+  ),
+  'o payload devolvido não inclui e-mail institucional'
+);
+
+select is(
+  (sigav.fc_listar_participantes_do_painel(
+    'TESTE-PAINEL-1',
+    '{"busca":"pai3@agenciasus.org.br"}'::jsonb
+  ) ->> 'total')::integer,
+  1,
+  'a busca por e-mail continua alcançando a pessoa, mesmo sem devolvê-lo'
+);
+
+-- A garantia de anonimato é estrutural: sem referência a `submissions` ou
+-- `answers`, não existe caminho de leitura da pessoa até o que ela respondeu.
+-- Acrescentar esse join um dia passa a quebrar aqui.
+select ok(
+  pg_get_functiondef('sigav.fc_listar_participantes_do_painel(text,jsonb,integer,integer)'::regprocedure) !~* '\m(submissions|answers)\M',
+  'a função não referencia submissions nem answers'
+);
+
+/*
+  O helper é `security definer` e não tem guard próprio — quem o protege é a
+  função de listagem, que confere `DASHBOARDS` antes de chamá-lo. Concedido a
+  `authenticated`, viraria porta lateral: qualquer sessão leria a composição
+  organizacional de qualquer ciclo passando o identificador.
+
+  A verificação é em duas camadas porque uma só não bastaria. O catálogo prova
+  que o privilégio não existe; a chamada real prova que ele é cobrado — e a
+  chamada precisa de `set local role`, já que o pgTAP roda como superusuário,
+  que ignora privilégio e faria a asserção passar sem provar nada.
+*/
+select ok(
+  not has_function_privilege('authenticated', 'sigav.fc_valores_de_dimensao(uuid,text)'::regprocedure, 'EXECUTE'),
+  'o helper de dimensões não é executável por authenticated'
+);
+
+set local role authenticated;
+
+select throws_ok(
+  format(
+    $$ select sigav.fc_valores_de_dimensao(%L::uuid, 'unit') $$,
+    '00000000-0000-4000-8000-00000000fb03'
+  ),
+  '42501',
+  null,
+  'chamar o helper diretamente é recusado por falta de privilégio'
+);
+
+reset role;
 
 select set_config(
   'request.jwt.claims',
@@ -250,14 +326,6 @@ select throws_ok(
   $$ select sigav.fc_listar_participantes_do_painel('TESTE-PAINEL-1') $$,
   'Acesso restrito ao módulo de Painéis.',
   'perfil sem DASHBOARDS é recusado no servidor, não na tela'
-);
-
--- A garantia de anonimato é estrutural: sem referência a `submissions` ou
--- `answers`, não existe caminho de leitura da pessoa até o que ela respondeu.
--- Acrescentar esse join um dia passa a quebrar aqui.
-select ok(
-  pg_get_functiondef('sigav.fc_listar_participantes_do_painel(text,jsonb,integer,integer)'::regprocedure) !~* '\m(submissions|answers)\M',
-  'a função não referencia submissions nem answers'
 );
 
 select * from finish();

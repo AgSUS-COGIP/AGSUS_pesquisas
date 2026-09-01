@@ -63,39 +63,67 @@ security definer
 set search_path = pg_catalog, sigav
 as $function$
   /*
-    Agrupa pela forma normalizada e exibe a grafia mais frequente — a mesma
-    técnica de `fc_listar_dimensoes_publico`, e pela mesma razão.
+    Agrupa pela forma normalizada e exibe uma grafia canônica.
 
     Sem isso, "Coord de Gestão" e "COORD DE GESTAO" apareceriam como duas
     opções, enquanto o filtro — que normaliza, porque reusa
     `fc_dimensao_publico_atende` — devolveria as mesmas pessoas para as duas.
     Duas entradas na lista com resultado idêntico é a interface dizendo que há
     uma diferença que não existe.
+
+    ## Por que não `mode()`
+
+    `mode() within group` devolve o valor mais frequente, mas **não define qual
+    vence no empate** — o resultado depende da ordem em que o planejador leu as
+    linhas. Duas grafias com a mesma contagem fariam a opção alternar entre
+    execuções, e um filtro salvo apontaria para um rótulo que sumiu da lista.
+
+    A escolha aqui é explícita: mais frequente primeiro, e o menor valor
+    alfabético como desempate. Mesma entrada, mesma saída, sempre.
   */
   select coalesce(jsonb_agg(rotulo order by rotulo), '[]'::jsonb)
   from (
-    select mode() within group (order by valor) as rotulo
+    select distinct on (chave) valor as rotulo
     from (
-      select btrim(
-        case p_dimensao
-          when 'directorate'  then p.metadata ->> 'directorate'
-          when 'unit'         then p.metadata ->> 'unit'
-          when 'coordination' then p.metadata ->> 'coordination'
-          when 'costCenter'   then p.cost_center
-          when 'jobTitle'     then p.job_title
-        end
-      ) as valor
-      from sigav.application_participants ap
-      join sigav.people p on p.id = ap.person_id
-      where ap.application_id = p_aplicacao
-    ) bruto
-    where sigav.fc_normalizar_rotulo(valor) is not null
-    group by sigav.fc_normalizar_rotulo(valor)
+      select
+        sigav.fc_normalizar_rotulo(valor) as chave,
+        valor,
+        count(*) as ocorrencias
+      from (
+        select btrim(
+          case p_dimensao
+            when 'directorate'  then p.metadata ->> 'directorate'
+            when 'unit'         then p.metadata ->> 'unit'
+            when 'coordination' then p.metadata ->> 'coordination'
+            when 'costCenter'   then p.cost_center
+            when 'jobTitle'     then p.job_title
+          end
+        ) as valor
+        from sigav.application_participants ap
+        join sigav.people p on p.id = ap.person_id
+        where ap.application_id = p_aplicacao
+      ) bruto
+      where sigav.fc_normalizar_rotulo(valor) is not null
+      group by sigav.fc_normalizar_rotulo(valor), valor
+    ) contadas
+    order by chave, ocorrencias desc, valor asc
   ) canonico;
 $function$;
 
-revoke execute on function sigav.fc_valores_de_dimensao(uuid, text) from public, anon;
-grant execute on function sigav.fc_valores_de_dimensao(uuid, text) to authenticated;
+/*
+  Helper interno: **nenhum grant**, nem a `authenticated`.
+
+  Ela é `security definer` e não tem guard próprio — quem a protege é
+  `fc_listar_participantes_do_painel`, que confere `DASHBOARDS` antes de
+  chamá-la. Concedida diretamente, viraria uma porta lateral: qualquer sessão
+  autenticada leria a composição organizacional de qualquer ciclo passando o
+  identificador, sem passar pelo guard.
+
+  Chamada de dentro de uma `security definer`, ela executa como o dono e
+  dispensa `execute` do papel de quem chamou — mesmo padrão de
+  `fc_abrir_ciclos_agendados`.
+*/
+revoke execute on function sigav.fc_valores_de_dimensao(uuid, text) from public, anon, authenticated;
 
 create or replace function sigav.fc_listar_participantes_do_painel(
   target_application_code text,
@@ -146,7 +174,6 @@ begin
       ap.id,
       p.full_name,
       p.employee_number,
-      p.institutional_email,
       p.job_title,
       p.metadata ->> 'unit' as unidade,
       p.metadata ->> 'directorate' as diretoria,
@@ -171,6 +198,9 @@ begin
         v_busca is null
         or p.full_name ilike '%' || v_busca || '%'
         or p.employee_number ilike '%' || v_busca || '%'
+        -- A busca continua alcançando o e-mail, que apenas não volta ao
+        -- navegador: filtrar por ele é útil, exibi-lo numa lista que não o
+        -- mostra seria expor dado pessoal sem propósito.
         or coalesce(p.institutional_email, '') ilike '%' || v_busca || '%'
         or coalesce(p.job_title, '') ilike '%' || v_busca || '%'
       )
@@ -209,7 +239,6 @@ begin
           'id', o.id,
           'fullName', o.full_name,
           'employeeNumber', o.employee_number,
-          'institutionalEmail', o.institutional_email,
           'jobTitle', o.job_title,
           'unit', o.unidade,
           'directorate', o.diretoria,
