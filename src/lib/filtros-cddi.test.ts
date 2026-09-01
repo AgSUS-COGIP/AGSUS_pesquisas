@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   FILTROS_CDDI_VAZIOS,
+  aoClicarNoKpi,
   atendeFiltros,
+  estadoAoTrocarCiclo,
+  kpiClicavel,
   opcoesDaDimensao,
   reconciliarFiltros,
   situacoesDisponiveis,
@@ -203,6 +206,66 @@ describe("atendeFiltros", () => {
     const somado = filtros({ coordinations: ["COORD 1", "COORD 3"] });
 
     expect(base.filter((item) => atendeFiltros(item, somado))).toHaveLength(3);
+  });
+});
+
+describe("KPI com contagem zero", () => {
+  /*
+    Os KPIs contam sobre o recorte, não sobre a base. Zero quer dizer "ninguém
+    nessa situação entre estes participantes" — e não "vá procurar em outro
+    lugar". Deixar o clique passar apagaria o recorte inteiro, porque nenhum
+    valor de nenhuma dimensão sobrevive a um resultado vazio.
+  */
+  it("Diretoria + Unidade → KPI zero → clique não altera o recorte", () => {
+    // DIR B / UNIDADE Y tem p3 e p4, ambos sem nada concluído: `COMPLETE` é 0.
+    const recorte = filtros({ directorates: ["DIR B"], units: ["UNIDADE Y"] });
+    const naoConcluidos = base.filter((item) => atendeFiltros(item, recorte));
+    const concluidos = naoConcluidos.filter((item) => item.autoCompleted && item.leaderCompleted).length;
+
+    expect(concluidos).toBe(0);
+    expect(kpiClicavel("COMPLETE", concluidos, recorte.statuses)).toBe(false);
+    expect(aoClicarNoKpi(base, recorte, "COMPLETE", concluidos)).toBe(recorte);
+  });
+
+  it("com contagem maior que zero, o clique aplica e reconcilia", () => {
+    // `COMPLETE` só existe em p1, da DIR A — a DIR B selecionada não sobrevive.
+    const recorte = filtros({ directorates: ["DIR B"] });
+    const depois = aoClicarNoKpi(base, recorte, "COMPLETE", 1);
+
+    expect(depois.statuses).toEqual(["COMPLETE"]);
+    expect(depois.directorates).toEqual([]);
+  });
+
+  it("a situação já selecionada continua clicável mesmo em zero", () => {
+    // Sem esta exceção, o filtro que zerou a própria contagem não teria como
+    // ser desmarcado e a tela ficaria travada em zero.
+    const travado = filtros({ statuses: ["COMPLETE"] });
+
+    expect(kpiClicavel("COMPLETE", 0, travado.statuses)).toBe(true);
+    expect(aoClicarNoKpi(base, travado, "COMPLETE", 0).statuses).toEqual([]);
+  });
+
+  it("o KPI de participantes limpa a situação e nunca é bloqueado", () => {
+    // Chave vazia não escolhe situação: ela remove. Só amplia o recorte.
+    expect(kpiClicavel("", 0, ["COMPLETE"])).toBe(true);
+    expect(aoClicarNoKpi(base, filtros({ statuses: ["COMPLETE"] }), "", 0).statuses).toEqual([]);
+  });
+});
+
+describe("troca de ciclo", () => {
+  it("zera recorte, busca e paginação", () => {
+    // Público diferente: a unidade do ciclo anterior pode não existir no novo, e
+    // preservá-la recriaria o filtro invisível que esta correção fecha.
+    const depois = estadoAoTrocarCiclo("CDDI-2027");
+
+    expect(depois.cycleCode).toBe("CDDI-2027");
+    expect(depois.filtros).toEqual(FILTROS_CDDI_VAZIOS);
+    expect(depois.query).toBe("");
+    expect(depois.page).toBe(1);
+  });
+
+  it("não reaproveita nada do ciclo anterior", () => {
+    expect(temRecorteAtivo(estadoAoTrocarCiclo("CDDI-2027").filtros)).toBe(false);
   });
 });
 
