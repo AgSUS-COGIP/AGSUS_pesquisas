@@ -176,24 +176,41 @@ function medianaDaTabela(ordenadas: readonly ClasseDeFrequencia[], total: number
 /**
  * Distribuição exibível a partir das alternativas de uma pergunta.
  *
- * O percentual usa como denominador o total de respostas **desta pergunta**, e
- * não o de participantes do ciclo: quem não respondeu não integra a
- * distribuição, e diluir por ele faria as barras somarem menos de 100% sem
- * explicação visível.
+ * ## Qual percentual, e por quê
  *
- * Em múltipla escolha a soma passa de 100% de propósito — cada pessoa marca
- * mais de uma alternativa, e é isso que os números dizem.
+ * Há duas leituras possíveis, e elas divergem **apenas em múltipla escolha**:
+ *
+ * ```text
+ * percentual de respondentes   quantas pessoas marcaram esta alternativa
+ *                              denominador = respostas da pergunta
+ *                              em múltipla escolha, a soma passa de 100%
+ *
+ * participação nas marcações   que fatia do total de marcações é esta
+ *                              denominador = soma das contagens
+ *                              sempre soma 100%
+ * ```
+ *
+ * Onde cada pessoa escolhe uma alternativa só — escala, escolha única, sim/não
+ * — os dois denominadores são o mesmo número e o resultado é idêntico.
+ *
+ * `respondentes` seleciona a primeira leitura, que é a preferida no painel
+ * institucional: ela responde "quantas pessoas marcaram esta opção?", que é a
+ * pergunta que quem opera realmente faz. Sem esse argumento, cai na segunda —
+ * que é exatamente o que `toDistributionBars` já faz hoje, e é o que mantém
+ * esta função compatível com o comportamento vigente da tela.
  */
 export function distribuicao(
   alternativas: readonly { label: string; value?: string | null; count: number }[],
+  respondentes?: number,
 ): ClasseDaDistribuicao[] {
-  const total = alternativas.reduce((soma, item) => soma + Math.max(0, item.count), 0);
+  const marcacoes = alternativas.reduce((soma, item) => soma + Math.max(0, item.count), 0);
+  const denominador = typeof respondentes === "number" && respondentes > 0 ? respondentes : marcacoes;
 
   return alternativas.map((item) => ({
     rotulo: item.label,
     valor: paraNumeroFinito(item.value),
     frequenciaAbsoluta: item.count,
-    frequenciaRelativa: total === 0 ? 0 : (item.count / total) * 100,
+    frequenciaRelativa: denominador === 0 ? 0 : (item.count / denominador) * 100,
   }));
 }
 
@@ -210,6 +227,25 @@ export type EstatisticasDaPergunta = {
   distribuicao: ClasseDaDistribuicao[];
 };
 
+export type OpcoesDaPergunta = {
+  /** Respostas da pergunta. Muda o denominador do percentual — ver {@link distribuicao}. */
+  respondentes?: number;
+  /**
+   * Valores numéricos que **não** vêm das alternativas.
+   *
+   * `INTEGER` e `DECIMAL` gravam em `answers.answer_number` e não têm
+   * alternativa nenhuma: para eles, a tabela de frequências não pode ser
+   * derivada de `options`, e sem ela não há resumo. Este parâmetro é a porta de
+   * entrada desse dado quando ele existir.
+   *
+   * Hoje ninguém o preenche, porque a RPC do painel não devolve
+   * `answer_number` — e trazer isso exige alterar a RPC, o que está fora desta
+   * PR. O parâmetro existe para que ativar esses tipos depois seja passar um
+   * argumento, e não reabrir a regra.
+   */
+  frequenciasNumericas?: readonly ClasseDeFrequencia[];
+};
+
 /**
  * A regra do produto: quais estatísticas cabem a cada tipo de pergunta.
  *
@@ -221,21 +257,37 @@ export type EstatisticasDaPergunta = {
  * O resumo também some quando a pergunta é numérica mas as alternativas não têm
  * valor numérico — uma escala rotulada só por texto, por exemplo. Melhor não
  * mostrar média do que mostrar a média das posições, que ninguém respondeu.
+ *
+ * ## Cobertura efetiva hoje
+ *
+ * Na prática, o resumo numérico sai para **`SCALE`**, e só. `INTEGER` e
+ * `DECIMAL` constam como numéricos e continuam sem resumo, porque a origem dos
+ * valores deles — `answers.answer_number` — não chega até aqui: eles não têm
+ * alternativas, e é de `options` que a tabela de frequências é derivada.
+ *
+ * Isso é limitação de dado, não de regra. Quem passar `frequenciasNumericas`
+ * recebe o resumo imediatamente, sem tocar nesta função. Os testes fixam os dois
+ * comportamentos para que a mudança seja deliberada quando acontecer.
  */
 export function estatisticasDaPergunta(
   questionType: string,
   alternativas: readonly { label: string; value?: string | null; count: number }[],
+  opcoes: OpcoesDaPergunta = {},
 ): EstatisticasDaPergunta {
   const ehDeAlternativa = TIPOS_DE_ALTERNATIVA.has(questionType);
-  const linhas = ehDeAlternativa ? distribuicao(alternativas) : [];
+  const linhas = ehDeAlternativa ? distribuicao(alternativas, opcoes.respondentes) : [];
 
   if (!TIPOS_NUMERICOS.has(questionType)) {
     return { resumo: null, distribuicao: linhas };
   }
 
-  const classes: ClasseDeFrequencia[] = linhas
-    .filter((linha): linha is ClasseDaDistribuicao & { valor: number } => linha.valor !== null)
-    .map((linha) => ({ valor: linha.valor, frequencia: linha.frequenciaAbsoluta }));
+  // Valores vindos de fora têm precedência: quem os forneceu tem a origem certa
+  // do número, enquanto as alternativas são apenas a origem possível para escala.
+  const classes: ClasseDeFrequencia[] = opcoes.frequenciasNumericas
+    ? [...opcoes.frequenciasNumericas]
+    : linhas
+        .filter((linha): linha is ClasseDaDistribuicao & { valor: number } => linha.valor !== null)
+        .map((linha) => ({ valor: linha.valor, frequencia: linha.frequenciaAbsoluta }));
 
   return { resumo: resumoNumerico(classes), distribuicao: linhas };
 }
