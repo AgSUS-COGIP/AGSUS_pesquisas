@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { DefinirTextosMarcaEntrada } from "@/lib/api/contratos-pessoas";
 
@@ -7,7 +7,7 @@ import type { DefinirTextosMarcaEntrada } from "@/lib/api/contratos-pessoas";
  * Textos institucionais da tela de acesso.
  *
  * Rota própria, como a cor do painel e a arte de fundo — e pelo mesmo motivo:
- * `fc_atualizar_marca_plataforma` substitui a linha inteira, então omitir um
+ * `FC_ATUALIZAR_MARCA_PLATAFORMA` substitui a linha inteira, então omitir um
  * campo o zeraria. Cada conjunto de campos tem a sua função no banco.
  *
  * Campo vazio significa **restaurar o padrão do código**, não apagar: a tela de
@@ -26,8 +26,8 @@ export async function PUT(request: Request) {
   const texto = (valor: unknown) =>
     typeof valor === "string" && valor.trim() ? valor.trim() : null;
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_definir_textos_marca", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_DEFINIR_TEXTOS_MARCA", {
     p_expansao: texto(corpo.expansao),
     p_saudacao: texto(corpo.saudacao),
     p_instrucao: texto(corpo.instrucao),

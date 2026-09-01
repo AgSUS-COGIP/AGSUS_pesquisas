@@ -84,9 +84,12 @@ export default function ProfilePage() {
             <div className="mt-5 rounded-xl border border-[var(--status-info-border)] bg-[var(--status-info-bg)] p-4"><p className="text-xs font-medium text-[var(--status-info-text)]">Perfil principal</p><p className="mt-1 font-semibold text-[var(--status-info-text)]">{user.profileLabel}</p></div>
             {/*
               Aqui havia a lista de papéis vigentes, que repetia palavra por
-              palavra a caixa acima: desde `20260810120000` os perfis são
-              **exclusivos**, então `roles` traz sempre um só — o mesmo que
-              `profileLabel`. A tela dizia "Superadmin" duas vezes seguidas.
+              palavra a caixa acima. O motivo de remover só ficou mais forte:
+              não há mais perfil a exibir. Desde `20260828130000` a autorização
+              é permissão por pessoa, e `profileLabel` traz a única role
+              técnica que existe ("Usuário autenticado") — dizer "Perfil
+              principal" ali prometeria uma hierarquia que o banco não tem
+              mais.
 
               No lugar entra o que o título promete e a tela não entregava: as
               permissões. Vêm da mesma fonte que monta o menu, então o que se lê

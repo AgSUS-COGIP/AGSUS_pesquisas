@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { CicloDeLideranca } from "@/lib/api/contratos-pessoas";
 
@@ -10,8 +10,8 @@ import type { CicloDeLideranca } from "@/lib/api/contratos-pessoas";
  * carregado. Reordenar aqui mudaria em silêncio qual equipe abre por padrão.
  */
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_ciclos_lideranca");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_CICLOS_LIDERANCA");
 
   if (error) return respostaDeErro(error, "GET /api/equipe/ciclos");
 

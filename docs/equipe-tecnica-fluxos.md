@@ -21,8 +21,10 @@
 
 ## Segurança e governança
 
-- Operações administrativas exigem `can_manage_surveys()`.
-- Gestão de equipe exige papel de liderança ou permissão administrativa.
+- Operações administrativas exigem `has_platform_module('ADMIN_SURVEYS')`;
+  `can_manage_surveys()` permanece apenas como compatibilidade.
+- Gestão da própria equipe exige `TEAM`; gestão global exige a permissão
+  administrativa correspondente.
 - Todas as funções são executadas com validação de identidade autenticada.
-- Inclusões e retiradas de equipe geram eventos em `audit_events`.
+- Inclusões e retiradas de equipe geram eventos em `TL_EVENTO_AUDITORIA`.
 - Nenhuma alteração apaga o histórico de vínculos encerrados.

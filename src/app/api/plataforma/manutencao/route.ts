@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeEntradaInvalida, respostaDeFalha } from "@/lib/api/resposta-http";
-import { PLATFORM_ROLE } from "@/lib/platform-roles";
+import { PLATFORM_MODULE } from "@/lib/platform-modules";
 import { MANUTENCAO_INATIVA, validarModulosDeManutencao, type EstadoDeManutencao } from "@/lib/manutencao";
 import {
   escritaConfigurada,
@@ -42,22 +42,20 @@ const EVENTO = {
 
 const LIMITE_DO_MOTIVO = 300;
 
-type Sessao = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+type Sessao = Awaited<ReturnType<typeof createServerRpcClient>>;
 
 /** Sessão válida **e** perfil de administração da plataforma, resolvidos no banco. */
-async function exigirAdministrador(supabase: Sessao) {
-  const { data: claims, error: erroDeClaims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub || erroDeClaims) {
-    return { erro: respostaDeFalha(401, "Sua sessão expirou. Entre novamente para continuar.") };
-  }
-
-  const { data, error } = await supabase.rpc("fc_obter_contexto_plataforma");
+async function exigirAdministrador(banco: Sessao) {
+  const { data, error } = await banco.rpc("FC_OBTER_CONTEXTO_PLATAFORMA");
   if (error) {
     return { erro: respostaDeFalha(503, "Não foi possível confirmar suas permissões agora.") };
   }
 
-  const contexto = data as { roles?: string[]; person?: { id?: string } } | null;
-  if (!contexto?.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN)) {
+  const contexto = data as { status?: string; modules?: string[]; person?: { id?: string } } | null;
+  if (contexto?.status === "AUTH_REQUIRED") {
+    return { erro: respostaDeFalha(401, "Sua sessão expirou. Entre novamente para continuar.") };
+  }
+  if (!contexto?.modules?.includes(PLATFORM_MODULE.ADMIN_ACCESS)) {
     return { erro: respostaDeFalha(403, "Apenas a administração da plataforma pode alterar a manutenção.") };
   }
 
@@ -77,19 +75,18 @@ async function exigirAdministrador(supabase: Sessao) {
  * interno; quem alterou é dado de pessoa.
  */
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: claims, error: erroDeClaims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub || erroDeClaims) {
-    return respostaDeFalha(401, "Sua sessão expirou. Entre novamente para continuar.");
-  }
+  const banco = await createServerRpcClient();
 
   const leitura = await lerManutencao();
   const estado = leitura.ok ? leitura.estado : MANUTENCAO_INATIVA;
 
-  const { data } = await supabase.rpc("fc_obter_contexto_plataforma");
-  const contexto = data as { roles?: string[] } | null;
-  const ehAdministrador = Boolean(contexto?.roles?.includes(PLATFORM_ROLE.SUPER_ADMIN));
+  const { data, error } = await banco.rpc("FC_OBTER_CONTEXTO_PLATAFORMA");
+  if (error) return respostaDeFalha(503, "Não foi possível confirmar suas permissões agora.");
+  const contexto = data as { status?: string; modules?: string[] } | null;
+  if (contexto?.status === "AUTH_REQUIRED") {
+    return respostaDeFalha(401, "Sua sessão expirou. Entre novamente para continuar.");
+  }
+  const ehAdministrador = Boolean(contexto?.modules?.includes(PLATFORM_MODULE.ADMIN_ACCESS));
 
   if (!ehAdministrador) {
     return NextResponse.json(
@@ -116,8 +113,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const guarda = await exigirAdministrador(supabase);
+  const banco = await createServerRpcClient();
+  const guarda = await exigirAdministrador(banco);
   if (guarda.erro) return guarda.erro;
 
   let corpo: unknown;
@@ -199,7 +196,7 @@ export async function PUT(request: Request) {
   if (modulosDesativados.length) eventos.push({ evento: EVENTO.MODULO_OFF, modulos: modulosDesativados });
 
   for (const item of eventos) {
-    const { error } = await supabase.rpc("fc_registrar_manutencao_auditoria", {
+    const { error } = await banco.rpc("FC_REGISTRAR_MANUT_AUDITORIA", {
       p_evento: item.evento,
       p_motivo: motivo,
       p_estado_anterior: anterior,

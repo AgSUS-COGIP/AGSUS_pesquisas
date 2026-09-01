@@ -12,15 +12,6 @@ export function DataTableContainer({ className, ...props }: HTMLAttributes<HTMLE
   );
 }
 
-export function DataTableToolbar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("flex flex-col gap-4 border-b border-[var(--border-subtle)] p-5 xl:flex-row xl:items-center xl:justify-between", className)}
-      {...props}
-    />
-  );
-}
-
 export function DataTableScroll({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("overflow-x-auto", className)} {...props} />;
 }
@@ -68,11 +59,3 @@ export function DataTableEmpty({ colSpan, children }: { colSpan: number; childre
   );
 }
 
-export function DataTableFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("flex flex-col gap-3 border-t border-[var(--border-subtle)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between", className)}
-      {...props}
-    />
-  );
-}

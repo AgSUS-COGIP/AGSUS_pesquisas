@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { MoverPerguntaEntrada } from "@/lib/api/contratos-construtor";
@@ -28,8 +28,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Informe a seção de destino.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("move_survey_question_to_section", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_MOVER_PERGUNTA_SECAO", {
     target_question_id: perguntaId,
     target_section_id: corpo.sectionId,
   });

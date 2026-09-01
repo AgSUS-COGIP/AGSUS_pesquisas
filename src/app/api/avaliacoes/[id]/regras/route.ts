@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { RegraEntrada } from "@/lib/api/contratos-construtor";
@@ -33,8 +33,8 @@ export async function GET(
     return respostaDeEntradaInvalida("Informe a versão da avaliação.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_regras_condicionais", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_REGRAS_CONDICIONAIS", {
     p_versao: versao,
   });
 
@@ -77,8 +77,8 @@ export async function PUT(
     return respostaDeEntradaInvalida("Uma regra precisa de pelo menos uma condição.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_salvar_regra_condicional", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_SALVAR_REGRA_CONDICIONAL", {
     p_alvo_tipo: corpo.targetType,
     p_alvo: corpo.targetId,
     p_acao: corpo.action === "HIDE" ? "HIDE" : "SHOW",
@@ -107,8 +107,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Informe o alvo da regra.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_excluir_regra_condicional", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_EXCLUIR_REGRA_CONDICIONAL", {
     p_alvo: alvo,
   });
 

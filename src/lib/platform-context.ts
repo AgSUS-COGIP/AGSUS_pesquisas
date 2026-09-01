@@ -23,14 +23,15 @@ export type PlatformContext = {
   };
   participant?: { status: string; accessProfile: string | null; completedAt: string | null } | null;
   application?: { id?: string; code?: string; name?: string; status: string; opensAt: string | null; closesAt: string | null } | null;
-  /** Perfil efetivo vigente, preservado para rótulo e compatibilidade. */
+  /** Role técnica única das pessoas identificadas. */
+  technicalRole?: "authenticated";
+  /** Compatibilidade transitória do contrato: contém apenas AUTHENTICATED. */
   roles?: string[];
   /**
    * Módulos efetivos calculados no PostgreSQL.
    *
-   * Esta é a fonte de autorização da interface. O backend combina o pacote do
-   * perfil (`role_module_permissions`) com exceções individuais
-   * (`person_module_permissions`) antes de devolver o contexto.
+   * Esta é a fonte de autorização da interface. O backend resolve diretamente
+   * `person_module_permissions`; HOME e SURVEYS formam o piso institucional.
    */
   modules?: string[];
   canManageSurveys?: boolean;
@@ -42,8 +43,8 @@ type AccessResolution = {
 };
 
 // Cache de módulo (não de React): sobrevive à navegação no cliente, de modo que
-// abrir várias telas não repete a resolução de permissões. Após alterar papel,
-// módulo ou avatar, chame `invalidatePlatformContext()`.
+// abrir várias telas não repete a resolução de permissões. Após alterar uma
+// permissão ou avatar, chame `invalidatePlatformContext()`.
 const CONTEXT_TTL = 2 * 60_000;
 const AVATAR_SYNC_TTL = 30 * 60_000;
 let cachedContext: PlatformContext | null = null;

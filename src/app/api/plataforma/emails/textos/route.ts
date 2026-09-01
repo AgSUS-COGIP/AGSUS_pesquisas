@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import type { DefinirTextosEmailEntrada } from "@/lib/api/contratos-pessoas";
 
@@ -8,7 +8,7 @@ import type { DefinirTextosEmailEntrada } from "@/lib/api/contratos-pessoas";
  *
  * Rota própria pela mesma razão das irmãs em `/api/plataforma/marca/*`: cada
  * conjunto de campos tem a sua função no banco, porque
- * `fc_atualizar_marca_plataforma` substitui a linha inteira e omitir um campo o
+ * `FC_ATUALIZAR_MARCA_PLATAFORMA` substitui a linha inteira e omitir um campo o
  * zeraria.
  *
  * Campo vazio significa **restaurar o padrão do código**, não apagar: nenhum
@@ -27,8 +27,8 @@ export async function PUT(request: Request) {
   const texto = (valor: unknown) =>
     typeof valor === "string" && valor.trim() ? valor.trim() : null;
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_definir_textos_email", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_DEFINIR_TEXTOS_EMAIL", {
     p_instrucao: texto(corpo.instrucao),
     p_rodape: texto(corpo.rodape),
   });

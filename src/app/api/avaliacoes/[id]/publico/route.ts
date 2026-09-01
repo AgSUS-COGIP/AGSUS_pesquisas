@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import {
@@ -49,8 +49,8 @@ export async function POST(
     throw erro;
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_aplicar_publico_avaliacao", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_APLICAR_PUBLICO_AVALIACAO", {
     p_aplicacao: id,
     p_regra: regra,
   });

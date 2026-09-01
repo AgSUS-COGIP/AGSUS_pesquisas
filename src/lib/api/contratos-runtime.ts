@@ -1,6 +1,6 @@
 /** Contratos da jornada de resposta — o que o participante consome. */
 
-/** Resposta gravada, no formato aceito por `save_my_survey_answer`. */
+/** Resposta gravada, no formato aceito por `FC_SALVAR_RESPOSTA_PESQUISA`. */
 export type RespostaEntrada = {
   questionId: string;
   optionIds?: string[] | null;

@@ -68,7 +68,7 @@ function DashboardsContentSkeleton() {
 
 export default function DashboardsPage() {
   const guard = usePlatformGuard(PLATFORM_MODULE.DASHBOARDS);
-  // Consulta só depois da guarda: `list_managed_surveys` é restrita à
+  // Consulta só depois da guarda: `FC_LISTAR_PESQUISAS_GERIDAS` é restrita à
   // administração, e disparar antes renderia um erro de RLS numa tela que já
   // seria negada de qualquer forma.
   const surveysQuery = useQuery({

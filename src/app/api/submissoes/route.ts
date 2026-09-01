@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehObjeto } from "@/lib/api/validacao";
 
@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     return respostaDeEntradaInvalida("Informe o código da avaliação.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("start_or_resume_my_survey_submission", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_INICIAR_OU_RETOMAR_PESQ", {
     target_application_code: applicationCode,
   });
 

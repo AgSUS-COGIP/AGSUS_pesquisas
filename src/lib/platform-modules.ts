@@ -1,10 +1,9 @@
-import { PLATFORM_ROLE, type PlatformRoleCode } from "./platform-roles";
-
 export const PLATFORM_MODULE = {
   HOME: "HOME",
   SURVEYS: "SURVEYS",
   DASHBOARDS: "DASHBOARDS",
   TEAM: "TEAM",
+  ONLINE_PRESENCE: "ONLINE_PRESENCE",
   ADMIN_SURVEYS: "ADMIN_SURVEYS",
   ADMIN_PARTICIPANTS: "ADMIN_PARTICIPANTS",
   ADMIN_TEAMS: "ADMIN_TEAMS",
@@ -19,10 +18,11 @@ export const PLATFORM_MODULES = Object.freeze(
 ) as readonly PlatformModule[];
 
 /**
- * Piso seguro mantido apenas para chamadas legadas de `PlatformShell` que ainda
- * não informam `user.modules`. Participante tem HOME + SURVEYS no modelo novo.
+ * Piso seguro de toda pessoa institucional autenticada. A autorização não é
+ * derivada de perfil: novos cadastros recebem essas duas capacidades mesmo
+ * antes de existir uma configuração individual.
  */
-export const PARTICIPANT_ROLE_MODULES = Object.freeze([
+export const BASE_PLATFORM_MODULES = Object.freeze([
   PLATFORM_MODULE.HOME,
   PLATFORM_MODULE.SURVEYS,
 ]) as readonly PlatformModule[];
@@ -48,16 +48,3 @@ export function normalizePlatformModules(modules: readonly string[] | null | und
   return normalized;
 }
 
-/**
- * Papel efetivo de uma pessoa, preservando a precedência institucional.
- * Os módulos continuam vindo do PostgreSQL; esta função serve para rótulo e
- * compatibilidade da interface.
- */
-export function resolvePlatformRole(roles?: readonly string[] | null): PlatformRoleCode {
-  const roleSet = new Set(roles ?? []);
-  if (roleSet.has(PLATFORM_ROLE.SUPER_ADMIN)) return PLATFORM_ROLE.SUPER_ADMIN;
-  if (roleSet.has(PLATFORM_ROLE.ADMIN)) return PLATFORM_ROLE.ADMIN;
-  if (roleSet.has(PLATFORM_ROLE.MANAGER)) return PLATFORM_ROLE.MANAGER;
-  if (roleSet.has(PLATFORM_ROLE.EVALUATOR)) return PLATFORM_ROLE.EVALUATOR;
-  return PLATFORM_ROLE.PARTICIPANT;
-}

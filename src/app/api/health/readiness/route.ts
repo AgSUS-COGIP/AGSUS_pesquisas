@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  *
  * ```text
  * 1. as variáveis existem?          (barato, sem rede)
- * 2. o Supabase responde?           (uma ida ao banco)
+ * 2. o banco responde?              (uma ida ao PostgreSQL)
  * 3. o esquema tem as RPCs desta versão?
  * ```
  *

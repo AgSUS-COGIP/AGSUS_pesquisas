@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { resolvePlatformGuard } from "./platform-guard";
 import { PLATFORM_MODULE } from "./platform-modules";
-import { PLATFORM_ROLE } from "./platform-roles";
 import type { PlatformContext } from "./platform-context";
 
-/*
- * A guarda decide o que a pessoa vê quando um módulo está em manutenção, e a
- * distinção que ela precisa acertar é sutil: "você não tem acesso" e "isto está
- * fora agora" levam a reações opostas — pedir permissão ou esperar.
- */
-
-function contexto(papel: string, modulos: string[]): PlatformContext {
+function contexto(modulos: string[]): PlatformContext {
   return {
     status: "OK",
     person: {
@@ -23,21 +16,22 @@ function contexto(papel: string, modulos: string[]): PlatformContext {
       workplace: null,
       metadata: {},
     },
-    roles: [papel],
+    technicalRole: "authenticated",
+    roles: ["AUTHENTICATED"],
     modules: modulos,
   };
 }
 
-const TODOS = [
+const MODULOS_COMUNS = [
   PLATFORM_MODULE.HOME,
   PLATFORM_MODULE.SURVEYS,
   PLATFORM_MODULE.DASHBOARDS,
-  PLATFORM_MODULE.ADMIN_ACCESS,
 ];
+const MODULOS_ADMIN = [...MODULOS_COMUNS, PLATFORM_MODULE.ADMIN_ACCESS];
 
-function decidir(papel: string, modulosEmManutencao?: string[]) {
+function decidir(modulos: string[], modulosEmManutencao?: string[]) {
   return resolvePlatformGuard({
-    context: contexto(papel, TODOS),
+    context: contexto(modulos),
     loading: false,
     error: "",
     requiredModule: PLATFORM_MODULE.DASHBOARDS,
@@ -47,48 +41,46 @@ function decidir(papel: string, modulosEmManutencao?: string[]) {
 
 describe("guarda com módulo em manutenção", () => {
   it("libera quando não há manutenção", () => {
-    expect(decidir(PLATFORM_ROLE.PARTICIPANT).state).toBe("granted");
+    expect(decidir(MODULOS_COMUNS).state).toBe("granted");
   });
 
-  it("bloqueia o usuário comum com estado próprio, não com acesso restrito", () => {
-    const decisao = decidir(PLATFORM_ROLE.PARTICIPANT, [PLATFORM_MODULE.DASHBOARDS]);
-    expect(decisao).toEqual({ state: "manutencao", modulo: PLATFORM_MODULE.DASHBOARDS });
+  it("bloqueia quem não possui ADMIN_ACCESS", () => {
+    expect(decidir(MODULOS_COMUNS, [PLATFORM_MODULE.DASHBOARDS])).toEqual({
+      state: "manutencao",
+      modulo: PLATFORM_MODULE.DASHBOARDS,
+    });
   });
 
-  it.each([PLATFORM_ROLE.ADMIN, PLATFORM_ROLE.MANAGER, PLATFORM_ROLE.EVALUATOR, PLATFORM_ROLE.PARTICIPANT])(
-    "%s não tem bypass",
-    (papel) => {
-      expect(decidir(papel, [PLATFORM_MODULE.DASHBOARDS]).state).toBe("manutencao");
-    },
-  );
-
-  it("ADMINISTRATOR entra, e recebe o aviso de modo administrativo", () => {
-    const decisao = decidir(PLATFORM_ROLE.SUPER_ADMIN, [PLATFORM_MODULE.DASHBOARDS]);
+  it("ADMIN_ACCESS entra em modo administrativo", () => {
+    const decisao = decidir(MODULOS_ADMIN, [PLATFORM_MODULE.DASHBOARDS]);
     expect(decisao.state).toBe("granted");
     if (decisao.state !== "granted") throw new Error("estado inesperado");
-    expect(decisao.avisoDeManutencao).toBe(
-      "Este módulo está em manutenção. Você está acessando em modo administrativo.",
-    );
+    expect(decisao.avisoDeManutencao).toContain("modo administrativo");
   });
 
-  it("sem manutenção, o Superadmin entra sem aviso nenhum", () => {
-    const decisao = decidir(PLATFORM_ROLE.SUPER_ADMIN);
+  /*
+    O aviso é consequência da manutenção, não do perfil. Sem esta asserção, um
+    `avisoDeManutencao` preso em texto fixo passaria despercebido: quem
+    administra veria "modo administrativo" o tempo todo, e a frase deixaria de
+    significar qualquer coisa justamente quando importasse.
+  */
+  it("sem manutenção, ADMIN_ACCESS entra sem aviso nenhum", () => {
+    const decisao = decidir(MODULOS_ADMIN, []);
+    expect(decisao.state).toBe("granted");
     if (decisao.state !== "granted") throw new Error("estado inesperado");
     expect(decisao.avisoDeManutencao).toBeNull();
   });
 
-  // Manutenção não é permissão: `modules` precisa continuar exatamente como o
-  // banco respondeu, para que retirar a manutenção devolva o acesso na hora.
   it("não altera os módulos da pessoa", () => {
-    const decisao = decidir(PLATFORM_ROLE.SUPER_ADMIN, [PLATFORM_MODULE.DASHBOARDS]);
+    const decisao = decidir(MODULOS_ADMIN, [PLATFORM_MODULE.DASHBOARDS]);
     if (decisao.state !== "granted") throw new Error("estado inesperado");
-    expect(decisao.modules).toEqual(TODOS);
-    expect(decisao.user.modules).toEqual(TODOS);
+    expect(decisao.modules).toEqual(MODULOS_ADMIN);
+    expect(decisao.user.modules).toEqual(MODULOS_ADMIN);
   });
 
-  it("quem não tem o módulo continua vendo acesso restrito, e não manutenção", () => {
+  it("sem permissão continua mostrando acesso restrito", () => {
     const decisao = resolvePlatformGuard({
-      context: contexto(PLATFORM_ROLE.PARTICIPANT, [PLATFORM_MODULE.HOME]),
+      context: contexto([PLATFORM_MODULE.HOME]),
       loading: false,
       error: "",
       requiredModule: PLATFORM_MODULE.DASHBOARDS,
@@ -97,19 +89,11 @@ describe("guarda com módulo em manutenção", () => {
     expect(decisao.state).toBe("restricted");
   });
 
-  // Leitura ainda não chegou. Bloquear aqui transformaria latência em módulo fora.
-  it("não bloqueia enquanto a leitura do control plane não chegou", () => {
-    const decisao = resolvePlatformGuard({
-      context: contexto(PLATFORM_ROLE.PARTICIPANT, TODOS),
-      loading: false,
-      error: "",
-      requiredModule: PLATFORM_MODULE.DASHBOARDS,
-      modulosEmManutencao: undefined,
-    });
-    expect(decisao.state).toBe("granted");
+  it("não bloqueia enquanto o control plane não respondeu", () => {
+    expect(decidir(MODULOS_COMUNS, undefined).state).toBe("granted");
   });
 
-  it("manutenção de outro módulo não afeta esta rota", () => {
-    expect(decidir(PLATFORM_ROLE.PARTICIPANT, [PLATFORM_MODULE.SURVEYS]).state).toBe("granted");
+  it("manutenção de outro módulo não afeta a rota", () => {
+    expect(decidir(MODULOS_COMUNS, [PLATFORM_MODULE.SURVEYS]).state).toBe("granted");
   });
 });

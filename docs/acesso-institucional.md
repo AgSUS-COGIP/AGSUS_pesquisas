@@ -2,19 +2,21 @@
 
 A plataforma separa duas decisões de segurança:
 
-1. **Autenticação institucional**: contas pertencentes aos domínios ativos em `institutional_domains` podem entrar na plataforma e recebem um cadastro institucional no primeiro acesso.
-2. **Autorização por aplicação**: o acesso a cada ciclo depende de `survey_applications.access_mode`.
+1. **Autenticação institucional**: contas pertencentes aos domínios ativos em `TB_DOMINIO_INSTITUCIONAL` podem entrar na plataforma e recebem um cadastro institucional no primeiro acesso.
+2. **Autorização por aplicação**: o acesso a cada ciclo depende de `TB_APLICACAO_PESQUISA.access_mode`.
 
 ## Modos de acesso
 
 - `INSTITUTIONAL`: qualquer usuário institucional autenticado e ativo pode visualizar e responder durante o período aberto.
-- `RESTRICTED`: somente participantes elegíveis em `application_participants` e administradores podem acessar.
+- `RESTRICTED`: somente participantes elegíveis em `RL_APLICACAO_PESSOA` e administradores podem acessar.
 
 O ciclo `CDDI-2026` permanece com acesso `RESTRICTED`.
 
 ## Segurança
 
 As RPCs `SECURITY DEFINER` não podem ser executadas pelo papel `anon`. O frontend deve chamar as funções somente após a criação da sessão autenticada.
+
+`anon` aqui é claim de sessão, avaliada por `src/lib/db/rpc-permissions.ts` antes de a chamada chegar ao banco — não é role do Postgres. Desde `20260828140000_remover_roles_legadas_do_cluster.sql` a única role do cluster é `usr_sip_app`.
 
 ## Primeiro acesso
 

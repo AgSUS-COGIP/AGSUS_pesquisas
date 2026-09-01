@@ -69,7 +69,7 @@ Next.js / Vercel
   ├── server actions/route handlers para operações sensíveis
   └── monitoramento de experiência
 
-Supabase
+PostgreSQL
   ├── PostgreSQL
   ├── Auth Google institucional
   ├── RLS e funções de domínio

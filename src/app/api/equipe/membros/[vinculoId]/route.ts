@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 
@@ -7,7 +7,7 @@ import { ehUuid } from "@/lib/api/validacao";
  * Retira um integrante da equipe neste ciclo.
  *
  * O que termina é o vínculo com a liderança; a pessoa continua no ciclo.
- * `remove_person_from_my_team` encerra a vigência e registra o evento — nada é
+ * `FC_REMOVER_PESSOA_EQUIPE` encerra a vigência e registra o evento — nada é
  * apagado, e por isso a resposta traz o que o banco devolveu, não um 204 vazio.
  */
 export async function DELETE(
@@ -20,8 +20,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Identificador de vínculo inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("remove_person_from_my_team", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_REMOVER_PESSOA_EQUIPE", {
     target_link_id: vinculoId,
   });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 
 /**
@@ -18,8 +18,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Informe o código do ciclo.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_cddi_monitoring_dashboard", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_PAINEL_MONITOR_CDDI", {
     target_application_code: ciclo,
   });
 

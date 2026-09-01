@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { ResumoBasePessoas } from "@/lib/api/contratos-pessoas";
@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     return respostaDeEntradaInvalida("Identificador de avaliação inválido.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_admin_people_base_summary", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_RESUMO_BASE_PESSOAS", {
     target_application_id: avaliacao ?? null,
   });
 

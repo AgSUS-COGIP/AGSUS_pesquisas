@@ -1,7 +1,7 @@
 /**
  * Regras de período de um ciclo, no formato dos campos `datetime-local`.
  *
- * O banco é a autoridade (`create_survey_draft` e `manage_survey_cycle` revalidam
+ * O banco é a autoridade (`FC_CRIAR_RASCUNHO_PESQUISA` e `FC_GERIR_CICLO_PESQUISA` revalidam
  * tudo isto). Estas funções existem para que a tela avise **antes** de gravar, e
  * para que a publicação de um rascunho antigo aponte exatamente qual data
  * precisa ser corrigida.

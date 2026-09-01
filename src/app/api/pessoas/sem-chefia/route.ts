@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { PessoaSemChefia } from "@/lib/api/contratos-pessoas";
@@ -25,8 +25,8 @@ export async function GET(request: Request) {
     ? Math.trunc(limiteBruto)
     : 100;
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_pessoas_sem_chefia", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_PESSOAS_SEM_CHEFIA", {
     target_application_id: avaliacao,
     target_search: busca,
     target_limit: limite,

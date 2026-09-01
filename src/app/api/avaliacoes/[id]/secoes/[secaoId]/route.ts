@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { SecaoEntrada } from "@/lib/api/contratos-construtor";
@@ -32,8 +32,8 @@ export async function PATCH(
     return respostaDeEntradaInvalida("Informe o título da seção.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("update_survey_section", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_ATUALIZAR_SECAO", {
     target_section_id: secaoId,
     section_title: title,
     section_description: typeof corpo.description === "string" ? corpo.description.trim() || null : null,

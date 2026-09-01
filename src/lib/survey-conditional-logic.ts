@@ -51,7 +51,7 @@ type MinimalQuestion = { id: string };
 type MinimalSection<Q extends MinimalQuestion> = { id: string; questions: Q[] };
 
 /**
- * Normaliza o retorno de `fc_obter_regras_do_ciclo`, que chega como JSON solto.
+ * Normaliza o retorno de `FC_OBTER_REGRAS_DO_CICLO`, que chega como JSON solto.
  * Regra malformada é descartada em vez de derrubar o formulário: sem regra, a
  * pergunta aparece — o padrão seguro é mostrar, nunca esconder por engano.
  */
@@ -118,7 +118,7 @@ export function buildSurveyRuleContext<Q extends MinimalQuestion, S extends Mini
   return { rulesByTarget, sectionByQuestion, answers };
 }
 
-/** Espelha `fc_condicao_atendida` — inclusive no tratamento de resposta ausente. */
+/** Espelha `FC_CONDICAO_ATENDIDA` — inclusive no tratamento de resposta ausente. */
 function isConditionMet(condition: SurveyRuleCondition, context: SurveyRuleContext, visiting: Set<string>) {
   // Origem escondida conta como não respondida: a resposta que ela porventura
   // tenha é resíduo de um caminho abandonado, e aceitá-la ressuscitaria o ramo.

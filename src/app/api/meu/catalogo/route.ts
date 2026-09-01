@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro } from "@/lib/api/resposta-http";
 import type { SurveyCatalogItem } from "@/lib/survey-catalog";
 
@@ -12,8 +12,8 @@ import type { SurveyCatalogItem } from "@/lib/survey-catalog";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("list_my_survey_catalog");
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_CATALOGO_PESQUISA");
 
   if (error) return respostaDeErro(error, "GET /api/meu/catalogo");
 

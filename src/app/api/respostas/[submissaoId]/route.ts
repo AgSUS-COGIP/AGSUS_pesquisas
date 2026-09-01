@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { ehUuid } from "@/lib/api/validacao";
 import type { RemoverRespostaEntrada } from "@/lib/api/contratos-pessoas";
@@ -41,8 +41,8 @@ export async function DELETE(
     return respostaDeEntradaInvalida("Descreva o motivo da operação com pelo menos 10 caracteres.");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_remover_resposta_pessoa", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_REMOVER_RESPOSTA_PESSOA", {
     p_submissao: submissaoId,
     p_modo: corpo.modo,
     p_motivo: motivo,

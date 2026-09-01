@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/overlay-panel";
-import { Choice, Input, Textarea } from "@/components/ui/form-controls";
+import { Checkbox, Input, Textarea } from "@/components/ui/form-controls";
 import { useConfirm } from "@/components/confirmation-provider";
 import { chamar } from "@/lib/api/requisicao";
 import { errorMessageFromUnknown } from "@/lib/observability";
@@ -296,7 +296,7 @@ export function PainelDeManutencao() {
               </legend>
               <div className="mt-2 space-y-2">
                 {grupo.modulos.map((modulo) => (
-                  <Choice
+                  <Checkbox
                     key={modulo}
                     label={rotuloDoModulo(modulo)}
                     checked={modulosParados.includes(modulo)}

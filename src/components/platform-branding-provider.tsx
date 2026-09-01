@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { isBrowserSupabaseConfigured } from "@/lib/supabase/client";
 import { obterMarcaDaPlataforma } from "@/lib/api/cliente-pessoas";
 import { DEFAULT_PLATFORM_BRANDING, normalizePlatformBranding, type PlatformBranding } from "@/lib/platform-branding";
 
@@ -27,14 +26,13 @@ const PlatformBrandingContext = createContext<PlatformBrandingContextValue>({
  * executar —, e é por isso que `brandingResolved` considera `query.isFetched`:
  * sem sessão a marca não vem, e o provider precisa entregar o padrão em vez de
  * ficar preso em carregando. O comportamento é o mesmo de quando a chamada era
- * `supabase.rpc()` direto e falhava por falta de sessão; o que mudou é que
+ * `banco.rpc()` direto e falhava por falta de sessão; o que mudou é que
  * agora a recusa chega como status, e não como mensagem solta.
  *
  * A tela pública `/acesso` não depende disto: ela é Server Component e resolve
  * a marca por cliente próprio, antes de existir sessão.
  */
 async function fetchPlatformBranding() {
-  if (!isBrowserSupabaseConfigured()) return DEFAULT_PLATFORM_BRANDING;
   return normalizePlatformBranding(await obterMarcaDaPlataforma());
 }
 
@@ -51,7 +49,7 @@ export function PlatformBrandingProvider({ children }: { children: ReactNode }) 
   // página pública de acesso, onde a RPC falha por falta de sessão. Sem o
   // `query.isFetched`, o provider ficava preso em carregando e o logotipo
   // aparecia como um quadrado cinza vazio para quem ainda não entrou.
-  const brandingResolved = !isBrowserSupabaseConfigured() || Boolean(query.data ?? cachedBranding) || query.isFetched;
+  const brandingResolved = Boolean(query.data ?? cachedBranding) || query.isFetched;
 
   useEffect(() => {
     try {

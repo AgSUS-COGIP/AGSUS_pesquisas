@@ -10,19 +10,26 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integracao": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.mjs\"",
+    "test:banco": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/banco/*.test.mjs\"",
+    "test:sql": "node --env-file=.env.local scripts/validar-testes-sql.mjs",
+    "test:http": "node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/http/*.test.mjs\"",
+    "test:e2e": "node --env-file=.env.local ./node_modules/@playwright/test/cli.js test",
+    "test:regression": "npm test && npm run test:integracao && npm run test:e2e",
+    "db:migrations": "node scripts/validar-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
-    "@supabase/ssr": "0.12.4",
-    "@supabase/supabase-js": "2.112.0",
     "@tanstack/react-query": "^5.101.4",
     "@vercel/edge-config": "^1.5.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.27.0",
     "next": "16.3.2",
+    "next-auth": "^5.0.0-beta.32",
     "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.83.0",
@@ -31,13 +38,21 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@auth/core": "^0.41.3",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.0",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "next-auth": {
+      "nodemailer": "$nodemailer"
+    }
   }
 }
