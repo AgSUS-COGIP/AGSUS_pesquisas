@@ -196,7 +196,17 @@ export function ListaDeParticipantes({ applicationCode }: { applicationCode: str
           aplicar({ ...filtros, busca: buscaDigitada });
         }}
       >
-        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+        {/*
+          `w-full` abaixo de `sm`, e só então `flex-1`.
+
+          Com `flex-1` desde o início, o campo dividia a linha com "Buscar" e
+          "Limpar filtros": a 375 px sobravam 85 px para ele, e o placeholder
+          "Nome, matrícula, e-mail ou cargo" aparecia cortado em "No".
+
+          Ocupando a linha inteira, o `flex-wrap` do formulário já leva os
+          botões para baixo sozinho — não é preciso mexer no contêiner.
+        */}
+        <label className="flex w-full min-w-0 flex-col gap-1.5 sm:w-auto sm:flex-1">
           <span className="text-xs font-medium text-[var(--text-secondary)]">Buscar pessoa</span>
           <span className="relative flex items-center">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-[var(--text-secondary)]" aria-hidden="true" />
