@@ -22,4 +22,9 @@ export const RPC_JSON_ARGS: Readonly<Record<string, readonly string[]>> = {
   "FC_SINCR_LINHAS_GESTOR_CDDI": ["p_rows"],
   "FC_SINCR_LINHAS_BASE_PESSOA": ["p_rows"],
   "FC_ATUALIZAR_PERGUNTA": ["question_options"],
+
+  // `p_filtros` chega como objeto JS montado por `normalizarFiltrosDeParticipantes`.
+  // Sem esta entrada o bind mandaria a string "[object Object]" e a RPC
+  // devolveria o ciclo inteiro, ignorando o recorte em silêncio.
+  "FC_LISTAR_PARTIC_PAINEL": ["p_filtros"],
 };

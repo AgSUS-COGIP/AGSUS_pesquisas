@@ -171,6 +171,17 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "FC_ATUALIZAR_PESSOA_ADMIN": ["authenticated"],
   "FC_ATUALIZAR_PERGUNTA": ["authenticated"],
   "FC_ATUALIZAR_SECAO": ["authenticated"],
+
+  // ACRESCENTADA NA PORTABILIDADE DA PR 02 (lista operacional de participantes).
+  //
+  // O helper que ela usa, `FC_VALORES_DE_DIMENSAO`, fica **deliberadamente de
+  // fora**. Antes, o que o mantinha interno era `revoke execute … from
+  // authenticated` na migration; sem as roles do Postgres, a ausência desta
+  // lista passou a ser a proteção — `executeRpc` recusa com 42501 qualquer nome
+  // não listado, antes de tocar o banco. É a mesma garantia, expressa onde a
+  // arquitetura nova a expressa, e é o caso descrito no cabeçalho: função que o
+  // histórico revoga de todos não entra aqui.
+  "FC_LISTAR_PARTIC_PAINEL": ["authenticated"],
 };
 
 export function isRpcAllowedForRole(functionName: string, role: RpcRole): boolean {

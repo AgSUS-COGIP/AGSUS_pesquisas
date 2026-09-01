@@ -10,6 +10,7 @@ const arquivos = [
   "database/tests/clonar_pesquisa.sql",
   "database/tests/definir_publico_avaliacao.sql",
   "database/tests/elegibilidade_assign_all_available.sql",
+  "database/tests/listar_participantes_do_painel.sql",
   "database/tests/publico_selecao_em_cascata.sql",
   "database/tests/reconciliar_publico_avaliacao.sql",
   "database/tests/sincronizar_estado_ciclos.sql",

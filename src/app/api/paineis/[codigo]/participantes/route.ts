@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerRpcClient } from "@/lib/db/rpc-adapter";
 import { respostaDeErro, respostaDeEntradaInvalida } from "@/lib/api/resposta-http";
 import { normalizarFiltrosDeParticipantes } from "@/lib/filtros-de-participantes";
 
@@ -38,8 +38,8 @@ export async function GET(
   const pagina = Number.parseInt(url.searchParams.get("pagina") ?? "1", 10);
   const tamanho = Number.parseInt(url.searchParams.get("tamanho") ?? "50", 10);
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("fc_listar_participantes_do_painel", {
+  const banco = await createServerRpcClient();
+  const { data, error } = await banco.rpc("FC_LISTAR_PARTIC_PAINEL", {
     target_application_code: codigoAplicacao,
     // A RPC já sanea página e tamanho; aqui apenas se evita mandar `NaN`, que
     // viraria `null` no JSON e perderia o default declarado no banco.

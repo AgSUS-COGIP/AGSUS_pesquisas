@@ -145,4 +145,10 @@ export const RPC_RETURN_SHAPE: Readonly<Record<string, RpcReturnShape>> = {
   "FC_ATUALIZAR_PESSOA_ADMIN": "scalar",
   "FC_ATUALIZAR_PERGUNTA": "scalar",
   "FC_ATUALIZAR_SECAO": "scalar",
+
+  // A função devolve um `jsonb` único com total, página, dimensões e a lista.
+  // Sem esta entrada o adaptador assumiria "set" e entregaria à tela um array
+  // de uma linha onde ela espera o objeto — defeito silencioso, porque nada
+  // falha: a tela só não encontra `total` nem `participantes`.
+  "FC_LISTAR_PARTIC_PAINEL": "scalar",
 };
