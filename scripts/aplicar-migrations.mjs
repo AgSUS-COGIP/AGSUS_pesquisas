@@ -7,6 +7,13 @@
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --aplicar
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes
 //   node --env-file=.env.local scripts/aplicar-migrations.mjs --registrar-existentes=20260826193000,20260827123000
+//   node --env-file=.env.local scripts/aplicar-migrations.mjs --recalcular-hash
+//
+// Os três modos de escrita são excludentes e fazem coisas diferentes:
+// `--aplicar` executa o SQL das pendentes; `--registrar-existentes` marca
+// pendente como aplicada sem executar (efeito que o banco já tem); e
+// `--recalcular-hash` reconcilia o hash de migration JÁ aplicada cujo arquivo
+// mudou só na forma, sem executar nem reescrever data de aplicação.
 //
 // O histórico é mantido junto da aplicação, em `sigav."TB_MIGRACAO"`. O banco
 // tem um schema de aplicação, `sigav`, e mais nada (`public`, `private`,
@@ -138,10 +145,32 @@ async function lerMigrationsDoDisco() {
       arquivo,
       versao,
       nome,
+      // O SQL vai ao banco como está no arquivo; só o HASH é normalizado.
       sql,
-      hash: createHash("sha256").update(sql).digest("hex"),
+      hash: hashDoConteudo(sql),
     };
   }));
+}
+
+/**
+ * Hash do conteúdo de uma migration, indiferente ao fim de linha.
+ *
+ * O repositório está com `core.autocrlf=true` e sem `.gitattributes`, então o
+ * fim de linha na árvore de trabalho é acidente de checkout, não conteúdo: em
+ * 02/09/2026 havia 163 arquivos em CRLF e 15 em LF no mesmo diretório, e um
+ * `git checkout` de um arquivo LF o devolvia em CRLF, mudando o hash sem mudar
+ * uma linha de SQL.
+ *
+ * Hashear os bytes crus tornava a trava dependente de plataforma: 24 das 42
+ * divergências encontradas naquele dia eram exatamente isto, e o mesmo
+ * repositório clonado no CI (Linux, tudo LF) ou numa máquina Windows nova
+ * produziria um conjunto diferente de falsas divergências. Normalizar para LF
+ * antes de hashear responde à pergunta que a trava faz de verdade — "o SQL
+ * desta migration mudou?" — em vez de "este arquivo foi checado out no mesmo
+ * sistema operacional de antes?".
+ */
+function hashDoConteudo(sql) {
+  return createHash("sha256").update(sql.replace(/\r\n/g, "\n"), "utf8").digest("hex");
 }
 
 /** Escapa um literal de texto para interpolação — os valores aqui vêm de nomes
@@ -173,6 +202,7 @@ async function main() {
   const argumentos = new Set(listaArgumentos);
   const aplicar = argumentos.has("--aplicar");
   const ignorarHash = argumentos.has("--ignorar-hash");
+  const recalcularHash = argumentos.has("--recalcular-hash");
 
   // `--registrar-existentes` sozinho marca todas as pendentes; com uma lista de
   // versões, marca só aquelas. A forma com lista existe para o caso que aparece
@@ -188,6 +218,13 @@ async function main() {
 
   if (aplicar && registrarExistentes) {
     console.error("Use --aplicar ou --registrar-existentes, não os dois.");
+    process.exit(1);
+  }
+
+  if (recalcularHash && (aplicar || registrarExistentes)) {
+    console.error(
+      "--recalcular-hash ajusta o histórico e não aplica nada. Rode sozinho, e depois --aplicar.",
+    );
     process.exit(1);
   }
 
@@ -219,12 +256,58 @@ async function main() {
       return registro && registro.DS_HASH !== m.hash;
     });
 
+    /*
+      Reconcilia o hash guardado com o arquivo atual, SEM executar nada.
+
+      Existe porque a trava acima virou ruído permanente: em 02/09/2026, 42 das
+      178 migrations divergiam, e a apuração mostrou que nenhuma delas mudou de
+      SQL executável — 24 divergiam só por CRLF (o hash foi calculado sobre LF),
+      3 só por comentário `--`, 1 por um texto de `comment on table`, e 14 têm
+      hash de conteúdo que nunca foi commitado naquele caminho. A causa foi um
+      find-and-replace global de "Supabase" → "PostgreSQL" que passou por dentro
+      de migrations já aplicadas.
+
+      Enquanto a divergência persiste, `--ignorar-hash` precisa ser usado em
+      TODA execução — e uma trava que se ignora por hábito não avisa mais nada
+      no dia em que alguém editar SQL de verdade. Recalcular devolve o sinal.
+
+      O que este modo NÃO faz, de propósito: não executa migration, não toca
+      `DT_APLICACAO` (a data de aplicação é fato histórico, não se reescreve) nem
+      `NO_ORIGEM` (continua distinguindo o que foi executado do que foi apenas
+      registrado). Só o `DS_HASH` muda, e cada versão ajustada é impressa — a
+      operação tem de ficar auditável no log de quem a rodou.
+
+      Use só depois de conferir que a diferença é cosmética. Diante de mudança
+      real de SQL, o remédio continua sendo uma migration nova.
+    */
+    if (recalcularHash) {
+      if (!alteradas.length) {
+        console.log("Nada a recalcular: o hash de toda migration aplicada bate com o arquivo.");
+        return;
+      }
+
+      console.log(`Recalculando o hash de ${alteradas.length} migration(s), SEM executar SQL.\n`);
+      for (const m of alteradas) {
+        const { rowCount } = await cliente.query(
+          `update ${SCHEMA}."TB_MIGRACAO" set "DS_HASH" = $2 where "CO_VERSAO" = $1`,
+          [m.versao, m.hash],
+        );
+        console.log(`  ${rowCount === 1 ? "atualizada " : "NÃO ENCONTRADA"} ${m.arquivo}`);
+      }
+      console.log(
+        "\nO histórico voltou a refletir os arquivos. A trava de hash é sinal útil de novo:\n" +
+        "a próxima divergência significa que alguém editou uma migration já aplicada.",
+      );
+      return;
+    }
+
     if (alteradas.length && !ignorarHash) {
       console.error("Migrations já aplicadas cujo arquivo mudou desde a aplicação:\n");
       for (const m of alteradas) console.error(`  ${m.arquivo}`);
       console.error(
         "\nCorreção de migration aplicada entra numa migration nova, não na edição do arquivo.\n" +
-        "Se a diferença for cosmética (comentário, espaço), rode de novo com --ignorar-hash.",
+        "Se a diferença for cosmética (comentário, espaço), confira uma a uma e reconcilie o\n" +
+        "histórico com --recalcular-hash. Para passar sem reconciliar: --ignorar-hash.",
       );
       process.exit(1);
     }
