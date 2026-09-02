@@ -6,7 +6,6 @@
   "regions": [
     "gru1"
   ],
-  "ignoreCommand": "node scripts/vercel-db-gate.mjs",
   "crons": [
     {
       "path": "/api/tarefas/emails",

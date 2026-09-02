@@ -113,3 +113,58 @@ export async function pessoaComAcesso() {
   }
   return rows[0];
 }
+
+/**
+ * Pessoas com conta, em fatias que não colidem entre arquivos de teste.
+ *
+ * Duas razões para existir, além de `pessoaComAcesso()`:
+ *
+ * 1. `FC_DEFINIR_PERMISSOES_PESSOA` decide coisas diferentes quando alguém
+ *    edita a si mesmo (bloqueia retirar a própria administração) e quando edita
+ *    outra pessoa. Com uma única pessoa, metade dessas regras é inalcançável.
+ *
+ * 2. `node --test` roda os ARQUIVOS em processos paralelos, e cada teste mantém
+ *    uma transação aberta até o rollback. Dois arquivos mexendo nas permissões
+ *    da MESMA pessoa não dão falha de asserção: dão `deadlock detected` (40P01)
+ *    em `RL_PESSOA_MODULO`, intermitente e sem relação com o que se testava.
+ *    Por isso esta função (a) exclui de propósito a pessoa que
+ *    `pessoaComAcesso()` devolve, deixando-a para quem já a usa, e (b) aceita
+ *    `salto`, para cada arquivo pegar uma fatia própria.
+ *
+ * A ordenação é por `SQ_USUARIO`, que é ordem total: `DT_INCLUSAO` empata, e com
+ * empate `offset` deixaria de ser estável entre execuções.
+ */
+export async function pessoasComAcesso(quantidade = 2, salto = 0) {
+  const { rows } = await obterPool().query(
+    `
+    with reservada as (
+      select u."SQ_USUARIO" as id
+      from sigav."TB_USUARIO_IDENTIDADE" u
+      join sigav."TB_PESSOA" p
+        on p."SQ_USUARIO_IDENTIDADE" = u."SQ_USUARIO"
+      where p."ST_ATIVO"
+      order by u."DT_INCLUSAO" nulls last
+      limit 1
+    )
+    select u."SQ_USUARIO" as auth_user_id,
+           u."DS_EMAIL" as email,
+           p."SQ_PESSOA" as person_id,
+           p."NO_PESSOA" as full_name
+    from sigav."TB_USUARIO_IDENTIDADE" u
+    join sigav."TB_PESSOA" p
+      on p."SQ_USUARIO_IDENTIDADE" = u."SQ_USUARIO"
+    where p."ST_ATIVO"
+      and u."SQ_USUARIO" not in (select id from reservada)
+    order by u."SQ_USUARIO"
+    limit $1 offset $2
+  `,
+    [quantidade, salto],
+  );
+  if (rows.length < quantidade) {
+    throw new Error(
+      `o banco de teste não tem ${quantidade} pessoa(s) com conta após o salto ${salto} ` +
+        `(encontrou ${rows.length}). Replique o banco de novo ou reduza o que o teste pede.`,
+    );
+  }
+  return rows;
+}
