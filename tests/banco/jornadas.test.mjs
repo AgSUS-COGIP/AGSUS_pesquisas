@@ -171,5 +171,8 @@ test("o papel de serviço alcança a verificação de contrato", async () => {
     );
     return rows[0].r;
   });
-  assert.deepEqual(resultado.ausentes ?? [], []);
+  // `missing`, não `ausentes` — ver o comentário em `contrato-rpc.test.mjs`.
+  // Com a chave errada e `?? []`, a asserção era decorativa.
+  assert.deepEqual(resultado.missing, []);
+  assert.equal(resultado.compatible, true);
 });

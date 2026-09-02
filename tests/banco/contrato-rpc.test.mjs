@@ -35,7 +35,14 @@ test("toda RPC do allowlist existe no banco", async () => {
       );
       return rows[0].r;
     });
-    ausentes.push(...(resultado.ausentes ?? []));
+    // A chave é `missing`: é o que `FC_SRV_VERIFICAR_CONTRATO_RPC` devolve, ao
+    // lado de `checked` e `compatible` (é também o que `src/lib/readiness.ts`
+    // lê). Este teste passou meses lendo `resultado.ausentes`, que não existe
+    // no retorno — com o `?? []`, ele nunca podia falhar, e foi assim que
+    // `FC_REGISTRAR_MANUT_AUDITORIA` ficou ausente do banco sem ninguém notar
+    // até 02/09/2026. Nada de `??` aqui: chave errada tem de estourar.
+    assert.ok(Array.isArray(resultado.missing), "retorno sem a chave `missing`");
+    ausentes.push(...resultado.missing);
   }
 
   assert.deepEqual(
