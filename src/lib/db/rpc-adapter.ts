@@ -72,6 +72,66 @@ function shapeResult(functionName: string, result: QueryResult): unknown {
  * sucederam `auth.uid()`/`auth.role()`/`auth.jwt()` quando o schema `auth` foi
  * absorvido por `sigav`. O formato das claims não mudou.
  */
+/**
+ * Transporte HTTPS até o gateway na rede da AgSUS.
+ *
+ * O segredo vive só no servidor: `GATEWAY_TOKEN` não tem prefixo
+ * `NEXT_PUBLIC_`, então o bundle do navegador nunca o vê — e esta função só
+ * roda em rotas de servidor, que é de onde `executeRpc` já era chamada.
+ *
+ * O timeout externo (12s) é maior que o do banco no gateway (8s) de propósito:
+ * assim o erro que chega aqui é o do PostgreSQL, com código e mensagem reais,
+ * em vez de um aborto genérico que esconderia a causa.
+ */
+async function executeRpcViaGateway(
+  functionName: string,
+  args: Record<string, unknown>,
+  role: RpcRole,
+  claims: Record<string, unknown> | null,
+): Promise<RpcResult> {
+  const base = process.env.GATEWAY_URL!.replace(/\/+$/, "");
+  const token = process.env.GATEWAY_TOKEN;
+
+  if (!token) {
+    return { data: null, error: { code: "GATEWAY_CONFIG", message: "GATEWAY_TOKEN não configurado." } };
+  }
+
+  const cancelamento = AbortSignal.timeout(12_000);
+
+  try {
+    const resposta = await fetch(`${base}/rpc`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ funcao: functionName, argumentos: args, papel: role, claims }),
+      signal: cancelamento,
+      cache: "no-store",
+    });
+
+    const corpo = (await resposta.json()) as RpcResult;
+
+    // 401/403/413 já chegam no formato `{ data, error }`; devolver como está
+    // mantém as rotas idênticas nos dois transportes.
+    if (corpo && typeof corpo === "object" && ("data" in corpo || "error" in corpo)) {
+      return corpo;
+    }
+
+    return { data: null, error: { code: "GATEWAY_RESPOSTA", message: `Resposta inesperada (${resposta.status}).` } };
+  } catch (err) {
+    const causa = err as { name?: string; message?: string };
+    const timeout = causa.name === "TimeoutError" || causa.name === "AbortError";
+    return {
+      data: null,
+      error: {
+        code: timeout ? "GATEWAY_TIMEOUT" : "GATEWAY_INDISPONIVEL",
+        message: timeout ? "O gateway não respondeu a tempo." : `Falha ao alcançar o gateway: ${causa.message ?? "desconhecida"}`,
+      },
+    };
+  }
+}
+
 export async function executeRpc(
   functionName: string,
   args: Record<string, unknown> = {},
@@ -86,6 +146,25 @@ export async function executeRpc(
         message: `Acesso restrito: "${functionName}" não está liberada para o papel "${role}".`,
       },
     };
+  }
+
+  /*
+    Transporte intercambiável.
+
+    Com `GATEWAY_URL` configurada, a chamada sai por HTTPS até um gateway dentro
+    da rede da AgSUS, que executa a mesma RPC contra o mesmo banco. Sem ela, o
+    caminho é o de sempre: conexão direta.
+
+    A troca é aqui, e só aqui, porque este já era o ponto único de acoplamento —
+    nenhuma das 90 rotas precisa saber por onde a chamada foi. O formato de
+    retorno é o mesmo `{ data, error }` nos dois casos, incluindo o `42501` de
+    RPC fora da allowlist, que o gateway devolve com o mesmo código.
+
+    No modo gateway, `EMPRESA_DATABASE_URL` e as credenciais do PostgreSQL não
+    precisam existir neste ambiente: quem conecta ao banco é o gateway.
+  */
+  if (process.env.GATEWAY_URL) {
+    return executeRpcViaGateway(functionName, args, role, claims);
   }
 
   const pool = getEmpresaDbPool();

@@ -29,8 +29,23 @@ export { ehQuedaDeBackend, type Prontidao } from "@/lib/readiness-state";
  * confere configuração responde `ok` nesse estado.
  */
 export async function verificarProntidao(): Promise<Prontidao> {
+  /*
+    No modo gateway, quem conecta ao PostgreSQL é o gateway dentro da rede da
+    AgSUS — este ambiente não tem, e não deve ter, credencial de banco. Exigir
+    as três variáveis aqui reprovaria uma instalação saudável.
+
+    O que se confere então é o par que de fato falta para funcionar. A prova de
+    que o banco responde continua sendo a mesma, e mais forte: a chamada a
+    `FC_SRV_VERIFICAR_CONTRATO_RPC` logo abaixo atravessa o gateway inteiro.
+  */
+  const viaGateway = Boolean(process.env.GATEWAY_URL?.trim());
+
+  const configuracaoDoBanco = viaGateway
+    ? { missingVariables: process.env.GATEWAY_TOKEN?.trim() ? [] : ["GATEWAY_TOKEN"] }
+    : getEmpresaDbConfigurationStatus();
+
   const faltando = [
-    ...getEmpresaDbConfigurationStatus().missingVariables,
+    ...configuracaoDoBanco.missingVariables,
     ...getEmailConfigurationStatus().missingVariables,
   ];
   if (!process.env.CRON_SECRET?.trim()) faltando.push("CRON_SECRET");
