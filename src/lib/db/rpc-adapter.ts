@@ -1,4 +1,4 @@
-import type { QueryResult } from "pg";
+import type { PoolClient, QueryResult } from "pg";
 import { DATABASE_SCHEMA } from "./schema";
 import { getEmpresaDbPool } from "./pool";
 import { getCurrentAuthClaims } from "./current-claims";
@@ -88,8 +88,37 @@ export async function executeRpc(
     };
   }
 
-  const pool = getEmpresaDbPool();
-  const client = await pool.connect();
+  /*
+    Obter a conexão faz parte do que pode dar errado, e por isso entra no
+    `try/catch` como qualquer outra falha.
+
+    Ficava fora, e o custo apareceu longe da causa: em 02/09/2026 o
+    `.env.local` apontava para o banco da empresa com a VPN fora, o
+    `connectionTimeoutMillis` de 8s estourava aqui, a exceção subia sem virar
+    `RpcError`, e o Next devolvia um 500 SEM corpo JSON. O cliente caía no texto
+    de reserva ("Não foi possível concluir a operação.") e a tela dizia apenas
+    que algo falhou — sem status útil, sem código, e sem nada no log do servidor,
+    porque `respostaDeErro` nunca era chamada.
+
+    Traduzido em `RpcError`, o mesmo timeout passa por `respostaDeErro`, que
+    registra `[api] <contexto> <código> <mensagem>` no log e devolve JSON. O
+    status continua 500 — banco inalcançável é falha nossa, não do pedido —, mas
+    agora com a causa registrada de um lado e uma resposta bem formada do outro.
+  */
+  let client: PoolClient;
+  try {
+    client = await getEmpresaDbPool().connect();
+  } catch (err) {
+    const pgErr = err as { code?: string; message?: string };
+    return {
+      data: null,
+      error: {
+        code: traduzirCodigoErro(pgErr.code),
+        message: pgErr.message ?? "Não foi possível abrir conexão com o banco.",
+        details: null,
+      },
+    };
+  }
 
   try {
     await client.query("begin");
