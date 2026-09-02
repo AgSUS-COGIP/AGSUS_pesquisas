@@ -64,6 +64,33 @@ describe("o portão recusa o que não conhece", () => {
     expect(isRpcAllowedForRole(" FC_OBTER_MARCA_PUBLICA", "anon")).toBe(false);
     expect(isRpcAllowedForRole("FC_OBTER_MARCA_PUBLICA ", "anon")).toBe(false);
   });
+
+  /*
+    Chave herdada de `Object.prototype` nega, e nega SEM lançar.
+
+    `RPC_PERMISSIONS` é objeto literal, então `RPC_PERMISSIONS["toString"]`
+    devolve a função herdada. Antes de 02/09/2026 o portão lia esse valor e
+    chamava `roles.includes(...)` nele — `TypeError`, não `false`. Um portão de
+    autorização que estoura onde deveria negar só é seguro enquanto ninguém lhe
+    passa a chave errada, e essa não é uma propriedade que se queira depender.
+  */
+  it.each(["toString", "constructor", "valueOf", "hasOwnProperty", "__defineGetter__"])(
+    "a chave herdada %s é negada, sem lançar",
+    (herdada) => {
+      for (const papel of PAPEIS) {
+        expect(isRpcAllowedForRole(herdada, papel)).toBe(false);
+      }
+    },
+  );
+
+  it("nenhum nome herdado entrou na tabela por acidente", () => {
+    // A checagem acima só protege se essas chaves de fato não forem RPCs. Se
+    // alguém um dia registrar uma função chamada `toString`, é melhor descobrir
+    // por aqui do que pelo comportamento do portão.
+    for (const herdada of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
+      expect(Object.hasOwn(RPC_PERMISSIONS, herdada)).toBe(false);
+    }
+  });
 });
 
 describe("superfície anônima", () => {

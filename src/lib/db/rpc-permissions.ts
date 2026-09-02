@@ -173,7 +173,21 @@ export const RPC_PERMISSIONS: Readonly<Record<string, readonly RpcRole[]>> = {
   "FC_ATUALIZAR_SECAO": ["authenticated"],
 };
 
+/**
+ * O nome está liberado para este papel?
+ *
+ * `Object.hasOwn` antes da leitura, e não por preciosismo: `RPC_PERMISSIONS` é
+ * um objeto literal, portanto herda de `Object.prototype`. Sem a checagem,
+ * `RPC_PERMISSIONS["toString"]` devolvia a função herdada, `roles.includes`
+ * era `undefined` e a chamada estourava `TypeError` — em vez de negar — para
+ * `toString`, `constructor`, `valueOf` e `hasOwnProperty`.
+ *
+ * Não era explorável: os nomes chegam como literais nas rotas, nunca de entrada
+ * de usuário. Mas este é o portão que separa uma sessão comum de uma função de
+ * cron, e portão que lança exceção onde deveria negar é uma linha de defesa que
+ * depende de ninguém nunca lhe passar a chave errada.
+ */
 export function isRpcAllowedForRole(functionName: string, role: RpcRole): boolean {
-  const roles = RPC_PERMISSIONS[functionName];
-  return Boolean(roles && roles.includes(role));
+  if (!Object.hasOwn(RPC_PERMISSIONS, functionName)) return false;
+  return RPC_PERMISSIONS[functionName].includes(role);
 }
